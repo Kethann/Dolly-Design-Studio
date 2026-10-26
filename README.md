@@ -50,33 +50,76 @@ site/
 `public/images/` — the step-by-step guide is in
 [`content/README.md`](content/README.md).**
 
-## The intro
+## The intro (V1)
 
-Every time the home page is loaded (about 10 seconds):
+Every time the home page is loaded (about 8 seconds):
 
-1. A gold glint of "first light" flares where the logo will be.
-2. Faceted 3D stars — gold, silver and pearl white — fly in from the corners
-   at different depths (far ones small, near ones large), shedding fine
-   glitter along their paths, and settle into random slots of the real logo.
-   Only some of them glow.
-3. A big gold star swoops in trailing sparkles, lands on the logo, flips to
-   catch the light, then rolls across it — the crisp logo is revealed in its
-   wake.
-4. The star docks into the logo's own star with a flash, a sheen of light
-   sweeps across the logo, and the intro hands over to the page. The 3D logo
-   is aligned pixel-for-pixel with the page logo, so the hand-off is seamless.
+1. Faceted 3D stars — gem-cut, with a brushed-metal finish — stream in from
+   the corners at different depths (far ones small, near ones large) from the
+   very first frame, shedding fine glitter, and settle into random slots of
+   the real logo. Some of them glow, in their own colour, on their facets.
+2. A big gold star flies in out of deep space and sets down exactly on the
+   logo's own star, springs to rest, and starts to shiver.
+3. The shiver releases into a wave that ripples out across the logo,
+   revealing the crisp logo as it goes; the formation stars ride the wave
+   and dissolve into glitter. The big star flattens into the logo's star.
+4. A sheen sweeps the logo and the intro hands over to the page. A few of the
+   background stars stay behind the hero: they barely float, lean away from
+   the cursor, and link to it with faint gold lines.
 
 There is no skip button; keyboard users can press **Esc** to jump to the end.
 It doesn't replay when moving around inside the site, and links straight to
 another page (e.g. a project) open that page directly.
 
 Touch devices, visitors with "reduce motion" turned on, and browsers without
-WebGL get a lightweight version instead (a star rolling across the logo).
+WebGL get a lightweight version instead.
 
-The code lives in `components/intro/StarIntro.tsx`. The timing of every beat
-is in `lib/intro/timeline.ts`, the big star's path in
-`lib/intro/big-star-path.ts`, and the other stars' paths and colours in
+The code lives in `components/intro/StarIntro.tsx` (the intro) and
+`components/StarField.tsx` (the stars that stay). The timing of every beat is
+in `lib/intro/timeline.ts`, the big star's path and the wave in
+`lib/intro/big-star-path.ts`, and the other stars' paths in
 `lib/intro/choreography.ts`.
+
+## The creator portal
+
+The studio controls the intro from **`/portal`** — no code needed:
+
+- background colour of the page and intro
+- glow intensity (100% = the original intro), share of glowing stars,
+  star size, facet depth, metallic texture
+- star colours: add or remove colours and set each colour's share of the stars
+- number of formation stars and the depth of space
+- the stars that stay after the reveal: how many, how much they move, how
+  strongly they respond to the cursor, and the cursor lines
+- switching the intro off
+
+Every change shows instantly in a live preview of the real home page. Drag the
+timeline to hold any moment of the intro while adjusting. Nothing reaches
+visitors until **Save & publish**.
+
+Settings are stored in `content/intro-settings.json` (it can also be edited
+by hand).
+
+**Setting it up:** set `PORTAL_PASSWORD` in the server's environment (locally
+in `.env.local`, see `.env.example`). Without it the portal stays switched off.
+
+**Hosting note:** publishing writes `content/intro-settings.json` on the
+server, which works locally and on any host with a writable disk (a VPS,
+Render, Railway…). On hosts with read-only files, such as Vercel, saving
+needs a storage service (e.g. Vercel KV / Upstash) to be wired into
+`lib/portal/settings-store.ts`; until then, edit the JSON file and redeploy.
+
+## Versions and undoing changes
+
+The site is a git repository. Each intro change is its own commit, so any
+single change can be undone with `git revert <commit>`, and named versions
+are tagged:
+
+- `intro-v0-original` — the original intro (roll-across reveal)
+- `intro-v1` — this version
+
+`git log --oneline` lists the changes. To look at the original again,
+`git checkout intro-v0-original` (and `git checkout master` to come back).
 
 ## Editing content
 
