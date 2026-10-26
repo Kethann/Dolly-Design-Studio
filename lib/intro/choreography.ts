@@ -67,17 +67,18 @@ function randomStartDepth(look: StarLook) {
   return range(look, 2, 2 + 5 * Math.min(1, d)); // close to the camera — big, sweeping past
 }
 
-/** A point just outside the frame, mostly at the corners, sometimes along an edge (normalized -1..1 screen space). */
+/** A point outside the frame, mostly beyond the corners, sometimes beyond an edge (normalized -1..1 screen space). */
 function randomOffscreenPoint(look: StarLook) {
   const sign = () => (look.rand() < 0.5 ? -1 : 1);
-  if (look.rand() < 0.65) {
+  // Always outside the screen — out in the space beyond it — so every star sweeps in from off-frame.
+  if (look.rand() < 0.8) {
+    // Mostly from the corners: beyond both edges at once.
     const sx = sign();
     const sy = sign();
-    // 0.9–1.3: some begin just inside the frame so there's motion from the very first frame.
-    return { x: sx * range(look, 0.9, 1.3) + range(look, -0.25, 0.25) * -sx, y: sy * range(look, 0.9, 1.3) + range(look, -0.25, 0.25) * -sy };
+    return { x: sx * range(look, 1.15, 1.7), y: sy * range(look, 1.15, 1.7) };
   }
-  const along = range(look, -1, 1);
-  const out = sign() * range(look, 0.95, 1.3);
+  const along = range(look, -1.1, 1.1);
+  const out = sign() * range(look, 1.2, 1.6);
   return look.rand() < 0.5 ? { x: out, y: along } : { x: along, y: out };
 }
 

@@ -1010,3 +1010,14 @@
   background: var(--p-gold);
   border-color: var(--p-gold);
 }
+
+.ratio {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--p-muted);
+}
+
+.ratio span span {
+  font-weight: 600;
+}

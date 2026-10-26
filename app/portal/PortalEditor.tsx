@@ -879,7 +879,16 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                 />
               </Section>
 
-              <Section title="Star colours" hint="Each colour’s share of the stars. Glowing stars glow in their own colour.">
+              <Section title="Star colours" hint="Set each colour’s share with its slider — the ratio below shows how the stars are split.">
+                <p className={styles.ratio}>
+                  Ratio{" "}
+                  {draft.colors.map((c, i) => (
+                    <span key={i}>
+                      {i > 0 && " : "}
+                      <span style={{ color: c.hex }}>{Math.round(fractions[i] * 100)}</span>
+                    </span>
+                  ))}
+                </p>
                 <div className={styles.mixBar} aria-hidden="true">
                   {draft.colors.map((c, i) => (
                     <span key={i} style={{ background: c.hex, flexGrow: fractions[i] }} />
