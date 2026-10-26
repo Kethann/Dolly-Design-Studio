@@ -33,6 +33,28 @@ export interface FrontSettings {
   size: number;
 }
 
+export const ART_STYLES = ["waves", "silk", "halo", "minimal"] as const;
+export type ArtStyle = (typeof ART_STYLES)[number];
+
+/** The premium backdrop behind the stars: a deep gradient with sweeping layered curves and fine gold lines. */
+export interface ArtSettings {
+  /** Off = the plain background colour, as before. */
+  enabled: boolean;
+  style: ArtStyle;
+  /** 0..1: how deep the shadows, folds and vignette go. */
+  depth: number;
+  /** Which arrangement of curves, lines and light (reshuffled from the portal). */
+  seed: number;
+  /** Second colour of the gradient and the raised curved panels (the background colour is the first). */
+  tone: string;
+  /** Colour of the fine lines, the edges of the curves and their glints. */
+  gold: string;
+  /** 0..1: how strongly the gold lines and edges show. */
+  lines: number;
+  /** 0..1: how much the lines and curves drift. */
+  motion: number;
+}
+
 export interface IntroSettings {
   enabled: boolean;
   /** Page and intro background. */
@@ -70,6 +92,8 @@ export interface IntroSettings {
   field: FieldSettings;
   /** The stars in front of the glass. */
   front: FrontSettings;
+  /** The premium gradient backdrop. */
+  art: ArtSettings;
 }
 
 export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
@@ -96,6 +120,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   ],
   field: { count: 36, motion: 0.5, cursor: 0.5, depthBlur: 0.5, cornerStars: 2, cornerSize: 1, size: 1 },
   front: { count: 10, blur: 0, size: 1 },
+  art: { enabled: true, style: "waves", depth: 0.6, seed: 7, tone: "#8c1c22", gold: "#d9a648", lines: 0.6, motion: 0.4 },
 };
 
 export const LIMITS = {
@@ -132,6 +157,7 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
   const src = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   const field = (src.field && typeof src.field === "object" ? src.field : {}) as Record<string, unknown>;
   const front = (src.front && typeof src.front === "object" ? src.front : {}) as Record<string, unknown>;
+  const art = (src.art && typeof src.art === "object" ? src.art : {}) as Record<string, unknown>;
 
   const rawColors = Array.isArray(src.colors) ? src.colors.slice(0, LIMITS.colorCount[1]) : [];
   const colors = rawColors
@@ -170,6 +196,16 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       count: Math.round(num(front.count, [0, 40], d.front.count)),
       blur: num(front.blur, [0, 6], d.front.blur),
       size: num(front.size, [0.4, 2.5], d.front.size),
+    },
+    art: {
+      enabled: bool(art.enabled, d.art.enabled),
+      style: ART_STYLES.includes(art.style as ArtStyle) ? (art.style as ArtStyle) : d.art.style,
+      depth: num(art.depth, [0, 1], d.art.depth),
+      seed: Math.round(num(art.seed, [0, 1e9], d.art.seed)),
+      tone: hex(art.tone, d.art.tone),
+      gold: hex(art.gold, d.art.gold),
+      lines: num(art.lines, [0, 1], d.art.lines),
+      motion: num(art.motion, [0, 1], d.art.motion),
     },
   };
 }

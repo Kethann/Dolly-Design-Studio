@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DEFAULT_INTRO_SETTINGS,
+  ART_STYLES,
   LIMITS,
   colorFractions,
   sanitizeIntroSettings,
@@ -12,7 +13,7 @@ import {
 } from "@/lib/intro/settings";
 import { PREVIEW_PARAM, type PortalToSite, type PreviewRun, type SiteToPortal } from "@/lib/intro/preview-protocol";
 import { T } from "@/lib/intro/timeline";
-import { Section, Slider, Toggle, percent } from "./controls";
+import { Choice, Section, Slider, Toggle, percent } from "./controls";
 import styles from "./portal.module.css";
 
 const PREVIEW_W = 1440;
@@ -164,6 +165,10 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
   }
   function updateField(patch: Partial<FieldSettings>) {
     setDraft((d) => ({ ...d, field: { ...d.field, ...patch } }));
+    setSave({ kind: "idle" });
+  }
+  function updateArt(patch: Partial<IntroSettings["art"]>) {
+    setDraft((d) => ({ ...d, art: { ...d.art, ...patch } }));
     setSave({ kind: "idle" });
   }
   function updateFront(patch: Partial<IntroSettings["front"]>) {
@@ -324,7 +329,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                     {
                       id: "layer-background",
                       name: "Background",
-                      info: draft.background,
+                      info: draft.art.enabled ? `${draft.art.style} gradient` : draft.background,
                     },
                   ].map((l, i) => (
                     <li key={l.id}>
@@ -479,7 +484,12 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                 />
               </Section>
 
-              <Section id="layer-background" tag="Layer 5" title="Background">
+              <Section
+                id="layer-background"
+                tag="Layer 5"
+                title="Background"
+                hint="The colour behind everything — plain, or a premium gradient with sweeping curves and fine gold lines."
+              >
                 <div className={styles.control}>
                   <div className={styles.controlRow}>
                     <span className={styles.controlLabel}>Background colour</span>
@@ -499,6 +509,109 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                     </span>
                   </div>
                 </div>
+                <Toggle
+                  label="Premium gradient"
+                  hint="Off: the plain background colour."
+                  checked={draft.art.enabled}
+                  onChange={(enabled) => updateArt({ enabled })}
+                />
+                {draft.art.enabled && (
+                  <>
+                    <Choice
+                      label="Style"
+                      value={draft.art.style}
+                      options={[
+                        { value: "waves", label: "Waves" },
+                        { value: "silk", label: "Silk" },
+                        { value: "halo", label: "Halo" },
+                        { value: "minimal", label: "Minimal" },
+                      ]}
+                      onChange={(style) => updateArt({ style })}
+                    />
+                    <div className={styles.inlineActions}>
+                      <button
+                        type="button"
+                        className={styles.ghostButton}
+                        onClick={() => updateArt({ seed: Math.floor(Math.random() * 1e9) })}
+                      >
+                        ⟳ New arrangement
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.ghostButton}
+                        onClick={() =>
+                          updateArt({
+                            style: ART_STYLES[Math.floor(Math.random() * ART_STYLES.length)],
+                            seed: Math.floor(Math.random() * 1e9),
+                            depth: between(0.35, 0.85),
+                            lines: between(0.35, 0.85),
+                          })
+                        }
+                      >
+                        ⚄ Surprise me
+                      </button>
+                    </div>
+                    <div className={styles.control}>
+                      <div className={styles.controlRow}>
+                        <span className={styles.controlLabel}>Second colour</span>
+                        <span className={styles.colorField}>
+                          <input
+                            type="color"
+                            aria-label="Gradient second colour"
+                            className={styles.swatch}
+                            value={draft.art.tone}
+                            onChange={(e) => updateArt({ tone: e.target.value })}
+                          />
+                          <HexInput value={draft.art.tone} label="Gradient second colour code" onChange={(tone) => updateArt({ tone })} />
+                        </span>
+                      </div>
+                      <p className={styles.controlHint}>The gradient runs from the background colour to this one.</p>
+                    </div>
+                    <div className={styles.control}>
+                      <div className={styles.controlRow}>
+                        <span className={styles.controlLabel}>Line colour</span>
+                        <span className={styles.colorField}>
+                          <input
+                            type="color"
+                            aria-label="Line colour"
+                            className={styles.swatch}
+                            value={draft.art.gold}
+                            onChange={(e) => updateArt({ gold: e.target.value })}
+                          />
+                          <HexInput value={draft.art.gold} label="Line colour code" onChange={(gold) => updateArt({ gold })} />
+                        </span>
+                      </div>
+                    </div>
+                    <Slider
+                      label="Lines & edges"
+                      value={draft.art.lines}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={(v) => (v === 0 ? "Off" : percent(v))}
+                      onChange={(lines) => updateArt({ lines })}
+                    />
+                    <Slider
+                      label="Depth"
+                      value={draft.art.depth}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={percent}
+                      hint="How deep the shadows, folds and vignette go."
+                      onChange={(depth) => updateArt({ depth })}
+                    />
+                    <Slider
+                      label="Movement"
+                      value={draft.art.motion}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={(v) => (v === 0 ? "Still" : percent(v))}
+                      onChange={(motion) => updateArt({ motion })}
+                    />
+                  </>
+                )}
               </Section>
             </>
           )}
@@ -861,6 +974,13 @@ function randomLook(current: IntroSettings): IntroSettings {
       size: between(0.8, 1.4),
     },
     front: { count: between(4, 16, 1), blur: between(0, 2, 0.5), size: between(0.8, 1.4) },
+    art: {
+      ...current.art,
+      style: ART_STYLES[Math.floor(Math.random() * ART_STYLES.length)],
+      seed: Math.floor(Math.random() * 1e9),
+      depth: between(0.35, 0.85),
+      lines: between(0.35, 0.85),
+    },
   });
 }
 

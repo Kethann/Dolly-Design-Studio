@@ -11,6 +11,7 @@ import { createRng, randomSeed, type Rng } from "@/lib/intro/rng";
 import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
 import { GLINT_STRENGTH, createBrushedMetalTexture, createStarMaterial, createStarMaterials } from "@/lib/intro/star-material";
 import { CAMERA_Z, addDepthBlur, createStarComposer, createStarInstances, createStarScene, setBloomGlow } from "@/lib/intro/star-scene";
+import { backdropFogColor, createBackdropPass } from "@/lib/intro/backdrop-art";
 import { pageGlowOf, type IntroSettings } from "@/lib/intro/settings";
 import styles from "./StarField.module.css";
 
@@ -58,6 +59,7 @@ interface Engine {
   glowing: THREE.MeshPhysicalMaterial;
   cornerGeometry: THREE.BufferGeometry;
   corner: THREE.MeshPhysicalMaterial;
+  backdrop: ReturnType<typeof createBackdropPass> | null;
   palette: THREE.Color[];
   rand: Rng;
   dispose: () => void;
@@ -79,9 +81,11 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
   wrap.appendChild(renderer.domElement);
 
   // The front layer is drawn over the glass, so it's transparent: no background, no fog, no bloom.
-  const starScene = createStarScene(renderer, new THREE.Color(settings.background), width / height, !back);
+  const starScene = createStarScene(renderer, backdropFogColor(settings), width / height, back ? "underlay" : "transparent");
   const { scene, camera } = starScene;
-  const composer = back ? createStarComposer(renderer, scene, camera, width, height, dpr, pageGlowOf(settings)) : null;
+  // The back layer also paints the premium backdrop under its stars (the plain background colour when it's off).
+  const backdrop = back ? createBackdropPass(settings, width / height) : null;
+  const composer = back ? createStarComposer(renderer, scene, camera, width, height, dpr, pageGlowOf(settings), backdrop!.pass) : null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // Focused just at the nearest background stars, so depth reads from crisp (near) to soft (far).
   const blur =
@@ -119,6 +123,7 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
     glowing: glowing.material,
     cornerGeometry,
     corner: corner.material,
+    backdrop,
     palette,
     rand,
     dispose() {
@@ -129,6 +134,7 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
       plain.material.dispose();
       glowing.material.dispose();
       starScene.dispose();
+      backdrop?.dispose();
       composer?.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
@@ -411,6 +417,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
       engine!.glowing.emissiveIntensity = GLINT_STRENGTH * glow;
       engine!.corner.emissiveIntensity = 0.45 * glow;
       if (composer) setBloomGlow(composer, glow);
+      engine!.backdrop?.update(time);
 
       if (composer) composer.render();
       else renderer.render(scene, camera);
@@ -430,6 +437,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
       height = Math.max(1, wrap.clientHeight);
       renderer.setSize(width, height, false);
       composer?.setSize(width, height);
+      engine!.backdrop?.setAspect(width / height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       if (reducedMotion) update(performance.now());

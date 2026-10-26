@@ -4,6 +4,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { BokehPass } from "three/examples/jsm/postprocessing/BokehPass.js";
+import type { Pass } from "three/examples/jsm/postprocessing/Pass.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 // The camera, lighting and bloom shared by the intro and the lasting star
@@ -13,20 +14,27 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 export const CAMERA_Z = 14;
 export const FOV = 35;
 
-/** `transparent`: no background or fog, for a layer drawn over other layers (the renderer needs `alpha: true`). */
-export function createStarScene(renderer: THREE.WebGLRenderer, background: THREE.Color, aspect: number, transparent = false) {
+/**
+ * `mode`:
+ * - "underlay": stars on a clear background (with fog toward `background`), for the backdrop pass to paint under;
+ * - "transparent": no background or fog, for a layer drawn over other layers (the renderer needs `alpha: true`).
+ */
+export function createStarScene(
+  renderer: THREE.WebGLRenderer,
+  background: THREE.Color,
+  aspect: number,
+  mode: "underlay" | "transparent",
+) {
   // No tone mapping: the 3D logo must render exactly the same gold as the page logo it hands over to.
   // Lights are balanced so metal highlights stay in range; only real glints exceed it and bloom.
   renderer.toneMapping = THREE.NoToneMapping;
   // Skip reading shader logs: faster start-up, and no harmless driver precision warnings in the console.
   renderer.debug.checkShaderErrors = false;
-  renderer.setClearColor(background, transparent ? 0 : 1);
+  renderer.setClearColor(0x000000, 0);
 
   const scene = new THREE.Scene();
-  if (!transparent) {
-    scene.background = background;
-    scene.fog = new THREE.Fog(background, 14, 52); // distant stars fade into the background — part of the depth cue
-  }
+  // Distant stars fade into the backdrop — part of the depth cue.
+  if (mode === "underlay") scene.fog = new THREE.Fog(background, 14, 52);
 
   const camera = new THREE.PerspectiveCamera(FOV, aspect, 0.1, 80);
   camera.position.set(0, 0, CAMERA_Z);
@@ -68,11 +76,14 @@ export function createStarComposer(
   height: number,
   dpr: number,
   glow: number,
+  /** Painted under the stars (the backdrop), after any depth blur. */
+  underlay?: Pass,
 ) {
   const composer = new EffectComposer(renderer);
   composer.setPixelRatio(dpr);
   composer.setSize(width, height);
   composer.addPass(new RenderPass(scene, camera));
+  if (underlay) composer.addPass(underlay);
   composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), bloomStrength(glow), 0.45, 0.96));
   composer.addPass(new OutputPass());
   return composer;
@@ -84,6 +95,8 @@ export function createStarComposer(
  */
 export function addDepthBlur(composer: EffectComposer, scene: THREE.Scene, camera: THREE.Camera, focus: number) {
   const pass = new BokehPass(scene, camera, { focus, aperture: 0, maxblur: 0.012 });
+  // Keep the stars' transparency through the blur, so the backdrop can be painted underneath afterwards.
+  pass.materialBokeh.fragmentShader = pass.materialBokeh.fragmentShader.replace("gl_FragColor.a = 1.0;", "");
   composer.insertPass(pass, 1);
   return pass.uniforms as { aperture: { value: number }; maxblur: { value: number }; focus: { value: number } };
 }

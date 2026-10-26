@@ -88,6 +88,12 @@ The studio controls the intro from **`/portal`** — no code needed:
 
 - background colour of the page and intro, and the dark tinted glass over the
   background stars (tint colour, opacity, blur)
+- a premium gradient backdrop (or plain colour): style (waves, silk, halo,
+  minimal), second colour, line colour, line strength, depth, movement, and a
+  new random arrangement at a click
+- two star layers on the page: in front of the glass (sharp unless blurred)
+  and behind it (depth blur), each with its own count and size, plus one or
+  two big corner stars with their own size
 - glow intensity (100% = the original intro), glow colour (or each star's own
   colour), share of glowing stars, star size, facet depth, metallic texture
 - star colours: add or remove colours and set each colour's share of the stars

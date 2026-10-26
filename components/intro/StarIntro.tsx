@@ -13,6 +13,7 @@ import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
 import { bigStarPose, planBigStar, waveRadius } from "@/lib/intro/big-star-path";
 import { createRng, randomSeed } from "@/lib/intro/rng";
 import { CAMERA_Z, createStarComposer, createStarInstances, createStarScene } from "@/lib/intro/star-scene";
+import { backdropFogColor, createBackdropPass } from "@/lib/intro/backdrop-art";
 import { publishFieldStars, type FieldStar } from "@/lib/intro/handoff";
 import { layerOf, pickSpread } from "@/lib/intro/field-plan";
 import { createGlassPlane } from "@/lib/intro/glass-plane";
@@ -90,7 +91,6 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       return;
     }
 
-    const background = new THREE.Color(settings.background); // same as the page, so the hand-off is invisible
     const glow = settings.glow; // 1 = the original intro's glow
     const rand = createRng(seed ?? randomSeed());
     const look = starLook(settings, rand);
@@ -105,10 +105,12 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     renderer.setPixelRatio(dpr);
     renderer.setSize(vw, vh, false);
     wrap.appendChild(renderer.domElement);
-    const starScene = createStarScene(renderer, background, vw / vh);
+    const starScene = createStarScene(renderer, backdropFogColor(settings), vw / vh, "underlay");
     const { scene, camera } = starScene;
     camera.position.z = CAMERA_Z + 2;
-    const composer = createStarComposer(renderer, scene, camera, vw, vh, dpr, glow);
+    // The page's premium backdrop fades in under the stars as the intro ends, matching the page exactly.
+    const backdrop = createBackdropPass(settings, vw / vh);
+    const composer = createStarComposer(renderer, scene, camera, vw, vh, dpr, glow, backdrop.pass);
 
     // --- stage: map the hero logo's on-screen rect onto the z = 0 plane -----
     const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
@@ -276,7 +278,9 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       u.uWaveFade.value = 1 - easeInOutCubic(clamp01((t - (T.waveEnd - 0.1)) / 0.7));
       u.uSheen.value = t >= T.sheenStart && t <= T.sheenEnd ? easeInOutCubic((t - T.sheenStart) / (T.sheenEnd - T.sheenStart)) : -1;
       dustMaterial.uniforms.uTime.value = t;
-      glass.setAmount(easeInOutCubic(clamp01((t - T.glassStart) / (T.revealAt - T.glassStart))));
+      const settling = easeInOutCubic(clamp01((t - T.glassStart) / (T.revealAt - T.glassStart)));
+      glass.setAmount(settling);
+      backdrop.update(t, settling);
 
       // Formation: fly in, tumble, settle and glint — tremble with the big star's shiver — then ride the wave and dissolve.
       const shiverK = t > T.shiverStart && t < T.waveStart ? easeInQuad((t - T.shiverStart) / (T.waveStart - T.shiverStart)) : 0;
@@ -420,6 +424,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       const h = window.innerHeight;
       renderer.setSize(w, h, false);
       composer.setSize(w, h);
+      backdrop.setAspect(w / h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       if (t < T.fadeStart) t = T.fadeStart;
@@ -457,6 +462,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       reveal.dispose();
       glass.dispose();
       starScene.dispose();
+      backdrop.dispose();
       composer.dispose();
       renderer.dispose();
       renderer.forceContextLoss(); // free the GPU context now, not whenever the GC gets to it

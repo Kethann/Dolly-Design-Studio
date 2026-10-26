@@ -103,3 +103,42 @@ export function Toggle({ label, hint, checked, onChange }: { label: string; hint
 }
 
 export const percent = (v: number) => `${Math.round(v * 100)}%`;
+
+/** A row of mutually exclusive options (like a segmented switch). */
+export function Choice<T extends string>({
+  label,
+  hint,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className={styles.control}>
+      <div className={styles.controlRow}>
+        <span className={styles.controlLabel}>{label}</span>
+      </div>
+      <div className={styles.choice} role="radiogroup" aria-label={label}>
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={value === o.value}
+            className={styles.choiceOption}
+            data-on={value === o.value}
+            onClick={() => onChange(o.value)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {hint && <p className={styles.controlHint}>{hint}</p>}
+    </div>
+  );
+}
