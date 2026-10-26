@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { IntroSettings } from "./settings";
 import { CAMERA_Z } from "./star-scene";
+import { DIAL_GLSL } from "./glass-pass";
 
 /** Just behind the logo plane, in front of every lasting background star. */
 const GLASS_Z = -0.4;
@@ -18,6 +19,11 @@ export function createGlassPlane(settings: IntroSettings, width: number, height:
     uniforms: {
       uColor: { value: new THREE.Color(settings.glassColor) },
       uOpacity: { value: 0 },
+      uRes: { value: new THREE.Vector2(1, 1) },
+      uDialCenter: { value: new THREE.Vector2(0.5, 0.5) },
+      uDialRadius: { value: 0 },
+      uDialDark: { value: 0 },
+      uAspect: { value: width / height },
     },
     vertexShader: /* glsl */ `
       void main() {
@@ -27,8 +33,12 @@ export function createGlassPlane(settings: IntroSettings, width: number, height:
     fragmentShader: /* glsl */ `
       uniform vec3 uColor;
       uniform float uOpacity;
+      uniform vec2 uRes;
+      ${DIAL_GLSL}
       void main() {
-        gl_FragColor = vec4(uColor, uOpacity);
+        // The tint, plus the core dial (a soft pool of darker glass behind the logo) — the same as the page.
+        float dial = dialAt(gl_FragCoord.xy / uRes);
+        gl_FragColor = vec4(mix(uColor, uColor * 0.35, dial), uOpacity + (1.0 - uOpacity) * dial * 0.65);
       }
     `,
   });
@@ -41,10 +51,16 @@ export function createGlassPlane(settings: IntroSettings, width: number, height:
 
   return {
     mesh,
-    /** 0 = no glass yet, 1 = the page's glass. */
-    setAmount(amount: number) {
-      material.uniforms.uOpacity.value = settings.glassOpacity * amount;
-      mesh.visible = amount > 0;
+    /** `amount` 0..1 fades the glass in; `dial` 0..1 grows the dial out of the core. */
+    update(s: IntroSettings, amount: number, dial: number, centerY: number, resolution: THREE.Vector2) {
+      const u = material.uniforms;
+      (u.uColor.value as THREE.Color).set(s.glassColor);
+      u.uOpacity.value = s.glassOpacity * amount;
+      u.uDialRadius.value = s.dial.enabled ? s.dial.size * dial : 0;
+      u.uDialDark.value = s.dial.darkness;
+      (u.uDialCenter.value as THREE.Vector2).set(0.5, centerY);
+      (u.uRes.value as THREE.Vector2).copy(resolution);
+      mesh.visible = amount > 0 || dial > 0;
     },
     dispose() {
       geometry.dispose();

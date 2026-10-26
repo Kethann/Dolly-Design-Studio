@@ -5,7 +5,7 @@ import * as THREE from "three";
 import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import { getHandoff, subscribeHandoff, type FieldStar, type Handoff } from "@/lib/intro/handoff";
-import { FIELD_FRONT_Z, layerOf, planFieldStars, type StarLayer } from "@/lib/intro/field-plan";
+import { FIELD_FRONT_Z, planFieldStars, type StarLayer } from "@/lib/intro/field-plan";
 import { starLook } from "@/lib/intro/choreography";
 import { createRng, randomSeed, type Rng } from "@/lib/intro/rng";
 import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
@@ -14,6 +14,7 @@ import { CAMERA_Z, addDepthBlur, createStarComposer, createStarInstances, create
 import { backdropFogColor, createBackdropPass } from "@/lib/intro/backdrop-art";
 import { createGlassPasses } from "@/lib/intro/glass-pass";
 import { createAdaptiveQuality } from "@/lib/intro/adaptive-quality";
+import { HERO_LOGO_ID } from "@/lib/dom-ids";
 import { planStream, streamPose } from "@/lib/intro/stream";
 import { pageGlowOf, type IntroSettings } from "@/lib/intro/settings";
 import styles from "./StarField.module.css";
@@ -58,8 +59,10 @@ interface Engine {
   blur: ReturnType<typeof addDepthBlur> | null;
   tanHalfFov: number;
   geometry: THREE.BufferGeometry;
-  plain: THREE.Material;
+  plain: THREE.MeshPhysicalMaterial;
   glowing: THREE.MeshPhysicalMaterial;
+  starUniforms: { uTexture: { value: number }; uGlowColor: { value: THREE.Color }; uMatchStar: { value: number } }[];
+  fog: THREE.Fog | null;
   cornerGeometry: THREE.BufferGeometry;
   corner: THREE.MeshPhysicalMaterial;
   backdrop: ReturnType<typeof createBackdropPass> | null;
@@ -94,9 +97,8 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // Focused just at the nearest background stars, so depth reads from crisp (near) to soft (far).
   // (Also needed when only the intro had blur, so the hand-off can ease out of it.)
-  const anyBlur = Math.max(settings.field.depthBlur, settings.introBlur);
-  const blur = composer && anyBlur > 0 && !reducedMotion ? addDepthBlur(composer, scene, camera, CAMERA_Z - FIELD_FRONT_Z) : null;
-  if (blur) blur.maxblur.value = 0.004 + 0.012 * anyBlur;
+  // Focused a little behind the nearest back stars: near and mid stars stay sharp, far ones soften.
+  const blur = composer && !reducedMotion ? addDepthBlur(composer, scene, camera, CAMERA_Z - FIELD_FRONT_Z + 4) : null;
   // The tinted, frosted glass over the back stars (the front layer floats above it, untouched).
   const glass = composer ? createGlassPasses(settings) : null;
   if (composer && glass) for (const pass of glass.passes) composer.insertPass(pass, composer.passes.length - 1);
@@ -128,6 +130,8 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
     geometry,
     plain: plain.material,
     glowing: glowing.material,
+    starUniforms: [plain.uniforms, glowing.uniforms, corner.uniforms],
+    fog: scene.fog as THREE.Fog | null,
     cornerGeometry,
     corner: corner.material,
     backdrop,
@@ -151,6 +155,23 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
       renderer.domElement.remove();
     },
   };
+}
+
+/** Applies the creator's settings to a running layer — no rebuild, no flash. */
+function applyLiveSettings(engine: Engine, settings: IntroSettings) {
+  engine.backdrop?.apply(settings);
+  engine.glass?.apply(settings);
+  engine.glowing.envMapIntensity = engine.plain.envMapIntensity = 0.55 * settings.shine;
+  for (const m of [engine.plain, engine.glowing, engine.corner]) m.bumpScale = 0.35 * settings.metallic;
+  for (const su of engine.starUniforms) {
+    su.uTexture.value = settings.metallic;
+    su.uGlowColor.value.set(settings.glowColor);
+    su.uMatchStar.value = settings.glowMatchStar ? 1 : 0;
+  }
+  engine.palette.splice(0, engine.palette.length, ...settings.colors.map((c) => new THREE.Color(c.hex)));
+  engine.corner.color.copy(engine.palette[0] ?? new THREE.Color(0xd9a43f));
+  engine.fog?.color.copy(backdropFogColor(settings));
+  if (engine.blur) engine.blur.maxblur.value = 0.004 + 0.012 * Math.max(settings.field.depthBlur, settings.introBlur);
 }
 
 /** Compiles the exact shader variants the layer will use (instanced, glowing or not, corner stars), off the main thread where supported. */
@@ -198,23 +219,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
   const back = layer === "back";
   // Only settings that change how the layer is drawn rebuild its renderer and shaders. Everything else
   // (counts, sizes, motion, frost) just re-places the stars, which is cheap and keeps the same canvas.
-  const engineKey = JSON.stringify([
-    settings.background,
-    settings.art,
-    settings.glow,
-    settings.pageGlow,
-    settings.glowLinked,
-    settings.glowColor,
-    settings.glowMatchStar,
-    settings.metallic,
-    settings.shine,
-    settings.starDepth,
-    settings.colors,
-    settings.field.depthBlur,
-    settings.introBlur,
-    settings.glassColor,
-    settings.glassOpacity,
-  ]);
+  const engineKey = JSON.stringify([settings.starDepth]);
   const count = back ? settings.field.count : settings.front.count;
   const needed = count > 0 || (back && settings.field.cornerStars > 0);
 
@@ -264,6 +269,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
     const motion = reducedMotion ? 0 : field.motion;
     const cursorStrength = reducedMotion || !finePointer ? 0 : field.cursor;
     // Depth blur eases from the intro's (when its stars are handed over) to the page's.
+    applyLiveSettings(engine, settings);
     const blurFrom = (handoff.status === "ready" ? settings.introBlur : 0) * 0.0007;
     const blurTo = field.depthBlur * 0.0007;
     // Stars handed over from the intro keep the intro's glow for a moment, then ease to the page's glow.
@@ -278,16 +284,14 @@ export function StarField({ layer }: { layer: StarLayer }) {
     const look = starLook(settings, rand);
     // "stream": the same stream the intro showed (same seed, same clock), carrying straight on.
     // "float": the intro's survivors for this layer, topped up (or replaced) by our own.
-    const streaming = settings.stream.mode === "stream";
+    // Both kinds of star, blended by scroll: the stream out of the core at the top of the page (riding up
+    // with the logo and fading as you scroll on), and drifting stars that answer the scroll further down.
+    const streaming = true;
     const streamSeed = handoff.status === "ready" ? handoff.stream.seed : seed;
     const streamList = streaming ? planStream(count, layer, settings, streamSeed) : [];
-    const handed =
-      !streaming && handoff.status === "ready" ? handoff.stars.filter((s) => layerOf(s.position[2]) === layer).slice(0, count) : [];
-    const list: FieldStar[] = streaming
-      ? []
-      : [...handed, ...planFieldStars(count - handed.length, width / height, look, layer, handed.map((s) => s.position))];
-    const instances = createStarInstances(engine.geometry, engine.plain, engine.glowing, streaming ? streamList : list, engine.palette);
-    const pushes = (streaming ? streamList : list).map(() => new THREE.Vector3());
+    const list: FieldStar[] = planFieldStars(count, width / height, look, layer);
+    const instances = createStarInstances(engine.geometry, engine.plain, engine.glowing, [...streamList, ...list], engine.palette);
+    const pushes = [...streamList, ...list].map(() => new THREE.Vector3());
     const flip = new THREE.Quaternion();
     scene.add(...instances.meshes);
 
@@ -389,13 +393,20 @@ export function StarField({ layer }: { layer: StarLayer }) {
 
       // The stream's clock: the intro's time at the hand-off, carried on.
       const streamClock = handoff.status === "ready" ? handoff.stream.time + time : time;
-      const count = streaming ? streamList.length : stars.length;
-      for (let i = 0; i < count; i++) {
-        const s = stars[i];
+      // 0 at the top of the page (all stream), 1 once you've scrolled about a screen (all drifting stars).
+      const scrolledBy = scrolled / height;
+      const mix = reducedMotion ? 0 : Math.min(1, Math.max(0, (scrolledBy - 0.15) / 0.75));
+      const blend = mix * mix * (3 - 2 * mix);
+      const total = streamList.length + stars.length;
+      for (let i = 0; i < total; i++) {
+        const fromStream = i < streamList.length;
+        const s = stars[i - streamList.length];
         let size = 0;
-        if (streaming) {
+        if (fromStream) {
           // Out of the core to every side, tumbling and flipping; it always fills the screen, so scrolling never empties it.
-          size = streamPose(streamList[i], layer, streamClock, settings, width / height, pos, quat, flip);
+          size = streamPose(streamList[i], layer, streamClock, settings, width / height, pos, quat, flip) * (1 - blend);
+          // The core is behind the logo, so it rides up with the page; its stars keep flying as they fade.
+          pos.y += scrolled * ((2 * (CAMERA_Z - pos.z) * tanHalfFov) / height);
         } else {
           // A slow swell rolling diagonally through the field, plus each star's own bob.
           const swell = 0.32 * s.base.x + 0.22 * s.base.y - 0.85 * time;
@@ -408,7 +419,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
         }
 
         // Scrolling: the stars drift up past you at depth-dependent speeds and wrap around, so the field never runs out.
-        if (!streaming && scrolled > 0) {
+        if (!fromStream && scrolled > 0) {
           const halfHeight = (CAMERA_Z - pos.z) * tanHalfFov;
           // Nearer stars pass faster; front-layer stars (in front of the glass) fastest of all.
           const nearness = Math.min(1.4, Math.max(0, (pos.z + 14) / 13.5));
@@ -456,14 +467,14 @@ export function StarField({ layer }: { layer: StarLayer }) {
         pos.z += lift * 0.35;
         pos.y += lift * 0.06;
 
-        if (!streaming) {
+        if (!fromStream) {
           // Spin carried on from the intro, settling to a slower turn, with a gentle random rocking on top.
           const turn = s.angle + s.spin * (0.3 + 0.4 * motion) * time + s.spin * (0.7 - 0.4 * motion) * carried;
           quat.setFromAxisAngle(s.axis, turn);
           rock.setFromAxisAngle(s.rock.axis, water * s.rock.amount * Math.sin(s.rock.freq * time + s.rock.phase));
           quat.premultiply(rock);
           // Eases from the size it had in the intro to this layer's chosen size, so the hand-off never jumps.
-          size = s.size * (1 + (layerSize - 1) * arrive);
+          size = s.size * (1 + (layerSize - 1) * arrive) * blend;
         }
         if (lift > 0.001) {
           tiltAxis.set(-push.y, push.x, 0);
@@ -472,6 +483,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
 
         scale.setScalar(Math.max(size, 1e-5));
         matrix.compose(pos, quat, scale);
+        if (size < 1e-4) size = 1e-5;
         const slot = instances.slots[i];
         slot.mesh.setMatrixAt(slot.index, matrix);
       }
@@ -493,7 +505,15 @@ export function StarField({ layer }: { layer: StarLayer }) {
       engine!.corner.emissiveIntensity = 0.45 * glow;
       if (composer) setBloomGlow(composer, glow);
       // The backdrop's layers scroll and lean with the page at their own depths.
-      engine!.backdrop?.update(time, { scroll: scrolled / height, pointerX: cursorX * presence, pointerY: cursorY * presence });
+      engine!.backdrop?.update(time, {
+        amount: blend,
+        softness: settings.art.softPage,
+        scroll: scrolledBy,
+        pointerX: cursorX * presence,
+        pointerY: cursorY * presence,
+      });
+      const logoRect = document.getElementById(HERO_LOGO_ID)?.getBoundingClientRect();
+      engine!.glass?.setDial(logoRect ? 1 - (logoRect.top + logoRect.height / 2) / height : 0.5, logoRect ? 1 : 0);
       // The glass frosts over as the page settles in.
       engine!.glass?.setFrost(settings.glassFrost * arrive, width, height);
       adapt(dt);

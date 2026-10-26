@@ -63,10 +63,14 @@
     "softPage": 0.1
   },
   "stream": {
-    "mode": "stream",
     "speed": 0.4,
     "spin": 0.4,
     "flips": 0.35,
     "corners": 0.5
+  },
+  "dial": {
+    "enabled": true,
+    "size": 0.5,
+    "darkness": 0.6
   }
 }

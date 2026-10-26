@@ -6,13 +6,21 @@ import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
 import { HERO_LOGO_ID } from "@/lib/dom-ids";
 import { sampleLogoSlots } from "@/lib/intro/sample-points";
 import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
-import { createBrushedMetalTexture, createStarMaterial, createStarMaterials } from "@/lib/intro/star-material";
+import { GLINT_STRENGTH, createBrushedMetalTexture, createStarMaterial, createStarMaterials } from "@/lib/intro/star-material";
 import { createLogoRevealMaterial } from "@/lib/intro/logo-reveal-material";
 import { createSparkleTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
 import { bigStarPose, planBigStar, waveRadius } from "@/lib/intro/big-star-path";
 import { createRng, randomSeed } from "@/lib/intro/rng";
-import { CAMERA_Z, addDepthBlur, createStarComposer, createStarInstances, createStarScene, lightStarScene } from "@/lib/intro/star-scene";
+import {
+  CAMERA_Z,
+  addDepthBlur,
+  createStarComposer,
+  createStarInstances,
+  createStarScene,
+  lightStarScene,
+  setBloomGlow,
+} from "@/lib/intro/star-scene";
 import { backdropFogColor, createBackdropPass } from "@/lib/intro/backdrop-art";
 import { publishFieldStars, type FieldStar } from "@/lib/intro/handoff";
 import { layerOf, pickSpread } from "@/lib/intro/field-plan";
@@ -87,6 +95,11 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
   const overlayRef = useRef<HTMLDivElement>(null);
   const vignetteRef = useRef<HTMLDivElement>(null);
   const { settings } = useIntroSettings();
+  // The latest settings, read every frame, so portal changes show instantly without restarting the intro.
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -153,8 +166,9 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const formation = planFormation(stage, slots, look);
     // Background stars: in "stream" mode they pour out of a core behind the logo (the same stream the page
     // carries on with); in "float" mode they drift, and a few survivors are handed to the page.
-    const streaming = settings.stream.mode === "stream";
-    const ambient = planAmbient(stage, streaming ? 0 : settings.introAmbient, look);
+    // The intro's background stars are the stream out of the core (no drifting extras).
+    const streaming = true;
+    const ambient = planAmbient(stage, 0, look);
     const streamSeed = Math.floor(rand() * 1e9);
     const streamBack = streaming ? planStream(settings.field.count, "back", settings, streamSeed) : [];
     const streamFront = streaming ? planStream(settings.front.count, "front", settings, streamSeed) : [];
@@ -307,7 +321,30 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       mesh.setMatrixAt(index, matrix);
     }
 
+    const dialCenterY = 1 - (px.top + px.height / 2) / vh;
+    const resolution = new THREE.Vector2();
+    // Settings that can change while the portal preview is open apply live, without rebuilding the scene.
+    let live = settings;
+    function applyLive(s: typeof settings) {
+      live = s;
+      backdrop.apply(s);
+      setBloomGlow(composer, s.glow);
+      glowing.material.emissiveIntensity = GLINT_STRENGTH * s.glow;
+      for (const m of [plain, glowing]) {
+        m.material.envMapIntensity = 0.55 * s.shine;
+        m.material.bumpScale = 0.35 * s.metallic;
+        m.uniforms.uTexture.value = s.metallic;
+        (m.uniforms.uGlowColor.value as THREE.Color).set(s.glowColor);
+        m.uniforms.uMatchStar.value = s.glowMatchStar ? 1 : 0;
+      }
+      u.uGlow.value = 0.5 + 0.5 * s.glow;
+      u.uEdgeColor.value.set(s.glowColor);
+      dustMaterial.uniforms.uGlow.value = 0.5 + 0.5 * s.glow;
+      (scene.fog as THREE.Fog).color.copy(backdropFogColor(s));
+    }
+
     function update(t: number) {
+      if (settingsRef.current !== live) applyLive(settingsRef.current);
       // Camera: slow push-in plus a gentle handheld drift that settles to exactly centred before the landing.
       const drift = 1 - clamp01((t - (T.docked - 1.4)) / 1.4);
       camera.position.set(
@@ -323,12 +360,10 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       u.uSheen.value = t >= T.sheenStart && t <= T.sheenEnd ? easeInOutCubic((t - T.sheenStart) / (T.sheenEnd - T.sheenStart)) : -1;
       dustMaterial.uniforms.uTime.value = t;
       const settling = easeInOutCubic(clamp01((t - T.glassStart) / (T.revealAt - T.glassStart)));
-      glass.setAmount(settling);
-      backdrop.update(t, {
-        // Present from the start but quiet; it reaches full strength as the glass settles over it.
-        amount: 0.55 * easeInOutCubic(clamp01(t / 2.4)) + 0.45 * settling,
-        softness: THREE.MathUtils.lerp(settings.art.softIntro, settings.art.softPage, settling),
-      });
+      // The glass settles over the stars as the logo appears; the dial grows out of the core from the start.
+      // No backdrop design in the intro — just the plain colour — so nothing competes with the logo.
+      glass.update(live, settling, easeOutCubic(clamp01(t / 1.6)), dialCenterY, resolution.set(vw, vh).multiplyScalar(renderer.getPixelRatio()));
+      backdrop.update(t, { amount: 0 });
 
       // Formation: fly in, tumble, settle and glint — tremble with the big star's shiver — then ride the wave and dissolve.
       const shiverK = t > T.shiverStart && t < T.waveStart ? easeInQuad((t - T.shiverStart) / (T.waveStart - T.shiverStart)) : 0;

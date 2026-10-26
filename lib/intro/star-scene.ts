@@ -115,7 +115,10 @@ export function addDepthBlur(
 ) {
   const pass = new BokehPass(scene, camera, { focus, aperture: 0, maxblur: 0.012 });
   // Keep the stars' transparency through the blur, so the backdrop can be painted underneath afterwards.
-  pass.materialBokeh.fragmentShader = pass.materialBokeh.fragmentShader.replace("gl_FragColor.a = 1.0;", "");
+  pass.materialBokeh.fragmentShader = pass.materialBokeh.fragmentShader
+    .replace("gl_FragColor.a = 1.0;", "")
+    // Only what's *behind* the focus softens (more the farther it is); anything nearer stays sharp.
+    .replace("float factor = ( focus + viewZ );", "float factor = min( focus + viewZ, 0.0 );");
   if (exclude.length) {
     const render = pass.render.bind(pass);
     pass.render = (...args: Parameters<typeof pass.render>) => {

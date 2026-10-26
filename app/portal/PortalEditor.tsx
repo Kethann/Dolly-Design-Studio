@@ -32,11 +32,11 @@ const BEATS = [
   { at: T.fadeStart, label: "Page" },
 ];
 
-type Tab = "layers" | "look" | "motion" | "intro";
+type Tab = "background" | "stars" | "look" | "intro";
 const TABS: { id: Tab; name: string; hint: string }[] = [
-  { id: "layers", name: "Layers", hint: "the page" },
-  { id: "look", name: "Look", hint: "intro & page" },
-  { id: "motion", name: "Motion", hint: "page stars" },
+  { id: "background", name: "Background", hint: "colour · gradient · glass" },
+  { id: "stars", name: "Stars", hint: "layers · motion" },
+  { id: "look", name: "Look", hint: "glow · colours" },
   { id: "intro", name: "Intro", hint: "the opening" },
 ];
 
@@ -44,13 +44,25 @@ type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { k
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-/** The settings the intro itself uses (page-only ones left out), to tell whether the preview needs to replay. */
-function introPart(s: IntroSettings) {
-  const { pageGlow, glowLinked, glassFrost, front, field, art, ...rest } = s;
-  void pageGlow;
-  void glowLinked;
-  void glassFrost;
-  return { ...rest, art: { ...art, softPage: 0 }, survivors: [field.count, front.count] };
+/** The settings that change the intro's layout (and need it restarted); everything else updates it live. */
+function introLayout(s: IntroSettings) {
+  return [
+    s.enabled,
+    s.formationCount,
+    s.starSize,
+    s.starDepth,
+    s.spaceDepth,
+    s.scatter,
+    s.disperse,
+    s.glowingShare,
+    s.colors,
+    s.field.count,
+    s.field.size,
+    s.front.count,
+    s.front.size,
+    s.stream.corners,
+    s.introBlur > 0,
+  ];
 }
 
 export function PortalEditor({ initial }: { initial: IntroSettings }) {
@@ -58,7 +70,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
-  const [tab, setTab] = useState<Tab>("layers");
+  const [tab, setTab] = useState<Tab>("background");
   const dirty = !same(saved, draft);
 
   // --- preview ------------------------------------------------------------------------
@@ -155,7 +167,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
       sentRef.current = draft;
       send({ source: "dds-portal", type: "settings", settings: draft });
       if (playheadRef.current >= T.fadeStart) return; // on the page: it and its stars already reflect the change
-      if (previous && same(introPart(previous), introPart(draft))) return; // a page-only change: the intro looks the same
+      if (previous && same(introLayout(previous), introLayout(draft))) return; // shown live, no restart needed
       startRun(Math.min(playheadRef.current, LAST_INTRO_FRAME), true);
     }, 200);
     return () => clearTimeout(timer);
@@ -180,6 +192,10 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
   }
   function updateStream(patch: Partial<IntroSettings["stream"]>) {
     setDraft((d) => ({ ...d, stream: { ...d.stream, ...patch } }));
+    setSave({ kind: "idle" });
+  }
+  function updateDial(patch: Partial<IntroSettings["dial"]>) {
+    setDraft((d) => ({ ...d, dial: { ...d.dial, ...patch } }));
     setSave({ kind: "idle" });
   }
   function updateArt(patch: Partial<IntroSettings["art"]>) {
@@ -304,201 +320,8 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
             ))}
           </div>
 
-          {tab === "layers" && (
+          {tab === "background" && (
             <>
-              <nav className={styles.layerMap} aria-label="Layers, front to back">
-                <p className={styles.layerMapTitle}>Layers · front to back</p>
-                <ol>
-                  <li className={styles.layerFixed}>
-                    <span className={styles.layerNum}>★</span>
-                    <span className={styles.layerName}>Logo &amp; page content</span>
-                    <span className={styles.layerInfo}>always on top</span>
-                  </li>
-                  {[
-                    {
-                      id: "layer-front",
-                      name: "Front stars",
-                      info: draft.front.count
-                        ? `${draft.front.count} · ${draft.front.blur ? `${draft.front.blur}px blur` : "sharp"}`
-                        : "off",
-                    },
-                    {
-                      id: "layer-glass",
-                      name: "Tinted glass",
-                      info: draft.glassOpacity ? `${Math.round(draft.glassOpacity * 100)}% · ${draft.glassFrost}px blur` : "off",
-                    },
-                    {
-                      id: "layer-back",
-                      name: "Back stars",
-                      info: draft.field.count
-                        ? `${draft.field.count} · depth blur ${Math.round(draft.field.depthBlur * 100)}%`
-                        : "off",
-                    },
-                    {
-                      id: "layer-corner",
-                      name: "Big stars",
-                      info: draft.field.cornerStars
-                        ? `${draft.field.cornerStars} · ${Math.round(draft.field.cornerSize * 100)}%`
-                        : "off",
-                    },
-                    {
-                      id: "layer-background",
-                      name: "Background",
-                      info: draft.art.enabled ? `${draft.art.style} gradient` : draft.background,
-                    },
-                  ].map((l, i) => (
-                    <li key={l.id}>
-                      <a href={`#${l.id}`} className={styles.layerLink}>
-                        <span className={styles.layerNum}>{i + 1}</span>
-                        <span className={styles.layerName}>{l.name}</span>
-                        <span className={styles.layerInfo}>{l.info}</span>
-                      </a>
-                    </li>
-                  ))}
-                </ol>
-              </nav>
-
-              <Section
-                id="layer-front"
-                tag="Layer 1"
-                title="Front stars"
-                hint="In front of the glass: nearer the screen, so bigger — and sharp unless you soften them."
-              >
-                <Slider
-                  label="Number of stars"
-                  value={draft.front.count}
-                  min={0}
-                  max={40}
-                  step={1}
-                  format={(v) => (v === 0 ? "None" : String(Math.round(v)))}
-                  onChange={(count) => updateFront({ count })}
-                />
-                <Slider
-                  label="Blur"
-                  value={draft.front.blur}
-                  min={0}
-                  max={6}
-                  step={0.5}
-                  format={(v) => (v === 0 ? "Sharp" : `${v.toFixed(1)} px`)}
-                  hint="Soften the front stars for a shallower, more cinematic focus."
-                  onChange={(blur) => updateFront({ blur })}
-                />
-                <Slider
-                  label="Size"
-                  value={draft.front.size}
-                  min={0.4}
-                  max={2.5}
-                  step={0.05}
-                  format={percent}
-                  onChange={(size) => updateFront({ size })}
-                />
-              </Section>
-
-              <Section
-                id="layer-glass"
-                tag="Layer 2"
-                title="Tinted glass"
-                hint="Between the front and back stars, so the logo stands forward."
-              >
-                <div className={styles.control}>
-                  <div className={styles.controlRow}>
-                    <span className={styles.controlLabel}>Glass tint</span>
-                    <span className={styles.colorField}>
-                      <input
-                        type="color"
-                        aria-label="Glass tint"
-                        className={styles.swatch}
-                        value={draft.glassColor}
-                        onChange={(e) => update({ glassColor: e.target.value })}
-                      />
-                      <HexInput
-                        value={draft.glassColor}
-                        label="Glass tint code"
-                        onChange={(hex) => update({ glassColor: hex })}
-                      />
-                    </span>
-                  </div>
-                </div>
-                <Slider
-                  label="Glass opacity"
-                  value={draft.glassOpacity}
-                  min={0}
-                  max={0.85}
-                  step={0.01}
-                  format={percent}
-                  hint="How strongly the glass darkens the stars behind it, so the logo stands forward."
-                  onChange={(glassOpacity) => update({ glassOpacity })}
-                />
-                <Slider
-                  label="Glass blur"
-                  value={draft.glassFrost}
-                  min={0}
-                  max={8}
-                  step={0.5}
-                  format={(v) => (v === 0 ? "Clear" : `${v.toFixed(1)} px`)}
-                  hint="How frosted the glass is."
-                  onChange={(glassFrost) => update({ glassFrost })}
-                />
-              </Section>
-
-              <Section id="layer-back" tag="Layer 3" title="Back stars" hint="Behind the glass, spread deep into the background.">
-                <Slider
-                  label="Number of stars"
-                  value={draft.field.count}
-                  min={LIMITS.fieldCount[0]}
-                  max={LIMITS.fieldCount[1]}
-                  step={1}
-                  format={(v) => (v === 0 ? "None" : String(Math.round(v)))}
-                  onChange={(count) => updateField({ count })}
-                />
-                <Slider
-                  label="Size"
-                  value={draft.field.size}
-                  min={0.4}
-                  max={2.5}
-                  step={0.05}
-                  format={percent}
-                  hint="Nearer back stars are still drawn bigger than farther ones."
-                  onChange={(size) => updateField({ size })}
-                />
-                <Slider
-                  label="Depth blur"
-                  value={draft.field.depthBlur}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  format={(v) => (v === 0 ? "Off" : percent(v))}
-                  hint="Near stars stay crisp; farther ones go soft."
-                  onChange={(depthBlur) => updateField({ depthBlur })}
-                />
-              </Section>
-
-              <Section
-                id="layer-corner"
-                tag="Layer 4"
-                title="Big stars"
-                hint="One or two big stars peeking in from the corners, turning slowly behind the glass."
-              >
-                <Slider
-                  label="How many"
-                  value={draft.field.cornerStars}
-                  min={0}
-                  max={2}
-                  step={1}
-                  format={(v) => (v === 0 ? "None" : v === 1 ? "1 · bottom left" : "2 · both corners")}
-                  onChange={(cornerStars) => updateField({ cornerStars })}
-                />
-                <Slider
-                  label="Size"
-                  value={draft.field.cornerSize}
-                  min={0.5}
-                  max={1.8}
-                  step={0.05}
-                  format={percent}
-                  onChange={(cornerSize) => updateField({ cornerSize })}
-                />
-              </Section>
-
               <Section
                 id="layer-background"
                 tag="Layer 5"
@@ -550,20 +373,6 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                         onClick={() => updateArt({ seed: Math.floor(Math.random() * 1e9) })}
                       >
                         ⟳ New arrangement
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.ghostButton}
-                        onClick={() =>
-                          updateArt({
-                            style: ART_STYLES[Math.floor(Math.random() * ART_STYLES.length)],
-                            seed: Math.floor(Math.random() * 1e9),
-                            depth: between(0.35, 0.85),
-                            lines: between(0.35, 0.85),
-                          })
-                        }
-                      >
-                        ⚄ Surprise me
                       </button>
                     </div>
                     <div className={styles.control}>
@@ -628,7 +437,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                       </div>
                     </div>
                     <Slider
-                      label="Lines & edges"
+                      label="Gold lines"
                       value={draft.art.lines}
                       min={0}
                       max={1}
@@ -637,7 +446,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                       onChange={(lines) => updateArt({ lines })}
                     />
                     <Slider
-                      label="Depth"
+                      label="Shadow depth"
                       value={draft.art.depth}
                       min={0}
                       max={1}
@@ -647,7 +456,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                       onChange={(depth) => updateArt({ depth })}
                     />
                     <Slider
-                      label="Movement"
+                      label="Gradient movement"
                       value={draft.art.motion}
                       min={0}
                       max={1}
@@ -656,27 +465,318 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                       onChange={(motion) => updateArt({ motion })}
                     />
                     <Slider
-                      label="Softness · intro"
-                      value={draft.art.softIntro}
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      format={(v) => (v === 0 ? "Crisp" : percent(v))}
-                      hint="How soft the lines and edges are during the intro…"
-                      onChange={(softIntro) => updateArt({ softIntro })}
-                    />
-                    <Slider
-                      label="Softness · page"
+                      label="Gradient softness"
                       value={draft.art.softPage}
                       min={0}
                       max={1}
                       step={0.05}
                       format={(v) => (v === 0 ? "Crisp" : percent(v))}
-                      hint="…and on the page after it. The intro eases from one to the other. (The glass adds its own blur on top.)"
-                      onChange={(softPage) => updateArt({ softPage })}
+                      hint="How soft the lines and edges are. (The glass adds its own blur on top.)"
+                      onChange={(softPage) => updateArt({ softPage, softIntro: softPage })}
                     />
                   </>
                 )}
+              </Section>
+
+              <Section
+                id="layer-glass"
+                tag="Layer 2"
+                title="Tinted glass"
+                hint="Between the front and back stars, so the logo stands forward."
+              >
+                <div className={styles.control}>
+                  <div className={styles.controlRow}>
+                    <span className={styles.controlLabel}>Glass tint</span>
+                    <span className={styles.colorField}>
+                      <input
+                        type="color"
+                        aria-label="Glass tint"
+                        className={styles.swatch}
+                        value={draft.glassColor}
+                        onChange={(e) => update({ glassColor: e.target.value })}
+                      />
+                      <HexInput
+                        value={draft.glassColor}
+                        label="Glass tint code"
+                        onChange={(hex) => update({ glassColor: hex })}
+                      />
+                    </span>
+                  </div>
+                </div>
+                <Slider
+                  label="Glass darkness"
+                  value={draft.glassOpacity}
+                  min={0}
+                  max={0.85}
+                  step={0.01}
+                  format={percent}
+                  hint="How strongly the glass darkens the stars behind it, so the logo stands forward."
+                  onChange={(glassOpacity) => update({ glassOpacity })}
+                />
+                <Slider
+                  label="Glass blur"
+                  value={draft.glassFrost}
+                  min={0}
+                  max={8}
+                  step={0.5}
+                  format={(v) => (v === 0 ? "Clear" : `${v.toFixed(1)} px`)}
+                  hint="How frosted the glass is."
+                  onChange={(glassFrost) => update({ glassFrost })}
+                />
+              </Section>
+
+              <Section
+                id="layer-dial"
+                title="Logo shield"
+                hint="A soft pool of dark glass behind the logo, so nothing behind it competes with the logo."
+              >
+                <Toggle
+                  label="Dark glass behind the logo"
+                  checked={draft.dial.enabled}
+                  onChange={(enabled) => updateDial({ enabled })}
+                />
+                {draft.dial.enabled && (
+                  <>
+                    <Slider
+                      label="Size"
+                      value={draft.dial.size}
+                      min={0.2}
+                      max={0.7}
+                      step={0.01}
+                      format={percent}
+                      onChange={(size) => updateDial({ size })}
+                    />
+                    <Slider
+                      label="Darkness"
+                      value={draft.dial.darkness}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={percent}
+                      onChange={(darkness) => updateDial({ darkness })}
+                    />
+                  </>
+                )}
+              </Section>
+            </>
+          )}
+
+          {tab === "stars" && (
+            <>
+              <nav className={styles.layerMap} aria-label="Layers, front to back">
+                <p className={styles.layerMapTitle}>Layers · front to back</p>
+                <ol>
+                  <li className={styles.layerFixed}>
+                    <span className={styles.layerNum}>★</span>
+                    <span className={styles.layerName}>Logo &amp; page content</span>
+                    <span className={styles.layerInfo}>always on top</span>
+                  </li>
+                  {[
+                    {
+                      id: "layer-front",
+                      name: "Front stars",
+                      info: draft.front.count
+                        ? `${draft.front.count} · ${draft.front.blur ? `${draft.front.blur}px blur` : "sharp"}`
+                        : "off",
+                    },
+                    {
+                      id: "layer-glass",
+                      name: "Tinted glass",
+                      info: draft.glassOpacity ? `${Math.round(draft.glassOpacity * 100)}% · ${draft.glassFrost}px blur` : "off",
+                    },
+                    {
+                      id: "layer-back",
+                      name: "Back stars",
+                      info: draft.field.count
+                        ? `${draft.field.count} · depth blur ${Math.round(draft.field.depthBlur * 100)}%`
+                        : "off",
+                    },
+                    {
+                      id: "layer-corner",
+                      name: "Big stars",
+                      info: draft.field.cornerStars
+                        ? `${draft.field.cornerStars} · ${Math.round(draft.field.cornerSize * 100)}%`
+                        : "off",
+                    },
+                    {
+                      id: "layer-background",
+                      name: "Background",
+                      info: draft.art.enabled ? `${draft.art.style} gradient` : draft.background,
+                    },
+                  ].map((l, i) => (
+                    <li key={l.id}>
+                      <a
+                        href={`#${l.id}`}
+                        className={styles.layerLink}
+                        onClick={() => setTab(l.id === "layer-glass" || l.id === "layer-background" ? "background" : "stars")}
+                      >
+                        <span className={styles.layerNum}>{i + 1}</span>
+                        <span className={styles.layerName}>{l.name}</span>
+                        <span className={styles.layerInfo}>{l.info}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+
+              <Section
+                id="layer-front"
+                tag="Layer 1"
+                title="Front stars"
+                hint="In front of the glass: nearer the screen, so bigger — and sharp unless you soften them."
+              >
+                <Slider
+                  label="Front stars"
+                  value={draft.front.count}
+                  min={0}
+                  max={40}
+                  step={1}
+                  format={(v) => (v === 0 ? "None" : String(Math.round(v)))}
+                  onChange={(count) => updateFront({ count })}
+                />
+                <Slider
+                  label="Front star blur"
+                  value={draft.front.blur}
+                  min={0}
+                  max={6}
+                  step={0.5}
+                  format={(v) => (v === 0 ? "Sharp" : `${v.toFixed(1)} px`)}
+                  hint="Soften the front stars for a shallower, more cinematic focus."
+                  onChange={(blur) => updateFront({ blur })}
+                />
+                <Slider
+                  label="Front star size"
+                  value={draft.front.size}
+                  min={0.4}
+                  max={2.5}
+                  step={0.05}
+                  format={percent}
+                  onChange={(size) => updateFront({ size })}
+                />
+              </Section>
+
+              <Section id="layer-back" tag="Layer 3" title="Back stars" hint="Behind the glass, spread deep into the background.">
+                <Slider
+                  label="Back stars"
+                  value={draft.field.count}
+                  min={LIMITS.fieldCount[0]}
+                  max={LIMITS.fieldCount[1]}
+                  step={1}
+                  format={(v) => (v === 0 ? "None" : String(Math.round(v)))}
+                  onChange={(count) => updateField({ count })}
+                />
+                <Slider
+                  label="Back star size"
+                  value={draft.field.size}
+                  min={0.4}
+                  max={2.5}
+                  step={0.05}
+                  format={percent}
+                  hint="Nearer back stars are still drawn bigger than farther ones."
+                  onChange={(size) => updateField({ size })}
+                />
+                <Slider
+                  label="Distance blur"
+                  value={draft.field.depthBlur}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  format={(v) => (v === 0 ? "Off" : percent(v))}
+                  hint="Near stars stay crisp; farther ones go soft."
+                  onChange={(depthBlur) => updateField({ depthBlur })}
+                />
+              </Section>
+
+              <Section
+                id="layer-corner"
+                tag="Layer 4"
+                title="Big stars"
+                hint="One or two big stars peeking in from the corners, turning slowly behind the glass."
+              >
+                <Slider
+                  label="Number of big stars"
+                  value={draft.field.cornerStars}
+                  min={0}
+                  max={2}
+                  step={1}
+                  format={(v) => (v === 0 ? "None" : v === 1 ? "1 · bottom left" : "2 · both corners")}
+                  onChange={(cornerStars) => updateField({ cornerStars })}
+                />
+                <Slider
+                  label="Big star size"
+                  value={draft.field.cornerSize}
+                  min={0.5}
+                  max={1.8}
+                  step={0.05}
+                  format={percent}
+                  onChange={(cornerSize) => updateField({ cornerSize })}
+                />
+              </Section>
+
+              <Section
+                title="Movement"
+                hint="At the top, stars stream out of the core behind the logo; as you scroll on, drifting stars take over."
+              >
+                <>
+                  <Slider
+                    label="Stream speed"
+                    value={draft.stream.speed}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    format={percent}
+                    onChange={(speed) => updateStream({ speed })}
+                  />
+                  <Slider
+                    label="Tumble"
+                    value={draft.stream.spin}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    format={percent}
+                    hint="How fast each star tumbles on its way out."
+                    onChange={(spin) => updateStream({ spin })}
+                  />
+                  <Slider
+                    label="Flips"
+                    value={draft.stream.flips}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    format={(v) => (v === 0 ? "Never" : percent(v))}
+                    hint="How often a star flips right over."
+                    onChange={(flips) => updateStream({ flips })}
+                  />
+                  <Slider
+                    label="Pull toward corners"
+                    value={draft.stream.corners}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    format={(v) => (v === 0 ? "Evenly all round" : percent(v))}
+                    hint="Pull the rays toward the screen's corners rather than straight out to the sides."
+                    onChange={(corners) => updateStream({ corners })}
+                  />
+                </>
+                <Slider
+                  label="Drift when scrolling"
+                  value={draft.field.motion}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  format={percent}
+                  onChange={(motion) => updateField({ motion })}
+                />
+                <Slider
+                  label="Cursor ripples"
+                  value={draft.field.cursor}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  format={percent}
+                  hint="Moving the cursor sends soft ripples through the stars."
+                  onChange={(cursor) => updateField({ cursor })}
+                />
               </Section>
             </>
           )}
@@ -729,12 +829,6 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   </div>
                   <p className={styles.controlHint}>The glints on the stars, the glitter, and the light of the reveal wave.</p>
                 </div>
-                <Toggle
-                  label="Glint in each star’s own colour"
-                  hint="Glowing stars use their own colour instead of the glow colour."
-                  checked={draft.glowMatchStar}
-                  onChange={(glowMatchStar) => update({ glowMatchStar })}
-                />
                 <Slider
                   label="Glowing stars"
                   value={draft.glowingShare}
@@ -859,94 +953,6 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
             </>
           )}
 
-          {tab === "motion" && (
-            <>
-              <Section
-                title="Movement"
-                hint="How the background stars move — in the intro and on the page — and how they answer the cursor."
-              >
-                <Choice
-                  label="Star motion"
-                  value={draft.stream.mode}
-                  options={[
-                    { value: "stream", label: "Stream from the core" },
-                    { value: "float", label: "Float" },
-                  ]}
-                  hint={
-                    draft.stream.mode === "stream"
-                      ? "Stars pour out of a core behind the logo to every side, like rays, growing as they near you."
-                      : "Stars drift gently in place, like stars on water."
-                  }
-                  onChange={(mode) => updateStream({ mode })}
-                />
-                {draft.stream.mode === "stream" && (
-                  <>
-                    <Slider
-                      label="Speed"
-                      value={draft.stream.speed}
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      format={percent}
-                      onChange={(speed) => updateStream({ speed })}
-                    />
-                    <Slider
-                      label="Spin"
-                      value={draft.stream.spin}
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      format={percent}
-                      hint="How fast each star tumbles on its way out."
-                      onChange={(spin) => updateStream({ spin })}
-                    />
-                    <Slider
-                      label="Flips"
-                      value={draft.stream.flips}
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      format={(v) => (v === 0 ? "Never" : percent(v))}
-                      hint="How often a star flips right over."
-                      onChange={(flips) => updateStream({ flips })}
-                    />
-                    <Slider
-                      label="Toward the corners"
-                      value={draft.stream.corners}
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      format={(v) => (v === 0 ? "Evenly all round" : percent(v))}
-                      hint="Pull the rays toward the screen's corners rather than straight out to the sides."
-                      onChange={(corners) => updateStream({ corners })}
-                    />
-                  </>
-                )}
-                {draft.stream.mode === "float" && (
-                  <Slider
-                    label="Floating motion"
-                    value={draft.field.motion}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    format={percent}
-                    onChange={(motion) => updateField({ motion })}
-                  />
-                )}
-                <Slider
-                  label="Cursor response"
-                  value={draft.field.cursor}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  format={percent}
-                  hint="Moving the cursor sends soft ripples through the stars."
-                  onChange={(cursor) => updateField({ cursor })}
-                />
-              </Section>
-            </>
-          )}
-
           {tab === "intro" && (
             <>
               <Section title="Intro" hint="The stars that fly in and draw the logo.">
@@ -957,7 +963,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   onChange={(enabled) => update({ enabled })}
                 />
                 <Slider
-                  label="Number of stars"
+                  label="Logo stars"
                   value={draft.formationCount}
                   min={LIMITS.formationCount[0]}
                   max={LIMITS.formationCount[1]}
@@ -976,7 +982,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   onChange={(spaceDepth) => update({ spaceDepth })}
                 />
                 <Slider
-                  label="Depth blur · intro"
+                  label="Distance blur"
                   value={draft.introBlur}
                   min={0}
                   max={1}
@@ -984,16 +990,6 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   format={(v) => (v === 0 ? "Off" : percent(v))}
                   hint="Far and very near stars soften while the logo, its stars and the big star stay in focus."
                   onChange={(introBlur) => update({ introBlur })}
-                />
-                <Slider
-                  label="Background stars"
-                  value={draft.introAmbient}
-                  min={0}
-                  max={400}
-                  step={10}
-                  format={(v) => (v === 0 ? "None" : String(Math.round(v)))}
-                  hint="Stars drifting around while the logo forms (in Float motion; with Stream, the Layers star counts are used)."
-                  onChange={(introAmbient) => update({ introAmbient })}
                 />
                 <Slider
                   label="Scatter"

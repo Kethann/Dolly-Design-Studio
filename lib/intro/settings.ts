@@ -63,10 +63,8 @@ export interface ArtSettings {
   motion: number;
 }
 
-/** How the background stars move. */
+/** How the stars stream out of the core behind the logo (at the top of the page). */
 export interface StreamSettings {
-  /** "stream": out of a core behind the logo to every side, like rays. "float": drifting like stars on water. */
-  mode: "stream" | "float";
   /** 0..1: how fast they stream out. */
   speed: number;
   /** 0..1: how fast they tumble. */
@@ -128,6 +126,16 @@ export interface IntroSettings {
   art: ArtSettings;
   /** How the background stars move (in the intro and on the page). */
   stream: StreamSettings;
+  /** A soft pool of dark glass behind the logo that the stars stream out of. */
+  dial: DialSettings;
+}
+
+export interface DialSettings {
+  enabled: boolean;
+  /** Radius, as a share of the screen height. */
+  size: number;
+  /** 0..1: how dark the glass gets at its centre. */
+  darkness: number;
 }
 
 export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
@@ -159,7 +167,8 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   ],
   field: { count: 48, motion: 0.5, cursor: 0.5, depthBlur: 0.5, cornerStars: 2, cornerSize: 1, size: 1 },
   front: { count: 12, blur: 0, size: 1 },
-  stream: { mode: "stream", speed: 0.4, spin: 0.4, flips: 0.35, corners: 0.5 },
+  stream: { speed: 0.4, spin: 0.4, flips: 0.35, corners: 0.5 },
+  dial: { enabled: true, size: 0.5, darkness: 0.6 },
   art: {
     enabled: true,
     style: "waves",
@@ -212,6 +221,7 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
   const front = (src.front && typeof src.front === "object" ? src.front : {}) as Record<string, unknown>;
   const art = (src.art && typeof src.art === "object" ? src.art : {}) as Record<string, unknown>;
   const stream = (src.stream && typeof src.stream === "object" ? src.stream : {}) as Record<string, unknown>;
+  const dial = (src.dial && typeof src.dial === "object" ? src.dial : {}) as Record<string, unknown>;
 
   const rawColors = Array.isArray(src.colors) ? src.colors.slice(0, LIMITS.colorCount[1]) : [];
   const colors = rawColors
@@ -257,11 +267,15 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       size: num(front.size, [0.4, 2.5], d.front.size),
     },
     stream: {
-      mode: stream.mode === "float" ? "float" : stream.mode === "stream" ? "stream" : d.stream.mode,
       speed: num(stream.speed, [0, 1], d.stream.speed),
       spin: num(stream.spin, [0, 1], d.stream.spin),
       flips: num(stream.flips, [0, 1], d.stream.flips),
       corners: num(stream.corners, [0, 1], d.stream.corners),
+    },
+    dial: {
+      enabled: bool(dial.enabled, d.dial.enabled),
+      size: num(dial.size, [0.2, 0.7], d.dial.size),
+      darkness: num(dial.darkness, [0, 1], d.dial.darkness),
     },
     art: {
       enabled: bool(art.enabled, d.art.enabled),

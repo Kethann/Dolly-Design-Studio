@@ -198,38 +198,60 @@ function arrangement(seed: number) {
 }
 
 export function createBackdropPass(settings: IntroSettings, aspect: number, softness: number) {
-  const { art } = settings;
-  const layout = arrangement(art.seed);
-  const angle = THREE.MathUtils.degToRad(art.rotation);
+  let art = settings.art;
   const material = new THREE.ShaderMaterial({
     vertexShader,
     fragmentShader,
     uniforms: {
       tDiffuse: { value: null },
-      uBase: { value: new THREE.Color(settings.background) },
-      uTone: { value: new THREE.Color(art.tone) },
-      uShadow: { value: new THREE.Color(art.shadow) },
-      uGold: { value: new THREE.Color(art.gold) },
-      uLines: { value: art.lines },
-      uDepth: { value: art.depth },
+      uBase: { value: new THREE.Color() },
+      uTone: { value: new THREE.Color() },
+      uShadow: { value: new THREE.Color() },
+      uGold: { value: new THREE.Color() },
+      uLines: { value: 0 },
+      uDepth: { value: 0 },
       uSoft: { value: softness },
-      uStyle: { value: Math.max(0, ART_STYLES.indexOf(art.style)) },
+      uStyle: { value: 0 },
       uTime: { value: 0 },
       uAspect: { value: aspect },
-      uAmount: { value: art.enabled ? 1 : 0 },
+      uAmount: { value: 0 },
       uScroll: { value: 0 },
       uPointer: { value: new THREE.Vector2() },
-      uRot: { value: new THREE.Vector2(Math.cos(angle), Math.sin(angle)) },
-      uA: { value: layout.a },
-      uB: { value: layout.b },
-      uC: { value: layout.c },
-      uD: { value: layout.d },
+      uRot: { value: new THREE.Vector2() },
+      uA: { value: new THREE.Vector4() },
+      uB: { value: new THREE.Vector4() },
+      uC: { value: new THREE.Vector4() },
+      uD: { value: new THREE.Vector4() },
     },
   });
   const pass = new ShaderPass(material);
   const u = material.uniforms;
+  let seed = -1;
+  /** Applies the creator's settings live (no rebuild, no flash). */
+  function apply(s: IntroSettings) {
+    art = s.art;
+    (u.uBase.value as THREE.Color).set(s.background);
+    (u.uTone.value as THREE.Color).set(art.tone);
+    (u.uShadow.value as THREE.Color).set(art.shadow);
+    (u.uGold.value as THREE.Color).set(art.gold);
+    u.uLines.value = art.lines;
+    u.uDepth.value = art.depth;
+    u.uStyle.value = Math.max(0, ART_STYLES.indexOf(art.style));
+    const angle = THREE.MathUtils.degToRad(art.rotation);
+    (u.uRot.value as THREE.Vector2).set(Math.cos(angle), Math.sin(angle));
+    if (art.seed !== seed) {
+      seed = art.seed;
+      const layout = arrangement(seed);
+      (u.uA.value as THREE.Vector4).copy(layout.a);
+      (u.uB.value as THREE.Vector4).copy(layout.b);
+      (u.uC.value as THREE.Vector4).copy(layout.c);
+      (u.uD.value as THREE.Vector4).copy(layout.d);
+    }
+  }
+  apply(settings);
   return {
     pass,
+    apply,
     /**
      * `amount`: 0..1 how much of the backdrop shows (the intro eases it in); `softness`: 0..1;
      * `scroll` in screen heights; `pointerX/Y` in -1..1.
