@@ -79,13 +79,14 @@ const fragmentShader = /* glsl */ `
       light = (crest * 1.25 + echoes) * revealed * uWaveFade * uGlow;
       core = pow(crest, 3.0) * revealed * uWaveFade;
     } else {
-      // Glow: the whole logo lights up from within (a slight stagger outward from the star), flares, then
-      // cools into its flat gold.
-      float dist = min(1.0, length(vWorld - uWaveCenter) / uReach);
-      float tl = uTime - (uRevealStart + (0.08 + 0.3 * dist) * uRevealDur);
-      revealed = smoothstep(0.0, 0.3, tl);
-      float flash = smoothstep(-0.05, 0.15, tl) * exp(-max(tl, 0.0) / 0.45);
-      light = flash * 2.6 * uGlow;
+      // Glow: the whole logo appears at once fully lit, then the light eases smoothly away into the original
+      // flat gold.
+      float tl = uTime - uRevealStart;
+      revealed = smoothstep(0.0, 0.18, tl);
+      float rise = smoothstep(-0.02, 0.18, tl);
+      float settle = 1.0 - smoothstep(0.18, 1.35, tl);
+      float flash = rise * settle * settle * (3.0 - 2.0 * settle);
+      light = flash * 2.4 * uGlow;
       core = flash * flash;
     }
 

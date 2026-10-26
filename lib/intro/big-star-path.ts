@@ -99,7 +99,8 @@ export function waveTimeAt(plan: BigStarPlan, d: number) {
 /** When the reveal (in either style) reaches distance d from the glyph. Stars and their dust follow this. */
 export function revealTimeAt(plan: BigStarPlan, d: number, style: "wave" | "glow") {
   if (style === "wave") return waveTimeAt(plan, d);
-  return T.waveStart + (0.08 + 0.3 * Math.min(1, d / plan.waveReach)) * (T.waveEnd - T.waveStart);
+  // The glow lights the whole logo at once; the stars turn to dust together (a hair's stagger keeps it organic).
+  return T.waveStart + 0.04 + 0.06 * Math.min(1, d / plan.waveReach);
 }
 
 const tmpQuat = new THREE.Quaternion();
