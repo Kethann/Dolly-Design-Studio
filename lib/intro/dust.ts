@@ -1,13 +1,15 @@
 import * as THREE from "three";
 import { T } from "./timeline";
-import { STAR_COLORS, bezier, bezierTangent, type FormationStar, type Stage } from "./choreography";
+import { bezier, bezierTangent, type FormationStar, type Stage } from "./choreography";
 import { bigStarPose, type BigStarPlan } from "./big-star-path";
+import type { Rng } from "./rng";
 
 // Fine glitter left behind in the stars' flight paths. Every particle is
 // planned up front (spawn point, birth time, lifetime, drift) and animated
 // entirely in the vertex shader, so thousands of them cost almost nothing.
 
-const rand = (min: number, max: number) => min + Math.random() * (max - min);
+let random: Rng = Math.random;
+const rand = (min: number, max: number) => min + random() * (max - min);
 const WARM_WHITE = new THREE.Color("#fff4dc");
 const GOLD = new THREE.Color("#ffc65c");
 
@@ -32,7 +34,7 @@ class DustBuffers {
     this.birth.push(birth);
     this.life.push(life);
     this.size.push(size);
-    this.seed.push(Math.random());
+    this.seed.push(random());
     this.color.push(color.r, color.g, color.b);
     this.intensity.push(intensity);
   }
@@ -52,7 +54,16 @@ class DustBuffers {
 }
 
 /** Builds every glitter particle for one playthrough: flight trails, the opening burst, and the big star's shower. */
-export function buildDustGeometry(stage: Stage, formation: FormationStar[], bigStar: BigStarPlan, perStar = 8, bigStarCount = 1400) {
+export function buildDustGeometry(
+  stage: Stage,
+  formation: FormationStar[],
+  bigStar: BigStarPlan,
+  palette: THREE.Color[],
+  rng: Rng,
+  perStar = 8,
+  bigStarCount = 1400,
+) {
+  random = rng;
   const dust = new DustBuffers();
   const base = stage.logo.height * 0.006;
   const p = new THREE.Vector3();
@@ -63,7 +74,7 @@ export function buildDustGeometry(stage: Stage, formation: FormationStar[], bigS
 
   // 1. Trails: each flying star sheds glitter along its path as it passes.
   for (const s of formation) {
-    tint.copy(STAR_COLORS[s.color]).lerp(WARM_WHITE, 0.45);
+    tint.copy(palette[s.color]).lerp(WARM_WHITE, 0.45);
     for (let k = 0; k < perStar; k++) {
       const progress = rand(0.06, 0.9); // eased progress along the path
       const local = 1 - Math.cbrt(1 - progress); // invert easeOutCubic → when the star is there
@@ -72,7 +83,7 @@ export function buildDustGeometry(stage: Stage, formation: FormationStar[], bigS
       bezierTangent(tangent, s.start, s.control, s.target, progress).normalize();
       v.copy(tangent).multiplyScalar(-rand(0.05, 0.25)).add(randomUnit(jitter).multiplyScalar(rand(0.03, 0.12)));
       // Mostly faint glitter; one in ten catches the light hard enough to bloom.
-      const bright = Math.random() < 0.1;
+      const bright = random() < 0.1;
       dust.add(p, v, birth, rand(0.6, 1.4), base * rand(0.5, 1.2), tint, bright ? rand(1.4, 1.9) : rand(0.35, 0.8));
     }
   }
@@ -81,7 +92,7 @@ export function buildDustGeometry(stage: Stage, formation: FormationStar[], bigS
   const centre = new THREE.Vector3(stage.logo.x, stage.logo.y, 0.5);
   for (let k = 0; k < 320; k++) {
     randomUnit(v, 0.35).multiplyScalar(rand(1.2, 3.2));
-    dust.add(centre, v, T.sparkPeak + rand(0, 0.12), rand(0.7, 1.5), base * rand(0.8, 1.6), Math.random() < 0.5 ? GOLD : WARM_WHITE, rand(1, 2));
+    dust.add(centre, v, T.sparkPeak + rand(0, 0.12), rand(0.7, 1.5), base * rand(0.8, 1.6), random() < 0.5 ? GOLD : WARM_WHITE, rand(1, 2));
   }
 
   // 3. Landing splash: glitter kicked out sideways and up where the big star lands.
@@ -89,24 +100,24 @@ export function buildDustGeometry(stage: Stage, formation: FormationStar[], bigS
     const angle = rand(0, Math.PI * 2);
     p.copy(bigStar.landing).add(jitter.set(Math.cos(angle), Math.sin(angle), 0).multiplyScalar(bigStar.landRadius * rand(0.2, 0.6)));
     v.set(Math.cos(angle) * rand(0.8, 2.2), Math.abs(Math.sin(angle)) * rand(0.4, 1.4) + 0.3, rand(-0.2, 0.6));
-    dust.add(p, v, T.bigStarLanded + rand(0, 0.06), rand(0.6, 1.2), base * rand(0.9, 1.9), Math.random() < 0.6 ? GOLD : WARM_WHITE, rand(1, 2));
+    dust.add(p, v, T.bigStarLanded + rand(0, 0.06), rand(0.6, 1.2), base * rand(0.9, 1.9), random() < 0.6 ? GOLD : WARM_WHITE, rand(1, 2));
   }
 
   // 4. The big star's shower — denser while it rolls across the logo.
   const quat = new THREE.Quaternion();
   for (let k = 0; k < bigStarCount; k++) {
-    const rolling = Math.random() < 0.4;
+    const rolling = random() < 0.4;
     const t = rolling ? rand(T.atEdge, T.rollDone) : rand(T.bigStarEnter, T.docked);
     const pose = bigStarPose(bigStar, t, p, quat);
     if (!pose.visible) continue;
     const angle = rand(0, Math.PI * 2);
-    const r = Math.sqrt(Math.random()) * pose.scale * 0.55;
+    const r = Math.sqrt(random()) * pose.scale * 0.55;
     p.x += Math.cos(angle) * r;
     p.y += Math.sin(angle) * r;
     p.z -= rand(0, pose.scale * 0.3);
     randomUnit(v).multiplyScalar(rand(0.15, 0.6)).add(jitter.set(0, -0.35, 0));
     if (rolling) v.x -= bigStar.direction * rand(0.1, 0.4); // left behind as it rolls on
-    const bright = Math.random() < 0.3;
+    const bright = random() < 0.3;
     dust.add(p, v, t, rand(0.8, 1.9), base * rand(1, 2.2), bright ? GOLD : WARM_WHITE, bright ? rand(1.5, 2.2) : rand(0.5, 1));
   }
 
@@ -125,6 +136,7 @@ const vertexShader = /* glsl */ `
   uniform float uTime;
   uniform float uProjScale; // pixels per world unit at distance 1
   uniform float uFade;
+  uniform float uGlow;
 
   varying vec3 vColor;
   varying float vAlpha;
@@ -150,7 +162,7 @@ const vertexShader = /* glsl */ `
     float fadeIn = smoothstep(0.0, 0.08, life);
     float fadeOut = pow(1.0 - life, 1.5);
     vAlpha = fadeIn * fadeOut * twinkle * uFade;
-    vColor = aColor * aIntensity;
+    vColor = aColor * aIntensity * uGlow;
     vRays = step(0.72, aSeed); // a few particles flash as tiny 4-ray sparkles
 
     gl_PointSize = max(1.0, aSize * uProjScale / -mv.z * (0.6 + 0.4 * twinkle) * (1.0 + vRays));
@@ -183,6 +195,7 @@ export function createDustMaterial() {
       uTime: { value: 0 },
       uProjScale: { value: 1 },
       uFade: { value: 1 },
+      uGlow: { value: 1 },
     },
   });
 }

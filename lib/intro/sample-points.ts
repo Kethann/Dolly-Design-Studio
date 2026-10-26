@@ -1,6 +1,8 @@
 // Turns the studio's real logo artwork into "slots" for the intro's stars to
 // settle into. Runs on an offscreen <canvas>, client-side only.
 
+import type { Rng } from "./rng";
+
 /** A slot in logo space: u, v in 0..1 (u left→right, v top→bottom). */
 export interface LogoSlot {
   u: number;
@@ -13,7 +15,7 @@ export interface LogoSlot {
  * Random picks leave gaps on purpose — the stars suggest the logo rather than
  * filling it completely, and the big star's sweep reveals the crisp version.
  */
-export function sampleLogoSlots(pathD: string, viewBoxWidth: number, viewBoxHeight: number, count: number): LogoSlot[] {
+export function sampleLogoSlots(pathD: string, viewBoxWidth: number, viewBoxHeight: number, count: number, rand: Rng = Math.random): LogoSlot[] {
   const width = 800;
   const height = Math.round((width * viewBoxHeight) / viewBoxWidth);
   const canvas = document.createElement("canvas");
@@ -39,11 +41,11 @@ export function sampleLogoSlots(pathD: string, viewBoxWidth: number, viewBoxHeig
   const picks: LogoSlot[] = [];
   for (let i = 0; i < count; i++) {
     if (i < filled.length) {
-      const j = i + Math.floor(Math.random() * (filled.length - i));
+      const j = i + Math.floor(rand() * (filled.length - i));
       [filled[i], filled[j]] = [filled[j], filled[i]];
       picks.push(filled[i]);
     } else {
-      picks.push(filled[Math.floor(Math.random() * filled.length)]);
+      picks.push(filled[Math.floor(rand() * filled.length)]);
     }
   }
   return picks;

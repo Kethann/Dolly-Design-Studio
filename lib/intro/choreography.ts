@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import type { LogoSlot } from "./sample-points";
+import { colorFractions, pickColorIndex, type IntroSettings } from "./settings";
+import type { Rng } from "./rng";
 
 // Pure planning for the star intro: where every star starts, the curve it
 // flies along, where it settles, and how it tumbles. No rendering here.
@@ -9,7 +11,6 @@ export const easeOutCubic = (x: number) => 1 - Math.pow(1 - x, 3);
 export const easeOutQuart = (x: number) => 1 - Math.pow(1 - x, 4);
 export const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 export const easeInQuad = (x: number) => x * x;
-const rand = (min: number, max: number) => min + Math.random() * (max - min);
 
 /** The camera and the on-screen logo rectangle, both in world units (the logo sits on the z = 0 plane). */
 export interface Stage {
@@ -25,36 +26,52 @@ export function viewHalfExtents(stage: Stage, z: number) {
   return { halfWidth: halfHeight * stage.aspect, halfHeight };
 }
 
-/** Colours are picked per star: warm gold, cool silver, pearl white. */
-export const STAR_COLORS = [new THREE.Color("#d9a43f"), new THREE.Color("#c7ccd4"), new THREE.Color("#f2ede3")];
-function pickColor() {
-  const r = Math.random();
-  return r < 0.45 ? 0 : r < 0.75 ? 1 : 2;
+/** What every planner needs to know about the creator's chosen look, plus the random source. */
+export interface StarLook {
+  rand: Rng;
+  size: number;
+  spaceDepth: number;
+  glowChance: number;
+  colorFractions: number[];
 }
 
-function randomAxis() {
-  return new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize();
+export function starLook(settings: IntroSettings, rand: Rng): StarLook {
+  return {
+    rand,
+    size: settings.starSize,
+    spaceDepth: settings.spaceDepth,
+    glowChance: settings.glowingShare / 100,
+    colorFractions: colorFractions(settings.colors),
+  };
+}
+
+const range = (look: StarLook, min: number, max: number) => min + look.rand() * (max - min);
+
+function randomAxis(look: StarLook) {
+  return new THREE.Vector3(range(look, -1, 1), range(look, -1, 1), range(look, -1, 1)).normalize();
 }
 
 /** A depth for a star to start from: a mix of far behind, mid-field, and close in front of the camera. */
-function randomStartDepth() {
-  const r = Math.random();
-  if (r < 0.35) return rand(-30, -8); // far behind — tiny, fading out of the fog
-  if (r < 0.75) return rand(-8, 2); // mid-field
-  return rand(2, 7); // close to the camera — big, sweeping past
+function randomStartDepth(look: StarLook) {
+  const r = look.rand();
+  const d = look.spaceDepth;
+  if (r < 0.35) return range(look, -30, -8) * d; // far behind — tiny, fading out of the fog
+  if (r < 0.75) return range(look, -8 * d, 2); // mid-field
+  return range(look, 2, 2 + 5 * Math.min(1, d)); // close to the camera — big, sweeping past
 }
 
 /** A point just outside the frame, mostly at the corners, sometimes along an edge (normalized -1..1 screen space). */
-function randomOffscreenPoint() {
-  if (Math.random() < 0.65) {
-    const sx = Math.random() < 0.5 ? -1 : 1;
-    const sy = Math.random() < 0.5 ? -1 : 1;
+function randomOffscreenPoint(look: StarLook) {
+  const sign = () => (look.rand() < 0.5 ? -1 : 1);
+  if (look.rand() < 0.65) {
+    const sx = sign();
+    const sy = sign();
     // 0.9–1.3: some begin just inside the frame so there's motion from the very first frame.
-    return { x: sx * rand(0.9, 1.3) + rand(-0.25, 0.25) * -sx, y: sy * rand(0.9, 1.3) + rand(-0.25, 0.25) * -sy };
+    return { x: sx * range(look, 0.9, 1.3) + range(look, -0.25, 0.25) * -sx, y: sy * range(look, 0.9, 1.3) + range(look, -0.25, 0.25) * -sy };
   }
-  const along = rand(-1, 1);
-  const out = (Math.random() < 0.5 ? -1 : 1) * rand(0.95, 1.3);
-  return Math.random() < 0.5 ? { x: out, y: along } : { x: along, y: out };
+  const along = range(look, -1, 1);
+  const out = sign() * range(look, 0.95, 1.3);
+  return look.rand() < 0.5 ? { x: out, y: along } : { x: along, y: out };
 }
 
 export interface FormationStar {
@@ -73,9 +90,10 @@ export interface FormationStar {
 }
 
 /** Stars that fly in from the corners/edges and settle into random slots of the logo. */
-export function planFormation(stage: Stage, slots: LogoSlot[]): FormationStar[] {
+export function planFormation(stage: Stage, slots: LogoSlot[], look: StarLook): FormationStar[] {
   const { logo } = stage;
-  const baseSize = logo.height * 0.03;
+  const baseSize = logo.height * 0.03 * look.size;
+  const rand = (min: number, max: number) => range(look, min, max);
 
   return slots.map((slot) => {
     const target = new THREE.Vector3(
@@ -84,9 +102,9 @@ export function planFormation(stage: Stage, slots: LogoSlot[]): FormationStar[] 
       rand(0.05, 0.45), // just in front of the logo plane (z = 0) so they cover it until the sweep
     );
 
-    const z = randomStartDepth();
+    const z = randomStartDepth(look);
     const { halfWidth, halfHeight } = viewHalfExtents(stage, z);
-    const p = randomOffscreenPoint();
+    const p = randomOffscreenPoint(look);
     const start = new THREE.Vector3(p.x * halfWidth, p.y * halfHeight, z);
 
     // Bend the path with a control point pushed off the straight line, so stars arc in.
@@ -101,9 +119,9 @@ export function planFormation(stage: Stage, slots: LogoSlot[]): FormationStar[] 
       delay: rand(0.2, 1.4),
       duration: rand(1.5, 2.3),
       size: baseSize * rand(0.6, 1.3),
-      color: pickColor(),
-      glow: Math.random() < 0.12,
-      spinAxis: randomAxis(),
+      color: pickColorIndex(look.colorFractions, look.rand()),
+      glow: look.rand() < look.glowChance,
+      spinAxis: randomAxis(look),
       spinTurns: rand(1, 3.5),
       rest: new THREE.Quaternion().setFromEuler(new THREE.Euler(rand(-0.4, 0.4), rand(-0.4, 0.4), rand(0, Math.PI * 2))),
       wobblePhase: rand(0, Math.PI * 2),
@@ -123,19 +141,20 @@ export interface AmbientStar {
 }
 
 /** Free-floating stars filling the whole view at every depth — the atmosphere around the logo. */
-export function planAmbient(stage: Stage, count: number): AmbientStar[] {
+export function planAmbient(stage: Stage, count: number, look: StarLook): AmbientStar[] {
+  const rand = (min: number, max: number) => range(look, min, max);
   return Array.from({ length: count }, () => {
-    const z = Math.random() < 0.8 ? rand(-30, 1) : rand(1, 6);
+    const z = look.rand() < 0.8 ? rand(-30 * look.spaceDepth, 1) : rand(1, 6);
     const { halfWidth, halfHeight } = viewHalfExtents(stage, z);
     return {
       origin: new THREE.Vector3(rand(-1.1, 1.1) * halfWidth, rand(-1.1, 1.1) * halfHeight, z),
       velocity: new THREE.Vector3(rand(-0.12, 0.12), rand(-0.1, 0.06), rand(-0.05, 0.15)),
-      size: rand(0.06, 0.2),
-      color: pickColor(),
+      size: rand(0.06, 0.2) * look.size,
+      color: pickColorIndex(look.colorFractions, look.rand()),
       // No glowing stars right in front of the lens — they bloom into big blobs that haze the frame.
-      glow: z < 1.5 && Math.random() < 0.15,
-      spinAxis: randomAxis(),
-      spinSpeed: rand(0.25, 0.9) * (Math.random() < 0.5 ? -1 : 1),
+      glow: z < 1.5 && look.rand() < look.glowChance * 1.25,
+      spinAxis: randomAxis(look),
+      spinSpeed: rand(0.25, 0.9) * (look.rand() < 0.5 ? -1 : 1),
       appearAt: rand(0, 1.6),
     };
   });

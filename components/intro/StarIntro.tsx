@@ -11,13 +11,14 @@ import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
 import { HERO_LOGO_ID } from "@/lib/dom-ids";
 import { sampleLogoSlots } from "@/lib/intro/sample-points";
 import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
+import { createBrushedMetalTexture, createStarMaterial } from "@/lib/intro/star-material";
+import { createRng, randomSeed } from "@/lib/intro/rng";
 import { createLogoRevealMaterial } from "@/lib/intro/logo-reveal-material";
 import { createGlowTexture, createStreakTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
 import { bigStarPose, planBigStar, wipeX } from "@/lib/intro/big-star-path";
 import { T } from "@/lib/intro/timeline";
 import {
-  STAR_COLORS,
   bezier,
   clamp01,
   easeInOutCubic,
@@ -26,13 +27,13 @@ import {
   easeOutQuart,
   planAmbient,
   planFormation,
+  starLook,
   type Stage,
 } from "@/lib/intro/choreography";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import styles from "./StarIntro.module.css";
 
 const LOGO_GOLD = new THREE.Color("#fff195"); // the flat gold of /images/brand/logo.svg
-const FORMATION_COUNT = 700;
 const AMBIENT_COUNT = 260;
 const CAMERA_Z = 14;
 const FOV = 35;
@@ -64,6 +65,10 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
 
   useEffect(() => {
     const PAGE_BACKGROUND = new THREE.Color(settings.background); // same as the page, so the hand-off is invisible
+    const glow = settings.glow; // 1 = the original intro's glow
+    const rand = createRng(randomSeed());
+    const look = starLook(settings, rand);
+    const palette = settings.colors.map((c) => new THREE.Color(c.hex));
     const wrap = wrapRef.current;
     const overlay = overlayRef.current;
     const vignette = vignetteRef.current;
@@ -121,7 +126,7 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     composer.addPass(new RenderPass(scene, camera));
     // High threshold: only glowing stars, glitter, glints and the reveal edge bloom — not the logo itself,
     // so it matches the flat page logo it hands over to.
-    composer.addPass(new UnrealBloomPass(new THREE.Vector2(vw, vh), 0.55, 0.45, 0.92));
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(vw, vh), 0.55 * glow, 0.45, 0.92));
     composer.addPass(new OutputPass());
 
     // --- stage: map the hero logo's on-screen rect onto the z = 0 plane -----
@@ -152,20 +157,17 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     scene.add(logoPlane);
 
     // --- stars ------------------------------------------------------------------------
-    const starGeometry = createFacetedStarGeometry();
-    const plainMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.88, roughness: 0.3, flatShading: true });
-    const glowMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.7,
-      roughness: 0.25,
-      flatShading: true,
-      emissive: 0xffc46b,
-      emissiveIntensity: 1.4,
-    });
+    const depth = 0.42 * settings.starDepth;
+    const starGeometry = createFacetedStarGeometry({ depth });
+    const brush = createBrushedMetalTexture(rand);
+    const plain = createStarMaterial(brush, { metalness: 0.9, roughness: 0.28, glow: 0, texture: settings.metallic });
+    const glowing = createStarMaterial(brush, { metalness: 0.75, roughness: 0.24, glow: 1.6 * glow, texture: settings.metallic });
+    const plainMaterial = plain.material;
+    const glowMaterial = glowing.material;
 
-    const slots = sampleLogoSlots(LOGO_BODY_PATH, LOGO_VIEWBOX.width, LOGO_VIEWBOX.height, FORMATION_COUNT);
-    const formation = planFormation(stage, slots);
-    const ambient = planAmbient(stage, AMBIENT_COUNT);
+    const slots = sampleLogoSlots(LOGO_BODY_PATH, LOGO_VIEWBOX.width, LOGO_VIEWBOX.height, settings.formationCount, rand);
+    const formation = planFormation(stage, slots, look);
+    const ambient = planAmbient(stage, AMBIENT_COUNT, look);
 
     const plainCount = formation.filter((s) => !s.glow).length + ambient.filter((s) => !s.glow).length;
     const glowCount = formation.length + ambient.length - plainCount;
@@ -183,7 +185,7 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     function assign(glow: boolean, color: number) {
       const mesh = glow ? glowMesh : plainMesh;
       const index = glow ? nextGlow++ : nextPlain++;
-      tint.copy(STAR_COLORS[color]);
+      tint.copy(palette[color]);
       if (glow) tint.lerp(white, 0.35);
       mesh.setColorAt(index, tint);
       return { mesh, index };
@@ -196,19 +198,15 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     // --- the big star ----------------------------------------------------------------
     const bigPlan = planBigStar(stage, formation.map((s) => s.target));
     // Same proportions as the logo's own star (inner/outer ≈ 0.389), so it matches exactly when it docks.
-    const bigStarGeometry = createFacetedStarGeometry({ innerRadius: 0.389 });
+    const bigStarGeometry = createFacetedStarGeometry({ innerRadius: 0.389, depth });
     const bigGold = new THREE.Color(0xe8b34a);
     const bigEmber = new THREE.Color(0xff9a3c);
     const black = new THREE.Color(0x000000);
-    const bigMaterial = new THREE.MeshStandardMaterial({
-      color: bigGold,
-      metalness: 1,
-      roughness: 0.2,
-      flatShading: true,
-      emissive: bigEmber,
-      emissiveIntensity: 0.3,
-      transparent: true,
-    });
+    const big = createStarMaterial(brush, { metalness: 1, roughness: 0.2, glow: 0.3, texture: settings.metallic });
+    const bigMaterial = big.material;
+    bigMaterial.color.copy(bigGold);
+    bigMaterial.emissive.copy(bigEmber);
+    bigMaterial.transparent = true;
     const bigStar = new THREE.Mesh(bigStarGeometry, bigMaterial);
     bigStar.visible = false;
     bigStar.renderOrder = 2;
@@ -217,8 +215,9 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     u.uSoftness.value = logo.height * 0.03;
 
     // --- glitter: flight trails, opening burst, big-star shower ------------------------
-    const dustGeometry = buildDustGeometry(stage, formation, bigPlan);
+    const dustGeometry = buildDustGeometry(stage, formation, bigPlan, palette, rand);
     const dustMaterial = createDustMaterial();
+    dustMaterial.uniforms.uGlow.value = 0.5 + 0.5 * glow;
     dustMaterial.uniforms.uProjScale.value = (vh * dpr) / (2 * tanHalfFov);
     const dust = new THREE.Points(dustGeometry, dustMaterial);
     dust.frustumCulled = false;
@@ -259,8 +258,8 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     dockStreak.position.copy(dockGlow.position);
 
     function setFx(sprite: THREE.Sprite, intensity: number, sx: number, sy: number) {
-      sprite.visible = intensity > 0.001;
-      (sprite.material as THREE.SpriteMaterial).opacity = intensity;
+      sprite.visible = intensity * glow > 0.001;
+      (sprite.material as THREE.SpriteMaterial).opacity = intensity * glow;
       sprite.scale.set(sx, sy, 1);
     }
 
@@ -344,6 +343,10 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
       bigMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3, 1, pose.morph);
       bigMaterial.metalness = 1 - pose.morph;
       bigMaterial.roughness = THREE.MathUtils.lerp(0.2, 1, pose.morph);
+      // Flat and untextured by the time it hands over, so it matches the flat logo star exactly.
+      bigMaterial.clearcoat = 0.35 * (1 - pose.morph);
+      bigMaterial.bumpScale = 0.35 * settings.metallic * (1 - pose.morph);
+      big.uniforms.uTexture.value = settings.metallic * (1 - pose.morph);
       bigMaterial.opacity = 1 - (pose.visible ? pose.dock : 0);
       u.uStarDock.value = pose.dock;
 
@@ -444,6 +447,7 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
       fxSprites.forEach((s) => s.material.dispose());
       glowTexture.dispose();
       streakTexture.dispose();
+      brush.dispose();
       plainMesh.dispose();
       glowMesh.dispose();
       reveal.dispose();
