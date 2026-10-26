@@ -6,12 +6,15 @@ import styles from "./portal.module.css";
 export function Section({
   id,
   tag,
+  scope,
   title,
   hint,
   children,
 }: {
   id?: string;
   tag?: string;
+  /** Where the settings take effect: the intro, the page after it, or both. */
+  scope?: "Intro" | "Page" | "Intro & page";
   title: string;
   hint?: string;
   children: ReactNode;
@@ -22,6 +25,7 @@ export function Section({
         <h2 className={styles.sectionTitle}>
           {tag && <span className={styles.sectionTag}>{tag}</span>}
           {title}
+          {scope && <span className={styles.scope}>Affects: {scope}</span>}
         </h2>
         {hint && <p className={styles.sectionHint}>{hint}</p>}
       </header>

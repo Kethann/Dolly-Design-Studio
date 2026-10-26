@@ -2,28 +2,28 @@
   "enabled": true,
   "background": "#410000",
   "glassColor": "#120204",
-  "glassOpacity": 0.5,
-  "glassFrost": 3,
-  "glow": 0.3,
-  "pageGlow": 0.3,
-  "glowLinked": true,
+  "glassOpacity": 0.58,
+  "glassFrost": 5.5,
+  "glow": 0,
+  "pageGlow": 0.4,
+  "glowLinked": false,
   "glowColor": "#ffcf7a",
   "glowMatchStar": false,
   "starSize": 1,
   "starDepth": 1,
   "spaceDepth": 1,
   "metallic": 0.55,
-  "glowingShare": 4,
-  "formationCount": 700,
-  "introBlur": 0,
+  "glowingShare": 8,
+  "formationCount": 350,
+  "introBlur": 0.3,
   "introAmbient": 140,
-  "scatter": 0.5,
-  "disperse": 0.1,
-  "shine": 0.55,
+  "scatter": 0.2,
+  "disperse": 0.05,
+  "shine": 0.85,
   "colors": [
     {
       "hex": "#d9a43f",
-      "share": 45
+      "share": 100
     },
     {
       "hex": "#c7ccd4",
@@ -48,20 +48,6 @@
     "blur": 0,
     "size": 1
   },
-  "art": {
-    "enabled": true,
-    "style": "waves",
-    "depth": 0.6,
-    "seed": 7,
-    "tone": "#8c1c22",
-    "gold": "#d9a648",
-    "lines": 0.6,
-    "motion": 0.4,
-    "shadow": "#190002",
-    "rotation": 0,
-    "softIntro": 0.1,
-    "softPage": 0.1
-  },
   "stream": {
     "speed": 0.4,
     "spin": 0.4,
@@ -70,7 +56,23 @@
   },
   "dial": {
     "enabled": true,
-    "size": 0.6,
-    "darkness": 0.35
-  }
+    "size": 0.57,
+    "darkness": 0.45
+  },
+  "art": {
+    "enabled": true,
+    "style": "waves",
+    "depth": 0.3,
+    "seed": 7,
+    "tone": "#8c1c22",
+    "shadow": "#190002",
+    "rotation": 0,
+    "softIntro": 0.45,
+    "softPage": 0.45,
+    "gold": "#d9a648",
+    "lines": 0.5,
+    "motion": 0.4
+  },
+  "bigShine": 1,
+  "bigGlow": 1
 }

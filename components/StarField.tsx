@@ -59,6 +59,7 @@ interface Engine {
   blur: ReturnType<typeof addDepthBlur> | null;
   tanHalfFov: number;
   geometry: THREE.BufferGeometry;
+  depth: number;
   plain: THREE.MeshPhysicalMaterial;
   glowing: THREE.MeshPhysicalMaterial;
   starUniforms: { uTexture: { value: number }; uGlowColor: { value: THREE.Color }; uMatchStar: { value: number } }[];
@@ -128,6 +129,7 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
     blur,
     tanHalfFov: Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)),
     geometry,
+    depth: settings.starDepth,
     plain: plain.material,
     glowing: glowing.material,
     starUniforms: [plain.uniforms, glowing.uniforms, corner.uniforms],
@@ -140,8 +142,8 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
     palette,
     rand,
     dispose() {
-      geometry.dispose();
-      cornerGeometry.dispose();
+      this.geometry.dispose();
+      this.cornerGeometry.dispose();
       corner.material.dispose();
       brush.dispose();
       plain.material.dispose();
@@ -159,6 +161,14 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
 
 /** Applies the creator's settings to a running layer — no rebuild, no flash. */
 function applyLiveSettings(engine: Engine, settings: IntroSettings) {
+  // Facet depth: new star shapes for the meshes about to be built (same shaders, so nothing recompiles).
+  if (settings.starDepth !== engine.depth) {
+    engine.geometry.dispose();
+    engine.cornerGeometry.dispose();
+    engine.geometry = createFacetedStarGeometry({ depth: 0.42 * settings.starDepth });
+    engine.cornerGeometry = createFacetedStarGeometry({ innerRadius: 0.42, depth: 0.42 * settings.starDepth });
+    engine.depth = settings.starDepth;
+  }
   engine.backdrop?.apply(settings);
   engine.glass?.apply(settings);
   engine.glowing.envMapIntensity = engine.plain.envMapIntensity = 0.55 * settings.shine;
@@ -170,6 +180,7 @@ function applyLiveSettings(engine: Engine, settings: IntroSettings) {
   }
   engine.palette.splice(0, engine.palette.length, ...settings.colors.map((c) => new THREE.Color(c.hex)));
   engine.corner.color.copy(engine.palette[0] ?? new THREE.Color(0xd9a43f));
+  engine.corner.envMapIntensity = 0.5 * settings.bigShine;
   engine.fog?.color.copy(backdropFogColor(settings));
   if (engine.blur) engine.blur.maxblur.value = 0.004 + 0.012 * Math.max(settings.field.depthBlur, settings.introBlur);
 }
@@ -219,7 +230,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
   const back = layer === "back";
   // Only settings that change how the layer is drawn rebuild its renderer and shaders. Everything else
   // (counts, sizes, motion, frost) just re-places the stars, which is cheap and keeps the same canvas.
-  const engineKey = JSON.stringify([settings.starDepth]);
+  const engineKey = ""; // every setting now applies live; the renderer is only built once per layer
   const count = back ? settings.field.count : settings.front.count;
   const needed = count > 0 || (back && settings.field.cornerStars > 0);
 
@@ -502,7 +513,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
       if (blur) blur.aperture.value = blurFrom + (blurTo - blurFrom) * arrive;
       const glow = startGlow + (pageGlow - startGlow) * arrive;
       engine!.glowing.emissiveIntensity = GLINT_STRENGTH * glow;
-      engine!.corner.emissiveIntensity = 0.45 * glow;
+      engine!.corner.emissiveIntensity = 0.45 * glow * settings.bigGlow;
       if (composer) setBloomGlow(composer, glow);
       // The backdrop's layers scroll and lean with the page at their own depths.
       engine!.backdrop?.update(time, {

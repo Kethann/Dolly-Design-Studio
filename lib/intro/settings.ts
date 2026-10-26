@@ -117,6 +117,10 @@ export interface IntroSettings {
   disperse: number;
   /** How strongly the metal reflects light (separate from the glow). */
   shine: number;
+  /** Big stars (the intro's hero star and the page's corner stars): how strongly their metal reflects light… */
+  bigShine: number;
+  /** …and how much they glow. */
+  bigGlow: number;
   colors: StarColor[];
   /** The stars behind the glass (plus the corner stars). */
   field: FieldSettings;
@@ -160,6 +164,8 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   scatter: 0.5,
   disperse: 0.1,
   shine: 0.55,
+  bigShine: 1,
+  bigGlow: 1,
   colors: [
     { hex: "#d9a43f", share: 45 },
     { hex: "#c7ccd4", share: 30 },
@@ -251,6 +257,8 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
     scatter: num(src.scatter, [0, 1], d.scatter),
     disperse: num(src.disperse, [0, 1], d.disperse),
     shine: num(src.shine, [0.2, 1.5], d.shine),
+    bigShine: num(src.bigShine, [0.2, 1.8], d.bigShine),
+    bigGlow: num(src.bigGlow, [0, 2], d.bigGlow),
     colors: colors.length ? colors : d.colors.map((c) => ({ ...c })),
     field: {
       count: Math.round(num(field.count, LIMITS.fieldCount, d.field.count)),

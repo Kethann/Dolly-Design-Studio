@@ -204,7 +204,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
     // --- stars ------------------------------------------------------------------------
     const depth = 0.42 * settings.starDepth;
-    const starGeometry = createFacetedStarGeometry({ depth });
+    let starGeometry = createFacetedStarGeometry({ depth });
     const brush = createBrushedMetalTexture(rand);
     const { plain, glowing } = createStarMaterials(brush, starScene.envTexture, settings);
 
@@ -238,7 +238,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
     // --- the big star ----------------------------------------------------------------
     // Same proportions as the logo's own star (inner/outer ≈ 0.389), so it matches exactly when it docks.
-    const bigStarGeometry = createFacetedStarGeometry({ innerRadius: 0.389, depth });
+    let bigStarGeometry = createFacetedStarGeometry({ innerRadius: 0.389, depth });
     const bigGold = new THREE.Color(0xd9a440);
     const bigEmber = new THREE.Color(0xff9a3c);
     const black = new THREE.Color(0x000000);
@@ -329,6 +329,18 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     // Settings that can change while the portal preview is open apply live, without rebuilding the scene.
     let live = settings;
     function applyLive(s: typeof settings) {
+      // Facet depth: swap the star shape in place (same shaders, so no rebuild and no flash).
+      if (s.starDepth !== live.starDepth) {
+        const d = 0.42 * s.starDepth;
+        const nextStar = createFacetedStarGeometry({ depth: d });
+        const nextBig = createFacetedStarGeometry({ innerRadius: 0.389, depth: d });
+        for (const mesh of stars.meshes) mesh.geometry = nextStar;
+        bigStar.geometry = nextBig;
+        starGeometry.dispose();
+        bigStarGeometry.dispose();
+        starGeometry = nextStar;
+        bigStarGeometry = nextBig;
+      }
       live = s;
       backdrop.apply(s);
       setBloomGlow(composer, s.glow);
@@ -343,6 +355,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       u.uGlow.value = 0.5 + 0.5 * s.glow;
       u.uEdgeColor.value.set(s.glowColor);
       dustMaterial.uniforms.uGlow.value = 0.5 + 0.5 * s.glow;
+      bigMaterial.envMapIntensity = 0.42 * s.bigShine;
       (scene.fog as THREE.Fog).color.copy(backdropFogColor(s));
     }
 
@@ -426,7 +439,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       // As it docks it turns from polished 3D gold into the logo's flat, unlit, untextured gold.
       bigMaterial.color.lerpColors(bigGold, black, pose.morph);
       bigMaterial.emissive.lerpColors(bigEmber, LOGO_GOLD, pose.morph);
-      bigMaterial.emissiveIntensity = THREE.MathUtils.lerp(1.4 * pose.shiver * glow, 1, pose.morph);
+      bigMaterial.emissiveIntensity = THREE.MathUtils.lerp(1.4 * pose.shiver * glow * live.bigGlow, 1, pose.morph);
       bigMaterial.metalness = 1 - pose.morph;
       bigMaterial.roughness = THREE.MathUtils.lerp(0.32, 1, pose.morph);
       bigMaterial.clearcoat = 0; // a clear-coat layer turns whole facets white under the key light

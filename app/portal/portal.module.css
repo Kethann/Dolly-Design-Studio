@@ -1021,3 +1021,15 @@
 .ratio span span {
   font-weight: 600;
 }
+
+/* Where a group of settings takes effect. */
+.scope {
+  float: right;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--p-muted);
+  border: 1px solid var(--p-line-strong);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-top: -2px;
+}

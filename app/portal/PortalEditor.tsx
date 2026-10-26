@@ -50,7 +50,6 @@ function introLayout(s: IntroSettings) {
     s.enabled,
     s.formationCount,
     s.starSize,
-    s.starDepth,
     s.spaceDepth,
     s.scatter,
     s.disperse,
@@ -326,6 +325,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                 id="layer-background"
                 tag="Layer 5"
                 title="Background"
+                scope="Intro & page"
                 hint="The colour behind everything — plain, or a premium gradient with sweeping curves and fine gold lines."
               >
                 <div className={styles.control}>
@@ -482,6 +482,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                 id="layer-glass"
                 tag="Layer 2"
                 title="Tinted glass"
+                scope="Intro & page"
                 hint="Between the front and back stars, so the logo stands forward."
               >
                 <div className={styles.control}>
@@ -528,6 +529,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
               <Section
                 id="layer-dial"
                 title="Logo shield"
+                scope="Intro & page"
                 hint="A soft pool of dark glass behind the logo, so nothing behind it competes with the logo."
               >
                 <Toggle
@@ -623,6 +625,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                 id="layer-front"
                 tag="Layer 1"
                 title="Front stars"
+                scope="Intro & page"
                 hint="In front of the glass: nearer the screen, so bigger — and sharp unless you soften them."
               >
                 <Slider
@@ -655,7 +658,13 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                 />
               </Section>
 
-              <Section id="layer-back" tag="Layer 3" title="Back stars" hint="Behind the glass, spread deep into the background.">
+              <Section
+                id="layer-back"
+                tag="Layer 3"
+                title="Back stars"
+                scope="Intro & page"
+                hint="Behind the glass, spread deep into the background."
+              >
                 <Slider
                   label="Back stars"
                   value={draft.field.count}
@@ -691,6 +700,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                 id="layer-corner"
                 tag="Layer 4"
                 title="Big stars"
+                scope="Intro & page"
                 hint="One or two big stars peeking in from the corners, turning slowly behind the glass."
               >
                 <Slider
@@ -711,10 +721,31 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   format={percent}
                   onChange={(cornerSize) => updateField({ cornerSize })}
                 />
+                <Slider
+                  label="Big star shine"
+                  value={draft.bigShine}
+                  min={0.2}
+                  max={1.8}
+                  step={0.05}
+                  format={percent}
+                  hint="How strongly their gold reflects light."
+                  onChange={(bigShine) => update({ bigShine })}
+                />
+                <Slider
+                  label="Big star glow"
+                  value={draft.bigGlow}
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  format={(v) => (v === 0 ? "Off" : percent(v))}
+                  hint="Their glints, and the glow the hero star builds as it shivers on the logo."
+                  onChange={(bigGlow) => update({ bigGlow })}
+                />
               </Section>
 
               <Section
                 title="Movement"
+                scope="Intro & page"
                 hint="At the top, stars stream out of the core behind the logo; as you scroll on, drifting stars take over."
               >
                 <>
@@ -783,7 +814,11 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
 
           {tab === "look" && (
             <>
-              <Section title="Star finish" hint="How every star looks — in the intro and in every layer.">
+              <Section
+                title="Star finish"
+                scope="Intro & page"
+                hint="How every star looks, in the intro and on the page. (Big stars have their own shine and glow under Stars.)"
+              >
                 <Slider
                   label={draft.glowLinked ? "Glow · intro & page" : "Glow · intro"}
                   value={draft.glow}
@@ -879,7 +914,11 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                 />
               </Section>
 
-              <Section title="Star colours" hint="Set each colour’s share with its slider — the ratio below shows how the stars are split.">
+              <Section
+                title="Star colours"
+                scope="Intro & page"
+                hint="Set each colour’s share with its slider — the ratio below shows how the stars are split."
+              >
                 <p className={styles.ratio}>
                   Ratio{" "}
                   {draft.colors.map((c, i) => (
@@ -964,7 +1003,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
 
           {tab === "intro" && (
             <>
-              <Section title="Intro" hint="The stars that fly in and draw the logo.">
+              <Section title="Intro" scope="Intro" hint="The stars that fly in and draw the logo.">
                 <Toggle
                   label="Play the intro on the home page"
                   hint="When off, the home page opens straight onto the logo."
