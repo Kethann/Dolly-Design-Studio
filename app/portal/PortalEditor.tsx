@@ -196,7 +196,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
           <span className={styles.brandName}>Dolly Studio</span>
           <span className={styles.brandDivider} aria-hidden="true" />
           <span className={styles.brandArea}>Creator portal</span>
-          <span className={styles.version}>Intro V1</span>
+          <span className={styles.version}>Intro V2</span>
         </div>
         <div className={styles.actions}>
           <span className={styles.status} data-kind={dirty ? "dirty" : save.kind} role="status">
