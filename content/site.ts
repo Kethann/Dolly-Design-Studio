@@ -40,21 +40,24 @@ export const site = {
   },
 } as const;
 
-/** The top menu (and footer links). `id` is the home-page section it scrolls to. */
+/** The top menu (and footer links). `id` is the home-page section it scrolls to ("work" opens the full gallery). */
 export const navItems = [
-  { id: "work", label: "Work" },
-  { id: "process", label: "Process" },
-  { id: "services", label: "Services" },
+  { id: "work", label: "Projects" },
+  { id: "process", label: "How We Work" },
+  { id: "making", label: "BTS" },
+  { id: "about", label: "About" },
+  { id: "clients", label: "Clients" },
   { id: "contact", label: "Contact" },
 ] as const;
 
-/** The small frames on the right edge of the home page, one per section. */
+/** The small frames on the right edge of the home page, one per section, in page order. */
 export const railSections = [
   { id: "top", label: "Intro" },
-  { id: "manifesto", label: "Manifesto" },
-  { id: "work", label: "Work" },
-  { id: "process", label: "Process" },
-  { id: "services", label: "Services" },
-  { id: "clients", label: "Clients" },
-  { id: "contact", label: "Contact" },
+  { id: "agency", label: "The Agency" },
+  { id: "work", label: "Our Projects" },
+  { id: "process", label: "How We Work" },
+  { id: "making", label: "Making Stills" },
+  { id: "about", label: "About Us" },
+  { id: "clients", label: "Our Clients" },
+  { id: "contact", label: "Contact Us" },
 ] as const;

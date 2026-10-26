@@ -6,7 +6,7 @@ import { Magnetic } from "@/components/Magnetic";
 import styles from "./Gallery.module.css";
 
 export function Gallery() {
-  const featured = [...projects].sort((a, b) => a.order - b.order).filter((p) => p.featured);
+  const all = [...projects].sort((a, b) => a.order - b.order);
 
   return (
     <section id="work" className={styles.section}>
@@ -15,6 +15,7 @@ export function Gallery() {
           <div>
             <span className={styles.label}>{home.gallery.label}</span>
             <h2 className={styles.title}>{home.gallery.title}</h2>
+            <p className={styles.intro}>{home.gallery.intro}</p>
           </div>
           <Magnetic>
             <Link href="/work" className={styles.viewAll} data-cursor="link">
@@ -22,7 +23,7 @@ export function Gallery() {
             </Link>
           </Magnetic>
         </div>
-        <WorkGrid projects={featured} />
+        <WorkGrid projects={all} />
       </div>
     </section>
   );

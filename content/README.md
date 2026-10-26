@@ -18,10 +18,12 @@ touch the `components/` or `app/` folders to change wording, images or links.
 | "Selected work" heading and link | `home.ts` | `gallery` |
 | "How a poster is built" text, its 4 stages, and which project it uses | `home.ts` | `process` |
 | "Services" heading | `home.ts` | `services` |
-| The numbers (4+ years, 10+ films…) | `home.ts` | `clients.stats` |
 | Contact headline, form labels, dropdown options, messages | `home.ts` | `contact` |
 | The services list (names, descriptions, hover poster) | `services.ts` | |
 | Client and collaborator names, testimonials | `clients.ts` | |
+| "About us" text and the numbers (4+ years…) | `home.ts` | `about` |
+| Behind-the-scenes / making stills | `bts.ts` | `stills` |
+| A project's language (Telugu / Kannada filter) | `projects.ts` | `languages` |
 | Projects: titles, credits, descriptions, images, order, featured | `projects.ts` | |
 | Work page heading, filter "All" label | `pages.ts` | `workPage` |
 | Project page labels ("Back to work", "Client", "Role") | `pages.ts` | `projectPage` |

@@ -19,6 +19,10 @@ export const CATEGORIES: Category[] = [
   "Independent",
 ];
 
+/** Languages a project's films are in — the language filter in "Our projects". */
+export type Language = "Telugu" | "Kannada";
+export const LANGUAGES: Language[] = ["Telugu", "Kannada"];
+
 export interface WorkImage {
   /** Path inside /public, e.g. "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg" */
   src: string;
@@ -33,6 +37,8 @@ export interface Project {
   /** Film or campaign name, shown under the title. */
   film: string;
   category: Category;
+  /** The film's language(s). A project can be in both (e.g. a set of title designs). */
+  languages: Language[];
   year: number;
   client: string;
   role: string;

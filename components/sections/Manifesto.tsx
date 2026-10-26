@@ -68,7 +68,7 @@ export function Manifesto() {
   }, [reducedMotion]);
 
   return (
-    <section id="manifesto" className={styles.section}>
+    <section id="agency" className={styles.section}>
       <div className={`container ${styles.inner}`}>
         <span className={styles.label}>{home.manifesto.label}</span>
         <p ref={ref} className={styles.statement}>

@@ -5,31 +5,37 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const home = {
-  // 1. Top of the page, under the logo.
+  // 1. INTRO — top of the page, under the logo.
   hero: {
     disciplines: ["Posters", "Title Design", "Typography", "Logos"],
     /** Read out by screen readers and search engines as the page's main heading, after the studio name. */
     screenReaderHeading: "film posters, title design, typography and logos",
   },
 
-  // 2. The big statement that lights up word by word.
+  // 2. BASIC INFO ABOUT THE AGENCY — the statement that lights up word by word…
   manifesto: {
-    label: "Manifesto",
+    label: "The Agency",
     /** Words wrapped in *asterisks* are set in gold italic. */
     statement: "Let us be the cover page of your beautiful book called *‘Cinema’.*",
     body: "We design the first thing an audience ever sees of a film — the poster, the title, the type — and make sure it is impossible to look away.",
   },
-
-  // 3. Featured posters (pick which ones with `featured: true` in projects.ts).
-  gallery: {
-    label: "The Gallery of Light",
-    title: "Selected work",
-    viewAllLink: "View full gallery →",
+  // …followed by what the agency does (the services themselves are in services.ts).
+  services: {
+    label: "What We Do",
+    title: "Services",
   },
 
-  // 4. "How a poster is built" — uses the first four images of the showcase project.
+  // 3. OUR PROJECTS — every project, with language (Telugu / Kannada) and type filters.
+  gallery: {
+    label: "Our Projects",
+    title: "Telugu & Kannada cinema",
+    intro: "Posters, title designs and campaigns — choose a language, then a type.",
+    viewAllLink: "Open the full gallery →",
+  },
+
+  // 4. HOW WE WORK — uses the first four images of the showcase project.
   process: {
-    label: "From Spark to Sheet",
+    label: "How We Work",
     title: "How a poster is built",
     /** Which project (its `slug` in projects.ts) illustrates the stages. */
     showcaseSlug: "dacoit",
@@ -44,17 +50,25 @@ export const home = {
     ],
   },
 
-  // 5. The numbered services list (the services themselves are in services.ts).
-  services: {
-    label: "The Programme",
-    title: "Services",
+  // 5. BTS / MAKING STILLS — the stills themselves are listed in bts.ts.
+  making: {
+    label: "Behind the Scenes",
+    title: "Making stills",
+    intro: "From the shoot floor to the design desk — how the art comes together.",
+    /** Shown while bts.ts has no stills yet. */
+    empty: "Stills from our shoots and design desk are on their way.",
   },
 
-  // 6. Scrolling client names and the count-up numbers (names are in clients.ts).
-  clients: {
-    label: "Clients & Collaborations",
-    /** Read out by screen readers before the list of names. */
-    screenReaderIntro: "Clients and collaborators:",
+  // 6. ABOUT US — the studio, its founder, and the numbers.
+  about: {
+    label: "About Us",
+    title: "The studio",
+    /** [CLIENT TO CONFIRM] Add a founder bio and photo when ready. */
+    paragraphs: [
+      "Dolly Design Studio is a creative collective based in Bangalore, specialising in film publicity and title design for Telugu and Kannada cinema.",
+      "We blend artistry with strategy — posters, title logos, typography and full campaigns — to craft identities that elevate films and leave a lasting mark.",
+    ],
+    founderLabel: "Founded by",
     stats: [
       { value: 4, suffix: "+", label: "Years of experience" },
       { value: 10, suffix: "+", label: "Feature films" },
@@ -62,9 +76,17 @@ export const home = {
     ],
   },
 
-  // 7. Contact section and enquiry form.
+  // 7. OUR CLIENTS — scrolling names (they're in clients.ts).
+  clients: {
+    label: "Our Clients",
+    title: "Clients & collaborations",
+    /** Read out by screen readers before the list of names. */
+    screenReaderIntro: "Clients and collaborators:",
+  },
+
+  // 8. CONTACT US — the enquiry form.
   contact: {
-    label: "Curtain Call",
+    label: "Contact Us",
     headline: "Let’s create something cinematic.",
     availability: "Available for feature films, OTT originals & campaign launches",
     whatsappLabel: "WhatsApp",

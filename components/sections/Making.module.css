@@ -1,0 +1,94 @@
+.section {
+  padding-block: 120px;
+}
+
+.label {
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--gold);
+  display: block;
+  margin-bottom: 14px;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(28px, 4vw, 44px);
+  margin: 0 0 14px;
+}
+
+.intro {
+  max-width: 56ch;
+  margin: 0 0 48px;
+  font-size: clamp(15px, 1.4vw, 18px);
+  line-height: 1.7;
+  opacity: 0.8;
+}
+
+/* A staggered three-column strip: every second still sits lower and taller, like contact sheets on a desk. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(16px, 2.5vw, 32px);
+  align-items: start;
+}
+
+.still {
+  margin: 0;
+}
+
+.still[data-tall="true"] {
+  margin-top: clamp(24px, 5vw, 64px);
+}
+
+.frame {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border: 1px solid var(--smoke-strong);
+}
+
+.still[data-tall="true"] .frame {
+  aspect-ratio: 3 / 4;
+}
+
+.image {
+  object-fit: cover;
+  transition: transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.still:hover .image {
+  transform: scale(1.04);
+}
+
+.caption {
+  margin-top: 12px;
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.empty {
+  margin: 0;
+  padding: 28px 32px;
+  border: 1px dashed var(--smoke-strong);
+  font-family: var(--font-label);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+@media (max-width: 700px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .still[data-tall="true"] {
+    margin-top: 0;
+  }
+}

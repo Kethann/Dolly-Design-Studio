@@ -45,3 +45,59 @@
   opacity: 0.6;
   padding-block: 40px;
 }
+
+/* Language: a larger, underlined switch above the type chips — the first choice you make. */
+.languages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(18px, 3vw, 36px);
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--smoke);
+}
+
+.language {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.4vw, 28px);
+  color: var(--ivory);
+  opacity: 0.55;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.language::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--gold-bright);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.language:hover,
+.language:focus-visible {
+  opacity: 0.9;
+}
+
+.languageActive {
+  opacity: 1;
+  color: var(--gold-bright);
+}
+
+.languageActive::after {
+  transform: scaleX(1);
+}
+
+.languageCount {
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  opacity: 0.6;
+}
