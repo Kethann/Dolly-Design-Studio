@@ -14,6 +14,7 @@ import { CAMERA_Z, addDepthBlur, createStarComposer, createStarInstances, create
 import { backdropFogColor, createBackdropPass } from "@/lib/intro/backdrop-art";
 import { createGlassPasses } from "@/lib/intro/glass-pass";
 import { createAdaptiveQuality } from "@/lib/intro/adaptive-quality";
+import { planStream, streamPose } from "@/lib/intro/stream";
 import { pageGlowOf, type IntroSettings } from "@/lib/intro/settings";
 import styles from "./StarField.module.css";
 
@@ -275,12 +276,19 @@ export function StarField({ layer }: { layer: StarLayer }) {
 
     // --- stars: the intro's survivors for this layer, topped up (or replaced) by our own -----
     const look = starLook(settings, rand);
-    const handed = handoff.status === "ready" ? handoff.stars.filter((s) => layerOf(s.position[2]) === layer).slice(0, count) : [];
-    const list: FieldStar[] = [
-      ...handed,
-      ...planFieldStars(count - handed.length, width / height, look, layer, handed.map((s) => s.position)),
-    ];
-    const instances = createStarInstances(engine.geometry, engine.plain, engine.glowing, list, engine.palette);
+    // "stream": the same stream the intro showed (same seed, same clock), carrying straight on.
+    // "float": the intro's survivors for this layer, topped up (or replaced) by our own.
+    const streaming = settings.stream.mode === "stream";
+    const streamSeed = handoff.status === "ready" ? handoff.stream.seed : seed;
+    const streamList = streaming ? planStream(count, layer, settings, streamSeed) : [];
+    const handed =
+      !streaming && handoff.status === "ready" ? handoff.stars.filter((s) => layerOf(s.position[2]) === layer).slice(0, count) : [];
+    const list: FieldStar[] = streaming
+      ? []
+      : [...handed, ...planFieldStars(count - handed.length, width / height, look, layer, handed.map((s) => s.position))];
+    const instances = createStarInstances(engine.geometry, engine.plain, engine.glowing, streaming ? streamList : list, engine.palette);
+    const pushes = (streaming ? streamList : list).map(() => new THREE.Vector3());
+    const flip = new THREE.Quaternion();
     scene.add(...instances.meshes);
 
     // --- corner stars: one or two big, slow-turning stars peeking in from the corners -------
@@ -304,7 +312,6 @@ export function StarField({ layer }: { layer: StarLayer }) {
       /** Each star bobs and rocks at its own pace, about its own axis. */
       bob: { freq: 0.5 + rand() * 0.5, phase: rand() * Math.PI * 2 },
       rock: { axis: randomAxis(), freq: 0.35 + rand() * 0.4, phase: rand() * Math.PI * 2, amount: 0.25 + rand() * 0.3 },
-      push: new THREE.Vector3(),
     }));
 
     // Carry on from the moment the intro handed these stars over, even if this frame comes a little later.
@@ -380,19 +387,28 @@ export function StarField({ layer }: { layer: StarLayer }) {
       while (ripples.length && time - ripples[0].time > 2.4) ripples.shift();
       const scrolled = reducedMotion ? 0 : window.scrollY;
 
-      for (let i = 0; i < stars.length; i++) {
+      // The stream's clock: the intro's time at the hand-off, carried on.
+      const streamClock = handoff.status === "ready" ? handoff.stream.time + time : time;
+      const count = streaming ? streamList.length : stars.length;
+      for (let i = 0; i < count; i++) {
         const s = stars[i];
-        // A slow swell rolling diagonally through the field, plus each star's own bob.
-        const swell = 0.32 * s.base.x + 0.22 * s.base.y - 0.85 * time;
-        const bob = Math.sin(s.bob.freq * time + s.bob.phase);
-        pos.set(
-          s.base.x + s.velocity.x * carried + water * (0.1 * Math.cos(swell) + 0.04 * bob),
-          s.base.y + s.velocity.y * carried + water * (0.22 * Math.sin(swell) + 0.08 * bob),
-          s.base.z + s.velocity.z * carried + water * 0.16 * Math.sin(swell * 0.8 + s.bob.phase),
-        );
+        let size = 0;
+        if (streaming) {
+          // Out of the core to every side, tumbling and flipping; it always fills the screen, so scrolling never empties it.
+          size = streamPose(streamList[i], layer, streamClock, settings, width / height, pos, quat, flip);
+        } else {
+          // A slow swell rolling diagonally through the field, plus each star's own bob.
+          const swell = 0.32 * s.base.x + 0.22 * s.base.y - 0.85 * time;
+          const bob = Math.sin(s.bob.freq * time + s.bob.phase);
+          pos.set(
+            s.base.x + s.velocity.x * carried + water * (0.1 * Math.cos(swell) + 0.04 * bob),
+            s.base.y + s.velocity.y * carried + water * (0.22 * Math.sin(swell) + 0.08 * bob),
+            s.base.z + s.velocity.z * carried + water * 0.16 * Math.sin(swell * 0.8 + s.bob.phase),
+          );
+        }
 
         // Scrolling: the stars drift up past you at depth-dependent speeds and wrap around, so the field never runs out.
-        if (scrolled > 0) {
+        if (!streaming && scrolled > 0) {
           const halfHeight = (CAMERA_Z - pos.z) * tanHalfFov;
           // Nearer stars pass faster; front-layer stars (in front of the glass) fastest of all.
           const nearness = Math.min(1.4, Math.max(0, (pos.z + 14) / 13.5));
@@ -434,23 +450,27 @@ export function StarField({ layer }: { layer: StarLayer }) {
           target.multiplyScalar(cursorStrength);
           lift *= cursorStrength;
         }
-        s.push.lerp(target, ease);
-        pos.add(s.push);
+        const push = pushes[i];
+        push.lerp(target, ease);
+        pos.add(push);
         pos.z += lift * 0.35;
         pos.y += lift * 0.06;
 
-        // Spin carried on from the intro, settling to a slower turn, with a gentle random rocking on top.
-        const turn = s.angle + s.spin * (0.3 + 0.4 * motion) * time + s.spin * (0.7 - 0.4 * motion) * carried;
-        quat.setFromAxisAngle(s.axis, turn);
-        rock.setFromAxisAngle(s.rock.axis, water * s.rock.amount * Math.sin(s.rock.freq * time + s.rock.phase));
-        quat.premultiply(rock);
+        if (!streaming) {
+          // Spin carried on from the intro, settling to a slower turn, with a gentle random rocking on top.
+          const turn = s.angle + s.spin * (0.3 + 0.4 * motion) * time + s.spin * (0.7 - 0.4 * motion) * carried;
+          quat.setFromAxisAngle(s.axis, turn);
+          rock.setFromAxisAngle(s.rock.axis, water * s.rock.amount * Math.sin(s.rock.freq * time + s.rock.phase));
+          quat.premultiply(rock);
+          // Eases from the size it had in the intro to this layer's chosen size, so the hand-off never jumps.
+          size = s.size * (1 + (layerSize - 1) * arrive);
+        }
         if (lift > 0.001) {
-          tiltAxis.set(-s.push.y, s.push.x, 0);
+          tiltAxis.set(-push.y, push.x, 0);
           if (tiltAxis.lengthSq() > 1e-8) quat.premultiply(tilt.setFromAxisAngle(tiltAxis.normalize(), Math.min(0.8, lift * 0.7)));
         }
 
-        // Eases from the size it had in the intro to this layer's chosen size, so the hand-off never jumps.
-        scale.setScalar(s.size * (1 + (layerSize - 1) * arrive));
+        scale.setScalar(Math.max(size, 1e-5));
         matrix.compose(pos, quat, scale);
         const slot = instances.slots[i];
         slot.mesh.setMatrixAt(slot.index, matrix);

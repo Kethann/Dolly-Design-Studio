@@ -18,7 +18,8 @@ export interface FieldStar {
 export type Handoff =
   | { status: "waiting" }
   /** The intro ended and passed these stars on. */
-  | { status: "ready"; stars: FieldStar[]; key: number; at: number }
+  /** `stream`: the seed and intro time of the stream the intro was showing, for the page to carry on exactly. */
+  | { status: "ready"; stars: FieldStar[]; key: number; at: number; stream: { seed: number; time: number } }
   /** No intro this time: the field lays out its own stars. */
   | { status: "none"; key: number };
 
@@ -41,8 +42,8 @@ export function subscribeHandoff(fn: () => void) {
 }
 
 /** `at` is the performance.now() moment the positions describe, so the field can carry on from exactly then. */
-export function publishFieldStars(stars: FieldStar[], at: number) {
-  set({ status: "ready", stars, key: ++key, at });
+export function publishFieldStars(stars: FieldStar[], at: number, stream: { seed: number; time: number }) {
+  set({ status: "ready", stars, key: ++key, at, stream });
 }
 
 /** The intro finished without passing stars on (skipped, fallback, failed): let the field lay out its own. */

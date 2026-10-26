@@ -35,7 +35,7 @@
     }
   ],
   "field": {
-    "count": 36,
+    "count": 48,
     "motion": 0.5,
     "cursor": 0.5,
     "depthBlur": 0.5,
@@ -44,7 +44,7 @@
     "size": 1
   },
   "front": {
-    "count": 10,
+    "count": 12,
     "blur": 0,
     "size": 1
   },
@@ -61,5 +61,12 @@
     "rotation": 0,
     "softIntro": 0.1,
     "softPage": 0.1
+  },
+  "stream": {
+    "mode": "stream",
+    "speed": 0.4,
+    "spin": 0.4,
+    "flips": 0.35,
+    "corners": 0.5
   }
 }

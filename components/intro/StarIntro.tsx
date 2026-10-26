@@ -18,6 +18,7 @@ import { publishFieldStars, type FieldStar } from "@/lib/intro/handoff";
 import { layerOf, pickSpread } from "@/lib/intro/field-plan";
 import { createGlassPlane } from "@/lib/intro/glass-plane";
 import { createAdaptiveQuality } from "@/lib/intro/adaptive-quality";
+import { planStream, streamPose } from "@/lib/intro/stream";
 import { T } from "@/lib/intro/timeline";
 import {
   bezier,
@@ -150,7 +151,13 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     // --- planning (all random choices come from one seeded source) ------------
     const slots = sampleLogoSlots(LOGO_BODY_PATH, LOGO_VIEWBOX.width, LOGO_VIEWBOX.height, settings.formationCount, rand);
     const formation = planFormation(stage, slots, look);
-    const ambient = planAmbient(stage, settings.introAmbient, look);
+    // Background stars: in "stream" mode they pour out of a core behind the logo (the same stream the page
+    // carries on with); in "float" mode they drift, and a few survivors are handed to the page.
+    const streaming = settings.stream.mode === "stream";
+    const ambient = planAmbient(stage, streaming ? 0 : settings.introAmbient, look);
+    const streamSeed = Math.floor(rand() * 1e9);
+    const streamBack = streaming ? planStream(settings.field.count, "back", settings, streamSeed) : [];
+    const streamFront = streaming ? planStream(settings.front.count, "front", settings, streamSeed) : [];
     const bigPlan = planBigStar(stage, rand);
 
     // --- the crisp logo, revealed by the wave ----------------------------------------
@@ -184,10 +191,22 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const brush = createBrushedMetalTexture(rand);
     const { plain, glowing } = createStarMaterials(brush, starScene.envTexture, settings);
 
-    const stars = createStarInstances(starGeometry, plain.material, glowing.material, [...formation, ...ambient], palette);
+    const stars = createStarInstances(
+      starGeometry,
+      plain.material,
+      glowing.material,
+      [...formation, ...ambient, ...streamBack, ...streamFront],
+      palette,
+    );
     scene.add(...stars.meshes);
     const formationSlots = stars.slots.slice(0, formation.length);
-    const ambientSlots = stars.slots.slice(formation.length);
+    const ambientSlots = stars.slots.slice(formation.length, formation.length + ambient.length);
+    const streamSlots = stars.slots.slice(formation.length + ambient.length);
+    const stream = [
+      ...streamBack.map((s) => ({ s, layer: "back" as const })),
+      ...streamFront.map((s) => ({ s, layer: "front" as const })),
+    ];
+    const flip = new THREE.Quaternion();
 
     // A few background stars stay with the page after the intro, handed to the page's two star layers —
     // behind the glass and in front of it; the rest drift away near the end.
@@ -351,6 +370,14 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         const keep = survivors.has(i) ? 1 : 1 - thin;
         setInstance(mesh, index, s.size * keep * easeOutCubic(clamp01((t - s.appearAt) / 0.8)));
       }
+      // The stream out of the core, easing in over the first second.
+      const streamIn = easeOutCubic(clamp01(t / 1.2));
+      for (let i = 0; i < stream.length; i++) {
+        const { s, layer } = stream[i];
+        const size = streamPose(s, layer, t, settings, vw / vh, pos, quat, flip);
+        const { mesh, index } = streamSlots[i];
+        setInstance(mesh, index, size * streamIn);
+      }
       stars.markDirty();
 
       // Big star.
@@ -413,7 +440,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
           glow: s.glow,
         };
       });
-      publishFieldStars(handed, performance.now());
+      publishFieldStars(handed, performance.now(), { seed: streamSeed, time: t });
       onReveal();
     }
     function finish() {

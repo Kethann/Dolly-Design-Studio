@@ -178,6 +178,10 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
     setDraft((d) => ({ ...d, field: { ...d.field, ...patch } }));
     setSave({ kind: "idle" });
   }
+  function updateStream(patch: Partial<IntroSettings["stream"]>) {
+    setDraft((d) => ({ ...d, stream: { ...d.stream, ...patch } }));
+    setSave({ kind: "idle" });
+  }
   function updateArt(patch: Partial<IntroSettings["art"]>) {
     setDraft((d) => ({ ...d, art: { ...d.art, ...patch } }));
     setSave({ kind: "idle" });
@@ -573,7 +577,11 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                             value={draft.art.tone}
                             onChange={(e) => updateArt({ tone: e.target.value })}
                           />
-                          <HexInput value={draft.art.tone} label="Gradient second colour code" onChange={(tone) => updateArt({ tone })} />
+                          <HexInput
+                            value={draft.art.tone}
+                            label="Gradient second colour code"
+                            onChange={(tone) => updateArt({ tone })}
+                          />
                         </span>
                       </div>
                       <p className={styles.controlHint}>The light end of the gradient and the raised bands.</p>
@@ -589,7 +597,11 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                             value={draft.art.shadow}
                             onChange={(e) => updateArt({ shadow: e.target.value })}
                           />
-                          <HexInput value={draft.art.shadow} label="Gradient shadow colour code" onChange={(shadow) => updateArt({ shadow })} />
+                          <HexInput
+                            value={draft.art.shadow}
+                            label="Gradient shadow colour code"
+                            onChange={(shadow) => updateArt({ shadow })}
+                          />
                         </span>
                       </div>
                       <p className={styles.controlHint}>The dark end. The background colour sits between the two.</p>
@@ -849,16 +861,78 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
 
           {tab === "motion" && (
             <>
-              <Section title="Movement" hint="How the stars on the page float, and how they answer the cursor.">
-                <Slider
-                  label="Floating motion"
-                  value={draft.field.motion}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  format={percent}
-                  onChange={(motion) => updateField({ motion })}
+              <Section
+                title="Movement"
+                hint="How the background stars move — in the intro and on the page — and how they answer the cursor."
+              >
+                <Choice
+                  label="Star motion"
+                  value={draft.stream.mode}
+                  options={[
+                    { value: "stream", label: "Stream from the core" },
+                    { value: "float", label: "Float" },
+                  ]}
+                  hint={
+                    draft.stream.mode === "stream"
+                      ? "Stars pour out of a core behind the logo to every side, like rays, growing as they near you."
+                      : "Stars drift gently in place, like stars on water."
+                  }
+                  onChange={(mode) => updateStream({ mode })}
                 />
+                {draft.stream.mode === "stream" && (
+                  <>
+                    <Slider
+                      label="Speed"
+                      value={draft.stream.speed}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={percent}
+                      onChange={(speed) => updateStream({ speed })}
+                    />
+                    <Slider
+                      label="Spin"
+                      value={draft.stream.spin}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={percent}
+                      hint="How fast each star tumbles on its way out."
+                      onChange={(spin) => updateStream({ spin })}
+                    />
+                    <Slider
+                      label="Flips"
+                      value={draft.stream.flips}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={(v) => (v === 0 ? "Never" : percent(v))}
+                      hint="How often a star flips right over."
+                      onChange={(flips) => updateStream({ flips })}
+                    />
+                    <Slider
+                      label="Toward the corners"
+                      value={draft.stream.corners}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={(v) => (v === 0 ? "Evenly all round" : percent(v))}
+                      hint="Pull the rays toward the screen's corners rather than straight out to the sides."
+                      onChange={(corners) => updateStream({ corners })}
+                    />
+                  </>
+                )}
+                {draft.stream.mode === "float" && (
+                  <Slider
+                    label="Floating motion"
+                    value={draft.field.motion}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    format={percent}
+                    onChange={(motion) => updateField({ motion })}
+                  />
+                )}
                 <Slider
                   label="Cursor response"
                   value={draft.field.cursor}
@@ -918,7 +992,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   max={400}
                   step={10}
                   format={(v) => (v === 0 ? "None" : String(Math.round(v)))}
-                  hint="Stars drifting around the scene while the logo forms."
+                  hint="Stars drifting around while the logo forms (in Float motion; with Stream, the Layers star counts are used)."
                   onChange={(introAmbient) => update({ introAmbient })}
                 />
                 <Slider

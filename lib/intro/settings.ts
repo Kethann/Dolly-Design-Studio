@@ -63,6 +63,20 @@ export interface ArtSettings {
   motion: number;
 }
 
+/** How the background stars move. */
+export interface StreamSettings {
+  /** "stream": out of a core behind the logo to every side, like rays. "float": drifting like stars on water. */
+  mode: "stream" | "float";
+  /** 0..1: how fast they stream out. */
+  speed: number;
+  /** 0..1: how fast they tumble. */
+  spin: number;
+  /** 0..1: how often they flip right over (0 = never). */
+  flips: number;
+  /** 0..1: how strongly they head for the corners rather than straight out to the sides. */
+  corners: number;
+}
+
 export interface IntroSettings {
   enabled: boolean;
   /** Page and intro background. */
@@ -112,6 +126,8 @@ export interface IntroSettings {
   front: FrontSettings;
   /** The premium gradient backdrop. */
   art: ArtSettings;
+  /** How the background stars move (in the intro and on the page). */
+  stream: StreamSettings;
 }
 
 export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
@@ -141,8 +157,9 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
     { hex: "#c7ccd4", share: 30 },
     { hex: "#f2ede3", share: 25 },
   ],
-  field: { count: 36, motion: 0.5, cursor: 0.5, depthBlur: 0.5, cornerStars: 2, cornerSize: 1, size: 1 },
-  front: { count: 10, blur: 0, size: 1 },
+  field: { count: 48, motion: 0.5, cursor: 0.5, depthBlur: 0.5, cornerStars: 2, cornerSize: 1, size: 1 },
+  front: { count: 12, blur: 0, size: 1 },
+  stream: { mode: "stream", speed: 0.4, spin: 0.4, flips: 0.35, corners: 0.5 },
   art: {
     enabled: true,
     style: "waves",
@@ -194,6 +211,7 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
   const field = (src.field && typeof src.field === "object" ? src.field : {}) as Record<string, unknown>;
   const front = (src.front && typeof src.front === "object" ? src.front : {}) as Record<string, unknown>;
   const art = (src.art && typeof src.art === "object" ? src.art : {}) as Record<string, unknown>;
+  const stream = (src.stream && typeof src.stream === "object" ? src.stream : {}) as Record<string, unknown>;
 
   const rawColors = Array.isArray(src.colors) ? src.colors.slice(0, LIMITS.colorCount[1]) : [];
   const colors = rawColors
@@ -237,6 +255,13 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       count: Math.round(num(front.count, [0, 40], d.front.count)),
       blur: num(front.blur, [0, 6], d.front.blur),
       size: num(front.size, [0.4, 2.5], d.front.size),
+    },
+    stream: {
+      mode: stream.mode === "float" ? "float" : stream.mode === "stream" ? "stream" : d.stream.mode,
+      speed: num(stream.speed, [0, 1], d.stream.speed),
+      spin: num(stream.spin, [0, 1], d.stream.spin),
+      flips: num(stream.flips, [0, 1], d.stream.flips),
+      corners: num(stream.corners, [0, 1], d.stream.corners),
     },
     art: {
       enabled: bool(art.enabled, d.art.enabled),
