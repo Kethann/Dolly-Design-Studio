@@ -33,7 +33,11 @@ export interface FrontSettings {
   size: number;
 }
 
-export const ART_STYLES = ["waves", "silk", "halo", "minimal", "dots"] as const;
+export const ART_STYLES = ["waves", "silk", "halo", "minimal", "dots", "bubbles"] as const;
+
+/** Home-page sections that can each have their own Dots / Bubbles colours (they blend as you scroll). */
+export const ART_SECTIONS = ["top", "agency", "work", "process", "making", "about", "clients", "contact"] as const;
+export type ArtSection = (typeof ART_SECTIONS)[number];
 
 /** Page groups that can each have their own Dots colours. */
 export const ART_PAGES = ["home", "work", "project"] as const;
@@ -65,8 +69,10 @@ export interface ArtSettings {
   lines: number;
   /** 0..1: how much the lines and curves drift. */
   motion: number;
-  /** Dots style: the two gradient colours, per page group (home page, work gallery, project pages). */
+  /** Dots and Bubbles styles: the two gradient colours, per page group (home page, work gallery, project pages). */
   dots: Record<ArtPage, { a: string; b: string }>;
+  /** Home page: a colour pair per section; neighbouring sections blend smoothly into each other. */
+  sections: Record<ArtSection, { a: string; b: string }>;
 }
 
 /** How the stars stream out of the core behind the logo (at the top of the page). */
@@ -209,6 +215,16 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
       work: { a: "#1b8fb3", b: "#d23ac0" },
       project: { a: "#1b8fb3", b: "#d23ac0" },
     },
+    sections: {
+      top: { a: "#1b8fb3", b: "#d23ac0" },
+      agency: { a: "#3a4fd8", b: "#c23aa0" },
+      work: { a: "#1b8fb3", b: "#7a3ad2" },
+      process: { a: "#2a9d8f", b: "#3a6fd8" },
+      making: { a: "#c2502a", b: "#d23a7a" },
+      about: { a: "#6a3ad2", b: "#d23ac0" },
+      clients: { a: "#1b8fb3", b: "#d2a03a" },
+      contact: { a: "#d23ac0", b: "#3a4fd8" },
+    },
     softIntro: 0.1,
     softPage: 0.1,
     gold: "#d9a648",
@@ -338,6 +354,12 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
           return [page, { a: hex(src.a, d.art.dots[page].a), b: hex(src.b, d.art.dots[page].b) }];
         }),
       ) as Record<ArtPage, { a: string; b: string }>,
+      sections: Object.fromEntries(
+        ART_SECTIONS.map((id) => {
+          const src = (art.sections && typeof art.sections === "object" ? (art.sections as Record<string, Record<string, unknown>>)[id] : null) ?? {};
+          return [id, { a: hex(src.a, d.art.sections[id].a), b: hex(src.b, d.art.sections[id].b) }];
+        }),
+      ) as Record<ArtSection, { a: string; b: string }>,
       gold: hex(art.gold, d.art.gold),
       lines: num(art.lines, [0, 1], d.art.lines),
       motion: num(art.motion, [0, 1], d.art.motion),

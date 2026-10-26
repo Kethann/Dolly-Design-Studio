@@ -17,7 +17,7 @@ import { createGlassPasses } from "@/lib/intro/glass-pass";
 import { createAdaptiveQuality } from "@/lib/intro/adaptive-quality";
 import { HERO_LOGO_ID } from "@/lib/dom-ids";
 import { planStream, streamPose } from "@/lib/intro/stream";
-import { pageGlowOf, type IntroSettings } from "@/lib/intro/settings";
+import { ART_SECTIONS, pageGlowOf, type IntroSettings } from "@/lib/intro/settings";
 import styles from "./StarField.module.css";
 
 const WAITING: Handoff = { status: "waiting" };
@@ -377,6 +377,9 @@ export function StarField({ layer }: { layer: StarLayer }) {
     const ndc = new THREE.Vector3();
     let last = performance.now();
     let presence = 0;
+    const mixA = new THREE.Color();
+    const mixB = new THREE.Color();
+    const tmpColor = new THREE.Color();
     const adapt = createAdaptiveQuality(engine.pixelRatio, (pixelRatio) => {
       renderer.setPixelRatio(pixelRatio);
       renderer.setSize(width, height, false);
@@ -520,6 +523,32 @@ export function StarField({ layer }: { layer: StarLayer }) {
       engine!.glowing.emissiveIntensity = GLINT_STRENGTH * glow;
       engine!.corner.emissiveIntensity = 0.45 * glow * settings.bigGlow;
       if (composer) setBloomGlow(composer, glow);
+      // Home page: each section has its own colour pair; near a boundary the two neighbours blend, so the colours
+      // flow from one section into the next with soft edges top and bottom.
+      if (artPage === "home" && engine!.backdrop) {
+        const mid = height * 0.5;
+        const zone = height * 0.4;
+        const tops = ART_SECTIONS.map((id) => document.getElementById(id)?.getBoundingClientRect().top ?? Infinity);
+        let current = 0;
+        tops.forEach((top, i) => {
+          if (top <= mid) current = i;
+        });
+        const pair = (i: number) => settings.art.sections[ART_SECTIONS[Math.max(0, Math.min(ART_SECTIONS.length - 1, i))]];
+        let other = current;
+        let w = 0;
+        const toNext = (tops[current + 1] ?? Infinity) - mid;
+        const fromPrev = mid - tops[current];
+        if (toNext < zone) {
+          other = current + 1;
+          w = 0.5 * (1 - toNext / zone);
+        } else if (current > 0 && fromPrev < zone) {
+          other = current - 1;
+          w = 0.5 * (1 - fromPrev / zone);
+        }
+        mixA.set(pair(current).a).lerp(tmpColor.set(pair(other).a), w);
+        mixB.set(pair(current).b).lerp(tmpColor.set(pair(other).b), w);
+        engine!.backdrop.setColors(mixA, mixB);
+      }
       // The backdrop's layers scroll and lean with the page at their own depths.
       engine!.backdrop?.update(time, {
         amount: blend,

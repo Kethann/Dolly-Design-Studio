@@ -82,6 +82,40 @@
         "a": "#1b8fb3",
         "b": "#d23ac0"
       }
+    },
+    "sections": {
+      "top": {
+        "a": "#1b8fb3",
+        "b": "#d23ac0"
+      },
+      "agency": {
+        "a": "#3a4fd8",
+        "b": "#c23aa0"
+      },
+      "work": {
+        "a": "#1b8fb3",
+        "b": "#7a3ad2"
+      },
+      "process": {
+        "a": "#2a9d8f",
+        "b": "#3a6fd8"
+      },
+      "making": {
+        "a": "#c2502a",
+        "b": "#d23a7a"
+      },
+      "about": {
+        "a": "#6a3ad2",
+        "b": "#d23ac0"
+      },
+      "clients": {
+        "a": "#1b8fb3",
+        "b": "#d2a03a"
+      },
+      "contact": {
+        "a": "#d23ac0",
+        "b": "#3a4fd8"
+      }
     }
   },
   "revealStyle": "wave",

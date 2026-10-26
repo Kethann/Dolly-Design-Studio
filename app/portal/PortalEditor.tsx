@@ -6,7 +6,8 @@ import {
   DEFAULT_INTRO_SETTINGS,
   ART_STYLES,
   LIMITS,
-  type ArtPage,
+  ART_SECTIONS,
+  type ArtSection,
   colorFractions,
   sanitizeIntroSettings,
   type FieldSettings,
@@ -32,6 +33,21 @@ const BEATS = [
   { at: T.sheenStart, label: "Sheen" },
   { at: T.fadeStart, label: "Page" },
 ];
+
+/** A home-page section, or another page, whose Dots / Bubbles colours are being edited. */
+type ColourTarget = ArtSection | "work" | "project";
+const SECTION_NAMES: Record<ArtSection, string> = {
+  top: "Intro (top)",
+  agency: "The Agency",
+  work: "Our Projects",
+  process: "How We Work",
+  making: "Making Stills",
+  about: "About Us",
+  clients: "Our Clients",
+  contact: "Contact Us",
+};
+const colourPair = (s: IntroSettings, target: ColourTarget) =>
+  target === "work" || target === "project" ? s.art.dots[target] : s.art.sections[target];
 
 type Tab = "background" | "stars" | "look" | "intro";
 const TABS: { id: Tab; name: string; hint: string }[] = [
@@ -73,7 +89,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
   const [draft, setDraft] = useState(initial);
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
   const [tab, setTab] = useState<Tab>("background");
-  const [dotsPage, setDotsPage] = useState<ArtPage>("home");
+  const [dotsPage, setDotsPage] = useState<ColourTarget>("top");
   const dirty = !same(saved, draft);
 
   // --- preview ------------------------------------------------------------------------
@@ -205,8 +221,13 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
     setDraft((d) => ({ ...d, dial: { ...d.dial, ...patch } }));
     setSave({ kind: "idle" });
   }
-  function updateDots(page: ArtPage, which: "a" | "b", hex: string) {
-    setDraft((d) => ({ ...d, art: { ...d.art, dots: { ...d.art.dots, [page]: { ...d.art.dots[page], [which]: hex } } } }));
+  function updateDots(target: ColourTarget, which: "a" | "b", hex: string) {
+    setDraft((d) => {
+      if (target === "work" || target === "project") {
+        return { ...d, art: { ...d.art, dots: { ...d.art.dots, [target]: { ...d.art.dots[target], [which]: hex } } } };
+      }
+      return { ...d, art: { ...d.art, sections: { ...d.art.sections, [target]: { ...d.art.sections[target], [which]: hex } } } };
+    });
     setSave({ kind: "idle" });
   }
   function updateArt(patch: Partial<IntroSettings["art"]>) {
@@ -376,22 +397,41 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                         { value: "halo", label: "Halo" },
                         { value: "minimal", label: "Minimal" },
                         { value: "dots", label: "Dots" },
+                        { value: "bubbles", label: "Bubbles" },
                       ]}
                       onChange={(style) => updateArt({ style })}
                     />
-                    {draft.art.style === "dots" && (
+                    {(draft.art.style === "dots" || draft.art.style === "bubbles") && (
                       <>
-                        <Choice
-                          label="Dots colours for"
-                          value={dotsPage}
-                          options={[
-                            { value: "home", label: "Home" },
-                            { value: "work", label: "Work" },
-                            { value: "project", label: "Project pages" },
-                          ]}
-                          hint="Each page can have its own two colours; the dots blend from the first to the second."
-                          onChange={setDotsPage}
-                        />
+                        <div className={styles.control}>
+                          <div className={styles.controlRow}>
+                            <label htmlFor="colour-target" className={styles.controlLabel}>
+                              Colours for
+                            </label>
+                            <select
+                              id="colour-target"
+                              className={styles.select}
+                              value={dotsPage}
+                              onChange={(e) => setDotsPage(e.target.value as ColourTarget)}
+                            >
+                              <optgroup label="Home page sections">
+                                {ART_SECTIONS.map((id) => (
+                                  <option key={id} value={id}>
+                                    {SECTION_NAMES[id]}
+                                  </option>
+                                ))}
+                              </optgroup>
+                              <optgroup label="Other pages">
+                                <option value="work">Work gallery</option>
+                                <option value="project">Project pages</option>
+                              </optgroup>
+                            </select>
+                          </div>
+                          <p className={styles.controlHint}>
+                            Each section and page has its own two colours. On the home page, neighbouring sections blend smoothly
+                            into each other as you scroll.
+                          </p>
+                        </div>
                         {(["a", "b"] as const).map((which) => (
                           <div key={which} className={styles.control}>
                             <div className={styles.controlRow}>
@@ -401,11 +441,11 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                                   type="color"
                                   aria-label={`Dots ${which === "a" ? "left" : "right"} colour`}
                                   className={styles.swatch}
-                                  value={draft.art.dots[dotsPage][which]}
+                                  value={colourPair(draft, dotsPage)[which]}
                                   onChange={(e) => updateDots(dotsPage, which, e.target.value)}
                                 />
                                 <HexInput
-                                  value={draft.art.dots[dotsPage][which]}
+                                  value={colourPair(draft, dotsPage)[which]}
                                   label={`Dots ${which === "a" ? "left" : "right"} colour code`}
                                   onChange={(hex) => updateDots(dotsPage, which, hex)}
                                 />
@@ -420,10 +460,13 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                             onClick={() =>
                               updateArt({
                                 dots: {
-                                  home: draft.art.dots[dotsPage],
-                                  work: draft.art.dots[dotsPage],
-                                  project: draft.art.dots[dotsPage],
+                                  home: colourPair(draft, dotsPage),
+                                  work: colourPair(draft, dotsPage),
+                                  project: colourPair(draft, dotsPage),
                                 },
+                                sections: Object.fromEntries(
+                                  ART_SECTIONS.map((id) => [id, colourPair(draft, dotsPage)]),
+                                ) as IntroSettings["art"]["sections"],
                               })
                             }
                           >

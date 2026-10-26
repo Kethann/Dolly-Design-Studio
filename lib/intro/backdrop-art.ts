@@ -55,6 +55,10 @@ const fragmentShader = /* glsl */ `
     return smoothstep(-w, w, d);
   }
 
+  vec3 hash3(vec2 p) {
+    return fract(sin(vec3(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)), dot(p, vec2(419.2, 371.9)))) * 43758.5453);
+  }
+
   float glint(vec2 p, vec2 at, float phase) {
     vec2 d = (p - at) * vec2(uAspect, 1.0);
     float twinkle = 0.55 + 0.45 * sin(uTime * 1.3 + phase);
@@ -171,6 +175,51 @@ const fragmentShader = /* glsl */ `
           vec3 dc = mix(uDotsA, uDotsB, smoothstep(0.1, 0.95, p.x));
           float hot = exp(-pow((p.x - 0.9) * 3.0, 2.0)) * near;
           col += (dc * (1.0 + 0.8 * hot) + vec3(hot * 0.35)) * dotMask * fade * (0.3 + 0.7 * near) * (0.5 + 0.5 * kf) * (0.6 + 0.8 * uLines);
+        }
+      }
+    }
+
+    if (style == 5) {
+      // Bubbles: spheres textured with halftone dots (bigger where the light falls), on three layers of depth —
+      // small, dim and soft far away; large and crisp up close — generated endlessly as the page scrolls.
+      col = uBase * mix(0.95, 0.55, uDepth);
+      vec2 ga = (p - vec2(0.05, 0.8)) * vec2(1.3, 1.0);
+      vec2 gb = (p - vec2(0.95, 0.62)) * vec2(1.3, 1.0);
+      col += uDotsA * 0.28 * exp(-dot(ga, ga) * 3.0) + uDotsB * 0.34 * exp(-dot(gb, gb) * 3.2);
+      float calm = 1.0 - 0.45 * exp(-pow((vUv.x - 0.5) / 0.28, 2.0)) * exp(-pow((vUv.y - 0.5) / 0.3, 2.0));
+      vec3 light = normalize(vec3(-0.5, 0.6, 0.65));
+      for (int k = 0; k < 3; k++) {
+        float kf = float(k); // 0 = far, 2 = near
+        vec2 a = layer(p, 0.1 + 0.2 * kf);
+        vec2 q = vec2(a.x * uAspect, a.y);
+        float cellSize = 0.28 + 0.16 * kf;
+        vec2 cellId = floor(q / cellSize);
+        float soft = (2.0 - kf) * 0.5 + uSoft * 2.0; // far bubbles are softer
+        for (int j = -1; j <= 1; j++) {
+          for (int i = -1; i <= 1; i++) {
+            vec2 id = cellId + vec2(float(i), float(j));
+            vec3 h = hash3(id + vec2(kf * 17.31, uA.w * 3.7));
+            if (h.z > 0.55) continue; // not every cell has a bubble
+            vec3 h2 = hash3(id.yx + vec2(5.1 + kf, 9.7));
+            float radius = cellSize * mix(0.16, 0.42, h2.x);
+            vec2 centre = (id + 0.25 + 0.5 * h.xy) * cellSize + vec2(0.0, 0.015 * sin(t * 0.35 + h2.y * 6.28));
+            vec2 rel = (q - centre) / radius;
+            float dd = dot(rel, rel);
+            if (dd > 1.0) continue;
+            vec3 n = vec3(rel, sqrt(1.0 - dd));
+            float lit = clamp(dot(n, light), 0.0, 1.0);
+            // Halftone texture across the sphere: dot size follows the light.
+            float pitch = radius / 7.0;
+            vec2 cell = fract((q - centre) / pitch) - 0.5;
+            float dotR = 0.12 + 0.36 * lit;
+            float aa = 0.06 + 0.1 * soft;
+            float dots = 1.0 - smoothstep(dotR - aa, dotR + aa, length(cell));
+            float rim = pow(1.0 - n.z, 3.0);
+            float edge = 1.0 - smoothstep(0.92, 1.0, sqrt(dd));
+            vec3 bc = mix(uDotsA, uDotsB, clamp(h2.z * 0.6 + p.x * 0.6 - 0.1, 0.0, 1.0));
+            float bright = (0.35 + 0.35 * kf) * calm * (0.6 + 0.8 * uLines);
+            col += bc * (dots * (0.25 + 0.75 * lit) + rim * 0.55 + 0.05) * edge * bright;
+          }
         }
       }
     }
@@ -295,6 +344,11 @@ export function createBackdropPass(settings: IntroSettings, aspect: number, soft
   return {
     pass,
     apply,
+    /** Sets the Dots / Bubbles colours directly (the home page blends its sections' colours as you scroll). */
+    setColors(a: THREE.Color, b: THREE.Color) {
+      (u.uDotsA.value as THREE.Color).copy(a);
+      (u.uDotsB.value as THREE.Color).copy(b);
+    },
     /** Which page group's Dots colours to use. */
     setPage(next: ArtPage) {
       if (next === page) return;

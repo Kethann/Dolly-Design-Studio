@@ -1033,3 +1033,12 @@
   padding: 2px 8px;
   margin-top: -2px;
 }
+
+.select {
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--p-text);
+  background: var(--p-raised);
+  border: 1px solid var(--p-line-strong);
+  border-radius: 7px;
+}
