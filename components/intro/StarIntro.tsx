@@ -8,7 +8,7 @@ import { sampleLogoSlots } from "@/lib/intro/sample-points";
 import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
 import { createBrushedMetalTexture, createStarMaterial, createStarMaterials } from "@/lib/intro/star-material";
 import { createLogoRevealMaterial } from "@/lib/intro/logo-reveal-material";
-import { createGlowTexture, createRingTexture } from "@/lib/intro/fx-textures";
+import { createSparkleTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
 import { bigStarPose, planBigStar, waveRadius } from "@/lib/intro/big-star-path";
 import { createRng, randomSeed } from "@/lib/intro/rng";
@@ -138,7 +138,6 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     u.uWaveCenter.value.set(bigPlan.glyph.x, bigPlan.glyph.y);
     u.uWaveBand.value = bigPlan.waveBand;
     u.uSoftness.value = logo.height * 0.03;
-    u.uLogoSize.value.set(logo.width, logo.height);
     u.uGlow.value = 0.5 + 0.5 * glow;
     u.uEdgeColor.value.copy(glowColor);
     const logoGeometry = new THREE.PlaneGeometry(logo.width, logo.height);
@@ -201,36 +200,40 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     dust.renderOrder = 3;
     scene.add(dust);
 
-    // --- light effects: a soft kiss as the star lands, the shiver's glow, the shock-wave ring ----
-    const glowTexture = createGlowTexture();
-    const ringTexture = createRingTexture();
-    function fxSprite(map: THREE.Texture) {
+    // --- light effects: small glints catching the big star's points as it lands and shivers ----
+    const sparkleTexture = createSparkleTexture();
+    function fxSprite() {
       const material = new THREE.SpriteMaterial({
-        map,
+        map: sparkleTexture,
         transparent: true,
         depthTest: false,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
         opacity: 0,
       });
-      material.color.copy(glowColor).multiplyScalar(2.2); // above the bloom threshold, so they flare
+      material.color.copy(glowColor).lerp(new THREE.Color(1, 1, 1), 0.4).multiplyScalar(2); // above the bloom threshold
       const sprite = new THREE.Sprite(material);
       sprite.renderOrder = 4;
       sprite.visible = false;
       scene.add(sprite);
       return sprite;
     }
-    const dockGlow = fxSprite(glowTexture);
-    const shiverGlow = fxSprite(glowTexture);
-    const ring = fxSprite(ringTexture);
-    const fxSprites = [dockGlow, shiverGlow, ring];
-    for (const s of fxSprites) s.position.set(bigPlan.glyph.x, bigPlan.glyph.y, 0.5);
+    const dockGlint = fxSprite();
+    const shiverGlint = fxSprite();
+    const fxSprites = [dockGlint, shiverGlint];
+    // On two of the star's points: the top one and the upper-right one.
+    const tip = (angle: number) =>
+      new THREE.Vector3(bigPlan.glyph.x + Math.cos(angle) * bigPlan.glyphRadius * 0.92, bigPlan.glyph.y + Math.sin(angle) * bigPlan.glyphRadius * 0.92, 0.4);
+    dockGlint.position.copy(tip(Math.PI / 2 - (2 * Math.PI) / 5));
+    shiverGlint.position.copy(tip(Math.PI / 2));
 
-    function setFx(sprite: THREE.Sprite, intensity: number, sx: number, sy = sx) {
+    function setFx(sprite: THREE.Sprite, intensity: number, size: number, rotation = 0) {
       const opacity = intensity * glow;
       sprite.visible = opacity > 0.001;
-      (sprite.material as THREE.SpriteMaterial).opacity = opacity;
-      sprite.scale.set(Math.max(sx, 1e-5), Math.max(sy, 1e-5), 1);
+      const material = sprite.material as THREE.SpriteMaterial;
+      material.opacity = opacity;
+      material.rotation = rotation;
+      sprite.scale.set(Math.max(size, 1e-5), Math.max(size, 1e-5), 1);
     }
 
     // --- per-frame update: a pure function of time t ------------------------------
@@ -260,6 +263,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
       const wave = waveRadius(bigPlan, t);
       u.uWaveRadius.value = wave;
+      u.uWaveFade.value = 1 - easeInOutCubic(clamp01((t - (T.waveEnd - 0.1)) / 0.7));
       u.uSheen.value = t >= T.sheenStart && t <= T.sheenEnd ? easeInOutCubic((t - T.sheenStart) / (T.sheenEnd - T.sheenStart)) : -1;
       dustMaterial.uniforms.uTime.value = t;
 
@@ -281,10 +285,10 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         if (wave > 0) {
           const front = (wave - d) / band; // 0 at the wave front, > 0 once it has passed
           const lift = Math.exp(-front * front * 4);
-          pos.x += (dx / d) * band * 0.3 * lift;
-          pos.y += (dy / d) * band * 0.3 * lift;
-          pos.z += band * 0.6 * lift;
-          size *= (1 + 0.5 * lift) * (1 - easeInQuad(clamp01((front + 0.1) / 0.9)));
+          pos.x += (dx / d) * band * 0.12 * lift;
+          pos.y += (dy / d) * band * 0.12 * lift;
+          pos.z += band * 0.35 * lift;
+          size *= (1 + 0.35 * lift) * (1 - easeInQuad(clamp01((front + 0.1) / 0.9)));
         }
         const settle = easeOutQuart(local);
         const angle = (1 - settle) * s.spinTurns * Math.PI * 2 + settle * Math.sin(t * 1.6 + s.wobblePhase) * 0.35;
@@ -323,13 +327,13 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       bigMaterial.opacity = 1 - (pose.visible ? pose.dock : 0);
       u.uStarDock.value = pose.dock;
 
-      // Light effects.
+      // Light effects: a glint flicks across a point as it lands, and another builds on its top point as it shivers.
       const r = bigPlan.glyphRadius;
-      const dockK = clamp01((t - (T.docked - 0.05)) / 0.4);
-      setFx(dockGlow, pulse(t, T.docked - 0.05, T.docked + 0.03, T.docked + 0.4) * 0.45, r * (2.2 + 4 * dockK));
-      setFx(shiverGlow, pose.shiver * 0.5 * (pose.visible ? 1 : 0), r * (3 + 1.5 * pose.shiver));
-      const waveK = clamp01((t - T.waveStart) / (T.waveEnd - T.waveStart));
-      setFx(ring, t > T.waveStart ? (1 - easeInQuad(waveK)) * 0.35 : 0, Math.max(wave, r) * 2.1);
+      const landing = pulse(t, T.docked - 0.03, T.docked + 0.06, T.docked + 0.45);
+      setFx(dockGlint, landing * 0.9, r * (1.2 + 1.6 * landing), landing * 0.4);
+      const release = t >= T.waveStart ? Math.max(0, 1 - (t - T.waveStart) / 0.35) : 0;
+      const shiverLight = pose.visible ? Math.max(pose.shiver, release) : 0;
+      setFx(shiverGlint, shiverLight * 0.85, r * (1 + 2.2 * shiverLight), t * 0.8);
     }
 
     // --- loop: driven by real elapsed time so it lasts the same on every machine ----------
@@ -429,8 +433,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       bigMaterial.dispose();
       dustMaterial.dispose();
       fxSprites.forEach((s) => s.material.dispose());
-      glowTexture.dispose();
-      ringTexture.dispose();
+      sparkleTexture.dispose();
       brush.dispose();
       stars.dispose();
       reveal.dispose();

@@ -39,7 +39,7 @@ export interface BigStarPose {
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const SNAP = (Math.PI * 2) / 5; // a 5-point star looks identical every 72°
-const ENTRY_SCALE = 2.6; // arrives this many times bigger than the glyph
+const ENTRY_SCALE = 5.5; // in flight it's the biggest star on screen, this many times the glyph's size
 const SETTLE_FREQ = 17; // rad/s
 const SETTLE_DAMP = 7;
 
@@ -79,16 +79,20 @@ export function planBigStar(stage: Stage, rand: Rng): BigStarPlan {
   };
 }
 
-/** World radius of the reveal wave at time t (decelerating as it spreads, like a real ripple). */
+/**
+ * World radius of the reveal wave at time t: it slows as it spreads, like a real ripple, but never
+ * stops — past the logo's edge it keeps going, so its trailing rings leave the artwork cleanly.
+ */
 export function waveRadius(plan: BigStarPlan, t: number) {
   if (t <= T.waveStart) return 0;
-  const k = clamp01((t - T.waveStart) / (T.waveEnd - T.waveStart));
-  return plan.waveReach * (1 - (1 - k) * (1 - k));
+  const k = (t - T.waveStart) / (T.waveEnd - T.waveStart);
+  return plan.waveReach * (k <= 1 ? k * (1.6 - 0.6 * k) : 1 + 0.4 * (k - 1));
 }
 
-/** When the wave reaches distance d from the glyph. */
+/** When the wave reaches distance d from the glyph (d within the logo). */
 export function waveTimeAt(plan: BigStarPlan, d: number) {
-  const k = 1 - Math.sqrt(Math.max(0, 1 - Math.min(1, d / plan.waveReach)));
+  const x = Math.min(1, d / plan.waveReach);
+  const k = (1.6 - Math.sqrt(2.56 - 2.4 * x)) / 1.2;
   return T.waveStart + k * (T.waveEnd - T.waveStart);
 }
 
@@ -109,7 +113,8 @@ export function bigStarPose(plan: BigStarPlan, t: number, position: THREE.Vector
     cubicBezier(position, p.entry, p.c1, p.c2, p.glyph, e);
     const unwind = 1 - easeOutCubic(k);
     quaternion.setFromAxisAngle(Z_AXIS, -p.side * SNAP * 3 * unwind).multiply(tmpQuat.setFromAxisAngle(Y_AXIS, unwind * Math.PI * 4));
-    const scale = THREE.MathUtils.lerp(r * ENTRY_SCALE, r, easeInOutCubic(k));
+    // Big all the way in, then it gathers itself down to the glyph's size over the last stretch.
+    const scale = THREE.MathUtils.lerp(r * ENTRY_SCALE, r, easeInOutCubic(clamp01((k - 0.35) / 0.65)));
     return { visible: true, scale, depthScale: 1, morph: 0, dock: 0, shiver: 0 };
   }
 

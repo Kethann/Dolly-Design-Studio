@@ -100,21 +100,18 @@ export function buildDustGeometry(
     dust.add(p, v, t, range(0.7, 1.6), base * range(1, 2), bright ? GOLD : WARM_WHITE, bright ? range(1.4, 2) : range(0.5, 1));
   }
 
-  // 3. The wave: glitter lifts off the logo as the front passes over it.
-  const left = logo.x - logo.width * 0.55;
-  const right = logo.x + logo.width * 0.55;
-  const bottom = logo.y - logo.height * 0.6;
-  const top = logo.y + logo.height * 0.6;
-  for (let k = 0; k < 900; k++) {
-    const angle = range(0, Math.PI * 2);
-    const d = Math.sqrt(rand()) * bigStar.waveReach;
-    const x = bigStar.glyph.x + Math.cos(angle) * d;
-    const y = bigStar.glyph.y + Math.sin(angle) * d;
-    if (x < left || x > right || y < bottom || y > top) continue;
-    p.set(x, y, range(0.05, 0.3));
-    v.set(Math.cos(angle), Math.sin(angle), 0).multiplyScalar(range(0.15, 0.6)).add(jitter.set(0, range(0, 0.25), range(0, 0.4)));
+  // 3. The wave: glitter lifts off the artwork itself (never the empty space around it) as the front passes.
+  for (let k = 0; k < 900 && formation.length; k++) {
+    const s = formation[Math.floor(rand() * formation.length)];
+    p.copy(s.target).add(randomUnit(jitter, 0.2).multiplyScalar(s.size * 0.8));
+    p.z = range(0.05, 0.25);
+    const d = Math.hypot(p.x - bigStar.glyph.x, p.y - bigStar.glyph.y);
+    v.set(p.x - bigStar.glyph.x, p.y - bigStar.glyph.y, 0)
+      .normalize()
+      .multiplyScalar(range(0.08, 0.35))
+      .add(jitter.set(0, range(0, 0.2), range(0.05, 0.35)));
     const bright = rand() < 0.35;
-    dust.add(p, v, waveTimeAt(bigStar, d), range(0.5, 1.2), base * range(0.7, 1.6), bright ? GOLD : WARM_WHITE, bright ? range(1.2, 1.8) : range(0.4, 0.9));
+    dust.add(p, v, waveTimeAt(bigStar, d), range(0.5, 1.1), base * range(0.6, 1.4), bright ? GOLD : WARM_WHITE, bright ? range(1.1, 1.7) : range(0.4, 0.85));
   }
 
   // 4. Each formation star bursts into a little glitter as the wave dissolves it.

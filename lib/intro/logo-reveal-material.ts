@@ -36,10 +36,10 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uEdgeColor;
   uniform vec2 uWaveCenter;  // world-space centre of the reveal wave (the logo's star)
   uniform float uWaveRadius; // world-space radius the wave has reached
-  uniform float uWaveBand;   // world-space width of the rippling zone behind the front
+  uniform float uWaveBand;   // world-space spacing of the light rings that follow the front
   uniform float uSoftness;   // world-space width of the soft front edge
-  uniform vec2 uLogoSize;    // world-space size of the logo plane, to turn world offsets into uv
-  uniform float uGlow;       // 1 = original brightness of the front and sheen
+  uniform float uWaveFade;   // 1 while the wave crosses the logo, fading to 0 once it has left
+  uniform float uGlow;       // 1 = original brightness of the light
   uniform vec2 uStarCenter;  // logo star glyph, in uv
   uniform vec2 uStarRadius;  // its radius in uv (x, y differ because the logo isn't square)
   uniform float uStarDock;   // 0 = logo's star hidden, 1 = shown (the big star docks into it)
@@ -49,23 +49,25 @@ const fragmentShader = /* glsl */ `
   varying vec2 vUv;
   varying vec2 vWorld;
 
+  // A soft line of light centred \`offset\` behind the wave front.
+  float ring(float behind, float offset, float width) {
+    float x = (behind - offset) / width;
+    return exp(-x * x);
+  }
+
   void main() {
-    vec2 fromCenter = vWorld - uWaveCenter;
-    float dist = length(fromCenter);
-    float behind = uWaveRadius - dist;  // > 0 once the wave has passed this point
-
-    // Just behind the front the artwork wobbles outward and back, settling as the wave moves on.
-    float settle = exp(-max(behind, 0.0) / uWaveBand);
-    float wobble = sin(behind / uWaveBand * 18.0) * settle * step(0.0, behind) * uWaveBand * 0.035;
-    vec2 dir = fromCenter / max(dist, 1e-4);
-    vec2 uv = vUv + dir * wobble / uLogoSize;
-
-    float art = texture2D(uMap, uv).a;
+    // The artwork is never distorted: the wave is light travelling through it, so it stays inside the letters.
+    float art = texture2D(uMap, vUv).a;
     if (art < 0.01) discard;
 
+    float behind = uWaveRadius - length(vWorld - uWaveCenter); // > 0 once the wave has passed this point
     float revealed = smoothstep(-uSoftness, uSoftness, behind);
-    float front = exp(-abs(behind) / (uSoftness * 1.2));          // bright line right at the wave front
-    float shimmer = settle * (0.5 + 0.5 * sin(behind / uWaveBand * 18.0)) * step(0.0, behind);
+
+    // A bright liquid-gold crest just inside the front, with a white-hot core…
+    float crest = ring(behind, uSoftness * 0.8, uSoftness * 1.1);
+    // …and two fainter echoes rippling behind it, settling as they spread.
+    float echoes = ring(behind, uWaveBand * 0.55, uSoftness * 1.3) * 0.5 + ring(behind, uWaveBand * 1.05, uSoftness * 1.5) * 0.25;
+    float light = (crest * 1.25 + echoes) * revealed * uWaveFade * uGlow;
 
     vec2 d = (vUv - uStarCenter) / uStarRadius;
     float inStarGlyph = 1.0 - smoothstep(0.85, 1.05, length(d));
@@ -75,7 +77,8 @@ const fragmentShader = /* glsl */ `
     float sheen = uSheen < 0.0 ? 0.0 : exp(-band * band / 0.0022);
 
     vec3 color = uColor
-      + uEdgeColor * (front * 1.6 + shimmer * 0.45) * revealed * uGlow
+      + uEdgeColor * light
+      + vec3(1.0, 0.97, 0.9) * pow(crest, 3.0) * 0.35 * revealed * uWaveFade * uGlow
       + vec3(1.0, 0.94, 0.8) * sheen * 0.45 * uGlow;
     float alpha = art * revealed * glyphVisibility * uOpacity;
     gl_FragColor = vec4(color, alpha);
@@ -102,7 +105,7 @@ export function createLogoRevealMaterial(): LogoRevealMaterial {
       uWaveRadius: { value: 0 },
       uWaveBand: { value: 1 },
       uSoftness: { value: 0.08 },
-      uLogoSize: { value: new THREE.Vector2(1, 1) },
+      uWaveFade: { value: 1 },
       uGlow: { value: 1 },
       uStarCenter: {
         value: new THREE.Vector2(LOGO_STAR.cx / LOGO_VIEWBOX.width, 1 - LOGO_STAR.cy / LOGO_VIEWBOX.height),

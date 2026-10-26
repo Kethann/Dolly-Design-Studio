@@ -52,7 +52,10 @@ export function createStarScene(renderer: THREE.WebGLRenderer, background: THREE
   };
 }
 
-/** Render → bloom → output. High threshold: only glowing stars, glitter and light effects bloom, never the logo. */
+/**
+ * Render → bloom → output. The threshold sits just above the logo's flat gold (luminance ≈ 0.93), so only
+ * glints, glitter and light effects bloom — never the logo, which must match the flat page logo exactly.
+ */
 export function createStarComposer(
   renderer: THREE.WebGLRenderer,
   scene: THREE.Scene,
@@ -66,7 +69,7 @@ export function createStarComposer(
   composer.setPixelRatio(dpr);
   composer.setSize(width, height);
   composer.addPass(new RenderPass(scene, camera));
-  composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), 0.55 * glow, 0.45, 0.92));
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), 0.55 * glow, 0.45, 0.96));
   composer.addPass(new OutputPass());
   return composer;
 }
