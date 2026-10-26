@@ -18,7 +18,7 @@
   "introBlur": 0,
   "introAmbient": 140,
   "scatter": 0.2,
-  "disperse": 0.05,
+  "disperse": 0.03,
   "shine": 0.85,
   "colors": [
     {

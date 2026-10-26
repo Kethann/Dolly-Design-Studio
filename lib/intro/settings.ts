@@ -171,7 +171,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   introBlur: 0,
   introAmbient: 140,
   scatter: 0.5,
-  disperse: 0.1,
+  disperse: 0.03,
   shine: 0.55,
   bigShine: 1,
   bigGlow: 1,

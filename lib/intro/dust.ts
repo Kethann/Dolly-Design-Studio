@@ -114,14 +114,19 @@ export function buildDustGeometry(
     dust.add(p, v, waveTimeAt(bigStar, d), range(0.5, 1.1), base * range(0.6, 1.4), bright ? GOLD : WARM_WHITE, bright ? range(1.1, 1.7) : range(0.4, 0.85));
   }
 
-  // 4. Each formation star bursts into a little glitter as the wave dissolves it.
+  // 4. As the wave reaches it, every formation star breaks into a puff of glitter in its own colour, spread over
+  //    the star's own size, drifting outward and up as it fades — the stars turn into dust as the crisp logo appears.
   for (const s of formation) {
-    if (rand() > 0.3) continue;
     const d = Math.hypot(s.target.x - bigStar.glyph.x, s.target.y - bigStar.glyph.y);
-    tint.copy(palette[s.color]).lerp(WARM_WHITE, 0.3);
-    for (let k = 0; k < 2; k++) {
-      randomUnit(v, 0.6).multiplyScalar(range(0.15, 0.5));
-      dust.add(s.target, v, waveTimeAt(bigStar, d) + range(0, 0.08), range(0.4, 0.9), base * range(0.6, 1.3), tint, range(0.8, 1.5));
+    const away = jitter.set(s.target.x - stage.logo.x, s.target.y - stage.logo.y, 0).normalize().clone();
+    tint.copy(palette[s.color]).lerp(WARM_WHITE, 0.25);
+    for (let k = 0; k < 4; k++) {
+      p.copy(s.target).add(randomUnit(v, 0.3).multiplyScalar(s.size * range(0.1, 0.9)));
+      v.copy(away)
+        .multiplyScalar(range(0.05, 0.25))
+        .add(randomUnit(jitter, 0.5).multiplyScalar(range(0.05, 0.22)))
+        .add(jitter.set(0, range(0.05, 0.2), 0));
+      dust.add(p, v, waveTimeAt(bigStar, d) + range(0, 0.1), range(0.7, 1.5), base * range(0.9, 1.8), tint, range(1.1, 1.9));
     }
   }
 

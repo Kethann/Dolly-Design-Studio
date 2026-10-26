@@ -132,9 +132,10 @@ export function bigStarPose(plan: BigStarPlan, t: number, position: THREE.Vector
     // 3. Shiver: a fast tremble that builds while it gathers itself (a slight inhale in scale).
     const tau = t - T.shiverStart;
     const a = easeInQuad(tau / (T.waveStart - T.shiverStart));
-    position.x += r * 0.03 * a * Math.sin(tau * 173);
-    position.y += r * 0.03 * a * Math.sin(tau * 151 + 1.3);
-    quaternion.setFromAxisAngle(Z_AXIS, 0.07 * a * Math.sin(tau * 190));
+    // A smooth shimmer rather than a shake: small, and slow enough to read as energy building.
+    position.x += r * 0.012 * a * Math.sin(tau * 60);
+    position.y += r * 0.012 * a * Math.sin(tau * 53 + 1.3);
+    quaternion.setFromAxisAngle(Z_AXIS, 0.035 * a * Math.sin(tau * 48));
     return { visible: true, scale: r * (1 - 0.07 * a), depthScale: 1, morph: 0, dock: 0, shiver: a };
   }
 

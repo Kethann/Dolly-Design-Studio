@@ -398,8 +398,9 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         let size = s.size;
         if (shiverK > 0) {
           const near = shiverK * Math.exp(-d / (logo.height * 0.9));
-          pos.x += logo.height * 0.01 * near * Math.sin(t * 160 + i);
-          pos.y += logo.height * 0.01 * near * Math.sin(t * 143 + i * 1.7);
+          // Only a faint sympathetic shimmer: a stronger one read as the whole logo shaking.
+          pos.x += logo.height * 0.002 * near * Math.sin(t * 40 + i);
+          pos.y += logo.height * 0.002 * near * Math.sin(t * 36 + i * 1.7);
         }
         if (wave > 0) {
           const front = (wave - d) / band; // 0 at the wave front, > 0 once it has passed
@@ -407,7 +408,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
           pos.x += (dx / d) * band * 0.12 * lift;
           pos.y += (dy / d) * band * 0.12 * lift;
           pos.z += band * 0.35 * lift;
-          size *= (1 + 0.35 * lift) * (1 - easeInQuad(clamp01((front + 0.1) / 0.9)));
+          size *= (1 + 0.2 * lift) * (1 - easeInQuad(clamp01((front + 0.05) / 0.4)));
         }
         const settle = easeOutQuart(local);
         const angle = (1 - settle) * s.spinTurns * Math.PI * 2 + settle * Math.sin(t * 1.6 + s.wobblePhase) * 0.35;
