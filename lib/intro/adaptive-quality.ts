@@ -19,7 +19,7 @@ export function createAdaptiveQuality(start: number, apply: (pixelRatio: number)
     const average = total / frames;
     total = 0;
     frames = 0;
-    if (average > 1 / 42 && pixelRatio > min) {
+    if (average > 1 / 30 && pixelRatio > min) {
       pixelRatio = Math.max(min, pixelRatio - 0.25);
       apply(pixelRatio);
       cooldown = 1;

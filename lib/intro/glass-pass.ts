@@ -18,8 +18,9 @@ export const DIAL_GLSL = /* glsl */ `
   uniform float uAspect;
   float dialAt(vec2 uv) {
     if (uDialRadius <= 0.0) return 0.0;
-    float r = length((uv - uDialCenter) * vec2(uAspect, 1.0)) / uDialRadius;
-    return (1.0 - smoothstep(0.1, 1.25, r)) * uDialDark; // deepest at the core, fading out with no edge
+    // A wide oval (the logo is wide), very gently falling off, so it melts into the background.
+    float r = length((uv - uDialCenter) * vec2(uAspect / 1.7, 1.0)) / uDialRadius;
+    return (1.0 - smoothstep(0.0, 1.0, r)) * (1.0 - smoothstep(0.0, 1.0, r)) * uDialDark * 0.7;
   }
 `;
 
@@ -48,7 +49,7 @@ const blur = (finish: boolean) => /* glsl */ `
     ${
       finish
         ? `c.rgb = mix(c.rgb, uTint, uOpacity);
-    c.rgb = mix(c.rgb, uTint * 0.35, dialAt(vUv));`
+    c.rgb *= 1.0 - dialAt(vUv);`
         : ""
     }
     gl_FragColor = vec4(c.rgb, 1.0);

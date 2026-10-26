@@ -362,7 +362,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       const settling = easeInOutCubic(clamp01((t - T.glassStart) / (T.revealAt - T.glassStart)));
       // The glass settles over the stars as the logo appears; the dial grows out of the core from the start.
       // No backdrop design in the intro — just the plain colour — so nothing competes with the logo.
-      glass.update(live, settling, easeOutCubic(clamp01(t / 1.6)), dialCenterY, resolution.set(vw, vh).multiplyScalar(renderer.getPixelRatio()));
+      glass.update(live, Math.max(settling, easeOutCubic(clamp01(t / 1.2))), easeOutCubic(clamp01(t / 1.6)), dialCenterY, resolution.set(vw, vh).multiplyScalar(renderer.getPixelRatio()));
       backdrop.update(t, { amount: 0 });
 
       // Formation: fly in, tumble, settle and glint — tremble with the big star's shiver — then ride the wave and dissolve.
@@ -450,13 +450,14 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     let last = performance.now();
     let lastReport = 0;
     let firstFrameShown = false;
+    // Never below full resolution: a softer render would blur the stars as they form the logo.
     const adapt = createAdaptiveQuality(dpr, (pixelRatio) => {
       renderer.setPixelRatio(pixelRatio);
       renderer.setSize(vw, vh, false);
       composer.setPixelRatio(pixelRatio);
       composer.setSize(vw, vh);
       dustMaterial.uniforms.uProjScale.value = (vh * pixelRatio) / (2 * tanHalfFov);
-    });
+    }, Math.min(1, dpr));
 
     function markRevealed() {
       if (revealed) return;

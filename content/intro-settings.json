@@ -2,7 +2,7 @@
   "enabled": true,
   "background": "#410000",
   "glassColor": "#120204",
-  "glassOpacity": 0.38,
+  "glassOpacity": 0.5,
   "glassFrost": 3,
   "glow": 0.4,
   "pageGlow": 0.4,
@@ -15,7 +15,7 @@
   "metallic": 0.55,
   "glowingShare": 8,
   "formationCount": 700,
-  "introBlur": 0.3,
+  "introBlur": 0,
   "introAmbient": 140,
   "scatter": 0.5,
   "disperse": 0.1,
@@ -70,7 +70,7 @@
   },
   "dial": {
     "enabled": true,
-    "size": 0.5,
-    "darkness": 0.6
+    "size": 0.6,
+    "darkness": 0.35
   }
 }

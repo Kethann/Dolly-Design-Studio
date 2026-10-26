@@ -38,7 +38,9 @@ export function createGlassPlane(settings: IntroSettings, width: number, height:
       void main() {
         // The tint, plus the core dial (a soft pool of darker glass behind the logo) — the same as the page.
         float dial = dialAt(gl_FragCoord.xy / uRes);
-        gl_FragColor = vec4(mix(uColor, uColor * 0.35, dial), uOpacity + (1.0 - uOpacity) * dial * 0.65);
+        // Darkens what's behind by (1 - dial), matching the page's glass exactly.
+        float a = uOpacity + (1.0 - uOpacity) * dial;
+        gl_FragColor = vec4(uColor * uOpacity / max(a, 1e-3), a);
       }
     `,
   });
