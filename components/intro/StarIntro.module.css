@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: #07060a; /* same as the page background */
+  background: var(--stage); /* same as the page background */
   overflow: hidden;
 }
 

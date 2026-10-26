@@ -28,9 +28,9 @@ import {
   planFormation,
   type Stage,
 } from "@/lib/intro/choreography";
+import { useIntroSettings } from "@/lib/intro/settings-context";
 import styles from "./StarIntro.module.css";
 
-const PAGE_BACKGROUND = 0x07060a; // --stage in globals.css
 const LOGO_GOLD = new THREE.Color("#fff195"); // the flat gold of /images/brand/logo.svg
 const FORMATION_COUNT = 700;
 const AMBIENT_COUNT = 260;
@@ -60,8 +60,10 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
   const wrapRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const vignetteRef = useRef<HTMLDivElement>(null);
+  const { settings } = useIntroSettings();
 
   useEffect(() => {
+    const PAGE_BACKGROUND = new THREE.Color(settings.background); // same as the page, so the hand-off is invisible
     const wrap = wrapRef.current;
     const overlay = overlayRef.current;
     const vignette = vignetteRef.current;

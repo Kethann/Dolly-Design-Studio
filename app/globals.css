@@ -1,7 +1,8 @@
 :root {
-  --stage: #07060a;
-  --stage-2: #0c0a12;
-  --velvet: #1a0f14;
+  /* --stage is set on <html> from content/intro-settings.json (editable in the portal). */
+  --stage: #410000;
+  /* A slightly lifted shade of the background, for cards and fields. */
+  --velvet: color-mix(in srgb, var(--stage) 88%, #ff9a7a);
   --gold: #e8b04b;
   --gold-bright: #fff195;
   --brass: #b9853a;

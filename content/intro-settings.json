@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "background": "#410000",
+  "glow": 0.5,
+  "starSize": 1,
+  "starDepth": 1,
+  "spaceDepth": 1,
+  "metallic": 0.55,
+  "glowingShare": 12,
+  "formationCount": 700,
+  "colors": [
+    { "hex": "#d9a43f", "share": 45 },
+    { "hex": "#c7ccd4", "share": 30 },
+    { "hex": "#f2ede3", "share": 25 }
+  ],
+  "field": { "count": 36, "motion": 0.3, "cursor": 0.5, "lines": true }
+}

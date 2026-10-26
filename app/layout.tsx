@@ -4,6 +4,7 @@ import { site } from "@/content/site";
 import { SiteChrome } from "@/components/SiteChrome";
 import { Footer } from "@/components/Footer";
 import { versionedSrc } from "@/lib/images";
+import { readIntroSettings } from "@/lib/portal/settings-store";
 import "./globals.css";
 
 const bodoni = Bodoni_Moda({
@@ -54,11 +55,10 @@ export const metadata: Metadata = {
   alternates: { canonical: siteUrl },
 };
 
-export const viewport: Viewport = {
-  themeColor: "#07060a",
-  width: "device-width",
-  initialScale: 1,
-};
+export async function generateViewport(): Promise<Viewport> {
+  const { background } = await readIntroSettings();
+  return { themeColor: background, width: "device-width", initialScale: 1 };
+}
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -77,19 +77,24 @@ const jsonLd = {
 // The intro only plays on the home page; on any other page, drop the black curtain before first paint.
 const INTRO_SKIP_SCRIPT = `if(location.pathname!=="/")document.documentElement.classList.add("intro-skip")`;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const introSettings = await readIntroSettings();
   return (
     // suppressHydrationWarning: the pre-paint script below may add "intro-skip" to <html> before React hydrates.
-    <html lang="en" className={`${bodoni.variable} ${syne.variable} ${inter.variable}`} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${bodoni.variable} ${syne.variable} ${inter.variable}`}
+      style={{ "--stage": introSettings.background } as React.CSSProperties}
+      suppressHydrationWarning
+    >
       <body>
         <script dangerouslySetInnerHTML={{ __html: INTRO_SKIP_SCRIPT }} />
         <noscript>
           <style>{".intro-curtain{display:none}.site-main{opacity:1}"}</style>
         </noscript>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-        <SiteChrome>
+        <SiteChrome introSettings={introSettings} footer={<Footer />}>
           {children}
-          <Footer />
         </SiteChrome>
       </body>
     </html>
