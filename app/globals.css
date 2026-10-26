@@ -46,7 +46,8 @@ body {
 
 body {
   margin: 0;
-  background: var(--stage);
+  /* Transparent: <html> paints the background, so the fixed star backdrop (z-index -1) shows through. */
+  background: transparent;
   color: var(--ivory);
   font-family: var(--font-body);
   overflow-x: hidden;

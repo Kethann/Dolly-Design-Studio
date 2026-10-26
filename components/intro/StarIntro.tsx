@@ -149,7 +149,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     scene.add(logoPlane);
 
     // --- the dark tinted glass behind the logo (the same glass the page has) ------------------
-    const glass = createGlassPlane(settings, vw, vh, dpr, tanHalfFov);
+    const glass = createGlassPlane(settings, vw, vh, tanHalfFov);
     scene.add(glass.mesh);
 
     // --- stars ------------------------------------------------------------------------

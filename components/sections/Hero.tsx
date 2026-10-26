@@ -1,17 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import dynamic from "next/dynamic";
 import { site } from "@/content/site";
 import { home } from "@/content/home";
 import { useMotion } from "@/lib/motion";
 import { HERO_LOGO_ID } from "@/lib/dom-ids";
-import { useIntroSettings } from "@/lib/intro/settings-context";
-import { glassFill } from "@/lib/intro/glass";
 import styles from "./Hero.module.css";
-
-// three.js loads on its own, after the page, so it never delays the hero.
-const StarField = dynamic(() => import("@/components/StarField").then((m) => m.StarField), { ssr: false });
 
 const GHOST_FRAMES = [
   { top: "14%", left: "8%", depth: 0.04, scale: 1.1 },
@@ -24,7 +18,6 @@ const GHOST_FRAMES = [
 
 export function Hero() {
   const { reducedMotion } = useMotion();
-  const { settings } = useIntroSettings();
   const fieldRef = useRef<HTMLDivElement>(null);
 
   // Gentle parallax on the ghost frames, updated only when the page scrolls.
@@ -54,12 +47,6 @@ export function Hero() {
 
   return (
     <section id="top" className={styles.hero}>
-      <StarField />
-      <div
-        className={styles.glass}
-        style={{ backgroundColor: glassFill(settings), "--glass-frost": `${settings.glassFrost}px` } as React.CSSProperties}
-        aria-hidden="true"
-      />
       <div className={styles.frameField} ref={fieldRef} aria-hidden="true">
         {GHOST_FRAMES.map((f, i) => (
           <div

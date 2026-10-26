@@ -7,10 +7,10 @@ const GLASS_Z = -0.4;
 
 /**
  * The hero's dark tinted glass, recreated inside the intro so its last frames
- * match the page exactly: the same colour and opacity, fading out over the
- * bottom 22% like the page's glass. (The page adds its frost after the hand-off.)
+ * match the page exactly: the same colour and opacity across the whole view.
+ * (The page adds its frost after the hand-off.)
  */
-export function createGlassPlane(settings: IntroSettings, width: number, height: number, dpr: number, tanHalfFov: number) {
+export function createGlassPlane(settings: IntroSettings, width: number, height: number, tanHalfFov: number) {
   const material = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -18,7 +18,6 @@ export function createGlassPlane(settings: IntroSettings, width: number, height:
     uniforms: {
       uColor: { value: new THREE.Color(settings.glassColor) },
       uOpacity: { value: 0 },
-      uHeight: { value: height * dpr },
     },
     vertexShader: /* glsl */ `
       void main() {
@@ -28,11 +27,8 @@ export function createGlassPlane(settings: IntroSettings, width: number, height:
     fragmentShader: /* glsl */ `
       uniform vec3 uColor;
       uniform float uOpacity;
-      uniform float uHeight;
       void main() {
-        float fromTop = 1.0 - gl_FragCoord.y / uHeight;
-        float fade = 1.0 - clamp((fromTop - 0.78) / 0.22, 0.0, 1.0);
-        gl_FragColor = vec4(uColor, uOpacity * fade);
+        gl_FragColor = vec4(uColor, uOpacity);
       }
     `,
   });

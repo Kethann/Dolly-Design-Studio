@@ -21,6 +21,9 @@ const RIPPLE_SPEED = 320; // px per second
 const RIPPLE_WIDTH = 70; // px
 /** Seconds for the depth blur and the corner stars to arrive after the hand-off. */
 const ARRIVE = 2.4;
+/** On-screen speed of the stars relative to the page as you scroll: far ones slow, near ones faster. */
+const SCROLL_FAR = 0.08;
+const SCROLL_NEAR = 0.4;
 
 /** Large stars half out of frame: [corner x, corner y, depth, radius as a share of the view's half-height, turn speed]. */
 const CORNER_STARS = [
@@ -36,7 +39,7 @@ interface Ripple {
 }
 
 /**
- * The few stars that stay behind the hero after the intro. They carry on from
+ * The few stars that stay behind the whole site after the intro. They carry on from
  * exactly where the intro left them, then float like stars on water: a slow
  * swell rolls through them, each bobs and rocks at its own pace, and moving
  * the cursor sends soft ripples through them.
@@ -65,7 +68,7 @@ export function StarField() {
 
     let width = Math.max(1, wrap.clientWidth);
     let height = Math.max(1, wrap.clientHeight);
-    const dpr = Math.min(window.devicePixelRatio, 1.5);
+    const dpr = Math.min(window.devicePixelRatio, 1.25); // it runs behind every page, so keep it light
     renderer.setPixelRatio(dpr);
     renderer.setSize(width, height, false);
     wrap.appendChild(renderer.domElement);
@@ -194,6 +197,7 @@ export function StarField() {
       camera.updateMatrixWorld();
 
       while (ripples.length && time - ripples[0].time > 2.4) ripples.shift();
+      const scrolled = reducedMotion ? 0 : window.scrollY;
 
       for (let i = 0; i < stars.length; i++) {
         const s = stars[i];
@@ -205,6 +209,16 @@ export function StarField() {
           s.base.y + s.velocity.y * carried + water * (0.22 * Math.sin(swell) + 0.08 * bob),
           s.base.z + s.velocity.z * carried + water * 0.16 * Math.sin(swell * 0.8 + s.bob.phase),
         );
+
+        // Scrolling: the stars drift up past you at depth-dependent speeds and wrap around, so the field never runs out.
+        if (scrolled > 0) {
+          const halfHeight = (CAMERA_Z - pos.z) * tanHalfFov;
+          const nearness = Math.min(1, Math.max(0, (pos.z + 14) / 13.5));
+          const rate = SCROLL_FAR + (SCROLL_NEAR - SCROLL_FAR) * nearness;
+          const span = halfHeight * 1.15;
+          const y = pos.y + scrolled * rate * ((2 * halfHeight) / height);
+          pos.y = ((((y + span) % (2 * span)) + 2 * span) % (2 * span)) - span;
+        }
 
         // Ripples from the cursor lift the stars they pass and nudge them outward.
         let lift = 0;
