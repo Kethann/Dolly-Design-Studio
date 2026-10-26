@@ -107,6 +107,12 @@ export interface IntroSettings {
   glowingShare: number;
   /** Stars that form the logo. */
   formationCount: number;
+  /** The intro's stars: size of the logo-forming stars (on top of the overall star size)… */
+  introStarSize: number;
+  /** …the brushed-metal texture of all the intro's stars… */
+  introMetallic: number;
+  /** …and how strongly their metal reflects light. */
+  introShine: number;
   /** 0..1: depth of field during the intro (the logo plane stays in focus). */
   introBlur: number;
   /** Background stars drifting around during the intro. */
@@ -158,7 +164,10 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   spaceDepth: 1,
   metallic: 0.55,
   glowingShare: 4,
-  formationCount: 700,
+  formationCount: 450,
+  introStarSize: 0.75,
+  introMetallic: 0.55,
+  introShine: 0.5,
   introBlur: 0,
   introAmbient: 140,
   scatter: 0.5,
@@ -252,6 +261,9 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
     metallic: num(src.metallic, LIMITS.metallic, d.metallic),
     glowingShare: num(src.glowingShare, LIMITS.glowingShare, d.glowingShare),
     formationCount: Math.round(num(src.formationCount, LIMITS.formationCount, d.formationCount)),
+    introStarSize: num(src.introStarSize, [0.3, 1.6], d.introStarSize),
+    introMetallic: num(src.introMetallic, [0, 1], d.introMetallic),
+    introShine: num(src.introShine, [0.2, 1.5], d.introShine),
     introBlur: num(src.introBlur, [0, 1], d.introBlur),
     introAmbient: Math.round(num(src.introAmbient, [0, 400], d.introAmbient)),
     scatter: num(src.scatter, [0, 1], d.scatter),

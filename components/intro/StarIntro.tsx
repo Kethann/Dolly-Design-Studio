@@ -166,7 +166,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
     // --- planning (all random choices come from one seeded source) ------------
     const slots = sampleLogoSlots(LOGO_BODY_PATH, LOGO_VIEWBOX.width, LOGO_VIEWBOX.height, settings.formationCount, rand);
-    const formation = planFormation(stage, slots, look);
+    const formation = planFormation(stage, slots, { ...look, size: look.size * settings.introStarSize });
     // Background stars: in "stream" mode they pour out of a core behind the logo (the same stream the page
     // carries on with); in "float" mode they drift, and a few survivors are handed to the page.
     // The intro's background stars are the stream out of the core (no drifting extras).
@@ -206,7 +206,12 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const depth = 0.42 * settings.starDepth;
     let starGeometry = createFacetedStarGeometry({ depth });
     const brush = createBrushedMetalTexture(rand);
-    const { plain, glowing } = createStarMaterials(brush, starScene.envTexture, settings);
+    // The intro's stars have their own texture and shine (the page's stars use the Look settings).
+    const { plain, glowing } = createStarMaterials(brush, starScene.envTexture, {
+      ...settings,
+      metallic: settings.introMetallic,
+      shine: settings.introShine,
+    });
 
     const stars = createStarInstances(
       starGeometry,
@@ -346,9 +351,9 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       setBloomGlow(composer, s.glow);
       glowing.material.emissiveIntensity = GLINT_STRENGTH * s.glow;
       for (const m of [plain, glowing]) {
-        m.material.envMapIntensity = 0.55 * s.shine;
-        m.material.bumpScale = 0.35 * s.metallic;
-        m.uniforms.uTexture.value = s.metallic;
+        m.material.envMapIntensity = 0.55 * s.introShine;
+        m.material.bumpScale = 0.35 * s.introMetallic;
+        m.uniforms.uTexture.value = s.introMetallic;
         (m.uniforms.uGlowColor.value as THREE.Color).set(s.glowColor);
         m.uniforms.uMatchStar.value = s.glowMatchStar ? 1 : 0;
       }

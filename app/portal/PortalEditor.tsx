@@ -49,6 +49,7 @@ function introLayout(s: IntroSettings) {
   return [
     s.enabled,
     s.formationCount,
+    s.introStarSize,
     s.starSize,
     s.spaceDepth,
     s.scatter,
@@ -817,7 +818,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
               <Section
                 title="Star finish"
                 scope="Intro & page"
-                hint="How every star looks, in the intro and on the page. (Big stars have their own shine and glow under Stars.)"
+                hint="How the stars on the page look. (The intro’s stars have their own size, texture and shine under Intro; big stars under Stars.)"
               >
                 <Slider
                   label={draft.glowLinked ? "Glow · intro & page" : "Glow · intro"}
@@ -1018,6 +1019,36 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   step={50}
                   format={(v) => String(Math.round(v))}
                   onChange={(formationCount) => update({ formationCount })}
+                />
+                <Slider
+                  label="Logo star size"
+                  value={draft.introStarSize}
+                  min={0.3}
+                  max={1.6}
+                  step={0.05}
+                  format={percent}
+                  hint="Smaller stars and fewer of them make a lighter, less crowded logo."
+                  onChange={(introStarSize) => update({ introStarSize })}
+                />
+                <Slider
+                  label="Intro star texture"
+                  value={draft.introMetallic}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  format={(v) => (v === 0 ? "Smooth" : percent(v))}
+                  hint="Brushed-metal grain on the intro's stars."
+                  onChange={(introMetallic) => update({ introMetallic })}
+                />
+                <Slider
+                  label="Intro star shine"
+                  value={draft.introShine}
+                  min={0.2}
+                  max={1.5}
+                  step={0.05}
+                  format={percent}
+                  hint="How strongly the intro's stars reflect light — lower for a calmer, less heavy intro."
+                  onChange={(introShine) => update({ introShine })}
                 />
                 <Slider
                   label="Depth of space"
