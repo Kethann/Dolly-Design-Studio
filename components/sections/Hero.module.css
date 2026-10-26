@@ -77,3 +77,8 @@
     transform: translateY(0);
   }
 }
+
+/* Holds the logo and the cursor glow drawn over it. */
+.logoFrame {
+  position: relative;
+}

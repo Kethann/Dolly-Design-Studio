@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { T } from "./timeline";
 import { bezier, bezierTangent, type FormationStar, type Stage } from "./choreography";
-import { bigStarPose, waveTimeAt, type BigStarPlan } from "./big-star-path";
+import { bigStarPose, revealTimeAt, type BigStarPlan } from "./big-star-path";
 import type { Rng } from "./rng";
 
 // Fine glitter left behind in the stars' flight paths. Every particle is
@@ -55,6 +55,7 @@ export function buildDustGeometry(
   palette: THREE.Color[],
   glowColor: THREE.Color,
   rand: Rng,
+  revealStyle: "wave" | "glow" = "wave",
 ) {
   const GOLD = glowColor;
   const range = (min: number, max: number) => min + rand() * (max - min);
@@ -111,7 +112,7 @@ export function buildDustGeometry(
       .multiplyScalar(range(0.08, 0.35))
       .add(jitter.set(0, range(0, 0.2), range(0.05, 0.35)));
     const bright = rand() < 0.35;
-    dust.add(p, v, waveTimeAt(bigStar, d), range(0.5, 1.1), base * range(0.6, 1.4), bright ? GOLD : WARM_WHITE, bright ? range(1.1, 1.7) : range(0.4, 0.85));
+    dust.add(p, v, revealTimeAt(bigStar, d, revealStyle), range(0.5, 1.1), base * range(0.6, 1.4), bright ? GOLD : WARM_WHITE, bright ? range(1.1, 1.7) : range(0.4, 0.85));
   }
 
   // 4. As the wave reaches it, every formation star breaks into a puff of glitter in its own colour, spread over
@@ -126,7 +127,7 @@ export function buildDustGeometry(
         .multiplyScalar(range(0.05, 0.25))
         .add(randomUnit(jitter, 0.5).multiplyScalar(range(0.05, 0.22)))
         .add(jitter.set(0, range(0.05, 0.2), 0));
-      dust.add(p, v, waveTimeAt(bigStar, d) + range(0, 0.1), range(0.7, 1.5), base * range(0.9, 1.8), tint, range(1.1, 1.9));
+      dust.add(p, v, revealTimeAt(bigStar, d, revealStyle) + range(0, 0.1), range(0.7, 1.5), base * range(0.9, 1.8), tint, range(1.1, 1.9));
     }
   }
 

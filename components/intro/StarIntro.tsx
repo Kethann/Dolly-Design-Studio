@@ -10,7 +10,7 @@ import { GLINT_STRENGTH, createBrushedMetalTexture, createStarMaterial, createSt
 import { createLogoRevealMaterial } from "@/lib/intro/logo-reveal-material";
 import { createSparkleTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
-import { bigStarPose, planBigStar, waveRadius } from "@/lib/intro/big-star-path";
+import { bigStarPose, planBigStar, revealTimeAt, waveRadius } from "@/lib/intro/big-star-path";
 import { createRng, randomSeed } from "@/lib/intro/rng";
 import {
   CAMERA_Z,
@@ -176,11 +176,19 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const streamBack = streaming ? planStream(settings.field.count, "back", settings, streamSeed) : [];
     const streamFront = streaming ? planStream(settings.front.count, "front", settings, streamSeed) : [];
     const bigPlan = planBigStar(stage, rand);
+    // When the reveal reaches each logo star (it turns to dust at that moment).
+    const revealTimes = formation.map((s) =>
+      revealTimeAt(bigPlan, Math.hypot(s.target.x - bigPlan.glyph.x, s.target.y - bigPlan.glyph.y), settings.revealStyle),
+    );
 
     // --- the crisp logo, revealed by the wave ----------------------------------------
     const reveal = createLogoRevealMaterial();
     const u = reveal.material.uniforms;
     u.uWaveCenter.value.set(bigPlan.glyph.x, bigPlan.glyph.y);
+    u.uMode.value = settings.revealStyle === "glow" ? 1 : 0;
+    u.uRevealStart.value = T.waveStart;
+    u.uRevealDur.value = T.waveEnd - T.waveStart;
+    u.uReach.value = bigPlan.waveReach;
     u.uWaveBand.value = bigPlan.waveBand;
     u.uSoftness.value = logo.height * 0.03;
     u.uGlow.value = 0.5 + 0.5 * glow;
@@ -268,7 +276,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     front.add(bigStar);
 
     // --- glitter: flight trails, the big star's trail, the wave's sparkle ----------------
-    const dustGeometry = buildDustGeometry(stage, formation, bigPlan, palette, glowColor, rand);
+    const dustGeometry = buildDustGeometry(stage, formation, bigPlan, palette, glowColor, rand, settings.revealStyle);
     const dustMaterial = createDustMaterial();
     dustMaterial.uniforms.uProjScale.value = (vh * dpr) / (2 * tanHalfFov);
     dustMaterial.uniforms.uGlow.value = 0.5 + 0.5 * glow;
@@ -377,6 +385,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
       const wave = waveRadius(bigPlan, t);
       u.uWaveRadius.value = wave;
+      u.uTime.value = t;
       u.uWaveFade.value = 1 - easeInOutCubic(clamp01((t - (T.waveEnd - 0.1)) / 0.7));
       u.uSheen.value = t >= T.sheenStart && t <= T.sheenEnd ? easeInOutCubic((t - T.sheenStart) / (T.sheenEnd - T.sheenStart)) : -1;
       dustMaterial.uniforms.uTime.value = t;
@@ -402,13 +411,14 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
           pos.x += logo.height * 0.002 * near * Math.sin(t * 40 + i);
           pos.y += logo.height * 0.002 * near * Math.sin(t * 36 + i * 1.7);
         }
-        if (wave > 0) {
-          const front = (wave - d) / band; // 0 at the wave front, > 0 once it has passed
-          const lift = Math.exp(-front * front * 4);
+        // The reveal reaches this star: it lifts a touch (wave) and turns to dust right there.
+        const since = t - revealTimes[i];
+        if (since > -0.2) {
+          const lift = settings.revealStyle === "wave" ? Math.exp(-((since / 0.12) ** 2)) : 0;
           pos.x += (dx / d) * band * 0.12 * lift;
           pos.y += (dy / d) * band * 0.12 * lift;
           pos.z += band * 0.35 * lift;
-          size *= (1 + 0.2 * lift) * (1 - easeInQuad(clamp01((front + 0.05) / 0.4)));
+          size *= (1 + 0.2 * lift) * (1 - easeInQuad(clamp01((since + 0.04) / 0.2)));
         }
         const settle = easeOutQuart(local);
         const angle = (1 - settle) * s.spinTurns * Math.PI * 2 + settle * Math.sin(t * 1.6 + s.wobblePhase) * 0.35;

@@ -1,56 +1,53 @@
 {
   "enabled": true,
-  "background": "#410000",
+  "background": "#460101",
   "glassColor": "#120204",
   "glassOpacity": 0.58,
   "glassFrost": 5.5,
-  "glow": 0,
-  "pageGlow": 0.4,
+  "glow": 0.1,
+  "pageGlow": 0.75,
   "glowLinked": false,
   "glowColor": "#ffcf7a",
   "glowMatchStar": false,
   "starSize": 1,
-  "starDepth": 1,
+  "starDepth": 0.45,
   "spaceDepth": 1,
-  "metallic": 0.55,
+  "metallic": 0.6,
   "glowingShare": 8,
   "formationCount": 450,
+  "introStarSize": 0.75,
+  "introMetallic": 0.15,
+  "introShine": 0.6,
   "introBlur": 0,
   "introAmbient": 140,
-  "scatter": 0.2,
-  "disperse": 0.03,
-  "shine": 0.85,
+  "scatter": 0.5,
+  "disperse": 0.1,
+  "shine": 0.7,
+  "bigShine": 1,
+  "bigGlow": 1,
   "colors": [
     {
       "hex": "#d9a43f",
       "share": 100
-    },
-    {
-      "hex": "#c7ccd4",
-      "share": 30
-    },
-    {
-      "hex": "#f2ede3",
-      "share": 25
     }
   ],
   "field": {
-    "count": 48,
+    "count": 19,
     "motion": 0.5,
     "cursor": 0.5,
-    "depthBlur": 0.5,
-    "cornerStars": 2,
+    "depthBlur": 0,
+    "cornerStars": 0,
     "cornerSize": 1,
     "size": 1
   },
   "front": {
-    "count": 12,
+    "count": 11,
     "blur": 0,
     "size": 1
   },
   "stream": {
-    "speed": 0.4,
-    "spin": 0.4,
+    "speed": 0.05,
+    "spin": 0.2,
     "flips": 0.35,
     "corners": 0.5
   },
@@ -61,21 +58,23 @@
   },
   "art": {
     "enabled": true,
-    "style": "waves",
-    "depth": 0.3,
-    "seed": 7,
-    "tone": "#8c1c22",
+    "style": "silk",
+    "depth": 1,
+    "seed": 240791208,
+    "tone": "#1f0033",
     "shadow": "#190002",
-    "rotation": 0,
-    "softIntro": 0.45,
-    "softPage": 0.45,
+    "rotation": 90,
+    "softIntro": 1,
+    "softPage": 1,
     "gold": "#d9a648",
-    "lines": 0.5,
-    "motion": 0.4
+    "lines": 0.25,
+    "motion": 0.6
   },
-  "bigShine": 1,
-  "bigGlow": 1,
-  "introStarSize": 0.75,
-  "introMetallic": 0.2,
-  "introShine": 0.5
+  "revealStyle": "wave",
+  "logoGlow": {
+    "enabled": true,
+    "intensity": 0.7,
+    "spread": 180,
+    "color": "#ffe7a0"
+  }
 }

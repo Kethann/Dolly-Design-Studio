@@ -105,6 +105,8 @@ export interface IntroSettings {
   metallic: number;
   /** Percentage of stars that glow. */
   glowingShare: number;
+  /** How the logo appears: light rippling out from the star ("wave"), or the whole logo glowing into being ("glow"). */
+  revealStyle: "wave" | "glow";
   /** Stars that form the logo. */
   formationCount: number;
   /** The intro's stars: size of the logo-forming stars (on top of the overall star size)… */
@@ -136,6 +138,8 @@ export interface IntroSettings {
   art: ArtSettings;
   /** How the background stars move (in the intro and on the page). */
   stream: StreamSettings;
+  /** The glow that follows the cursor over the page's logo. */
+  logoGlow: { enabled: boolean; intensity: number; spread: number; color: string };
   /** A soft pool of dark glass behind the logo that the stars stream out of. */
   dial: DialSettings;
 }
@@ -164,6 +168,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   spaceDepth: 1,
   metallic: 0.55,
   glowingShare: 4,
+  revealStyle: "wave",
   formationCount: 450,
   introStarSize: 0.75,
   introMetallic: 0.2,
@@ -184,6 +189,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   front: { count: 12, blur: 0, size: 1 },
   stream: { speed: 0.4, spin: 0.4, flips: 0.35, corners: 0.5 },
   dial: { enabled: true, size: 0.6, darkness: 0.35 },
+  logoGlow: { enabled: true, intensity: 0.7, spread: 180, color: "#ffe7a0" },
   art: {
     enabled: true,
     style: "waves",
@@ -237,6 +243,7 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
   const art = (src.art && typeof src.art === "object" ? src.art : {}) as Record<string, unknown>;
   const stream = (src.stream && typeof src.stream === "object" ? src.stream : {}) as Record<string, unknown>;
   const dial = (src.dial && typeof src.dial === "object" ? src.dial : {}) as Record<string, unknown>;
+  const logoGlow = (src.logoGlow && typeof src.logoGlow === "object" ? src.logoGlow : {}) as Record<string, unknown>;
 
   const rawColors = Array.isArray(src.colors) ? src.colors.slice(0, LIMITS.colorCount[1]) : [];
   const colors = rawColors
@@ -260,6 +267,7 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
     spaceDepth: num(src.spaceDepth, LIMITS.spaceDepth, d.spaceDepth),
     metallic: num(src.metallic, LIMITS.metallic, d.metallic),
     glowingShare: num(src.glowingShare, LIMITS.glowingShare, d.glowingShare),
+    revealStyle: src.revealStyle === "glow" ? "glow" : src.revealStyle === "wave" ? "wave" : d.revealStyle,
     formationCount: Math.round(num(src.formationCount, LIMITS.formationCount, d.formationCount)),
     introStarSize: num(src.introStarSize, [0.3, 1.6], d.introStarSize),
     introMetallic: num(src.introMetallic, [0, 1], d.introMetallic),
@@ -291,6 +299,12 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       spin: num(stream.spin, [0, 1], d.stream.spin),
       flips: num(stream.flips, [0, 1], d.stream.flips),
       corners: num(stream.corners, [0, 1], d.stream.corners),
+    },
+    logoGlow: {
+      enabled: bool(logoGlow.enabled, d.logoGlow.enabled),
+      intensity: num(logoGlow.intensity, [0, 1], d.logoGlow.intensity),
+      spread: num(logoGlow.spread, [60, 400], d.logoGlow.spread),
+      color: hex(logoGlow.color, d.logoGlow.color),
     },
     dial: {
       enabled: bool(dial.enabled, d.dial.enabled),

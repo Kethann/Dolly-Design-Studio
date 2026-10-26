@@ -49,6 +49,7 @@ function introLayout(s: IntroSettings) {
   return [
     s.enabled,
     s.formationCount,
+    s.revealStyle,
     s.introStarSize,
     s.starSize,
     s.spaceDepth,
@@ -192,6 +193,10 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
   }
   function updateStream(patch: Partial<IntroSettings["stream"]>) {
     setDraft((d) => ({ ...d, stream: { ...d.stream, ...patch } }));
+    setSave({ kind: "idle" });
+  }
+  function updateLogoGlow(patch: Partial<IntroSettings["logoGlow"]>) {
+    setDraft((d) => ({ ...d, logoGlow: { ...d.logoGlow, ...patch } }));
     setSave({ kind: "idle" });
   }
   function updateDial(patch: Partial<IntroSettings["dial"]>) {
@@ -916,6 +921,60 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
               </Section>
 
               <Section
+                title="Logo hover glow"
+                scope="Page"
+                hint="The part of the logo around the cursor lights up, with a soft halo."
+              >
+                <Toggle
+                  label="Glow on hover"
+                  checked={draft.logoGlow.enabled}
+                  onChange={(enabled) => updateLogoGlow({ enabled })}
+                />
+                {draft.logoGlow.enabled && (
+                  <>
+                    <div className={styles.control}>
+                      <div className={styles.controlRow}>
+                        <span className={styles.controlLabel}>Glow colour</span>
+                        <span className={styles.colorField}>
+                          <input
+                            type="color"
+                            aria-label="Logo glow colour"
+                            className={styles.swatch}
+                            value={draft.logoGlow.color}
+                            onChange={(e) => updateLogoGlow({ color: e.target.value })}
+                          />
+                          <HexInput
+                            value={draft.logoGlow.color}
+                            label="Logo glow colour code"
+                            onChange={(color) => updateLogoGlow({ color })}
+                          />
+                        </span>
+                      </div>
+                    </div>
+                    <Slider
+                      label="Glow intensity"
+                      value={draft.logoGlow.intensity}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={percent}
+                      onChange={(intensity) => updateLogoGlow({ intensity })}
+                    />
+                    <Slider
+                      label="Glow spread"
+                      value={draft.logoGlow.spread}
+                      min={60}
+                      max={400}
+                      step={10}
+                      format={(v) => `${Math.round(v)} px`}
+                      hint="How far around the cursor the logo lights up."
+                      onChange={(spread) => updateLogoGlow({ spread })}
+                    />
+                  </>
+                )}
+              </Section>
+
+              <Section
                 title="Star colours"
                 scope="Intro & page"
                 hint="Set each colour’s share with its slider — the ratio below shows how the stars are split."
@@ -1005,6 +1064,20 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
           {tab === "intro" && (
             <>
               <Section title="Intro" scope="Intro" hint="The stars that fly in and draw the logo.">
+                <Choice
+                  label="Logo reveal"
+                  value={draft.revealStyle}
+                  options={[
+                    { value: "wave", label: "Wave" },
+                    { value: "glow", label: "Glow" },
+                  ]}
+                  hint={
+                    draft.revealStyle === "wave"
+                      ? "Light ripples out from the star through the letters, revealing the logo."
+                      : "The whole logo lights up from within in a warm glow, then settles into its gold."
+                  }
+                  onChange={(revealStyle) => update({ revealStyle })}
+                />
                 <Toggle
                   label="Play the intro on the home page"
                   hint="When off, the home page opens straight onto the logo."

@@ -96,6 +96,12 @@ export function waveTimeAt(plan: BigStarPlan, d: number) {
   return T.waveStart + k * (T.waveEnd - T.waveStart);
 }
 
+/** When the reveal (in either style) reaches distance d from the glyph. Stars and their dust follow this. */
+export function revealTimeAt(plan: BigStarPlan, d: number, style: "wave" | "glow") {
+  if (style === "wave") return waveTimeAt(plan, d);
+  return T.waveStart + (0.08 + 0.3 * Math.min(1, d / plan.waveReach)) * (T.waveEnd - T.waveStart);
+}
+
 const tmpQuat = new THREE.Quaternion();
 
 /** The big star's pose at time t. Writes into `position` and `quaternion`. */

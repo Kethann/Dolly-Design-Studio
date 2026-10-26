@@ -1,0 +1,39 @@
+/* Sits exactly over the logo image. */
+.glow {
+  --gx: -9999px;
+  --gy: -9999px;
+  --on: 0;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--on);
+}
+
+/* A light pool around the cursor, cut to the logo's own shape. */
+.shape {
+  position: absolute;
+  inset: 0;
+  -webkit-mask: var(--mask) center / 100% 100% no-repeat;
+  mask: var(--mask) center / 100% 100% no-repeat;
+  background: radial-gradient(
+    circle var(--spread) at var(--gx) var(--gy),
+    var(--color),
+    color-mix(in srgb, var(--color) 40%, transparent) 45%,
+    transparent 100%
+  );
+}
+
+/* The letters themselves light up near the cursor. */
+.core {
+  opacity: var(--intensity);
+  mix-blend-mode: plus-lighter;
+}
+
+/* A soft halo spreading off the lit letters. */
+.halo {
+  position: absolute;
+  inset: 0;
+  opacity: var(--intensity);
+  filter: blur(calc(var(--spread) / 14)) brightness(1.4);
+  mix-blend-mode: plus-lighter;
+}
