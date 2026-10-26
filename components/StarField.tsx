@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import * as THREE from "three";
+import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import { getHandoff, subscribeHandoff, type FieldStar, type Handoff } from "@/lib/intro/handoff";
-import { planFieldStars } from "@/lib/intro/field-plan";
+import { FIELD_FRONT_Z, layerOf, planFieldStars, type StarLayer } from "@/lib/intro/field-plan";
 import { starLook } from "@/lib/intro/choreography";
-import { createRng, randomSeed } from "@/lib/intro/rng";
+import { createRng, randomSeed, type Rng } from "@/lib/intro/rng";
 import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
-import { createBrushedMetalTexture, createStarMaterial, createStarMaterials } from "@/lib/intro/star-material";
-import { CAMERA_Z, addDepthBlur, createStarComposer, createStarInstances, createStarScene } from "@/lib/intro/star-scene";
-import { FIELD_FRONT_Z } from "@/lib/intro/field-plan";
+import { GLINT_STRENGTH, createBrushedMetalTexture, createStarMaterial, createStarMaterials } from "@/lib/intro/star-material";
+import { CAMERA_Z, addDepthBlur, createStarComposer, createStarInstances, createStarScene, setBloomGlow } from "@/lib/intro/star-scene";
+import { pageGlowOf, type IntroSettings } from "@/lib/intro/settings";
 import styles from "./StarField.module.css";
 
 const WAITING: Handoff = { status: "waiting" };
@@ -25,11 +26,17 @@ const ARRIVE = 2.4;
 const SCROLL_FAR = 0.08;
 const SCROLL_NEAR = 0.4;
 
-/** Large stars half out of frame: [corner x, corner y, depth, radius as a share of the view's half-height, turn speed]. */
+/** Large stars half out of frame: corner, depth, radius as a share of the view's half-height, turn speed. */
 const CORNER_STARS = [
   { cx: -1, cy: -1, z: -2.5, radius: 0.4, spin: 0.07 },
   { cx: 1, cy: 1, z: -6, radius: 0.3, spin: -0.05 },
 ];
+
+/** A repeatable 0..1 random number for (star, lap). */
+function hash(i: number, lap: number) {
+  const x = Math.sin(i * 127.1 + lap * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
 
 interface Ripple {
   x: number;
@@ -38,81 +45,195 @@ interface Ripple {
   strength: number;
 }
 
+/** Everything a layer needs that doesn't depend on which stars it shows: built and warmed up before the hand-off. */
+interface Engine {
+  renderer: THREE.WebGLRenderer;
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  composer: EffectComposer | null;
+  blur: ReturnType<typeof addDepthBlur> | null;
+  tanHalfFov: number;
+  geometry: THREE.BufferGeometry;
+  plain: THREE.Material;
+  glowing: THREE.MeshPhysicalMaterial;
+  cornerGeometry: THREE.BufferGeometry;
+  corner: THREE.MeshPhysicalMaterial;
+  palette: THREE.Color[];
+  rand: Rng;
+  dispose: () => void;
+}
+
+/** Builds the renderer, scene, post-processing and materials for a layer, and compiles every shader in advance. */
+function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boolean): Engine | null {
+  let renderer: THREE.WebGLRenderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: !back, powerPreference: "high-performance" });
+  } catch {
+    return null; // no WebGL: the page simply has no background stars
+  }
+  const width = Math.max(1, wrap.clientWidth);
+  const height = Math.max(1, wrap.clientHeight);
+  const dpr = Math.min(window.devicePixelRatio, 1.25); // it runs behind every page, so keep it light
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(width, height, false);
+  wrap.appendChild(renderer.domElement);
+
+  // The front layer is drawn over the glass, so it's transparent: no background, no fog, no bloom.
+  const starScene = createStarScene(renderer, new THREE.Color(settings.background), width / height, !back);
+  const { scene, camera } = starScene;
+  const composer = back ? createStarComposer(renderer, scene, camera, width, height, dpr, pageGlowOf(settings)) : null;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Focused just at the nearest background stars, so depth reads from crisp (near) to soft (far).
+  const blur =
+    composer && settings.field.depthBlur > 0 && !reducedMotion
+      ? addDepthBlur(composer, scene, camera, CAMERA_Z - FIELD_FRONT_Z)
+      : null;
+  if (blur) blur.maxblur.value = 0.004 + 0.012 * settings.field.depthBlur;
+
+  const rand = createRng(randomSeed());
+  const palette = settings.colors.map((c) => new THREE.Color(c.hex));
+  const geometry = createFacetedStarGeometry({ depth: 0.42 * settings.starDepth });
+  const brush = createBrushedMetalTexture(rand);
+  const { plain, glowing } = createStarMaterials(brush, starScene.envTexture, { ...settings, glow: pageGlowOf(settings) });
+  const cornerGeometry = createFacetedStarGeometry({ innerRadius: 0.42, depth: 0.42 * settings.starDepth });
+  const corner = createStarMaterial(brush, {
+    metalness: 0.95,
+    roughness: 0.2,
+    glow: 0.45 * pageGlowOf(settings),
+    texture: settings.metallic,
+    envMap: starScene.envTexture,
+    envIntensity: 0.5,
+    glowColor: settings.glowMatchStar ? null : new THREE.Color(settings.glowColor),
+  });
+  corner.material.color.copy(palette[0] ?? new THREE.Color(0xd9a43f));
+
+  return {
+    renderer,
+    scene,
+    camera,
+    composer,
+    blur,
+    tanHalfFov: Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)),
+    geometry,
+    plain: plain.material,
+    glowing: glowing.material,
+    cornerGeometry,
+    corner: corner.material,
+    palette,
+    rand,
+    dispose() {
+      geometry.dispose();
+      cornerGeometry.dispose();
+      corner.material.dispose();
+      brush.dispose();
+      plain.material.dispose();
+      glowing.material.dispose();
+      starScene.dispose();
+      composer?.dispose();
+      renderer.dispose();
+      renderer.forceContextLoss();
+      renderer.domElement.remove();
+    },
+  };
+}
+
+/** Compiles the exact shader variants the layer will use (instanced, glowing or not, corner stars), off the main thread where supported. */
+async function warmUp(engine: Engine) {
+  const dummy = createStarInstances(engine.geometry, engine.plain, engine.glowing, [
+    { glow: false, color: 0 },
+    { glow: true, color: 0 },
+  ], engine.palette);
+  const cornerDummy = new THREE.Mesh(engine.cornerGeometry, engine.corner);
+  engine.scene.add(...dummy.meshes, cornerDummy);
+  // Off the main thread where the browser supports it (never waiting more than a moment); otherwise compile now.
+  if (engine.renderer.extensions.has("KHR_parallel_shader_compile")) {
+    await Promise.race([engine.renderer.compileAsync(engine.scene, engine.camera), new Promise((r) => setTimeout(r, 1500))]);
+  } else {
+    engine.renderer.compile(engine.scene, engine.camera);
+  }
+  engine.scene.remove(...dummy.meshes, cornerDummy);
+  dummy.dispose();
+  // One render compiles the post-processing (bloom, depth blur) too; nothing is visible yet.
+  if (engine.composer) engine.composer.render();
+  else engine.renderer.render(engine.scene, engine.camera);
+}
+
 /**
- * The few stars that stay behind the whole site after the intro. They carry on from
- * exactly where the intro left them, then float like stars on water: a slow
- * swell rolls through them, each bobs and rocks at its own pace, and moving
- * the cursor sends soft ripples through them.
+ * One layer of the stars that stay behind the whole site after the intro:
+ * "back" sits behind the tinted glass (with depth blur and the corner stars),
+ * "front" floats in front of it, nearer the screen, crisp unless the creator
+ * blurs it. Stars carry on from exactly where the intro left them, then float
+ * like stars on water: a slow swell rolls through them, each bobs and rocks at
+ * its own pace, and moving the cursor sends soft ripples through them.
+ *
+ * The renderer and shaders are prepared as soon as the page loads, so taking
+ * over from the intro is just placing stars — no stall at the hand-off.
  */
-export function StarField() {
+export function StarField({ layer }: { layer: StarLayer }) {
   const { settings } = useIntroSettings();
   const wrapRef = useRef<HTMLDivElement>(null);
   const handoff = useSyncExternalStore(subscribeHandoff, getHandoff, () => WAITING);
+  const [engine, setEngine] = useState<Engine | null>(null);
+  // Bumped when the browser drops this layer's graphics context, so the layer rebuilds instead of vanishing.
+  const [epoch, setEpoch] = useState(0);
 
+  const back = layer === "back";
+  const count = back ? settings.field.count : settings.front.count;
+  const needed = count > 0 || (back && settings.field.cornerStars > 0);
+
+  // 1. Prepare the layer (renderer, materials, compiled shaders) while the intro plays.
   useEffect(() => {
     const wrap = wrapRef.current;
-    const { field } = settings;
-    if (!wrap || handoff.status === "waiting" || field.count === 0) return;
+    if (!wrap || !needed) return;
+    const built = createEngine(wrap, settings, back);
+    if (!built) return;
+    let cancelled = false;
+    void warmUp(built).then(() => {
+      if (!cancelled) setEngine(built);
+    });
+    return () => {
+      cancelled = true;
+      setEngine(null);
+      built.dispose();
+    };
+  }, [settings, back, needed, epoch]);
 
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    } catch {
-      return; // no WebGL: the page simply has no background stars
-    }
+  // 2. Once the intro hands over (or there's no intro), place the stars and bring the layer to life.
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || !engine || handoff.status === "waiting") return;
+    const { renderer, scene, camera, composer, blur, tanHalfFov, rand } = engine;
+    const { field } = settings;
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const finePointer = window.matchMedia("(pointer: fine)").matches;
     const motion = reducedMotion ? 0 : field.motion;
     const cursorStrength = reducedMotion || !finePointer ? 0 : field.cursor;
+    const blurAperture = field.depthBlur * 0.0007;
+    // Stars handed over from the intro keep the intro's glow for a moment, then ease to the page's glow.
+    const pageGlow = pageGlowOf(settings);
+    const startGlow = handoff.status === "ready" ? settings.glow : pageGlow;
+    const layerSize = back ? field.size : settings.front.size;
 
     let width = Math.max(1, wrap.clientWidth);
     let height = Math.max(1, wrap.clientHeight);
-    const dpr = Math.min(window.devicePixelRatio, 1.25); // it runs behind every page, so keep it light
-    renderer.setPixelRatio(dpr);
-    renderer.setSize(width, height, false);
-    wrap.appendChild(renderer.domElement);
 
-    const background = new THREE.Color(settings.background);
-    const starScene = createStarScene(renderer, background, width / height);
-    const { scene, camera } = starScene;
-    const composer = createStarComposer(renderer, scene, camera, width, height, dpr, settings.glow);
-    const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    // Focused just at the nearest background stars, so depth reads from crisp (near) to soft (far).
-    const blur = field.depthBlur > 0 && !reducedMotion ? addDepthBlur(composer, scene, camera, CAMERA_Z - FIELD_FRONT_Z) : null;
-    const blurAperture = field.depthBlur * 0.0007;
-    if (blur) blur.maxblur.value = 0.004 + 0.012 * field.depthBlur;
-
-    // --- stars: the intro's survivors, topped up (or replaced) by our own -----------------
-    const rand = createRng(randomSeed());
+    // --- stars: the intro's survivors for this layer, topped up (or replaced) by our own -----
     const look = starLook(settings, rand);
-    const handed = handoff.status === "ready" ? handoff.stars.slice(0, field.count) : [];
-    const list: FieldStar[] = [...handed, ...planFieldStars(field.count - handed.length, width / height, look)];
-    const palette = settings.colors.map((c) => new THREE.Color(c.hex));
-
-    const geometry = createFacetedStarGeometry({ depth: 0.42 * settings.starDepth });
-    const brush = createBrushedMetalTexture(rand);
-    const { plain, glowing } = createStarMaterials(brush, starScene.envTexture, settings);
-    const instances = createStarInstances(geometry, plain.material, glowing.material, list, palette);
+    const handed = handoff.status === "ready" ? handoff.stars.filter((s) => layerOf(s.position[2]) === layer).slice(0, count) : [];
+    const list: FieldStar[] = [
+      ...handed,
+      ...planFieldStars(count - handed.length, width / height, look, layer, handed.map((s) => s.position)),
+    ];
+    const instances = createStarInstances(engine.geometry, engine.plain, engine.glowing, list, engine.palette);
     scene.add(...instances.meshes);
 
     // --- corner stars: one or two big, slow-turning stars peeking in from the corners -------
-    const cornerGeometry = createFacetedStarGeometry({ innerRadius: 0.42, depth: 0.42 * settings.starDepth });
-    const corner = createStarMaterial(brush, {
-      metalness: 0.95,
-      roughness: 0.2,
-      glow: 0.45 * settings.glow,
-      texture: settings.metallic,
-      envMap: starScene.envTexture,
-      envIntensity: 0.5,
-      glowColor: settings.glowMatchStar ? null : new THREE.Color(settings.glowColor),
-    });
-    corner.material.color.copy(palette[0] ?? new THREE.Color(0xd9a43f));
-    const cornerStars = CORNER_STARS.slice(0, field.cornerStars).map((c, i) => {
-      const mesh = new THREE.Mesh(cornerGeometry, corner.material);
+    const cornerStars = CORNER_STARS.slice(0, back ? field.cornerStars : 0).map((c, i) => {
+      const mesh = new THREE.Mesh(engine.cornerGeometry, engine.corner);
       const halfHeight = (CAMERA_Z - c.z) * tanHalfFov;
       const home = new THREE.Vector3(c.cx * halfHeight * (width / height) * 0.93, c.cy * halfHeight * 0.9, c.z);
-      mesh.scale.setScalar(halfHeight * c.radius);
+      mesh.scale.setScalar(halfHeight * c.radius * field.cornerSize);
       scene.add(mesh);
       return { ...c, mesh, home, phase: i * 2.1 + rand() * Math.PI, start: rand() * Math.PI * 2 };
     });
@@ -131,13 +252,13 @@ export function StarField() {
       push: new THREE.Vector3(),
     }));
 
+    // Carry on from the moment the intro handed these stars over, even if this frame comes a little later.
+    const start = handoff.status === "ready" ? handoff.at : performance.now();
+
     // --- the cursor: moving it sends ripples out through the stars ----------------------
     const ripples: Ripple[] = [];
     const pointer = { x: 0, y: 0, inside: false };
     let lastRipple = { x: -1e4, y: -1e4, time: -1 };
-    function now() {
-      return (performance.now() - start) / 1000;
-    }
     function onPointerMove(e: PointerEvent) {
       const rect = wrap!.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -146,7 +267,7 @@ export function StarField() {
       pointer.y = y;
       pointer.inside = x >= 0 && y >= 0 && x <= rect.width && y <= rect.height;
       if (!pointer.inside) return;
-      const time = now();
+      const time = (performance.now() - start) / 1000;
       const moved = Math.hypot(x - lastRipple.x, y - lastRipple.y);
       if (moved < 22 || time - lastRipple.time < 0.08) return;
       const speed = moved / Math.max(0.016, time - lastRipple.time);
@@ -172,8 +293,6 @@ export function StarField() {
     const matrix = new THREE.Matrix4();
     const target = new THREE.Vector3();
     const ndc = new THREE.Vector3();
-    // Carry on from the moment the intro handed these stars over, even if this frame comes a little later.
-    const start = handoff.status === "ready" ? handoff.at : performance.now();
     let last = performance.now();
     let presence = 0;
 
@@ -188,6 +307,7 @@ export function StarField() {
       const settle = 1 - Math.exp(-time / SETTLE);
       const carried = SETTLE * settle; // ∫ e^(-t/SETTLE) dt
       const water = motion * settle;
+      const arrive = 1 - Math.pow(1 - Math.min(1, time / ARRIVE), 3);
 
       // A whisper of parallax toward the cursor, so the field reads in depth.
       const cursorX = presence > 0.01 ? (pointer.x / width) * 2 - 1 : 0;
@@ -213,11 +333,15 @@ export function StarField() {
         // Scrolling: the stars drift up past you at depth-dependent speeds and wrap around, so the field never runs out.
         if (scrolled > 0) {
           const halfHeight = (CAMERA_Z - pos.z) * tanHalfFov;
-          const nearness = Math.min(1, Math.max(0, (pos.z + 14) / 13.5));
+          // Nearer stars pass faster; front-layer stars (in front of the glass) fastest of all.
+          const nearness = Math.min(1.4, Math.max(0, (pos.z + 14) / 13.5));
           const rate = SCROLL_FAR + (SCROLL_NEAR - SCROLL_FAR) * nearness;
           const span = halfHeight * 1.15;
           const y = pos.y + scrolled * rate * ((2 * halfHeight) / height);
-          pos.y = ((((y + span) % (2 * span)) + 2 * span) % (2 * span)) - span;
+          const lap = Math.floor((y + span) / (2 * span));
+          pos.y = y - lap * 2 * span;
+          // Each time a star comes round again it reappears somewhere new across the width — never a visible repeat.
+          if (lap !== 0) pos.x += (hash(i, lap) * 2 - 1) * halfHeight * (width / height) * 1.05 - s.base.x;
         }
 
         // Ripples from the cursor lift the stars they pass and nudge them outward.
@@ -264,7 +388,8 @@ export function StarField() {
           if (tiltAxis.lengthSq() > 1e-8) quat.premultiply(tilt.setFromAxisAngle(tiltAxis.normalize(), Math.min(0.8, lift * 0.7)));
         }
 
-        scale.setScalar(s.size);
+        // Eases from the size it had in the intro to this layer's chosen size, so the hand-off never jumps.
+        scale.setScalar(s.size * (1 + (layerSize - 1) * arrive));
         matrix.compose(pos, quat, scale);
         const slot = instances.slots[i];
         slot.mesh.setMatrixAt(slot.index, matrix);
@@ -272,7 +397,6 @@ export function StarField() {
       instances.markDirty();
 
       // Corner stars glide in from just beyond the corner after the hand-off, then turn slowly, rocking on the swell.
-      const arrive = 1 - Math.pow(1 - Math.min(1, time / ARRIVE), 3);
       for (const c of cornerStars) {
         const out = (1 - arrive) * c.mesh.scale.x * 1.4;
         c.mesh.position.set(c.home.x + c.cx * out, c.home.y + c.cy * out + water * 0.12 * Math.sin(0.4 * time + c.phase), c.home.z);
@@ -283,33 +407,29 @@ export function StarField() {
         );
       }
       if (blur) blur.aperture.value = blurAperture * arrive;
+      const glow = startGlow + (pageGlow - startGlow) * arrive;
+      engine!.glowing.emissiveIntensity = GLINT_STRENGTH * glow;
+      engine!.corner.emissiveIntensity = 0.45 * glow;
+      if (composer) setBloomGlow(composer, glow);
 
-      composer.render();
+      if (composer) composer.render();
+      else renderer.render(scene, camera);
     }
 
-    // --- loop: only while the hero is on screen; a single still frame for reduced motion ----
+    // --- loop: a single still frame for reduced motion ----------------------------------
     let raf = 0;
-    let visible = true;
+    let running = true;
     function frame(frameNow: number) {
       update(frameNow);
-      raf = visible && !reducedMotion ? requestAnimationFrame(frame) : 0;
+      raf = running && !reducedMotion ? requestAnimationFrame(frame) : 0;
     }
     raf = requestAnimationFrame(frame);
-
-    const io = new IntersectionObserver(([entry]) => {
-      visible = entry.isIntersecting;
-      if (visible && !raf && !reducedMotion) {
-        last = performance.now();
-        raf = requestAnimationFrame(frame);
-      }
-    });
-    io.observe(wrap);
 
     const ro = new ResizeObserver(() => {
       width = Math.max(1, wrap.clientWidth);
       height = Math.max(1, wrap.clientHeight);
       renderer.setSize(width, height, false);
-      composer.setSize(width, height);
+      composer?.setSize(width, height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       if (reducedMotion) update(performance.now());
@@ -318,33 +438,28 @@ export function StarField() {
 
     function onContextLost(e: Event) {
       e.preventDefault();
+      running = false;
       cancelAnimationFrame(raf);
-      raf = 0;
-      visible = false;
+      setTimeout(() => setEpoch((n) => n + 1), 250); // rebuild the layer on a fresh context
     }
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
 
     return () => {
+      running = false;
       cancelAnimationFrame(raf);
-      io.disconnect();
       ro.disconnect();
       window.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("pointerout", onPointerOut);
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
-      geometry.dispose();
-      cornerGeometry.dispose();
-      corner.material.dispose();
-      brush.dispose();
-      plain.material.dispose();
-      glowing.material.dispose();
+      scene.remove(...instances.meshes, ...cornerStars.map((c) => c.mesh));
       instances.dispose();
-      starScene.dispose();
-      composer.dispose();
-      renderer.dispose();
-      renderer.forceContextLoss();
-      renderer.domElement.remove();
     };
-  }, [handoff, settings]);
+    // settings are already baked into the engine (it rebuilds when they change), so it's the engine that matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine, handoff]);
 
-  return <div ref={wrapRef} className={styles.field} aria-hidden="true" />;
+  const softness = layer === "front" ? settings.front.blur : 0;
+  return (
+    <div ref={wrapRef} className={styles.field} style={softness > 0 ? { filter: `blur(${softness}px)` } : undefined} aria-hidden="true" />
+  );
 }

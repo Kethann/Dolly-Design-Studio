@@ -14,7 +14,7 @@ import { bigStarPose, planBigStar, waveRadius } from "@/lib/intro/big-star-path"
 import { createRng, randomSeed } from "@/lib/intro/rng";
 import { CAMERA_Z, createStarComposer, createStarInstances, createStarScene } from "@/lib/intro/star-scene";
 import { publishFieldStars, type FieldStar } from "@/lib/intro/handoff";
-import { FIELD_FRONT_Z } from "@/lib/intro/field-plan";
+import { layerOf, pickSpread } from "@/lib/intro/field-plan";
 import { createGlassPlane } from "@/lib/intro/glass-plane";
 import { T } from "@/lib/intro/timeline";
 import {
@@ -163,28 +163,32 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const formationSlots = stars.slots.slice(0, formation.length);
     const ambientSlots = stars.slots.slice(formation.length);
 
-    // A few background stars stay with the page after the intro (handed to the hero's star field);
-    // the rest drift away near the end. Survivors sit well inside the frame, not right in front of the lens.
-    const survivorPool = ambient.map((_, i) => i).filter((i) => ambient[i].origin.z > -14 && ambient[i].origin.z < FIELD_FRONT_Z);
-    for (let i = survivorPool.length - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      [survivorPool[i], survivorPool[j]] = [survivorPool[j], survivorPool[i]];
+    // A few background stars stay with the page after the intro, handed to the page's two star layers —
+    // behind the glass and in front of it; the rest drift away near the end.
+    // Chosen for an even spread across the screen and through depth, so the page never opens on a clump.
+    function pickSurvivors(layer: "back" | "front", count: number) {
+      const at = (i: number) => ambient[i].velocity.clone().multiplyScalar(T.revealAt).add(ambient[i].origin);
+      const pool = ambient.map((_, i) => i).filter((i) => at(i).z > -14 && layerOf(at(i).z) === layer);
+      const points = pool.map((i) => at(i).toArray() as [number, number, number]);
+      return pickSpread(points, count, vw / vh).map((k) => pool[k]);
     }
-    const survivors = new Set(survivorPool.slice(0, settings.field.count));
+    const survivors = new Set([...pickSurvivors("back", settings.field.count), ...pickSurvivors("front", settings.front.count)]);
 
     // --- the big star ----------------------------------------------------------------
     // Same proportions as the logo's own star (inner/outer ≈ 0.389), so it matches exactly when it docks.
     const bigStarGeometry = createFacetedStarGeometry({ innerRadius: 0.389, depth });
-    const bigGold = new THREE.Color(0xe8b34a);
+    const bigGold = new THREE.Color(0xd9a440);
     const bigEmber = new THREE.Color(0xff9a3c);
     const black = new THREE.Color(0x000000);
+    // Crisp polished gold: softer reflections and only a faint ember, so it never blooms into a blob —
+    // light catches a few facets at a time, and its glow only builds while it shivers.
     const big = createStarMaterial(brush, {
       metalness: 1,
-      roughness: 0.18,
-      glow: 0.6,
+      roughness: 0.32,
+      glow: 0,
       texture: settings.metallic,
       envMap: starScene.envTexture,
-      envIntensity: 0.9,
+      envIntensity: 0.42,
       glowColor: null,
     });
     const bigMaterial = big.material;
@@ -324,10 +328,10 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       // As it docks it turns from polished 3D gold into the logo's flat, unlit, untextured gold.
       bigMaterial.color.lerpColors(bigGold, black, pose.morph);
       bigMaterial.emissive.lerpColors(bigEmber, LOGO_GOLD, pose.morph);
-      bigMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.6 + 2.4 * pose.shiver * glow, 1, pose.morph);
+      bigMaterial.emissiveIntensity = THREE.MathUtils.lerp(1.4 * pose.shiver * glow, 1, pose.morph);
       bigMaterial.metalness = 1 - pose.morph;
-      bigMaterial.roughness = THREE.MathUtils.lerp(0.2, 1, pose.morph);
-      bigMaterial.clearcoat = 0.35 * (1 - pose.morph);
+      bigMaterial.roughness = THREE.MathUtils.lerp(0.32, 1, pose.morph);
+      bigMaterial.clearcoat = 0; // a clear-coat layer turns whole facets white under the key light
       bigMaterial.bumpScale = 0.35 * settings.metallic * (1 - pose.morph);
       big.uniforms.uTexture.value = settings.metallic * (1 - pose.morph);
       big.uniforms.uGlint.value = 1 - pose.morph; // glints on a few facets in flight, an even flat gold once docked
@@ -398,6 +402,12 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       if (t >= T.end) return finish();
       raf = requestAnimationFrame(frame);
     }
+    // Compile every shader up front — including the big star, glints and glass that only appear later —
+    // so nothing stutters mid-show while the GPU builds a program.
+    const appearLater = [bigStar, glass.mesh, ...fxSprites].filter((o) => !o.visible);
+    appearLater.forEach((o) => (o.visible = true));
+    renderer.compile(scene, camera);
+    appearLater.forEach((o) => (o.visible = false));
     raf = requestAnimationFrame(frame);
 
     // Esc jumps straight to the hand-off (keyboard accessibility). No on-screen skip, no accidental skips.

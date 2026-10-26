@@ -3,11 +3,26 @@
 import { useId, type ReactNode } from "react";
 import styles from "./portal.module.css";
 
-export function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+export function Section({
+  id,
+  tag,
+  title,
+  hint,
+  children,
+}: {
+  id?: string;
+  tag?: string;
+  title: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   return (
-    <section className={styles.section}>
+    <section id={id} className={styles.section}>
       <header className={styles.sectionHead}>
-        <h2 className={styles.sectionTitle}>{title}</h2>
+        <h2 className={styles.sectionTitle}>
+          {tag && <span className={styles.sectionTag}>{tag}</span>}
+          {title}
+        </h2>
         {hint && <p className={styles.sectionHint}>{hint}</p>}
       </header>
       <div className={styles.sectionBody}>{children}</div>

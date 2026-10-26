@@ -18,6 +18,19 @@ export interface FieldSettings {
   depthBlur: number;
   /** Large stars peeking in from the corners, turning slowly (0–2). */
   cornerStars: number;
+  /** Size of those big stars (1 = default). */
+  cornerSize: number;
+  /** Size of the back stars (1 = default). */
+  size: number;
+}
+
+export interface FrontSettings {
+  /** Stars in front of the glass: nearer, so bigger, and crisp unless blurred. */
+  count: number;
+  /** 0..6 px: optional softness for the front stars. */
+  blur: number;
+  /** Size of the front stars (1 = default). */
+  size: number;
 }
 
 export interface IntroSettings {
@@ -30,8 +43,12 @@ export interface IntroSettings {
   glassOpacity: number;
   /** 0..8 px: how frosted (blurred) the glass is. */
   glassFrost: number;
-  /** 1 = the original intro's glow; 0.5 = half. */
+  /** Glow during the intro. 1 = the original intro's glow; 0.5 = half. */
   glow: number;
+  /** Glow of the stars on the page after the reveal (used when `glowLinked` is off). */
+  pageGlow: number;
+  /** One glow for both the intro and the page. */
+  glowLinked: boolean;
   /** Colour of the glints, glitter and the reveal wave's light. */
   glowColor: string;
   /** Glowing stars glint in their own colour instead of the glow colour. */
@@ -49,7 +66,10 @@ export interface IntroSettings {
   /** Stars that form the logo. */
   formationCount: number;
   colors: StarColor[];
+  /** The stars behind the glass (plus the corner stars). */
   field: FieldSettings;
+  /** The stars in front of the glass. */
+  front: FrontSettings;
 }
 
 export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
@@ -59,6 +79,8 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   glassOpacity: 0.38,
   glassFrost: 3,
   glow: 0.5,
+  pageGlow: 0.5,
+  glowLinked: true,
   glowColor: "#ffcf7a",
   glowMatchStar: false,
   starSize: 1,
@@ -72,7 +94,8 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
     { hex: "#c7ccd4", share: 30 },
     { hex: "#f2ede3", share: 25 },
   ],
-  field: { count: 36, motion: 0.5, cursor: 0.5, depthBlur: 0.5, cornerStars: 2 },
+  field: { count: 36, motion: 0.5, cursor: 0.5, depthBlur: 0.5, cornerStars: 2, cornerSize: 1, size: 1 },
+  front: { count: 10, blur: 0, size: 1 },
 };
 
 export const LIMITS = {
@@ -108,6 +131,7 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
   const d = DEFAULT_INTRO_SETTINGS;
   const src = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   const field = (src.field && typeof src.field === "object" ? src.field : {}) as Record<string, unknown>;
+  const front = (src.front && typeof src.front === "object" ? src.front : {}) as Record<string, unknown>;
 
   const rawColors = Array.isArray(src.colors) ? src.colors.slice(0, LIMITS.colorCount[1]) : [];
   const colors = rawColors
@@ -122,6 +146,8 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
     glassOpacity: num(src.glassOpacity, [0, 0.85], d.glassOpacity),
     glassFrost: num(src.glassFrost, [0, 8], d.glassFrost),
     glow: num(src.glow, LIMITS.glow, d.glow),
+    pageGlow: num(src.pageGlow, LIMITS.glow, d.pageGlow),
+    glowLinked: bool(src.glowLinked, d.glowLinked),
     glowColor: hex(src.glowColor, d.glowColor),
     glowMatchStar: bool(src.glowMatchStar, d.glowMatchStar),
     starSize: num(src.starSize, LIMITS.starSize, d.starSize),
@@ -137,9 +163,19 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       cursor: num(field.cursor, [0, 1], d.field.cursor),
       depthBlur: num(field.depthBlur, [0, 1], d.field.depthBlur),
       cornerStars: Math.round(num(field.cornerStars, [0, 2], d.field.cornerStars)),
+      cornerSize: num(field.cornerSize, [0.5, 1.8], d.field.cornerSize),
+      size: num(field.size, [0.4, 2.5], d.field.size),
+    },
+    front: {
+      count: Math.round(num(front.count, [0, 40], d.front.count)),
+      blur: num(front.blur, [0, 6], d.front.blur),
+      size: num(front.size, [0.4, 2.5], d.front.size),
     },
   };
 }
+
+/** The glow the stars on the page use after the reveal. */
+export const pageGlowOf = (s: IntroSettings) => (s.glowLinked ? s.glow : s.pageGlow);
 
 /** Each colour's share as a fraction of the whole (sums to 1). */
 export function colorFractions(colors: StarColor[]): number[] {

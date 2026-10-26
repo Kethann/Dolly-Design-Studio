@@ -13,17 +13,20 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 export const CAMERA_Z = 14;
 export const FOV = 35;
 
-export function createStarScene(renderer: THREE.WebGLRenderer, background: THREE.Color, aspect: number) {
+/** `transparent`: no background or fog, for a layer drawn over other layers (the renderer needs `alpha: true`). */
+export function createStarScene(renderer: THREE.WebGLRenderer, background: THREE.Color, aspect: number, transparent = false) {
   // No tone mapping: the 3D logo must render exactly the same gold as the page logo it hands over to.
   // Lights are balanced so metal highlights stay in range; only real glints exceed it and bloom.
   renderer.toneMapping = THREE.NoToneMapping;
   // Skip reading shader logs: faster start-up, and no harmless driver precision warnings in the console.
   renderer.debug.checkShaderErrors = false;
-  renderer.setClearColor(background, 1);
+  renderer.setClearColor(background, transparent ? 0 : 1);
 
   const scene = new THREE.Scene();
-  scene.background = background;
-  scene.fog = new THREE.Fog(background, 14, 52); // distant stars fade into the background — part of the depth cue
+  if (!transparent) {
+    scene.background = background;
+    scene.fog = new THREE.Fog(background, 14, 52); // distant stars fade into the background — part of the depth cue
+  }
 
   const camera = new THREE.PerspectiveCamera(FOV, aspect, 0.1, 80);
   camera.position.set(0, 0, CAMERA_Z);
@@ -70,7 +73,7 @@ export function createStarComposer(
   composer.setPixelRatio(dpr);
   composer.setSize(width, height);
   composer.addPass(new RenderPass(scene, camera));
-  composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), 0.55 * glow, 0.45, 0.96));
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), bloomStrength(glow), 0.45, 0.96));
   composer.addPass(new OutputPass());
   return composer;
 }
@@ -83,6 +86,13 @@ export function addDepthBlur(composer: EffectComposer, scene: THREE.Scene, camer
   const pass = new BokehPass(scene, camera, { focus, aperture: 0, maxblur: 0.012 });
   composer.insertPass(pass, 1);
   return pass.uniforms as { aperture: { value: number }; maxblur: { value: number }; focus: { value: number } };
+}
+
+const bloomStrength = (glow: number) => 0.55 * glow;
+
+/** Changes how much the glints bloom (glow: 1 = the original intro). */
+export function setBloomGlow(composer: EffectComposer, glow: number) {
+  for (const pass of composer.passes) if (pass instanceof UnrealBloomPass) pass.strength = bloomStrength(glow);
 }
 
 export interface StarSlot {

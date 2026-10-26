@@ -68,7 +68,7 @@ export function createStarMaterial(brush: THREE.Texture, opts: StarMaterialOptio
     roughness: opts.roughness,
     clearcoat: 0.35,
     clearcoatRoughness: 0.12,
-    emissive: opts.glow > 0 ? 0xffffff : 0x000000,
+    emissive: 0xffffff, // strength comes from emissiveIntensity, so the glow can be eased in and out
     emissiveIntensity: opts.glow,
     envMap: opts.envMap,
     envMapIntensity: opts.envIntensity,
@@ -107,6 +107,9 @@ export function createStarMaterial(brush: THREE.Texture, opts: StarMaterialOptio
   return { material, uniforms };
 }
 
+/** Emissive strength of the glinting stars at glow 1 (the original intro). */
+export const GLINT_STRENGTH = 2.4;
+
 /** The two star finishes used everywhere (plain metal and glinting), built from the creator's settings. */
 export function createStarMaterials(
   brush: THREE.Texture,
@@ -117,6 +120,6 @@ export function createStarMaterials(
   const common = { texture: settings.metallic, envMap, envIntensity: 0.55, glowColor };
   return {
     plain: createStarMaterial(brush, { ...common, metalness: 0.92, roughness: 0.16, glow: 0 }),
-    glowing: createStarMaterial(brush, { ...common, metalness: 0.8, roughness: 0.16, glow: 2.4 * settings.glow }),
+    glowing: createStarMaterial(brush, { ...common, metalness: 0.8, roughness: 0.16, glow: GLINT_STRENGTH * settings.glow }),
   };
 }
