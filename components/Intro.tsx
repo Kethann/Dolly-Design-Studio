@@ -100,7 +100,8 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
       return;
     }
     setMode(supportsWebGL() ? "stars" : "fallback");
-    setShown((runs) => [...runs, run]);
+    // (Effects can run twice in development: never add the same run twice.)
+    setShown((runs) => (runs.some((r) => r.key === run.key) ? runs : [...runs, run]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run]);
 

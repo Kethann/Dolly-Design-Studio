@@ -147,6 +147,9 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const halfH0 = CAMERA_Z * tanHalfFov;
     const halfW0 = halfH0 * (vw / vh);
+    // The intro lines its logo up with the page's logo, so the page must be at the top (not a restored scroll).
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    if (window.scrollY !== 0) window.scrollTo(0, 0);
     const px = measureLogoRect();
     const stage: Stage = {
       cameraZ: CAMERA_Z,

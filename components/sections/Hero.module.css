@@ -26,6 +26,9 @@
 
 .disciplines {
   margin-top: 28px;
+  /* A fixed line box, so the logo above never shifts when the web font loads (the intro lines up with it). */
+  height: 1.7em;
+  line-height: 1.7em;
   font-family: var(--font-label);
   font-size: clamp(11px, 1.4vw, 13px);
   letter-spacing: 0.3em;
