@@ -3,6 +3,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { BokehPass } from "three/examples/jsm/postprocessing/BokehPass.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 // The camera, lighting and bloom shared by the intro and the lasting star
@@ -72,6 +73,16 @@ export function createStarComposer(
   composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), 0.55 * glow, 0.45, 0.96));
   composer.addPass(new OutputPass());
   return composer;
+}
+
+/**
+ * Depth of field, focused just behind the logo plane: the nearest background stars stay crisp and the
+ * farther ones go soft. Inserted before bloom. Start `aperture` at 0 and raise it to fade the blur in.
+ */
+export function addDepthBlur(composer: EffectComposer, scene: THREE.Scene, camera: THREE.Camera, focus: number) {
+  const pass = new BokehPass(scene, camera, { focus, aperture: 0, maxblur: 0.012 });
+  composer.insertPass(pass, 1);
+  return pass.uniforms as { aperture: { value: number }; maxblur: { value: number }; focus: { value: number } };
 }
 
 export interface StarSlot {

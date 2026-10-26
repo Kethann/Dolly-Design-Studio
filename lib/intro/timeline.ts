@@ -27,7 +27,11 @@ export const T = {
   /** A sheen of light sweeps across the finished logo. */
   sheenStart: 6.0,
   sheenEnd: 6.8,
-  /** Cross-fade to the real page. */
+  /** The dark glass settles over the background stars, matching the page's glass exactly. */
+  glassStart: 5.6,
+  /** The page (with its glass and the handed-over stars) fades in, still hidden under the intro… */
+  revealAt: 6.4,
+  /** …so when the intro dissolves into it, everything underneath is already in place and moving. */
   fadeStart: 7.0,
-  end: 7.75,
+  end: 8.0,
 } as const;

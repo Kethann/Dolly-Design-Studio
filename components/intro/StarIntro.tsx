@@ -15,6 +15,7 @@ import { createRng, randomSeed } from "@/lib/intro/rng";
 import { CAMERA_Z, createStarComposer, createStarInstances, createStarScene } from "@/lib/intro/star-scene";
 import { publishFieldStars, type FieldStar } from "@/lib/intro/handoff";
 import { FIELD_FRONT_Z } from "@/lib/intro/field-plan";
+import { createGlassPlane } from "@/lib/intro/glass-plane";
 import { T } from "@/lib/intro/timeline";
 import {
   bezier,
@@ -147,6 +148,10 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     logoPlane.renderOrder = 1;
     scene.add(logoPlane);
 
+    // --- the dark tinted glass behind the logo (the same glass the page has) ------------------
+    const glass = createGlassPlane(settings, vw, vh, dpr, tanHalfFov);
+    scene.add(glass.mesh);
+
     // --- stars ------------------------------------------------------------------------
     const depth = 0.42 * settings.starDepth;
     const starGeometry = createFacetedStarGeometry({ depth });
@@ -267,6 +272,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       u.uWaveFade.value = 1 - easeInOutCubic(clamp01((t - (T.waveEnd - 0.1)) / 0.7));
       u.uSheen.value = t >= T.sheenStart && t <= T.sheenEnd ? easeInOutCubic((t - T.sheenStart) / (T.sheenEnd - T.sheenStart)) : -1;
       dustMaterial.uniforms.uTime.value = t;
+      glass.setAmount(easeInOutCubic(clamp01((t - T.glassStart) / (T.revealAt - T.glassStart))));
 
       // Formation: fly in, tumble, settle and glint — tremble with the big star's shiver — then ride the wave and dissolve.
       const shiverK = t > T.shiverStart && t < T.waveStart ? easeInQuad((t - T.shiverStart) / (T.waveStart - T.shiverStart)) : 0;
@@ -387,8 +393,8 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
       // The vignette lifts as the logo finishes, so the last frame matches the (vignette-free) page exactly.
       if (vignette) vignette.style.opacity = String(1 - clamp01((t - T.sheenStart) / (T.fadeStart - T.sheenStart)));
-      overlay!.style.opacity = String(1 - clamp01((t - T.fadeStart) / (T.end - T.fadeStart)));
-      if (t >= T.fadeStart) markRevealed();
+      overlay!.style.opacity = String(1 - easeInOutCubic(clamp01((t - T.fadeStart) / (T.end - T.fadeStart))));
+      if (t >= T.revealAt) markRevealed();
       if (t >= T.end) return finish();
       raf = requestAnimationFrame(frame);
     }
@@ -439,6 +445,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       brush.dispose();
       stars.dispose();
       reveal.dispose();
+      glass.dispose();
       starScene.dispose();
       composer.dispose();
       renderer.dispose();

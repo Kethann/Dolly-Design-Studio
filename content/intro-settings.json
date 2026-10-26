@@ -1,6 +1,9 @@
 {
   "enabled": true,
   "background": "#410000",
+  "glassColor": "#120204",
+  "glassOpacity": 0.38,
+  "glassFrost": 3,
   "glow": 0.5,
   "glowColor": "#ffcf7a",
   "glowMatchStar": false,
@@ -15,5 +18,5 @@
     { "hex": "#c7ccd4", "share": 30 },
     { "hex": "#f2ede3", "share": 25 }
   ],
-  "field": { "count": 36, "motion": 0.5, "cursor": 0.5 }
+  "field": { "count": 36, "motion": 0.5, "cursor": 0.5, "depthBlur": 0.5, "cornerStars": 2 }
 }

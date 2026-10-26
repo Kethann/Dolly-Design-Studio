@@ -14,12 +14,22 @@ export interface FieldSettings {
   motion: number;
   /** 0..1: how strongly the cursor sends ripples through them. */
   cursor: number;
+  /** 0..1: how soft the farther stars go (depth of field). */
+  depthBlur: number;
+  /** Large stars peeking in from the corners, turning slowly (0–2). */
+  cornerStars: number;
 }
 
 export interface IntroSettings {
   enabled: boolean;
   /** Page and intro background. */
   background: string;
+  /** The dark tinted glass between the background stars and the logo. */
+  glassColor: string;
+  /** 0..0.85: how strongly the glass tints what's behind it. */
+  glassOpacity: number;
+  /** 0..8 px: how frosted (blurred) the glass is. */
+  glassFrost: number;
   /** 1 = the original intro's glow; 0.5 = half. */
   glow: number;
   /** Colour of the glints, glitter and the reveal wave's light. */
@@ -45,6 +55,9 @@ export interface IntroSettings {
 export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   enabled: true,
   background: "#410000",
+  glassColor: "#120204",
+  glassOpacity: 0.38,
+  glassFrost: 3,
   glow: 0.5,
   glowColor: "#ffcf7a",
   glowMatchStar: false,
@@ -59,7 +72,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
     { hex: "#c7ccd4", share: 30 },
     { hex: "#f2ede3", share: 25 },
   ],
-  field: { count: 36, motion: 0.5, cursor: 0.5 },
+  field: { count: 36, motion: 0.5, cursor: 0.5, depthBlur: 0.5, cornerStars: 2 },
 };
 
 export const LIMITS = {
@@ -105,6 +118,9 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
   return {
     enabled: bool(src.enabled, d.enabled),
     background: hex(src.background, d.background),
+    glassColor: hex(src.glassColor, d.glassColor),
+    glassOpacity: num(src.glassOpacity, [0, 0.85], d.glassOpacity),
+    glassFrost: num(src.glassFrost, [0, 8], d.glassFrost),
     glow: num(src.glow, LIMITS.glow, d.glow),
     glowColor: hex(src.glowColor, d.glowColor),
     glowMatchStar: bool(src.glowMatchStar, d.glowMatchStar),
@@ -119,6 +135,8 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       count: Math.round(num(field.count, LIMITS.fieldCount, d.field.count)),
       motion: num(field.motion, [0, 1], d.field.motion),
       cursor: num(field.cursor, [0, 1], d.field.cursor),
+      depthBlur: num(field.depthBlur, [0, 1], d.field.depthBlur),
+      cornerStars: Math.round(num(field.cornerStars, [0, 2], d.field.cornerStars)),
     },
   };
 }

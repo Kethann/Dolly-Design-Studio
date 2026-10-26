@@ -63,9 +63,11 @@ Every time the home page is loaded (about 8 seconds):
 3. The shiver releases into a wave that ripples out across the logo,
    revealing the crisp logo as it goes; the formation stars ride the wave
    and dissolve into glitter. The big star flattens into the logo's star.
-4. A sheen sweeps the logo and the intro hands over to the page. A few of the
-   background stars stay behind the hero: they barely float, lean away from
-   the cursor, and link to it with faint gold lines.
+4. A sheen sweeps the logo, a dark tinted glass settles over the background
+   stars, and the intro dissolves into the page. A few of the background stars
+   stay behind the glass: they float like stars on water (nearer ones bigger
+   and crisp, farther ones smaller and soft), the cursor sends ripples through
+   them, and one or two big stars turn slowly in the corners.
 
 There is no skip button; keyboard users can press **Esc** to jump to the end.
 It doesn't replay when moving around inside the site, and links straight to
@@ -84,14 +86,15 @@ in `lib/intro/timeline.ts`, the big star's path and the wave in
 
 The studio controls the intro from **`/portal`** — no code needed:
 
-- background colour of the page and intro
-- glow intensity (100% = the original intro), share of glowing stars,
-  star size, facet depth, metallic texture
+- background colour of the page and intro, and the dark tinted glass over the
+  background stars (tint colour, opacity, blur)
+- glow intensity (100% = the original intro), glow colour (or each star's own
+  colour), share of glowing stars, star size, facet depth, metallic texture
 - star colours: add or remove colours and set each colour's share of the stars
 - number of formation stars and the depth of space
-- the stars that stay after the reveal: how many, how much they move, how
-  strongly they respond to the cursor, and the cursor lines
-- switching the intro off
+- the stars that stay after the reveal: how many, their floating motion, how
+  strongly the cursor ripples them, depth blur, and the big corner stars
+- switching the intro off, and a **Randomize** button for trying new looks
 
 Every change shows instantly in a live preview of the real home page. Drag the
 timeline to hold any moment of the intro while adjusting. Nothing reaches

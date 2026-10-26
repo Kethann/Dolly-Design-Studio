@@ -8,8 +8,9 @@ import { planFieldStars } from "@/lib/intro/field-plan";
 import { starLook } from "@/lib/intro/choreography";
 import { createRng, randomSeed } from "@/lib/intro/rng";
 import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
-import { createBrushedMetalTexture, createStarMaterials } from "@/lib/intro/star-material";
-import { CAMERA_Z, createStarComposer, createStarInstances, createStarScene } from "@/lib/intro/star-scene";
+import { createBrushedMetalTexture, createStarMaterial, createStarMaterials } from "@/lib/intro/star-material";
+import { CAMERA_Z, addDepthBlur, createStarComposer, createStarInstances, createStarScene } from "@/lib/intro/star-scene";
+import { FIELD_FRONT_Z } from "@/lib/intro/field-plan";
 import styles from "./StarField.module.css";
 
 const WAITING: Handoff = { status: "waiting" };
@@ -18,6 +19,14 @@ const SETTLE = 1.8;
 const MAX_RIPPLES = 10;
 const RIPPLE_SPEED = 320; // px per second
 const RIPPLE_WIDTH = 70; // px
+/** Seconds for the depth blur and the corner stars to arrive after the hand-off. */
+const ARRIVE = 2.4;
+
+/** Large stars half out of frame: [corner x, corner y, depth, radius as a share of the view's half-height, turn speed]. */
+const CORNER_STARS = [
+  { cx: -1, cy: -1, z: -2.5, radius: 0.4, spin: 0.07 },
+  { cx: 1, cy: 1, z: -6, radius: 0.3, spin: -0.05 },
+];
 
 interface Ripple {
   x: number;
@@ -66,6 +75,10 @@ export function StarField() {
     const { scene, camera } = starScene;
     const composer = createStarComposer(renderer, scene, camera, width, height, dpr, settings.glow);
     const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    // Focused just at the nearest background stars, so depth reads from crisp (near) to soft (far).
+    const blur = field.depthBlur > 0 && !reducedMotion ? addDepthBlur(composer, scene, camera, CAMERA_Z - FIELD_FRONT_Z) : null;
+    const blurAperture = field.depthBlur * 0.0007;
+    if (blur) blur.maxblur.value = 0.004 + 0.012 * field.depthBlur;
 
     // --- stars: the intro's survivors, topped up (or replaced) by our own -----------------
     const rand = createRng(randomSeed());
@@ -79,6 +92,27 @@ export function StarField() {
     const { plain, glowing } = createStarMaterials(brush, starScene.envTexture, settings);
     const instances = createStarInstances(geometry, plain.material, glowing.material, list, palette);
     scene.add(...instances.meshes);
+
+    // --- corner stars: one or two big, slow-turning stars peeking in from the corners -------
+    const cornerGeometry = createFacetedStarGeometry({ innerRadius: 0.42, depth: 0.42 * settings.starDepth });
+    const corner = createStarMaterial(brush, {
+      metalness: 0.95,
+      roughness: 0.2,
+      glow: 0.45 * settings.glow,
+      texture: settings.metallic,
+      envMap: starScene.envTexture,
+      envIntensity: 0.5,
+      glowColor: settings.glowMatchStar ? null : new THREE.Color(settings.glowColor),
+    });
+    corner.material.color.copy(palette[0] ?? new THREE.Color(0xd9a43f));
+    const cornerStars = CORNER_STARS.slice(0, field.cornerStars).map((c, i) => {
+      const mesh = new THREE.Mesh(cornerGeometry, corner.material);
+      const halfHeight = (CAMERA_Z - c.z) * tanHalfFov;
+      const home = new THREE.Vector3(c.cx * halfHeight * (width / height) * 0.93, c.cy * halfHeight * 0.9, c.z);
+      mesh.scale.setScalar(halfHeight * c.radius);
+      scene.add(mesh);
+      return { ...c, mesh, home, phase: i * 2.1 + rand() * Math.PI, start: rand() * Math.PI * 2 };
+    });
 
     const randomAxis = () => new THREE.Vector3(rand() - 0.5, rand() - 0.5, rand() - 0.5).normalize();
     const stars = list.map((s) => ({
@@ -222,6 +256,20 @@ export function StarField() {
         slot.mesh.setMatrixAt(slot.index, matrix);
       }
       instances.markDirty();
+
+      // Corner stars glide in from just beyond the corner after the hand-off, then turn slowly, rocking on the swell.
+      const arrive = 1 - Math.pow(1 - Math.min(1, time / ARRIVE), 3);
+      for (const c of cornerStars) {
+        const out = (1 - arrive) * c.mesh.scale.x * 1.4;
+        c.mesh.position.set(c.home.x + c.cx * out, c.home.y + c.cy * out + water * 0.12 * Math.sin(0.4 * time + c.phase), c.home.z);
+        c.mesh.rotation.set(
+          water * 0.18 * Math.sin(0.3 * time + c.phase),
+          water * 0.22 * Math.sin(0.25 * time + c.phase * 1.3),
+          c.start + c.spin * time,
+        );
+      }
+      if (blur) blur.aperture.value = blurAperture * arrive;
+
       composer.render();
     }
 
@@ -270,6 +318,8 @@ export function StarField() {
       document.removeEventListener("pointerout", onPointerOut);
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
       geometry.dispose();
+      cornerGeometry.dispose();
+      corner.material.dispose();
       brush.dispose();
       plain.material.dispose();
       glowing.material.dispose();

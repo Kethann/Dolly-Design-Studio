@@ -91,3 +91,34 @@
     transform: none !important;
   }
 }
+
+/* Dark tinted glass between the background stars and the logo, so the logo reads clearly in front.
+   Colour and opacity are set inline (from the intro settings). The frost eases in once the page is
+   revealed, after the intro has handed its stars over. Fades out at the bottom into the next section. */
+.glass {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    transparent 30%,
+    transparent 64%,
+    rgba(255, 255, 255, 0.022) 80%,
+    transparent 100%
+  );
+  -webkit-backdrop-filter: blur(0px);
+  backdrop-filter: blur(0px);
+  transition:
+    backdrop-filter 1.8s ease,
+    -webkit-backdrop-filter 1.8s ease;
+  -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+}
+
+:global(.site-main[data-revealed="true"]) .glass,
+:global(html.intro-skip) .glass {
+  -webkit-backdrop-filter: blur(var(--glass-frost, 3px));
+  backdrop-filter: blur(var(--glass-frost, 3px));
+}

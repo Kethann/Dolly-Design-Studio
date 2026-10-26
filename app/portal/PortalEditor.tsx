@@ -213,6 +213,14 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
           <button type="button" className={styles.ghostButton} disabled={!dirty} onClick={() => setDraft(saved)}>
             Discard changes
           </button>
+          <button
+            type="button"
+            className={styles.ghostButton}
+            title="Try a new look: random finish, colour mix, motion and glass (background and colours kept)"
+            onClick={() => update(randomLook(draft))}
+          >
+            ⚄ Randomize
+          </button>
           <button type="button" className={styles.ghostButton} onClick={() => update(sanitizeIntroSettings(DEFAULT_INTRO_SETTINGS))}>
             Reset to defaults
           </button>
@@ -227,7 +235,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
 
       <div className={styles.workspace}>
         <aside className={styles.panel} aria-label="Intro settings">
-          <Section title="Backdrop" hint="The page and intro background.">
+          <Section title="Backdrop" hint="The background, and the dark tinted glass between the background stars and the logo.">
             <div className={styles.control}>
               <div className={styles.controlRow}>
                 <span className={styles.controlLabel}>Background colour</span>
@@ -243,6 +251,41 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                 </span>
               </div>
             </div>
+            <div className={styles.control}>
+              <div className={styles.controlRow}>
+                <span className={styles.controlLabel}>Glass tint</span>
+                <span className={styles.colorField}>
+                  <input
+                    type="color"
+                    aria-label="Glass tint"
+                    className={styles.swatch}
+                    value={draft.glassColor}
+                    onChange={(e) => update({ glassColor: e.target.value })}
+                  />
+                  <HexInput value={draft.glassColor} label="Glass tint code" onChange={(hex) => update({ glassColor: hex })} />
+                </span>
+              </div>
+            </div>
+            <Slider
+              label="Glass opacity"
+              value={draft.glassOpacity}
+              min={0}
+              max={0.85}
+              step={0.01}
+              format={percent}
+              hint="How strongly the glass darkens the stars behind it, so the logo stands forward."
+              onChange={(glassOpacity) => update({ glassOpacity })}
+            />
+            <Slider
+              label="Glass blur"
+              value={draft.glassFrost}
+              min={0}
+              max={8}
+              step={0.5}
+              format={(v) => (v === 0 ? "Clear" : `${v.toFixed(1)} px`)}
+              hint="How frosted the glass is."
+              onChange={(glassFrost) => update({ glassFrost })}
+            />
           </Section>
 
           <Section title="Star finish" hint="How every star looks — in the intro and behind the page.">
@@ -434,6 +477,26 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
               hint="Moving the cursor sends soft ripples through the stars."
               onChange={(cursor) => updateField({ cursor })}
             />
+            <Slider
+              label="Depth blur"
+              value={draft.field.depthBlur}
+              min={0}
+              max={1}
+              step={0.05}
+              format={(v) => (v === 0 ? "Off" : percent(v))}
+              hint="Near stars stay crisp; farther ones go soft."
+              onChange={(depthBlur) => updateField({ depthBlur })}
+            />
+            <Slider
+              label="Corner stars"
+              value={draft.field.cornerStars}
+              min={0}
+              max={2}
+              step={1}
+              format={(v) => (v === 0 ? "None" : String(v))}
+              hint="Big stars peeking in from the corners, turning slowly."
+              onChange={(cornerStars) => updateField({ cornerStars })}
+            />
           </Section>
 
           <Section title="Intro">
@@ -536,6 +599,33 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
       </div>
     </div>
   );
+}
+
+const between = (min: number, max: number, step = 0.05) => Math.round((min + Math.random() * (max - min)) / step) * step;
+
+/** A fresh look within tasteful ranges. Keeps the background, the colours themselves and whether the intro plays. */
+function randomLook(current: IntroSettings): IntroSettings {
+  return sanitizeIntroSettings({
+    ...current,
+    glow: between(0.3, 0.9),
+    glowingShare: between(6, 24, 1),
+    starSize: between(0.8, 1.3),
+    starDepth: between(0.7, 1.8),
+    metallic: between(0.3, 0.85),
+    spaceDepth: between(0.8, 1.3),
+    formationCount: between(500, 950, 50),
+    glassOpacity: between(0.22, 0.5, 0.01),
+    glassFrost: between(1.5, 5, 0.5),
+    colors: current.colors.map((c) => ({ ...c, share: between(15, 60, 1) })),
+    field: {
+      ...current.field,
+      count: between(24, 48, 1),
+      motion: between(0.3, 0.8),
+      cursor: between(0.3, 0.8),
+      depthBlur: between(0.2, 0.8),
+      cornerStars: between(1, 2, 1),
+    },
+  });
 }
 
 /** A #rrggbb text box that only commits valid colour codes. */
