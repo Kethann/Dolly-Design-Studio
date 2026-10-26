@@ -1,0 +1,54 @@
+.section {
+  min-height: 90vh;
+  display: flex;
+  align-items: center;
+  padding-block: 120px;
+}
+
+.inner {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.label {
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 28px;
+  display: block;
+}
+
+.statement {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(28px, 5vw, 56px);
+  line-height: 1.25;
+  margin: 0 0 32px;
+}
+
+.word {
+  display: inline-block;
+  color: var(--smoke-strong);
+  transition: color 0.1s linear;
+}
+
+.wordLit {
+  color: var(--ivory);
+  text-shadow: 0 0 18px rgba(232, 176, 75, 0.35);
+}
+
+.gold {
+  color: var(--gold);
+  font-style: italic;
+}
+
+.body {
+  font-family: var(--font-body);
+  font-size: clamp(15px, 1.6vw, 19px);
+  line-height: 1.7;
+  color: var(--ivory);
+  opacity: 0.75;
+  max-width: 640px;
+}

@@ -1,0 +1,43 @@
+.footer {
+  border-top: 1px solid var(--smoke);
+  padding-block: 32px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.label {
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--ivory);
+  opacity: 0.55;
+}
+
+.links {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.links a {
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ivory);
+  opacity: 0.75;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.links a:hover,
+.links a:focus-visible {
+  opacity: 1;
+  color: var(--gold-bright);
+}

@@ -1,0 +1,47 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 40px;
+}
+
+.chip {
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 9px 18px;
+  border: 1px solid var(--smoke-strong);
+  border-radius: 999px;
+  color: var(--ivory);
+  opacity: 0.7;
+  transition: opacity 0.2s ease, border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.chip:hover,
+.chip:focus-visible {
+  opacity: 1;
+  border-color: var(--gold);
+}
+
+.chipActive {
+  opacity: 1;
+  border-color: var(--gold-bright);
+  color: var(--stage);
+  background: var(--gold-bright);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: clamp(20px, 3vw, 36px);
+}
+
+.empty {
+  font-family: var(--font-label);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 12px;
+  opacity: 0.6;
+  padding-block: 40px;
+}

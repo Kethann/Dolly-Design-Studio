@@ -1,0 +1,81 @@
+"use client";
+
+import { Fragment, useEffect, useRef } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { home } from "@/content/home";
+import { useMotion } from "@/lib/motion";
+import styles from "./Manifesto.module.css";
+
+if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
+
+function renderStatement(statement: string) {
+  // "*word word*" segments are set in gold italic; everything else is lit word-by-word.
+  const segments = statement.split(/\*(.+?)\*/g);
+  let wordIndex = 0;
+  return segments.map((seg, i) => {
+    if (i % 2 === 1) {
+      wordIndex += 1;
+      return (
+        <span key={i} className={styles.gold}>
+          {seg}
+        </span>
+      );
+    }
+    return (
+      <Fragment key={i}>
+        {seg.split(" ").map((w, j) => {
+          if (!w) return null;
+          wordIndex += 1;
+          return (
+            <span key={j} className={styles.word} data-word={wordIndex}>
+              {w}{" "}
+            </span>
+          );
+        })}
+      </Fragment>
+    );
+  });
+}
+
+export function Manifesto() {
+  const { reducedMotion } = useMotion();
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const words = ref.current?.querySelectorAll<HTMLElement>("[data-word]");
+    if (!words || !words.length) return;
+
+    if (reducedMotion) {
+      words.forEach((w) => w.classList.add(styles.wordLit));
+      return;
+    }
+
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: ref.current,
+        start: "top 75%",
+        end: "bottom 55%",
+        scrub: 0.4,
+      },
+    });
+    tl.to(words, { color: "var(--ivory)", stagger: 0.08, ease: "none" });
+
+    return () => {
+      tl.scrollTrigger?.kill();
+      tl.kill();
+    };
+  }, [reducedMotion]);
+
+  return (
+    <section id="manifesto" className={styles.section}>
+      <div className={`container ${styles.inner}`}>
+        <span className={styles.label}>{home.manifesto.label}</span>
+        <p ref={ref} className={styles.statement}>
+          {renderStatement(home.manifesto.statement)}
+        </p>
+        <p className={styles.body}>{home.manifesto.body}</p>
+      </div>
+    </section>
+  );
+}

@@ -1,0 +1,25 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #07060a; /* same as the page background */
+  overflow: hidden;
+}
+
+.canvasWrap {
+  position: absolute;
+  inset: 0;
+}
+
+.canvasWrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 45%, transparent 50%, rgba(0, 0, 0, 0.7) 100%);
+}

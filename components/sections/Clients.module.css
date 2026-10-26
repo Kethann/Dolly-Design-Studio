@@ -1,0 +1,84 @@
+.section {
+  padding-block: 120px;
+  border-top: 1px solid var(--smoke);
+  border-bottom: 1px solid var(--smoke);
+}
+
+.label {
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--gold);
+  display: block;
+  margin-bottom: 48px;
+}
+
+.marqueeViewport {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  margin-bottom: 72px;
+}
+
+.marqueeTrack {
+  display: flex;
+  width: max-content;
+  gap: 64px;
+  animation: scroll 32s linear infinite;
+}
+
+.marqueeTrack span {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(20px, 3vw, 30px);
+  white-space: nowrap;
+  color: var(--ivory);
+  opacity: 0.55;
+}
+
+@keyframes scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marqueeTrack {
+    animation: none;
+    flex-wrap: wrap;
+    width: auto;
+  }
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 28px;
+}
+
+.stat {
+  border: 1px solid var(--smoke);
+  padding: 28px 24px;
+  text-align: center;
+}
+
+.statValue {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(36px, 5vw, 56px);
+  color: var(--gold-bright);
+  line-height: 1;
+}
+
+.statLabel {
+  margin-top: 10px;
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}

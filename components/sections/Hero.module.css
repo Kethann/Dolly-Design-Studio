@@ -1,0 +1,93 @@
+.hero {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding-top: var(--nav-h);
+}
+
+.frameField {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.ghostFrame {
+  position: absolute;
+  width: 90px;
+  aspect-ratio: 2 / 3;
+  border: 1px solid var(--smoke);
+  opacity: 0.5;
+  will-change: transform;
+}
+
+.logoBlock {
+  position: relative;
+  z-index: 1;
+  width: min(880px, 86vw);
+  text-align: center;
+}
+
+.logo {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.disciplines {
+  margin-top: 28px;
+  font-family: var(--font-label);
+  font-size: clamp(11px, 1.4vw, 13px);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ivory);
+  opacity: 0.7;
+}
+
+.scrollHint {
+  position: absolute;
+  bottom: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  width: 1px;
+  height: 64px;
+  background: var(--smoke-strong);
+  overflow: hidden;
+}
+
+.scrollHint::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(var(--gold-bright), var(--gold));
+  transform: translateY(-100%);
+  animation: fillDown 2.4s ease-in-out infinite;
+}
+
+@keyframes fillDown {
+  0% {
+    transform: translateY(-100%);
+  }
+  60% {
+    transform: translateY(0%);
+  }
+  100% {
+    transform: translateY(0%);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrollHint::after {
+    animation: none;
+    transform: translateY(0);
+  }
+  .ghostFrame {
+    transform: none !important;
+  }
+}

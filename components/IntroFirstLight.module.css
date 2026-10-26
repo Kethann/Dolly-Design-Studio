@@ -1,0 +1,48 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--stage);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage {
+  position: relative;
+  width: min(760px, 86vw);
+}
+
+.logoWrap {
+  position: relative;
+  width: 100%;
+}
+
+.logoDim,
+.logoLit {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.logoDim {
+  opacity: 0.14;
+}
+
+.logoLit {
+  position: absolute;
+  inset: 0;
+  opacity: 1;
+}
+
+.star {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 140px;
+  height: 140px;
+  margin-top: -70px;
+  margin-left: -70px;
+  filter: drop-shadow(0 0 26px rgba(255, 241, 149, 0.85)) drop-shadow(0 0 60px rgba(255, 138, 61, 0.5));
+  will-change: transform;
+}
