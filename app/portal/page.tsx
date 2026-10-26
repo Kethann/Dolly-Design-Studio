@@ -9,6 +9,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+// Always per request: it depends on the sign-in cookie and on PORTAL_PASSWORD at runtime, not at build time.
+export const dynamic = "force-dynamic";
+
 export default async function PortalPage() {
   if (!isPortalConfigured()) return <PortalLogin configured={false} />;
   if (!(await hasPortalSession())) return <PortalLogin configured />;
