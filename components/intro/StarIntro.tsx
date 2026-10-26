@@ -418,7 +418,11 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
           pos.x += (dx / d) * band * 0.12 * lift;
           pos.y += (dy / d) * band * 0.12 * lift;
           pos.z += band * 0.35 * lift;
-          size *= (1 + 0.2 * lift) * (1 - easeInQuad(clamp01((since + 0.04) / 0.2)));
+          // Wave: gone the moment its dust appears. Glow: melts away into its own glow as the logo emerges.
+          size *=
+            settings.revealStyle === "wave"
+              ? (1 + 0.2 * lift) * (1 - easeInQuad(clamp01((since + 0.04) / 0.2)))
+              : 1 - easeInOutCubic(clamp01(since / 0.7));
         }
         const settle = easeOutQuart(local);
         const angle = (1 - settle) * s.spinTurns * Math.PI * 2 + settle * Math.sin(t * 1.6 + s.wobblePhase) * 0.35;

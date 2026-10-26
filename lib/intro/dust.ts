@@ -115,6 +115,16 @@ export function buildDustGeometry(
     dust.add(p, v, revealTimeAt(bigStar, d, revealStyle), range(0.5, 1.1), base * range(0.6, 1.4), bright ? GOLD : WARM_WHITE, bright ? range(1.1, 1.7) : range(0.4, 0.85));
   }
 
+  // 4a. Glow reveal: every formation star blooms into a soft halo of light in its own colour, which then eases
+  //     away — the logo emerges through it.
+  if (revealStyle === "glow") {
+    for (const s of formation) {
+      const d = Math.hypot(s.target.x - bigStar.glyph.x, s.target.y - bigStar.glyph.y);
+      tint.copy(palette[s.color]).lerp(GOLD, 0.45).lerp(WARM_WHITE, 0.2);
+      dust.add(s.target, v.set(0, 0.03, 0), revealTimeAt(bigStar, d, revealStyle) - 0.08, range(1.3, 1.6), s.size * range(3, 4), tint, range(1.3, 1.7));
+    }
+  }
+
   // 4. As the wave reaches it, every formation star breaks into a puff of glitter in its own colour, spread over
   //    the star's own size, drifting outward and up as it fades — the stars turn into dust as the crisp logo appears.
   for (const s of formation) {
