@@ -116,8 +116,8 @@ export function planFormation(stage: Stage, slots: LogoSlot[], look: StarLook): 
       start,
       control,
       target,
-      delay: rand(0.2, 1.4),
-      duration: rand(1.5, 2.3),
+      delay: rand(0, 1), // the first stars are already streaming in on the very first frame
+      duration: rand(1.4, 2.1),
       size: baseSize * rand(0.6, 1.3),
       color: pickColorIndex(look.colorFractions, look.rand()),
       glow: look.rand() < look.glowChance,

@@ -1,38 +1,33 @@
 /**
  * The intro's beats, in seconds of real (wall-clock) time. Every visual is a
- * pure function of `t`, so the whole show stays in sync and Esc can simply
- * jump `t` forward to the hand-off.
+ * pure function of `t`, so the whole show stays in sync, Esc can simply jump
+ * `t` forward to the hand-off, and the portal preview can hold any frame.
  */
 export const T = {
-  /** Opening glint at the centre of the logo. */
-  sparkStart: 0.1,
-  sparkPeak: 0.45,
-  sparkEnd: 1.1,
-  /** Camera finishes its slow push-in. */
-  cameraSettle: 4.2,
+  /** Stars stream in from the corners from the very first frame; the camera finishes its slow push-in. */
+  cameraSettle: 3.6,
 
-  /** Big star swoops in from the side… */
-  bigStarEnter: 2.8,
-  /** …lands with weight (squash, ripple, glitter splash)… */
-  bigStarLanded: 4.0,
-  /** …settles… */
-  landSettled: 4.45,
-  /** …flips once so its facets flash… */
-  glintDone: 4.8,
-  /** …lifts off and swoops into the logo's edge already moving… */
-  atEdge: 5.55,
-  /** …rolls across, revealing the logo behind it… */
-  rollDone: 7.05,
-  /** …loops up and descends onto the logo's own star… */
-  docked: 7.85,
-  /** …springs into place and hands over to the flat star glyph. */
-  handoverStart: 8.1,
-  settled: 8.45,
+  /** The big star flies in out of deep space… */
+  bigStarEnter: 2.3,
+  /** …and sets down exactly on the logo's own star… */
+  docked: 3.9,
+  /** …springs to rest, then starts to shiver… */
+  shiverStart: 4.2,
+  /** …and releases a wave that ripples out across the logo, revealing it. */
+  waveStart: 4.75,
+  waveEnd: 6.0,
+  /** The big star flattens into the logo's flat star as the wave leaves. */
+  handoverStart: 4.85,
+  settled: 5.3,
+
+  /** Most of the background stars drift away; a few stay with the page. */
+  thinStart: 5.6,
+  thinEnd: 6.9,
 
   /** A sheen of light sweeps across the finished logo. */
-  sheenStart: 8.5,
-  sheenEnd: 9.3,
+  sheenStart: 6.0,
+  sheenEnd: 6.8,
   /** Cross-fade to the real page. */
-  fadeStart: 9.45,
-  end: 10.2,
+  fadeStart: 7.0,
+  end: 7.75,
 } as const;

@@ -12,11 +12,11 @@ import { HERO_LOGO_ID } from "@/lib/dom-ids";
 import { sampleLogoSlots } from "@/lib/intro/sample-points";
 import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
 import { createBrushedMetalTexture, createStarMaterial } from "@/lib/intro/star-material";
-import { createRng, randomSeed } from "@/lib/intro/rng";
 import { createLogoRevealMaterial } from "@/lib/intro/logo-reveal-material";
-import { createGlowTexture, createStreakTexture } from "@/lib/intro/fx-textures";
+import { createGlowTexture, createRingTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
-import { bigStarPose, planBigStar, wipeX } from "@/lib/intro/big-star-path";
+import { bigStarPose, planBigStar, waveRadius } from "@/lib/intro/big-star-path";
+import { createRng, randomSeed } from "@/lib/intro/rng";
 import { T } from "@/lib/intro/timeline";
 import {
   bezier,
@@ -57,18 +57,26 @@ function pulse(t: number, start: number, peak: number, end: number) {
   return t < peak ? easeOutCubic((t - start) / (peak - start)) : 1 - easeInQuad((t - peak) / (end - peak));
 }
 
-export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: () => void }) {
+export interface StarIntroProps {
+  onReveal: () => void;
+  onDone: () => void;
+  /** Seconds into the intro to start from (portal preview). */
+  startAt?: number;
+  /** Hold the `startAt` frame instead of playing on (portal preview). */
+  paused?: boolean;
+  /** Fixed seed for a repeatable star layout (portal preview); random otherwise. */
+  seed?: number;
+  /** Reports the playhead a few times a second (portal preview). */
+  onTime?: (t: number) => void;
+}
+
+export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed, onTime }: StarIntroProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const vignetteRef = useRef<HTMLDivElement>(null);
   const { settings } = useIntroSettings();
 
   useEffect(() => {
-    const PAGE_BACKGROUND = new THREE.Color(settings.background); // same as the page, so the hand-off is invisible
-    const glow = settings.glow; // 1 = the original intro's glow
-    const rand = createRng(randomSeed());
-    const look = starLook(settings, rand);
-    const palette = settings.colors.map((c) => new THREE.Color(c.hex));
     const wrap = wrapRef.current;
     const overlay = overlayRef.current;
     const vignette = vignetteRef.current;
@@ -78,12 +86,18 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     } catch (err) {
-      // No usable WebGL after all — never leave the visitor on a black screen.
+      // No usable WebGL after all — never leave the visitor on a blank screen.
       console.warn("[intro] WebGL unavailable, skipping intro", err);
       onReveal();
       onDone();
       return;
     }
+
+    const background = new THREE.Color(settings.background); // same as the page, so the hand-off is invisible
+    const glow = settings.glow; // 1 = the original intro's glow
+    const rand = createRng(seed ?? randomSeed());
+    const look = starLook(settings, rand);
+    const palette = settings.colors.map((c) => new THREE.Color(c.hex));
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
@@ -92,7 +106,7 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     // --- renderer, camera, lighting, post-processing ------------------------
     renderer.setPixelRatio(dpr);
     renderer.setSize(vw, vh, false);
-    renderer.setClearColor(PAGE_BACKGROUND, 1);
+    renderer.setClearColor(background, 1);
     // No tone mapping: the 3D logo must render exactly the same gold as the page logo it hands over to.
     // Lights are balanced so metal highlights stay in range; only real glints exceed it and bloom.
     renderer.toneMapping = THREE.NoToneMapping;
@@ -101,8 +115,8 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     wrap.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(PAGE_BACKGROUND); // same as the page, so the hand-off is invisible
-    scene.fog = new THREE.Fog(PAGE_BACKGROUND, 14, 52); // distant stars fade into the dark — part of the depth cue
+    scene.background = background;
+    scene.fog = new THREE.Fog(background, 14, 52); // distant stars fade into the background — part of the depth cue
 
     const camera = new THREE.PerspectiveCamera(FOV, vw / vh, 0.1, 80);
     camera.position.set(0, 0, CAMERA_Z + 2);
@@ -124,7 +138,7 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     composer.setPixelRatio(dpr);
     composer.setSize(vw, vh);
     composer.addPass(new RenderPass(scene, camera));
-    // High threshold: only glowing stars, glitter, glints and the reveal edge bloom — not the logo itself,
+    // High threshold: only glowing stars, glitter and the wave bloom — not the logo itself,
     // so it matches the flat page logo it hands over to.
     composer.addPass(new UnrealBloomPass(new THREE.Vector2(vw, vh), 0.55 * glow, 0.45, 0.92));
     composer.addPass(new OutputPass());
@@ -147,9 +161,20 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     };
     const { logo } = stage;
 
-    // --- the crisp logo, revealed by the big star's roll ------------------------
+    // --- planning (all random choices come from one seeded source) ------------
+    const slots = sampleLogoSlots(LOGO_BODY_PATH, LOGO_VIEWBOX.width, LOGO_VIEWBOX.height, settings.formationCount, rand);
+    const formation = planFormation(stage, slots, look);
+    const ambient = planAmbient(stage, AMBIENT_COUNT, look);
+    const bigPlan = planBigStar(stage, rand);
+
+    // --- the crisp logo, revealed by the wave ----------------------------------------
     const reveal = createLogoRevealMaterial();
     const u = reveal.material.uniforms;
+    u.uWaveCenter.value.set(bigPlan.glyph.x, bigPlan.glyph.y);
+    u.uWaveBand.value = bigPlan.waveBand;
+    u.uSoftness.value = logo.height * 0.03;
+    u.uLogoSize.value.set(logo.width, logo.height);
+    u.uGlow.value = 0.5 + 0.5 * glow;
     const logoGeometry = new THREE.PlaneGeometry(logo.width, logo.height);
     const logoPlane = new THREE.Mesh(logoGeometry, reveal.material);
     logoPlane.position.set(logo.x, logo.y, 0);
@@ -162,17 +187,11 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     const brush = createBrushedMetalTexture(rand);
     const plain = createStarMaterial(brush, { metalness: 0.9, roughness: 0.28, glow: 0, texture: settings.metallic });
     const glowing = createStarMaterial(brush, { metalness: 0.75, roughness: 0.24, glow: 1.6 * glow, texture: settings.metallic });
-    const plainMaterial = plain.material;
-    const glowMaterial = glowing.material;
-
-    const slots = sampleLogoSlots(LOGO_BODY_PATH, LOGO_VIEWBOX.width, LOGO_VIEWBOX.height, settings.formationCount, rand);
-    const formation = planFormation(stage, slots, look);
-    const ambient = planAmbient(stage, AMBIENT_COUNT, look);
 
     const plainCount = formation.filter((s) => !s.glow).length + ambient.filter((s) => !s.glow).length;
     const glowCount = formation.length + ambient.length - plainCount;
-    const plainMesh = new THREE.InstancedMesh(starGeometry, plainMaterial, Math.max(1, plainCount));
-    const glowMesh = new THREE.InstancedMesh(starGeometry, glowMaterial, Math.max(1, glowCount));
+    const plainMesh = new THREE.InstancedMesh(starGeometry, plain.material, Math.max(1, plainCount));
+    const glowMesh = new THREE.InstancedMesh(starGeometry, glowing.material, Math.max(1, glowCount));
     plainMesh.count = plainCount;
     glowMesh.count = glowCount;
     plainMesh.frustumCulled = glowMesh.frustumCulled = false;
@@ -182,11 +201,11 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     let nextGlow = 0;
     const white = new THREE.Color(0xffffff);
     const tint = new THREE.Color();
-    function assign(glow: boolean, color: number) {
-      const mesh = glow ? glowMesh : plainMesh;
-      const index = glow ? nextGlow++ : nextPlain++;
+    function assign(isGlow: boolean, color: number) {
+      const mesh = isGlow ? glowMesh : plainMesh;
+      const index = isGlow ? nextGlow++ : nextPlain++;
       tint.copy(palette[color]);
-      if (glow) tint.lerp(white, 0.35);
+      if (isGlow) tint.lerp(white, 0.35);
       mesh.setColorAt(index, tint);
       return { mesh, index };
     }
@@ -196,7 +215,6 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     if (glowMesh.instanceColor) glowMesh.instanceColor.needsUpdate = true;
 
     // --- the big star ----------------------------------------------------------------
-    const bigPlan = planBigStar(stage, formation.map((s) => s.target));
     // Same proportions as the logo's own star (inner/outer ≈ 0.389), so it matches exactly when it docks.
     const bigStarGeometry = createFacetedStarGeometry({ innerRadius: 0.389, depth });
     const bigGold = new THREE.Color(0xe8b34a);
@@ -211,22 +229,20 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     bigStar.visible = false;
     bigStar.renderOrder = 2;
     scene.add(bigStar);
-    u.uDirection.value = bigPlan.direction;
-    u.uSoftness.value = logo.height * 0.03;
 
-    // --- glitter: flight trails, opening burst, big-star shower ------------------------
+    // --- glitter: flight trails, the big star's trail, the wave's sparkle ----------------
     const dustGeometry = buildDustGeometry(stage, formation, bigPlan, palette, rand);
     const dustMaterial = createDustMaterial();
-    dustMaterial.uniforms.uGlow.value = 0.5 + 0.5 * glow;
     dustMaterial.uniforms.uProjScale.value = (vh * dpr) / (2 * tanHalfFov);
+    dustMaterial.uniforms.uGlow.value = 0.5 + 0.5 * glow;
     const dust = new THREE.Points(dustGeometry, dustMaterial);
     dust.frustumCulled = false;
     dust.renderOrder = 3;
     scene.add(dust);
 
-    // --- light effects: opening glint, flip glint, dock flash ---------------------------
+    // --- light effects: a soft kiss as the star lands, the shiver's glow, the shock-wave ring ----
     const glowTexture = createGlowTexture();
-    const streakTexture = createStreakTexture();
+    const ringTexture = createRingTexture();
     function fxSprite(map: THREE.Texture) {
       const material = new THREE.SpriteMaterial({
         map,
@@ -243,24 +259,17 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
       scene.add(sprite);
       return sprite;
     }
-    const sparkGlow = fxSprite(glowTexture);
-    const sparkStreak = fxSprite(streakTexture);
-    const landGlow = fxSprite(glowTexture);
-    const glintStreak = fxSprite(streakTexture);
     const dockGlow = fxSprite(glowTexture);
-    const dockStreak = fxSprite(streakTexture);
-    const fxSprites = [sparkGlow, sparkStreak, landGlow, glintStreak, dockGlow, dockStreak];
-    sparkGlow.position.set(logo.x, logo.y, 0.6);
-    sparkStreak.position.copy(sparkGlow.position);
-    landGlow.position.set(bigPlan.landing.x, bigPlan.landing.y, bigPlan.landing.z - 0.2);
-    glintStreak.position.set(bigPlan.landing.x, bigPlan.landing.y, bigPlan.landing.z + 0.4);
-    dockGlow.position.set(bigPlan.glyph.x, bigPlan.glyph.y, 0.6);
-    dockStreak.position.copy(dockGlow.position);
+    const shiverGlow = fxSprite(glowTexture);
+    const ring = fxSprite(ringTexture);
+    const fxSprites = [dockGlow, shiverGlow, ring];
+    for (const s of fxSprites) s.position.set(bigPlan.glyph.x, bigPlan.glyph.y, 0.5);
 
-    function setFx(sprite: THREE.Sprite, intensity: number, sx: number, sy: number) {
-      sprite.visible = intensity * glow > 0.001;
-      (sprite.material as THREE.SpriteMaterial).opacity = intensity * glow;
-      sprite.scale.set(sx, sy, 1);
+    function setFx(sprite: THREE.Sprite, intensity: number, sx: number, sy = sx) {
+      const opacity = intensity * glow;
+      sprite.visible = opacity > 0.001;
+      (sprite.material as THREE.SpriteMaterial).opacity = opacity;
+      sprite.scale.set(Math.max(sx, 1e-5), Math.max(sy, 1e-5), 1);
     }
 
     // --- per-frame update: a pure function of time t ------------------------------
@@ -269,6 +278,9 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     const spin = new THREE.Quaternion();
     const scale = new THREE.Vector3();
     const matrix = new THREE.Matrix4();
+    const gx = bigPlan.glyph.x;
+    const gy = bigPlan.glyph.y;
+    const band = bigPlan.waveBand;
 
     function setInstance(mesh: THREE.InstancedMesh, index: number, size: number) {
       scale.setScalar(Math.max(size, 1e-5));
@@ -277,7 +289,7 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
     }
 
     function update(t: number) {
-      // Camera: slow push-in plus a gentle handheld drift that settles to exactly centred before the hand-off.
+      // Camera: slow push-in plus a gentle handheld drift that settles to exactly centred before the landing.
       const drift = 1 - clamp01((t - (T.docked - 1.4)) / 1.4);
       camera.position.set(
         Math.sin(t * 0.35) * 0.25 * drift,
@@ -285,40 +297,39 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
         THREE.MathUtils.lerp(CAMERA_Z + 2, CAMERA_Z, easeInOutCubic(clamp01(t / T.cameraSettle))),
       );
 
-      const wipe = wipeX(bigPlan, t);
-      u.uRevealX.value = wipe;
+      const wave = waveRadius(bigPlan, t);
+      u.uWaveRadius.value = wave;
       u.uSheen.value = t >= T.sheenStart && t <= T.sheenEnd ? easeInOutCubic((t - T.sheenStart) / (T.sheenEnd - T.sheenStart)) : -1;
       dustMaterial.uniforms.uTime.value = t;
 
-      // Formation: fly in, tumble, settle and glint — then dissolve as the big star rolls past.
-      const dir = bigPlan.direction;
-      const rr = bigPlan.rollRadius;
-      const lr = bigPlan.landRadius;
-      const sinceLanding = t - T.bigStarLanded;
-      const rippling = sinceLanding > 0 && sinceLanding < 1.6;
+      // Formation: fly in, tumble, settle and glint — tremble with the big star's shiver — then ride the wave and dissolve.
+      const shiverK = t > T.shiverStart && t < T.waveStart ? easeInQuad((t - T.shiverStart) / (T.waveStart - T.shiverStart)) : 0;
       for (let i = 0; i < formation.length; i++) {
         const s = formation[i];
         const local = clamp01((t - s.delay) / s.duration);
         bezier(pos, s.start, s.control, s.target, easeOutCubic(local));
-        if (rippling) {
-          // The big star's landing sends a ring outward through the settled stars.
-          const dx = pos.x - bigPlan.landing.x;
-          const dy = pos.y - bigPlan.landing.y;
-          const d = Math.hypot(dx, dy) || 1e-4;
-          const phase = 11 * sinceLanding - (d / lr) * 3;
-          if (phase > 0) {
-            const push = lr * 0.16 * Math.exp(-d / (lr * 1.8)) * Math.exp(-2.8 * sinceLanding) * Math.sin(phase);
-            pos.x += (dx / d) * push;
-            pos.y += (dy / d) * push;
-            pos.z += push * 0.6;
-          }
+        const dx = s.target.x - gx;
+        const dy = s.target.y - gy;
+        const d = Math.hypot(dx, dy) || 1e-4;
+        let size = s.size;
+        if (shiverK > 0) {
+          const near = shiverK * Math.exp(-d / (logo.height * 0.9));
+          pos.x += logo.height * 0.01 * near * Math.sin(t * 160 + i);
+          pos.y += logo.height * 0.01 * near * Math.sin(t * 143 + i * 1.7);
+        }
+        if (wave > 0) {
+          const front = (wave - d) / band; // 0 at the wave front, > 0 once it has passed
+          const lift = Math.exp(-front * front * 4);
+          pos.x += (dx / d) * band * 0.3 * lift;
+          pos.y += (dy / d) * band * 0.3 * lift;
+          pos.z += band * 0.6 * lift;
+          size *= (1 + 0.5 * lift) * (1 - easeInQuad(clamp01((front + 0.1) / 0.9)));
         }
         const settle = easeOutQuart(local);
         const angle = (1 - settle) * s.spinTurns * Math.PI * 2 + settle * Math.sin(t * 1.6 + s.wobblePhase) * 0.35;
         quat.copy(s.rest).multiply(spin.setFromAxisAngle(s.spinAxis, angle));
-        const passed = clamp01(((wipe - s.target.x) * dir + rr * 0.1) / (rr * 0.7));
         const { mesh, index } = formationSlots[i];
-        setInstance(mesh, index, s.size * (1 - easeInQuad(passed)));
+        setInstance(mesh, index, size);
       }
 
       // Ambient: drift and spin everywhere, at every depth.
@@ -337,13 +348,12 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
       bigStar.visible = pose.visible;
       const bigScale = Math.max(pose.scale, 1e-5);
       bigStar.scale.set(bigScale, bigScale, bigScale * pose.depthScale);
-      // As it docks it turns from polished 3D gold into the logo's flat, unlit gold.
+      // As it docks it turns from polished 3D gold into the logo's flat, unlit, untextured gold.
       bigMaterial.color.lerpColors(bigGold, black, pose.morph);
       bigMaterial.emissive.lerpColors(bigEmber, LOGO_GOLD, pose.morph);
-      bigMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3, 1, pose.morph);
+      bigMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3 + 0.9 * pose.shiver * glow, 1, pose.morph);
       bigMaterial.metalness = 1 - pose.morph;
       bigMaterial.roughness = THREE.MathUtils.lerp(0.2, 1, pose.morph);
-      // Flat and untextured by the time it hands over, so it matches the flat logo star exactly.
       bigMaterial.clearcoat = 0.35 * (1 - pose.morph);
       bigMaterial.bumpScale = 0.35 * settings.metallic * (1 - pose.morph);
       big.uniforms.uTexture.value = settings.metallic * (1 - pose.morph);
@@ -351,28 +361,21 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
       u.uStarDock.value = pose.dock;
 
       // Light effects.
-      const spark = pulse(t, T.sparkStart, T.sparkPeak, T.sparkEnd);
-      setFx(sparkGlow, spark, logo.height * (0.25 + 1.1 * spark), logo.height * (0.25 + 1.1 * spark));
-      setFx(sparkStreak, spark, logo.width * 1.4 * spark, logo.height * 0.07);
-      const land = pulse(t, T.bigStarLanded - 0.03, T.bigStarLanded + 0.05, T.bigStarLanded + 0.55);
-      const landK = clamp01((t - T.bigStarLanded) / 0.55);
-      setFx(landGlow, land * 0.8, lr * (1.6 + 3.2 * landK), lr * (1.6 + 3.2 * landK));
-      const glint = pulse(t, T.landSettled + 0.05, (T.landSettled + T.glintDone) / 2, T.glintDone + 0.05);
-      setFx(glintStreak, glint, logo.width * 0.9 * glint, logo.height * 0.05);
-      // A brief, tight kiss of light as it docks — short enough that the spring-settle stays visible.
+      const r = bigPlan.glyphRadius;
       const dockK = clamp01((t - (T.docked - 0.05)) / 0.4);
-      const dock = pulse(t, T.docked - 0.05, T.docked + 0.03, T.docked + 0.4);
-      const dockSize = bigPlan.glyphRadius * (2.2 + 5 * dockK);
-      setFx(dockGlow, dock * 0.55, dockSize, dockSize);
-      setFx(dockStreak, dock * 0.6, logo.width * 0.85 * dock, logo.height * 0.03);
+      setFx(dockGlow, pulse(t, T.docked - 0.05, T.docked + 0.03, T.docked + 0.4) * 0.45, r * (2.2 + 4 * dockK));
+      setFx(shiverGlow, pose.shiver * 0.5 * (pose.visible ? 1 : 0), r * (3 + 1.5 * pose.shiver));
+      const waveK = clamp01((t - T.waveStart) / (T.waveEnd - T.waveStart));
+      setFx(ring, t > T.waveStart ? (1 - easeInQuad(waveK)) * 0.35 : 0, Math.max(wave, r) * 2.1);
     }
 
     // --- loop: driven by real elapsed time so it lasts the same on every machine ----------
-    let t = 0;
+    let t = Math.max(0, startAt);
     let revealed = false;
     let finished = false;
     let raf = 0;
     let last = performance.now();
+    let lastReport = 0;
 
     function markRevealed() {
       if (revealed) return;
@@ -391,9 +394,13 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
       let dt = (now - last) / 1000;
       last = now;
       if (dt < 0 || dt > 0.25) dt = 1 / 60; // tab was hidden or stalled: don't jump the show forward
-      t += dt;
+      if (!paused) t += dt;
       update(t);
       composer.render();
+      if (onTime && now - lastReport > 100) {
+        lastReport = now;
+        onTime(t);
+      }
 
       // The vignette lifts as the logo finishes, so the last frame matches the (vignette-free) page exactly.
       if (vignette) vignette.style.opacity = String(1 - clamp01((t - T.sheenStart) / (T.fadeStart - T.sheenStart)));
@@ -440,13 +447,13 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
       bigStarGeometry.dispose();
       logoGeometry.dispose();
       dustGeometry.dispose();
-      plainMaterial.dispose();
-      glowMaterial.dispose();
+      plain.material.dispose();
+      glowing.material.dispose();
       bigMaterial.dispose();
       dustMaterial.dispose();
       fxSprites.forEach((s) => s.material.dispose());
       glowTexture.dispose();
-      streakTexture.dispose();
+      ringTexture.dispose();
       brush.dispose();
       plainMesh.dispose();
       glowMesh.dispose();
@@ -459,7 +466,7 @@ export function StarIntro({ onReveal, onDone }: { onReveal: () => void; onDone: 
       renderer.forceContextLoss(); // free the GPU context now, not whenever the GC gets to it
       renderer.domElement.remove();
     };
-    // Runs once on mount; onReveal/onDone are stable callbacks from the parent.
+    // Runs once per mount; the preview remounts it (new key) to apply new settings or a new start time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

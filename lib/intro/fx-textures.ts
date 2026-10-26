@@ -15,24 +15,17 @@ export function createGlowTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(canvas);
 }
 
-/** A thin horizontal anamorphic streak — the classic lens glint on a highlight. */
-export function createStreakTexture(): THREE.CanvasTexture {
+/** A thin soft ring — the shock-wave that leaves the star. */
+export function createRingTexture(): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 64;
+  canvas.width = canvas.height = 512;
   const ctx = canvas.getContext("2d")!;
-  const horizontal = ctx.createLinearGradient(0, 0, 512, 0);
-  horizontal.addColorStop(0, "rgba(255,220,160,0)");
-  horizontal.addColorStop(0.5, "rgba(255,255,255,1)");
-  horizontal.addColorStop(1, "rgba(255,220,160,0)");
-  ctx.fillStyle = horizontal;
-  ctx.fillRect(0, 0, 512, 64);
-  ctx.globalCompositeOperation = "destination-in";
-  const vertical = ctx.createLinearGradient(0, 0, 0, 64);
-  vertical.addColorStop(0, "rgba(0,0,0,0)");
-  vertical.addColorStop(0.5, "rgba(0,0,0,1)");
-  vertical.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = vertical;
-  ctx.fillRect(0, 0, 512, 64);
+  const g = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+  g.addColorStop(0, "rgba(255,200,120,0)");
+  g.addColorStop(0.86, "rgba(255,200,120,0)");
+  g.addColorStop(0.95, "rgba(255,240,205,0.85)");
+  g.addColorStop(1, "rgba(255,200,120,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 512, 512);
   return new THREE.CanvasTexture(canvas);
 }

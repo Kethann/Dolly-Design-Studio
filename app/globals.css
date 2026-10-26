@@ -145,7 +145,7 @@ img {
   padding-inline: clamp(20px, 5vw, 64px);
 }
 
-/* Intro hand-off: black curtain until the intro starts, page fades in on reveal.
+/* Intro hand-off: a plain background-coloured curtain until the intro starts, page fades in on reveal.
    html.intro-skip is set by a pre-paint script on pages where the intro doesn't play. */
 .intro-curtain {
   position: fixed;
@@ -156,43 +156,6 @@ img {
 
 html.intro-skip .intro-curtain {
   display: none;
-}
-
-/* "First light": a soft gold glint where the logo will appear, shown from the very first paint
-   while the 3D intro loads, so the screen is never just black. (Logo centre ≈ 50svh + 16px.) */
-.intro-curtain-glint {
-  position: absolute;
-  left: 50%;
-  top: calc(50svh + 16px);
-  width: 140px;
-  height: 140px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 244, 214, 0.95) 0%, rgba(255, 198, 92, 0.35) 22%, transparent 62%);
-  animation: curtain-glint 1.8s ease-in-out infinite;
-}
-
-.intro-curtain-glint::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 360px;
-  height: 2px;
-  transform: translate(-50%, -50%);
-  background: linear-gradient(90deg, transparent, rgba(255, 240, 200, 0.9), transparent);
-}
-
-@keyframes curtain-glint {
-  0%,
-  100% {
-    opacity: 0.35;
-    transform: translate(-50%, -50%) scale(0.75);
-  }
-  50% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
 }
 
 .site-main {

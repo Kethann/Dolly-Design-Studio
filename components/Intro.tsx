@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Component, useEffect, useState, type ReactNode } from "react";
+import { postToPortal, useIntroSettings } from "@/lib/intro/settings-context";
 import { IntroFirstLight } from "./IntroFirstLight";
 
 // three.js only loads for visitors who actually get the 3D intro…
@@ -13,7 +14,7 @@ if (typeof window !== "undefined" && window.location.pathname === "/" && !window
   void loadStarIntro();
 }
 
-/** Longest the intro may hold the page before we reveal it regardless (the show itself is ~10s). */
+/** Longest the intro may hold the page before we reveal it regardless (the show itself is ~8s). */
 const FAILSAFE_MS = 16000;
 
 function supportsWebGL(): boolean {
@@ -44,24 +45,32 @@ class IntroErrorBoundary extends Component<{ onError: () => void; children: Reac
 
 type Mode = "deciding" | "stars" | "fallback" | "done";
 
+const reportTime = (t: number) => postToPortal({ source: "dds-site", type: "time", t });
+
 /**
  * Plays the intro on every full load of the home page (not on deep links or
  * in-site navigation): the 3D star intro on capable non-touch desktops, the
  * lightweight rolling-star version elsewhere (touch, reduced motion, no WebGL).
+ * The creator can switch it off from the portal.
+ *
+ * Inside the portal's preview frame it waits for the portal, then replays
+ * (or holds a single frame) whenever the portal asks.
  *
  * `onReveal` fires when the real page should start fading in; the intro then
  * unmounts once its own fade-out has finished.
  */
 export function Intro({ onReveal }: { onReveal: () => void }) {
+  const { settings, preview, run } = useIntroSettings();
   const [mode, setMode] = useState<Mode>("deciding");
 
   useEffect(() => {
-    if (window.location.pathname !== "/") {
+    if (window.location.pathname !== "/" || (!preview && !settings.enabled)) {
       onReveal();
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client check gating which intro mounts
       setMode("done");
       return;
     }
+    if (preview) return; // the portal decides when to play
     // Read media queries directly: child effects run before MotionProvider's,
     // so the context values aren't populated yet at this point.
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -71,16 +80,29 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Safety net: whatever happens (slow chunk load, GPU trouble), the page appears.
+  // Preview: every new run from the portal restarts the intro.
   useEffect(() => {
-    if (mode !== "stars" && mode !== "fallback") return;
+    if (!preview || !run) return;
+    if (!settings.enabled) {
+      onReveal();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- driven by the portal's messages
+      setMode("done");
+      return;
+    }
+    setMode(supportsWebGL() ? "stars" : "fallback");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run]);
+
+  // Safety net: whatever happens (slow chunk load, GPU trouble), the page appears. Not for held preview frames.
+  useEffect(() => {
+    if ((mode !== "stars" && mode !== "fallback") || run?.paused) return;
     const timer = setTimeout(() => {
       onReveal();
       setMode("done");
     }, FAILSAFE_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  }, [mode, run]);
 
   function bail() {
     onReveal();
@@ -89,8 +111,16 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
 
   if (mode === "stars")
     return (
-      <IntroErrorBoundary onError={bail}>
-        <StarIntro onReveal={onReveal} onDone={() => setMode("done")} />
+      <IntroErrorBoundary key={run?.key} onError={bail}>
+        <StarIntro
+          key={run?.key}
+          onReveal={onReveal}
+          onDone={() => setMode("done")}
+          startAt={run?.at}
+          paused={run?.paused}
+          seed={run?.seed}
+          onTime={preview ? reportTime : undefined}
+        />
       </IntroErrorBoundary>
     );
   if (mode === "fallback")
