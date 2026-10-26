@@ -6,7 +6,7 @@ import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
 import { HERO_LOGO_ID } from "@/lib/dom-ids";
 import { sampleLogoSlots } from "@/lib/intro/sample-points";
 import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
-import { createBrushedMetalTexture, createStarMaterial } from "@/lib/intro/star-material";
+import { createBrushedMetalTexture, createStarMaterial, createStarMaterials } from "@/lib/intro/star-material";
 import { createLogoRevealMaterial } from "@/lib/intro/logo-reveal-material";
 import { createGlowTexture, createRingTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
@@ -93,6 +93,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const rand = createRng(seed ?? randomSeed());
     const look = starLook(settings, rand);
     const palette = settings.colors.map((c) => new THREE.Color(c.hex));
+    const glowColor = new THREE.Color(settings.glowColor);
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
@@ -139,6 +140,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     u.uSoftness.value = logo.height * 0.03;
     u.uLogoSize.value.set(logo.width, logo.height);
     u.uGlow.value = 0.5 + 0.5 * glow;
+    u.uEdgeColor.value.copy(glowColor);
     const logoGeometry = new THREE.PlaneGeometry(logo.width, logo.height);
     const logoPlane = new THREE.Mesh(logoGeometry, reveal.material);
     logoPlane.position.set(logo.x, logo.y, 0);
@@ -149,8 +151,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const depth = 0.42 * settings.starDepth;
     const starGeometry = createFacetedStarGeometry({ depth });
     const brush = createBrushedMetalTexture(rand);
-    const plain = createStarMaterial(brush, { metalness: 0.9, roughness: 0.28, glow: 0, texture: settings.metallic });
-    const glowing = createStarMaterial(brush, { metalness: 0.75, roughness: 0.24, glow: 1.6 * glow, texture: settings.metallic });
+    const { plain, glowing } = createStarMaterials(brush, starScene.envTexture, settings);
 
     const stars = createStarInstances(starGeometry, plain.material, glowing.material, [...formation, ...ambient], palette);
     scene.add(...stars.meshes);
@@ -172,7 +173,15 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const bigGold = new THREE.Color(0xe8b34a);
     const bigEmber = new THREE.Color(0xff9a3c);
     const black = new THREE.Color(0x000000);
-    const big = createStarMaterial(brush, { metalness: 1, roughness: 0.2, glow: 0.3, texture: settings.metallic });
+    const big = createStarMaterial(brush, {
+      metalness: 1,
+      roughness: 0.18,
+      glow: 0.6,
+      texture: settings.metallic,
+      envMap: starScene.envTexture,
+      envIntensity: 0.9,
+      glowColor: null,
+    });
     const bigMaterial = big.material;
     bigMaterial.color.copy(bigGold);
     bigMaterial.emissive.copy(bigEmber);
@@ -183,7 +192,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     scene.add(bigStar);
 
     // --- glitter: flight trails, the big star's trail, the wave's sparkle ----------------
-    const dustGeometry = buildDustGeometry(stage, formation, bigPlan, palette, rand);
+    const dustGeometry = buildDustGeometry(stage, formation, bigPlan, palette, glowColor, rand);
     const dustMaterial = createDustMaterial();
     dustMaterial.uniforms.uProjScale.value = (vh * dpr) / (2 * tanHalfFov);
     dustMaterial.uniforms.uGlow.value = 0.5 + 0.5 * glow;
@@ -204,7 +213,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         blending: THREE.AdditiveBlending,
         opacity: 0,
       });
-      material.color.setRGB(2.2, 1.85, 1.4); // above the bloom threshold, so they flare
+      material.color.copy(glowColor).multiplyScalar(2.2); // above the bloom threshold, so they flare
       const sprite = new THREE.Sprite(material);
       sprite.renderOrder = 4;
       sprite.visible = false;
@@ -304,12 +313,13 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       // As it docks it turns from polished 3D gold into the logo's flat, unlit, untextured gold.
       bigMaterial.color.lerpColors(bigGold, black, pose.morph);
       bigMaterial.emissive.lerpColors(bigEmber, LOGO_GOLD, pose.morph);
-      bigMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.3 + 0.9 * pose.shiver * glow, 1, pose.morph);
+      bigMaterial.emissiveIntensity = THREE.MathUtils.lerp(0.6 + 2.4 * pose.shiver * glow, 1, pose.morph);
       bigMaterial.metalness = 1 - pose.morph;
       bigMaterial.roughness = THREE.MathUtils.lerp(0.2, 1, pose.morph);
       bigMaterial.clearcoat = 0.35 * (1 - pose.morph);
       bigMaterial.bumpScale = 0.35 * settings.metallic * (1 - pose.morph);
       big.uniforms.uTexture.value = settings.metallic * (1 - pose.morph);
+      big.uniforms.uGlint.value = 1 - pose.morph; // glints on a few facets in flight, an even flat gold once docked
       bigMaterial.opacity = 1 - (pose.visible ? pose.dock : 0);
       u.uStarDock.value = pose.dock;
 

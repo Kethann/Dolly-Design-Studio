@@ -256,6 +256,29 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
               hint="100% is the original intro’s glow."
               onChange={(glow) => update({ glow })}
             />
+            <div className={styles.control}>
+              <div className={styles.controlRow}>
+                <span className={styles.controlLabel}>Glow colour</span>
+                <span className={styles.colorField}>
+                  <input
+                    type="color"
+                    aria-label="Glow colour"
+                    className={styles.swatch}
+                    value={draft.glowColor}
+                    disabled={draft.glowMatchStar}
+                    onChange={(e) => update({ glowColor: e.target.value })}
+                  />
+                  <HexInput value={draft.glowColor} label="Glow colour code" onChange={(hex) => update({ glowColor: hex })} />
+                </span>
+              </div>
+              <p className={styles.controlHint}>The glints on the stars, the glitter, and the light of the reveal wave.</p>
+            </div>
+            <Toggle
+              label="Glint in each star’s own colour"
+              hint="Glowing stars use their own colour instead of the glow colour."
+              checked={draft.glowMatchStar}
+              onChange={(glowMatchStar) => update({ glowMatchStar })}
+            />
             <Slider
               label="Glowing stars"
               value={draft.glowingShare}

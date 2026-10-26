@@ -8,7 +8,7 @@ import { planFieldStars } from "@/lib/intro/field-plan";
 import { starLook } from "@/lib/intro/choreography";
 import { createRng, randomSeed } from "@/lib/intro/rng";
 import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
-import { createBrushedMetalTexture, createStarMaterial } from "@/lib/intro/star-material";
+import { createBrushedMetalTexture, createStarMaterials } from "@/lib/intro/star-material";
 import { CAMERA_Z, createStarComposer, createStarInstances, createStarScene } from "@/lib/intro/star-scene";
 import styles from "./StarField.module.css";
 
@@ -65,8 +65,7 @@ export function StarField() {
 
     const geometry = createFacetedStarGeometry({ depth: 0.42 * settings.starDepth });
     const brush = createBrushedMetalTexture(rand);
-    const plain = createStarMaterial(brush, { metalness: 0.9, roughness: 0.28, glow: 0, texture: settings.metallic });
-    const glowing = createStarMaterial(brush, { metalness: 0.75, roughness: 0.24, glow: 1.6 * settings.glow, texture: settings.metallic });
+    const { plain, glowing } = createStarMaterials(brush, starScene.envTexture, settings);
     const instances = createStarInstances(geometry, plain.material, glowing.material, list, palette);
     scene.add(...instances.meshes);
 

@@ -24,6 +24,10 @@ export interface IntroSettings {
   background: string;
   /** 1 = the original intro's glow; 0.5 = half. */
   glow: number;
+  /** Colour of the glints, glitter and the reveal wave's light. */
+  glowColor: string;
+  /** Glowing stars glint in their own colour instead of the glow colour. */
+  glowMatchStar: boolean;
   /** Multiplier on every star's size. */
   starSize: number;
   /** Multiplier on how deep the star facets are cut. */
@@ -44,6 +48,8 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   enabled: true,
   background: "#410000",
   glow: 0.5,
+  glowColor: "#ffcf7a",
+  glowMatchStar: false,
   starSize: 1,
   starDepth: 1,
   spaceDepth: 1,
@@ -102,6 +108,8 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
     enabled: bool(src.enabled, d.enabled),
     background: hex(src.background, d.background),
     glow: num(src.glow, LIMITS.glow, d.glow),
+    glowColor: hex(src.glowColor, d.glowColor),
+    glowMatchStar: bool(src.glowMatchStar, d.glowMatchStar),
     starSize: num(src.starSize, LIMITS.starSize, d.starSize),
     starDepth: num(src.starDepth, LIMITS.starDepth, d.starDepth),
     spaceDepth: num(src.spaceDepth, LIMITS.spaceDepth, d.spaceDepth),

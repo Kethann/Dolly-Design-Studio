@@ -2,6 +2,8 @@
   "enabled": true,
   "background": "#410000",
   "glow": 0.5,
+  "glowColor": "#ffcf7a",
+  "glowMatchStar": false,
   "starSize": 1,
   "starDepth": 1,
   "spaceDepth": 1,

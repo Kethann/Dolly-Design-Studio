@@ -43,6 +43,7 @@ export function createStarScene(renderer: THREE.WebGLRenderer, background: THREE
   return {
     scene,
     camera,
+    envTexture,
     dispose() {
       envTexture.dispose();
       pmrem.dispose();

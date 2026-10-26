@@ -9,7 +9,6 @@ import type { Rng } from "./rng";
 // entirely in the vertex shader, so thousands of them cost almost nothing.
 
 const WARM_WHITE = new THREE.Color("#fff4dc");
-const GOLD = new THREE.Color("#ffc65c");
 
 class DustBuffers {
   position: number[] = [];
@@ -49,7 +48,15 @@ class DustBuffers {
 }
 
 /** Builds every glitter particle for one playthrough: flight trails, the big star's trail, and the wave's sparkle. */
-export function buildDustGeometry(stage: Stage, formation: FormationStar[], bigStar: BigStarPlan, palette: THREE.Color[], rand: Rng) {
+export function buildDustGeometry(
+  stage: Stage,
+  formation: FormationStar[],
+  bigStar: BigStarPlan,
+  palette: THREE.Color[],
+  glowColor: THREE.Color,
+  rand: Rng,
+) {
+  const GOLD = glowColor;
   const range = (min: number, max: number) => min + rand() * (max - min);
   function randomUnit(out: THREE.Vector3, zScale = 1) {
     out.set(range(-1, 1), range(-1, 1), range(-1, 1) * zScale);
