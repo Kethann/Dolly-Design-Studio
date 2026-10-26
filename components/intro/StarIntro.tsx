@@ -2,11 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
 import { HERO_LOGO_ID } from "@/lib/dom-ids";
 import { sampleLogoSlots } from "@/lib/intro/sample-points";
@@ -17,6 +12,8 @@ import { createGlowTexture, createRingTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
 import { bigStarPose, planBigStar, waveRadius } from "@/lib/intro/big-star-path";
 import { createRng, randomSeed } from "@/lib/intro/rng";
+import { CAMERA_Z, createStarComposer, createStarInstances, createStarScene } from "@/lib/intro/star-scene";
+import { publishFieldStars, type FieldStar } from "@/lib/intro/handoff";
 import { T } from "@/lib/intro/timeline";
 import {
   bezier,
@@ -35,8 +32,6 @@ import styles from "./StarIntro.module.css";
 
 const LOGO_GOLD = new THREE.Color("#fff195"); // the flat gold of /images/brand/logo.svg
 const AMBIENT_COUNT = 260;
-const CAMERA_Z = 14;
-const FOV = 35;
 
 /** Where the hero logo is on screen (falls back to a centred rectangle if it isn't in view). */
 function measureLogoRect() {
@@ -106,45 +101,14 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     // --- renderer, camera, lighting, post-processing ------------------------
     renderer.setPixelRatio(dpr);
     renderer.setSize(vw, vh, false);
-    renderer.setClearColor(background, 1);
-    // No tone mapping: the 3D logo must render exactly the same gold as the page logo it hands over to.
-    // Lights are balanced so metal highlights stay in range; only real glints exceed it and bloom.
-    renderer.toneMapping = THREE.NoToneMapping;
-    // Skip reading shader logs: faster start-up, and no harmless driver precision warnings in the console.
-    renderer.debug.checkShaderErrors = false;
     wrap.appendChild(renderer.domElement);
-
-    const scene = new THREE.Scene();
-    scene.background = background;
-    scene.fog = new THREE.Fog(background, 14, 52); // distant stars fade into the background — part of the depth cue
-
-    const camera = new THREE.PerspectiveCamera(FOV, vw / vh, 0.1, 80);
-    camera.position.set(0, 0, CAMERA_Z + 2);
-
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const room = new RoomEnvironment();
-    const envTexture = pmrem.fromScene(room, 0.04).texture;
-    scene.environment = envTexture;
-    scene.environmentIntensity = 0.55;
-
-    scene.add(new THREE.HemisphereLight(0xfff3e0, 0x0b0b14, 0.3));
-    const key = new THREE.DirectionalLight(0xffd9a0, 2.1);
-    key.position.set(-4, 6, 8);
-    const rim = new THREE.DirectionalLight(0x9fb7ff, 1.1);
-    rim.position.set(6, 2, 3);
-    scene.add(key, rim);
-
-    const composer = new EffectComposer(renderer);
-    composer.setPixelRatio(dpr);
-    composer.setSize(vw, vh);
-    composer.addPass(new RenderPass(scene, camera));
-    // High threshold: only glowing stars, glitter and the wave bloom — not the logo itself,
-    // so it matches the flat page logo it hands over to.
-    composer.addPass(new UnrealBloomPass(new THREE.Vector2(vw, vh), 0.55 * glow, 0.45, 0.92));
-    composer.addPass(new OutputPass());
+    const starScene = createStarScene(renderer, background, vw / vh);
+    const { scene, camera } = starScene;
+    camera.position.z = CAMERA_Z + 2;
+    const composer = createStarComposer(renderer, scene, camera, vw, vh, dpr, glow);
 
     // --- stage: map the hero logo's on-screen rect onto the z = 0 plane -----
-    const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
+    const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const halfH0 = CAMERA_Z * tanHalfFov;
     const halfW0 = halfH0 * (vw / vh);
     const px = measureLogoRect();
@@ -188,31 +152,19 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const plain = createStarMaterial(brush, { metalness: 0.9, roughness: 0.28, glow: 0, texture: settings.metallic });
     const glowing = createStarMaterial(brush, { metalness: 0.75, roughness: 0.24, glow: 1.6 * glow, texture: settings.metallic });
 
-    const plainCount = formation.filter((s) => !s.glow).length + ambient.filter((s) => !s.glow).length;
-    const glowCount = formation.length + ambient.length - plainCount;
-    const plainMesh = new THREE.InstancedMesh(starGeometry, plain.material, Math.max(1, plainCount));
-    const glowMesh = new THREE.InstancedMesh(starGeometry, glowing.material, Math.max(1, glowCount));
-    plainMesh.count = plainCount;
-    glowMesh.count = glowCount;
-    plainMesh.frustumCulled = glowMesh.frustumCulled = false;
-    scene.add(plainMesh, glowMesh);
+    const stars = createStarInstances(starGeometry, plain.material, glowing.material, [...formation, ...ambient], palette);
+    scene.add(...stars.meshes);
+    const formationSlots = stars.slots.slice(0, formation.length);
+    const ambientSlots = stars.slots.slice(formation.length);
 
-    let nextPlain = 0;
-    let nextGlow = 0;
-    const white = new THREE.Color(0xffffff);
-    const tint = new THREE.Color();
-    function assign(isGlow: boolean, color: number) {
-      const mesh = isGlow ? glowMesh : plainMesh;
-      const index = isGlow ? nextGlow++ : nextPlain++;
-      tint.copy(palette[color]);
-      if (isGlow) tint.lerp(white, 0.35);
-      mesh.setColorAt(index, tint);
-      return { mesh, index };
+    // A few background stars stay with the page after the intro (handed to the hero's star field);
+    // the rest drift away near the end. Survivors sit well inside the frame, not right in front of the lens.
+    const survivorPool = ambient.map((_, i) => i).filter((i) => ambient[i].origin.z > -14 && ambient[i].origin.z < 0.8);
+    for (let i = survivorPool.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [survivorPool[i], survivorPool[j]] = [survivorPool[j], survivorPool[i]];
     }
-    const formationSlots = formation.map((s) => assign(s.glow, s.color));
-    const ambientSlots = ambient.map((s) => assign(s.glow, s.color));
-    if (plainMesh.instanceColor) plainMesh.instanceColor.needsUpdate = true;
-    if (glowMesh.instanceColor) glowMesh.instanceColor.needsUpdate = true;
+    const survivors = new Set(survivorPool.slice(0, settings.field.count));
 
     // --- the big star ----------------------------------------------------------------
     // Same proportions as the logo's own star (inner/outer ≈ 0.389), so it matches exactly when it docks.
@@ -332,16 +284,17 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         setInstance(mesh, index, size);
       }
 
-      // Ambient: drift and spin everywhere, at every depth.
+      // Ambient: drift and spin everywhere, at every depth — then all but the survivors drift away.
+      const thin = easeInOutCubic(clamp01((t - T.thinStart) / (T.thinEnd - T.thinStart)));
       for (let i = 0; i < ambient.length; i++) {
         const s = ambient[i];
         pos.copy(s.velocity).multiplyScalar(t).add(s.origin);
         quat.setFromAxisAngle(s.spinAxis, s.spinSpeed * t);
         const { mesh, index } = ambientSlots[i];
-        setInstance(mesh, index, s.size * easeOutCubic(clamp01((t - s.appearAt) / 0.8)));
+        const keep = survivors.has(i) ? 1 : 1 - thin;
+        setInstance(mesh, index, s.size * keep * easeOutCubic(clamp01((t - s.appearAt) / 0.8)));
       }
-      plainMesh.instanceMatrix.needsUpdate = true;
-      glowMesh.instanceMatrix.needsUpdate = true;
+      stars.markDirty();
 
       // Big star.
       const pose = bigStarPose(bigPlan, t, bigStar.position, bigStar.quaternion);
@@ -380,6 +333,20 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     function markRevealed() {
       if (revealed) return;
       revealed = true;
+      const handed: FieldStar[] = [...survivors].map((i) => {
+        const s = ambient[i];
+        const p = s.velocity.clone().multiplyScalar(t).add(s.origin);
+        return {
+          position: [p.x, p.y, p.z],
+          axis: [s.spinAxis.x, s.spinAxis.y, s.spinAxis.z],
+          angle: s.spinSpeed * t,
+          spin: s.spinSpeed,
+          size: s.size,
+          color: s.color,
+          glow: s.glow,
+        };
+      });
+      publishFieldStars(handed);
       onReveal();
     }
     function finish() {
@@ -455,12 +422,9 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       glowTexture.dispose();
       ringTexture.dispose();
       brush.dispose();
-      plainMesh.dispose();
-      glowMesh.dispose();
+      stars.dispose();
       reveal.dispose();
-      envTexture.dispose();
-      pmrem.dispose();
-      room.dispose();
+      starScene.dispose();
       composer.dispose();
       renderer.dispose();
       renderer.forceContextLoss(); // free the GPU context now, not whenever the GC gets to it

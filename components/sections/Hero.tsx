@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 import { site } from "@/content/site";
 import { home } from "@/content/home";
 import { useMotion } from "@/lib/motion";
 import { HERO_LOGO_ID } from "@/lib/dom-ids";
 import styles from "./Hero.module.css";
+
+// three.js loads on its own, after the page, so it never delays the hero.
+const StarField = dynamic(() => import("@/components/StarField").then((m) => m.StarField), { ssr: false });
 
 const GHOST_FRAMES = [
   { top: "14%", left: "8%", depth: 0.04, scale: 1.1 },
@@ -47,6 +51,7 @@ export function Hero() {
 
   return (
     <section id="top" className={styles.hero}>
+      <StarField />
       <div className={styles.frameField} ref={fieldRef} aria-hidden="true">
         {GHOST_FRAMES.map((f, i) => (
           <div

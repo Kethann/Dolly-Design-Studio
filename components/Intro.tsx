@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { Component, useEffect, useState, type ReactNode } from "react";
 import { postToPortal, useIntroSettings } from "@/lib/intro/settings-context";
+import { settleHandoff } from "@/lib/intro/handoff";
 import { IntroFirstLight } from "./IntroFirstLight";
 
 // three.js only loads for visitors who actually get the 3D intro…
@@ -63,11 +64,17 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
   const { settings, preview, run } = useIntroSettings();
   const [mode, setMode] = useState<Mode>("deciding");
 
+  /** Show the page without (or after) the 3D intro; the hero's star field then lays out its own stars. */
+  function skip() {
+    settleHandoff();
+    onReveal();
+    setMode("done");
+  }
+
   useEffect(() => {
     if (window.location.pathname !== "/" || (!preview && !settings.enabled)) {
-      onReveal();
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client check gating which intro mounts
-      setMode("done");
+      skip();
       return;
     }
     if (preview) return; // the portal decides when to play
@@ -84,9 +91,8 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
   useEffect(() => {
     if (!preview || !run) return;
     if (!settings.enabled) {
-      onReveal();
       // eslint-disable-next-line react-hooks/set-state-in-effect -- driven by the portal's messages
-      setMode("done");
+      skip();
       return;
     }
     setMode(supportsWebGL() ? "stars" : "fallback");
@@ -96,26 +102,18 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
   // Safety net: whatever happens (slow chunk load, GPU trouble), the page appears. Not for held preview frames.
   useEffect(() => {
     if ((mode !== "stars" && mode !== "fallback") || run?.paused) return;
-    const timer = setTimeout(() => {
-      onReveal();
-      setMode("done");
-    }, FAILSAFE_MS);
+    const timer = setTimeout(skip, FAILSAFE_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, run]);
 
-  function bail() {
-    onReveal();
-    setMode("done");
-  }
-
   if (mode === "stars")
     return (
-      <IntroErrorBoundary key={run?.key} onError={bail}>
+      <IntroErrorBoundary key={run?.key} onError={skip}>
         <StarIntro
           key={run?.key}
           onReveal={onReveal}
-          onDone={() => setMode("done")}
+          onDone={skip}
           startAt={run?.at}
           paused={run?.paused}
           seed={run?.seed}
@@ -125,8 +123,8 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
     );
   if (mode === "fallback")
     return (
-      <IntroErrorBoundary onError={bail}>
-        <IntroFirstLight onDone={bail} />
+      <IntroErrorBoundary onError={skip}>
+        <IntroFirstLight onDone={skip} />
       </IntroErrorBoundary>
     );
   return null;
