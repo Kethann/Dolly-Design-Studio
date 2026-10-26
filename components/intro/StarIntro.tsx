@@ -14,6 +14,7 @@ import { bigStarPose, planBigStar, waveRadius } from "@/lib/intro/big-star-path"
 import { createRng, randomSeed } from "@/lib/intro/rng";
 import { CAMERA_Z, createStarComposer, createStarInstances, createStarScene } from "@/lib/intro/star-scene";
 import { publishFieldStars, type FieldStar } from "@/lib/intro/handoff";
+import { FIELD_FRONT_Z } from "@/lib/intro/field-plan";
 import { T } from "@/lib/intro/timeline";
 import {
   bezier,
@@ -159,7 +160,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
     // A few background stars stay with the page after the intro (handed to the hero's star field);
     // the rest drift away near the end. Survivors sit well inside the frame, not right in front of the lens.
-    const survivorPool = ambient.map((_, i) => i).filter((i) => ambient[i].origin.z > -14 && ambient[i].origin.z < 0.8);
+    const survivorPool = ambient.map((_, i) => i).filter((i) => ambient[i].origin.z > -14 && ambient[i].origin.z < FIELD_FRONT_Z);
     for (let i = survivorPool.length - 1; i > 0; i--) {
       const j = Math.floor(rand() * (i + 1));
       [survivorPool[i], survivorPool[j]] = [survivorPool[j], survivorPool[i]];
@@ -352,6 +353,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         const p = s.velocity.clone().multiplyScalar(t).add(s.origin);
         return {
           position: [p.x, p.y, p.z],
+          velocity: [s.velocity.x, s.velocity.y, s.velocity.z],
           axis: [s.spinAxis.x, s.spinAxis.y, s.spinAxis.z],
           angle: s.spinSpeed * t,
           spin: s.spinSpeed,
@@ -360,7 +362,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
           glow: s.glow,
         };
       });
-      publishFieldStars(handed);
+      publishFieldStars(handed, performance.now());
       onReveal();
     }
     function finish() {

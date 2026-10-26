@@ -13,13 +13,24 @@ import { CAMERA_Z, createStarComposer, createStarInstances, createStarScene } fr
 import styles from "./StarField.module.css";
 
 const WAITING: Handoff = { status: "waiting" };
-const MAX_LINKS = 4;
-const LINK_COLOR = new THREE.Color("#ffd27a");
+/** Seconds for the intro's drift and spin to ease into the gentle water motion. */
+const SETTLE = 1.8;
+const MAX_RIPPLES = 10;
+const RIPPLE_SPEED = 320; // px per second
+const RIPPLE_WIDTH = 70; // px
+
+interface Ripple {
+  x: number;
+  y: number;
+  time: number;
+  strength: number;
+}
 
 /**
- * The few stars that stay behind the hero after the intro: they barely float,
- * lean away from the cursor, and faintly link to it when it comes close.
- * Picks up exactly where the intro left its surviving stars.
+ * The few stars that stay behind the hero after the intro. They carry on from
+ * exactly where the intro left them, then float like stars on water: a slow
+ * swell rolls through them, each bobs and rocks at its own pace, and moving
+ * the cursor sends soft ripples through them.
  */
 export function StarField() {
   const { settings } = useIntroSettings();
@@ -69,44 +80,42 @@ export function StarField() {
     const instances = createStarInstances(geometry, plain.material, glowing.material, list, palette);
     scene.add(...instances.meshes);
 
+    const randomAxis = () => new THREE.Vector3(rand() - 0.5, rand() - 0.5, rand() - 0.5).normalize();
     const stars = list.map((s) => ({
       base: new THREE.Vector3(...s.position),
+      velocity: new THREE.Vector3(...s.velocity),
       axis: new THREE.Vector3(...s.axis),
       angle: s.angle,
       spin: s.spin,
       size: s.size,
-      offset: new THREE.Vector3(),
-      freq: [0.2 + rand() * 0.25, 0.15 + rand() * 0.25, 0.1 + rand() * 0.2],
-      phase: [rand() * Math.PI * 2, rand() * Math.PI * 2, rand() * Math.PI * 2],
-      screen: new THREE.Vector2(),
-      reach: 0,
+      /** Each star bobs and rocks at its own pace, about its own axis. */
+      bob: { freq: 0.5 + rand() * 0.5, phase: rand() * Math.PI * 2 },
+      rock: { axis: randomAxis(), freq: 0.35 + rand() * 0.4, phase: rand() * Math.PI * 2, amount: 0.25 + rand() * 0.3 },
+      push: new THREE.Vector3(),
     }));
 
-    // --- faint lines from the cursor to the nearest stars --------------------------------
-    const linkPositions = new Float32Array(MAX_LINKS * 2 * 3);
-    const linkColors = new Float32Array(MAX_LINKS * 2 * 3);
-    const linkGeometry = new THREE.BufferGeometry();
-    linkGeometry.setAttribute("position", new THREE.BufferAttribute(linkPositions, 3));
-    linkGeometry.setAttribute("color", new THREE.BufferAttribute(linkColors, 3));
-    const linkMaterial = new THREE.LineBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      fog: false,
-    });
-    const links = new THREE.LineSegments(linkGeometry, linkMaterial);
-    links.frustumCulled = false;
-    links.visible = field.lines && cursorStrength > 0;
-    scene.add(links);
-
-    // --- cursor -----------------------------------------------------------------------
+    // --- the cursor: moving it sends ripples out through the stars ----------------------
+    const ripples: Ripple[] = [];
     const pointer = { x: 0, y: 0, inside: false };
-    let presence = 0; // eases in/out as the cursor enters/leaves
+    let lastRipple = { x: -1e4, y: -1e4, time: -1 };
+    function now() {
+      return (performance.now() - start) / 1000;
+    }
     function onPointerMove(e: PointerEvent) {
-      pointer.x = e.clientX;
-      pointer.y = e.clientY;
-      pointer.inside = true;
+      const rect = wrap!.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      pointer.x = x;
+      pointer.y = y;
+      pointer.inside = x >= 0 && y >= 0 && x <= rect.width && y <= rect.height;
+      if (!pointer.inside) return;
+      const time = now();
+      const moved = Math.hypot(x - lastRipple.x, y - lastRipple.y);
+      if (moved < 22 || time - lastRipple.time < 0.08) return;
+      const speed = moved / Math.max(0.016, time - lastRipple.time);
+      ripples.push({ x, y, time, strength: Math.min(1, 0.35 + speed / 1600) });
+      if (ripples.length > MAX_RIPPLES) ripples.shift();
+      lastRipple = { x, y, time };
     }
     function onPointerOut(e: PointerEvent) {
       if (!e.relatedTarget) pointer.inside = false;
@@ -119,107 +128,108 @@ export function StarField() {
     // --- per-frame update ----------------------------------------------------------------
     const pos = new THREE.Vector3();
     const quat = new THREE.Quaternion();
+    const rock = new THREE.Quaternion();
+    const tilt = new THREE.Quaternion();
+    const tiltAxis = new THREE.Vector3();
     const scale = new THREE.Vector3();
     const matrix = new THREE.Matrix4();
     const target = new THREE.Vector3();
     const ndc = new THREE.Vector3();
-    const cursorWorld = new THREE.Vector3();
-    const ray = new THREE.Vector3();
-    const linkColor = new THREE.Color();
-    const start = performance.now();
-    let last = start;
+    // Carry on from the moment the intro handed these stars over, even if this frame comes a little later.
+    const start = handoff.status === "ready" ? handoff.at : performance.now();
+    let last = performance.now();
+    let presence = 0;
 
-    function update(now: number) {
-      const time = (now - start) / 1000;
-      const dt = Math.min(0.1, (now - last) / 1000);
-      last = now;
-      const ease = 1 - Math.exp(-dt * 6);
+    function update(frameNow: number) {
+      const time = Math.max(0, (frameNow - start) / 1000);
+      const dt = Math.min(0.1, (frameNow - last) / 1000);
+      last = frameNow;
+      const ease = 1 - Math.exp(-dt * 5);
+      presence += ((pointer.inside ? 1 : 0) - presence) * ease;
 
-      const rect = wrap!.getBoundingClientRect();
-      const px = pointer.x - rect.left;
-      const py = pointer.y - rect.top;
-      const over = pointer.inside && px >= 0 && py >= 0 && px <= rect.width && py <= rect.height;
-      presence += ((over ? 1 : 0) - presence) * ease;
-      const cursorNdcX = (px / width) * 2 - 1;
-      const cursorNdcY = 1 - (py / height) * 2;
+      // The intro's drift and spin ease off while the water motion eases in, so nothing ever stops dead.
+      const settle = 1 - Math.exp(-time / SETTLE);
+      const carried = SETTLE * settle; // ∫ e^(-t/SETTLE) dt
+      const water = motion * settle;
 
-      // A whisper of parallax: the view leans a touch toward the cursor.
-      camera.position.x += (cursorNdcX * 0.16 * cursorStrength * presence - camera.position.x) * ease;
-      camera.position.y += (cursorNdcY * 0.1 * cursorStrength * presence - camera.position.y) * ease;
+      // A whisper of parallax toward the cursor, so the field reads in depth.
+      const cursorX = presence > 0.01 ? (pointer.x / width) * 2 - 1 : 0;
+      const cursorY = presence > 0.01 ? 1 - (pointer.y / height) * 2 : 0;
+      camera.position.x += (cursorX * 0.14 * cursorStrength * presence - camera.position.x) * ease;
+      camera.position.y += (cursorY * 0.09 * cursorStrength * presence - camera.position.y) * ease;
       camera.updateMatrixWorld();
 
-      const radius = 130 + 110 * cursorStrength; // px
-      const amp = 0.18 * motion;
+      while (ripples.length && time - ripples[0].time > 2.4) ripples.shift();
+
       for (let i = 0; i < stars.length; i++) {
         const s = stars[i];
+        // A slow swell rolling diagonally through the field, plus each star's own bob.
+        const swell = 0.32 * s.base.x + 0.22 * s.base.y - 0.85 * time;
+        const bob = Math.sin(s.bob.freq * time + s.bob.phase);
         pos.set(
-          s.base.x + amp * (Math.sin(s.freq[0] * time + s.phase[0]) - Math.sin(s.phase[0])),
-          s.base.y + amp * (Math.sin(s.freq[1] * time + s.phase[1]) - Math.sin(s.phase[1])),
-          s.base.z + amp * 0.5 * (Math.sin(s.freq[2] * time + s.phase[2]) - Math.sin(s.phase[2])),
+          s.base.x + s.velocity.x * carried + water * (0.1 * Math.cos(swell) + 0.04 * bob),
+          s.base.y + s.velocity.y * carried + water * (0.22 * Math.sin(swell) + 0.08 * bob),
+          s.base.z + s.velocity.z * carried + water * 0.16 * Math.sin(swell * 0.8 + s.bob.phase),
         );
 
-        // Lean away from the cursor, springing back once it moves on.
+        // Ripples from the cursor lift the stars they pass and nudge them outward.
+        let lift = 0;
         target.set(0, 0, 0);
-        ndc.copy(pos).project(camera);
-        s.screen.set((ndc.x + 1) * 0.5 * width, (1 - ndc.y) * 0.5 * height);
-        const dx = s.screen.x - px;
-        const dy = s.screen.y - py;
-        const d = Math.hypot(dx, dy);
-        s.reach = presence > 0.01 && ndc.z < 1 ? Math.max(0, 1 - d / radius) : 0;
-        if (s.reach > 0 && d > 1e-3) {
+        if (ripples.length || presence > 0.01) {
+          ndc.copy(pos).project(camera);
+          const sx = (ndc.x + 1) * 0.5 * width;
+          const sy = (1 - ndc.y) * 0.5 * height;
           const worldPerPx = (2 * (CAMERA_Z - pos.z) * tanHalfFov) / height;
-          const push = 46 * cursorStrength * s.reach * s.reach * presence * worldPerPx;
-          target.set((dx / d) * push, (-dy / d) * push, 0);
+          for (const r of ripples) {
+            const age = time - r.time;
+            const dx = sx - r.x;
+            const dy = sy - r.y;
+            const d = Math.hypot(dx, dy) || 1;
+            const front = (d - (20 + RIPPLE_SPEED * age)) / RIPPLE_WIDTH;
+            const wave = Math.exp(-front * front) * Math.exp(-1.5 * age) * r.strength;
+            lift += wave;
+            target.x += (dx / d) * wave * 18 * worldPerPx;
+            target.y -= (dy / d) * wave * 18 * worldPerPx;
+          }
+          // Right under the cursor, stars lean gently out of the way.
+          const dx = sx - pointer.x;
+          const dy = sy - pointer.y;
+          const d = Math.hypot(dx, dy) || 1;
+          const near = Math.max(0, 1 - d / 160) * presence;
+          target.x += (dx / d) * near * near * 22 * worldPerPx;
+          target.y -= (dy / d) * near * near * 22 * worldPerPx;
+          target.multiplyScalar(cursorStrength);
+          lift *= cursorStrength;
         }
-        s.offset.lerp(target, ease);
-        pos.add(s.offset);
+        s.push.lerp(target, ease);
+        pos.add(s.push);
+        pos.z += lift * 0.35;
+        pos.y += lift * 0.06;
 
-        quat.setFromAxisAngle(s.axis, s.angle + s.spin * motion * 0.5 * time + s.offset.length() * 3);
+        // Spin carried on from the intro, settling to a slower turn, with a gentle random rocking on top.
+        const turn = s.angle + s.spin * (0.3 + 0.4 * motion) * time + s.spin * (0.7 - 0.4 * motion) * carried;
+        quat.setFromAxisAngle(s.axis, turn);
+        rock.setFromAxisAngle(s.rock.axis, water * s.rock.amount * Math.sin(s.rock.freq * time + s.rock.phase));
+        quat.premultiply(rock);
+        if (lift > 0.001) {
+          tiltAxis.set(-s.push.y, s.push.x, 0);
+          if (tiltAxis.lengthSq() > 1e-8) quat.premultiply(tilt.setFromAxisAngle(tiltAxis.normalize(), Math.min(0.8, lift * 0.7)));
+        }
+
         scale.setScalar(s.size);
         matrix.compose(pos, quat, scale);
         const slot = instances.slots[i];
         slot.mesh.setMatrixAt(slot.index, matrix);
       }
       instances.markDirty();
-
-      if (links.visible) {
-        // Where the cursor sits just in front of the logo plane.
-        ray.set(cursorNdcX, cursorNdcY, 0.5).unproject(camera).sub(camera.position).normalize();
-        cursorWorld.copy(camera.position).addScaledVector(ray, (0.5 - camera.position.z) / ray.z);
-        const nearest = stars
-          .map((s, i) => ({ i, reach: s.reach }))
-          .filter((n) => n.reach > 0)
-          .sort((a, b) => b.reach - a.reach)
-          .slice(0, MAX_LINKS);
-        linkColors.fill(0);
-        for (let k = 0; k < MAX_LINKS; k++) {
-          const n = nearest[k];
-          const o = k * 6;
-          if (!n) {
-            linkPositions.fill(0, o, o + 6);
-            continue;
-          }
-          instances.slots[n.i].mesh.getMatrixAt(instances.slots[n.i].index, matrix);
-          pos.setFromMatrixPosition(matrix);
-          linkPositions.set([cursorWorld.x, cursorWorld.y, cursorWorld.z, pos.x, pos.y, pos.z], o);
-          const strength = n.reach * presence * 0.55;
-          linkColor.copy(LINK_COLOR).multiplyScalar(strength * 0.25);
-          linkColors.set([linkColor.r, linkColor.g, linkColor.b], o);
-          linkColor.copy(LINK_COLOR).multiplyScalar(strength);
-          linkColors.set([linkColor.r, linkColor.g, linkColor.b], o + 3);
-        }
-        linkGeometry.attributes.position.needsUpdate = true;
-        linkGeometry.attributes.color.needsUpdate = true;
-      }
-
       composer.render();
     }
 
     // --- loop: only while the hero is on screen; a single still frame for reduced motion ----
     let raf = 0;
     let visible = true;
-    function frame(now: number) {
-      update(now);
+    function frame(frameNow: number) {
+      update(frameNow);
       raf = visible && !reducedMotion ? requestAnimationFrame(frame) : 0;
     }
     raf = requestAnimationFrame(frame);
@@ -264,8 +274,6 @@ export function StarField() {
       plain.material.dispose();
       glowing.material.dispose();
       instances.dispose();
-      linkGeometry.dispose();
-      linkMaterial.dispose();
       starScene.dispose();
       composer.dispose();
       renderer.dispose();

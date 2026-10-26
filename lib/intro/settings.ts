@@ -10,12 +10,10 @@ export interface StarColor {
 export interface FieldSettings {
   /** Stars that stay behind the hero after the reveal. */
   count: number;
-  /** 0..1: how much they float. */
+  /** 0..1: how much they float and turn, like stars on water. */
   motion: number;
-  /** 0..1: how strongly they respond to the cursor. */
+  /** 0..1: how strongly the cursor sends ripples through them. */
   cursor: number;
-  /** Faint lines linking the cursor to the nearest stars. */
-  lines: boolean;
 }
 
 export interface IntroSettings {
@@ -61,7 +59,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
     { hex: "#c7ccd4", share: 30 },
     { hex: "#f2ede3", share: 25 },
   ],
-  field: { count: 36, motion: 0.3, cursor: 0.5, lines: true },
+  field: { count: 36, motion: 0.5, cursor: 0.5 },
 };
 
 export const LIMITS = {
@@ -121,7 +119,6 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       count: Math.round(num(field.count, LIMITS.fieldCount, d.field.count)),
       motion: num(field.motion, [0, 1], d.field.motion),
       cursor: num(field.cursor, [0, 1], d.field.cursor),
-      lines: bool(field.lines, d.field.lines),
     },
   };
 }

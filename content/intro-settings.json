@@ -15,5 +15,5 @@
     { "hex": "#c7ccd4", "share": 30 },
     { "hex": "#f2ede3", "share": 25 }
   ],
-  "field": { "count": 36, "motion": 0.3, "cursor": 0.5, "lines": true }
+  "field": { "count": 36, "motion": 0.5, "cursor": 0.5 }
 }

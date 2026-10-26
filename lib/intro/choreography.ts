@@ -47,6 +47,9 @@ export function starLook(settings: IntroSettings, rand: Rng): StarLook {
 
 const range = (look: StarLook, min: number, max: number) => min + look.rand() * (max - min);
 
+/** Background stars nearer the screen are bigger, farther ones smaller (on top of perspective), for a deep field. */
+export const depthSize = (z: number) => 0.5 + 0.75 * clamp01((z + 24) / 24);
+
 function randomAxis(look: StarLook) {
   return new THREE.Vector3(range(look, -1, 1), range(look, -1, 1), range(look, -1, 1)).normalize();
 }
@@ -149,7 +152,7 @@ export function planAmbient(stage: Stage, count: number, look: StarLook): Ambien
     return {
       origin: new THREE.Vector3(rand(-1.1, 1.1) * halfWidth, rand(-1.1, 1.1) * halfHeight, z),
       velocity: new THREE.Vector3(rand(-0.12, 0.12), rand(-0.1, 0.06), rand(-0.05, 0.15)),
-      size: rand(0.06, 0.2) * look.size,
+      size: rand(0.09, 0.17) * depthSize(z) * look.size,
       color: pickColorIndex(look.colorFractions, look.rand()),
       // No glowing stars right in front of the lens — they bloom into big blobs that haze the frame.
       glow: z < 1.5 && look.rand() < look.glowChance * 1.25,

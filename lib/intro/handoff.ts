@@ -3,6 +3,8 @@
 
 export interface FieldStar {
   position: [number, number, number];
+  /** Drift during the intro, in world units per second — the field carries it on and lets it settle. */
+  velocity: [number, number, number];
   axis: [number, number, number];
   angle: number;
   /** Spin speed during the intro, in radians per second. */
@@ -16,7 +18,7 @@ export interface FieldStar {
 export type Handoff =
   | { status: "waiting" }
   /** The intro ended and passed these stars on. */
-  | { status: "ready"; stars: FieldStar[]; key: number }
+  | { status: "ready"; stars: FieldStar[]; key: number; at: number }
   /** No intro this time: the field lays out its own stars. */
   | { status: "none"; key: number };
 
@@ -38,8 +40,9 @@ export function subscribeHandoff(fn: () => void) {
   };
 }
 
-export function publishFieldStars(stars: FieldStar[]) {
-  set({ status: "ready", stars, key: ++key });
+/** `at` is the performance.now() moment the positions describe, so the field can carry on from exactly then. */
+export function publishFieldStars(stars: FieldStar[], at: number) {
+  set({ status: "ready", stars, key: ++key, at });
 }
 
 /** The intro finished without passing stars on (skipped, fallback, failed): let the field lay out its own. */

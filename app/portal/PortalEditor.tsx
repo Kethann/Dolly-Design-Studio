@@ -416,7 +416,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
               onChange={(count) => updateField({ count })}
             />
             <Slider
-              label="Movement"
+              label="Floating motion"
               value={draft.field.motion}
               min={0}
               max={1}
@@ -431,14 +431,8 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
               max={1}
               step={0.05}
               format={percent}
-              hint="How much the stars lean away from the cursor."
+              hint="Moving the cursor sends soft ripples through the stars."
               onChange={(cursor) => updateField({ cursor })}
-            />
-            <Toggle
-              label="Link stars to the cursor"
-              hint="Faint gold lines to the nearest stars."
-              checked={draft.field.lines}
-              onChange={(lines) => updateField({ lines })}
             />
           </Section>
 
