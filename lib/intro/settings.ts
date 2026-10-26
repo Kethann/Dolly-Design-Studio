@@ -45,8 +45,16 @@ export interface ArtSettings {
   depth: number;
   /** Which arrangement of curves, lines and light (reshuffled from the portal). */
   seed: number;
-  /** Second colour of the gradient and the raised curved panels (the background colour is the first). */
+  /** Light end of the gradient and the raised bands (the background colour sits in the middle). */
   tone: string;
+  /** Dark end of the gradient. */
+  shadow: string;
+  /** Rotation of the whole design, in degrees. */
+  rotation: number;
+  /** 0..1: softness (blur) of the lines and edges during the intro… */
+  softIntro: number;
+  /** …and on the page after it. */
+  softPage: number;
   /** Colour of the fine lines, the edges of the curves and their glints. */
   gold: string;
   /** 0..1: how strongly the gold lines and edges show. */
@@ -87,6 +95,16 @@ export interface IntroSettings {
   glowingShare: number;
   /** Stars that form the logo. */
   formationCount: number;
+  /** 0..1: depth of field during the intro (the logo plane stays in focus). */
+  introBlur: number;
+  /** Background stars drifting around during the intro. */
+  introAmbient: number;
+  /** 0..1: how widely the formation stars sweep in (and how staggered their arrivals are). */
+  scatter: number;
+  /** 0..1: how loosely they settle around the letters (0 = exactly on the artwork). */
+  disperse: number;
+  /** How strongly the metal reflects light (separate from the glow). */
+  shine: number;
   colors: StarColor[];
   /** The stars behind the glass (plus the corner stars). */
   field: FieldSettings;
@@ -102,8 +120,8 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   glassColor: "#120204",
   glassOpacity: 0.38,
   glassFrost: 3,
-  glow: 0.5,
-  pageGlow: 0.5,
+  glow: 0.4,
+  pageGlow: 0.4,
   glowLinked: true,
   glowColor: "#ffcf7a",
   glowMatchStar: false,
@@ -111,8 +129,13 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   starDepth: 1,
   spaceDepth: 1,
   metallic: 0.55,
-  glowingShare: 12,
+  glowingShare: 8,
   formationCount: 700,
+  introBlur: 0.3,
+  introAmbient: 140,
+  scatter: 0.5,
+  disperse: 0.1,
+  shine: 0.8,
   colors: [
     { hex: "#d9a43f", share: 45 },
     { hex: "#c7ccd4", share: 30 },
@@ -120,7 +143,20 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   ],
   field: { count: 36, motion: 0.5, cursor: 0.5, depthBlur: 0.5, cornerStars: 2, cornerSize: 1, size: 1 },
   front: { count: 10, blur: 0, size: 1 },
-  art: { enabled: true, style: "waves", depth: 0.6, seed: 7, tone: "#8c1c22", gold: "#d9a648", lines: 0.6, motion: 0.4 },
+  art: {
+    enabled: true,
+    style: "waves",
+    depth: 0.6,
+    seed: 7,
+    tone: "#8c1c22",
+    shadow: "#190002",
+    rotation: 0,
+    softIntro: 0.1,
+    softPage: 0.1,
+    gold: "#d9a648",
+    lines: 0.6,
+    motion: 0.4,
+  },
 };
 
 export const LIMITS = {
@@ -182,6 +218,11 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
     metallic: num(src.metallic, LIMITS.metallic, d.metallic),
     glowingShare: num(src.glowingShare, LIMITS.glowingShare, d.glowingShare),
     formationCount: Math.round(num(src.formationCount, LIMITS.formationCount, d.formationCount)),
+    introBlur: num(src.introBlur, [0, 1], d.introBlur),
+    introAmbient: Math.round(num(src.introAmbient, [0, 400], d.introAmbient)),
+    scatter: num(src.scatter, [0, 1], d.scatter),
+    disperse: num(src.disperse, [0, 1], d.disperse),
+    shine: num(src.shine, [0.2, 1.5], d.shine),
     colors: colors.length ? colors : d.colors.map((c) => ({ ...c })),
     field: {
       count: Math.round(num(field.count, LIMITS.fieldCount, d.field.count)),
@@ -203,6 +244,10 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       depth: num(art.depth, [0, 1], d.art.depth),
       seed: Math.round(num(art.seed, [0, 1e9], d.art.seed)),
       tone: hex(art.tone, d.art.tone),
+      shadow: hex(art.shadow, d.art.shadow),
+      rotation: ((num(art.rotation, [-720, 720], d.art.rotation) % 360) + 360) % 360,
+      softIntro: num(art.softIntro, [0, 1], d.art.softIntro),
+      softPage: num(art.softPage, [0, 1], d.art.softPage),
       gold: hex(art.gold, d.art.gold),
       lines: num(art.lines, [0, 1], d.art.lines),
       motion: num(art.motion, [0, 1], d.art.motion),

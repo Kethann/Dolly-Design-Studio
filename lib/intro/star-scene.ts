@@ -19,6 +19,18 @@ export const FOV = 35;
  * - "underlay": stars on a clear background (with fog toward `background`), for the backdrop pass to paint under;
  * - "transparent": no background or fog, for a layer drawn over other layers (the renderer needs `alpha: true`).
  */
+/** The shared lighting: a soft room for reflections, a warm key light from the upper left and a cool rim. */
+export function lightStarScene(scene: THREE.Scene, envTexture: THREE.Texture) {
+  scene.environment = envTexture;
+  scene.environmentIntensity = 0.55;
+  scene.add(new THREE.HemisphereLight(0xfff3e0, 0x0b0b14, 0.3));
+  const key = new THREE.DirectionalLight(0xffd9a0, 2.1);
+  key.position.set(-4, 6, 8);
+  const rim = new THREE.DirectionalLight(0x9fb7ff, 1.1);
+  rim.position.set(6, 2, 3);
+  scene.add(key, rim);
+}
+
 export function createStarScene(
   renderer: THREE.WebGLRenderer,
   background: THREE.Color,
@@ -42,15 +54,7 @@ export function createStarScene(
   const pmrem = new THREE.PMREMGenerator(renderer);
   const room = new RoomEnvironment();
   const envTexture = pmrem.fromScene(room, 0.04).texture;
-  scene.environment = envTexture;
-  scene.environmentIntensity = 0.55;
-
-  scene.add(new THREE.HemisphereLight(0xfff3e0, 0x0b0b14, 0.3));
-  const key = new THREE.DirectionalLight(0xffd9a0, 2.1);
-  key.position.set(-4, 6, 8);
-  const rim = new THREE.DirectionalLight(0x9fb7ff, 1.1);
-  rim.position.set(6, 2, 3);
-  scene.add(key, rim);
+  lightStarScene(scene, envTexture);
 
   return {
     scene,
@@ -78,11 +82,19 @@ export function createStarComposer(
   glow: number,
   /** Painted under the stars (the backdrop), after any depth blur. */
   underlay?: Pass,
+  /** Drawn sharp over the (possibly blurred) stars, before the backdrop goes under: the logo, the big star, glitter. */
+  overlay?: THREE.Scene,
 ) {
   const composer = new EffectComposer(renderer);
   composer.setPixelRatio(dpr);
   composer.setSize(width, height);
   composer.addPass(new RenderPass(scene, camera));
+  if (overlay) {
+    const pass = new RenderPass(overlay, camera);
+    pass.clear = false; // keep the stars underneath…
+    pass.clearDepth = true; // …but don't test against depth left over from another pass
+    composer.addPass(pass);
+  }
   if (underlay) composer.addPass(underlay);
   composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), bloomStrength(glow), 0.45, 0.96));
   composer.addPass(new OutputPass());
@@ -93,10 +105,26 @@ export function createStarComposer(
  * Depth of field, focused just behind the logo plane: the nearest background stars stay crisp and the
  * farther ones go soft. Inserted before bloom. Start `aperture` at 0 and raise it to fade the blur in.
  */
-export function addDepthBlur(composer: EffectComposer, scene: THREE.Scene, camera: THREE.Camera, focus: number) {
+export function addDepthBlur(
+  composer: EffectComposer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  focus: number,
+  /** Left out of the depth measurement (e.g. a see-through glass plane that would otherwise read as near). */
+  exclude: THREE.Object3D[] = [],
+) {
   const pass = new BokehPass(scene, camera, { focus, aperture: 0, maxblur: 0.012 });
   // Keep the stars' transparency through the blur, so the backdrop can be painted underneath afterwards.
   pass.materialBokeh.fragmentShader = pass.materialBokeh.fragmentShader.replace("gl_FragColor.a = 1.0;", "");
+  if (exclude.length) {
+    const render = pass.render.bind(pass);
+    pass.render = (...args: Parameters<typeof pass.render>) => {
+      const visible = exclude.map((o) => o.visible);
+      exclude.forEach((o) => (o.visible = false));
+      render(...args);
+      exclude.forEach((o, i) => (o.visible = visible[i]));
+    };
+  }
   composer.insertPass(pass, 1);
   return pass.uniforms as { aperture: { value: number }; maxblur: { value: number }; focus: { value: number } };
 }

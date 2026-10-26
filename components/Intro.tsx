@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { Component, useEffect, useState, type ReactNode } from "react";
 import { postToPortal, useIntroSettings } from "@/lib/intro/settings-context";
 import { settleHandoff } from "@/lib/intro/handoff";
+import type { PreviewRun } from "@/lib/intro/preview-protocol";
 import { IntroFirstLight } from "./IntroFirstLight";
 
 // three.js only loads for visitors who actually get the 3D intro…
@@ -47,6 +48,7 @@ class IntroErrorBoundary extends Component<{ onError: () => void; children: Reac
 type Mode = "deciding" | "stars" | "fallback" | "done";
 
 const reportTime = (t: number) => postToPortal({ source: "dds-site", type: "time", t });
+const noop = () => {};
 
 /**
  * Plays the intro on every full load of the home page (not on deep links or
@@ -63,12 +65,14 @@ const reportTime = (t: number) => postToPortal({ source: "dds-site", type: "time
 export function Intro({ onReveal }: { onReveal: () => void }) {
   const { settings, preview, run } = useIntroSettings();
   const [mode, setMode] = useState<Mode>("deciding");
+  const [shown, setShown] = useState<PreviewRun[]>([]);
 
   /** Show the page without (or after) the 3D intro; the hero's star field then lays out its own stars. */
   function skip() {
     settleHandoff();
     onReveal();
     setMode("done");
+    setShown([]);
   }
 
   useEffect(() => {
@@ -96,6 +100,7 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
       return;
     }
     setMode(supportsWebGL() ? "stars" : "fallback");
+    setShown((runs) => [...runs, run]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run]);
 
@@ -107,6 +112,27 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, run]);
 
+  // Preview: the run being replaced stays on screen underneath until the new one has drawn, so nothing flickers.
+  if (mode === "stars" && preview && run) {
+    const latest = run.key;
+    return (
+      <>
+        {shown.map((r) => (
+          <IntroErrorBoundary key={r.key} onError={r.key === latest ? skip : noop}>
+            <StarIntro
+              onReveal={r.key === latest ? onReveal : noop}
+              onDone={r.key === latest ? skip : noop}
+              startAt={r.at}
+              paused={r.paused}
+              seed={r.seed}
+              onTime={r.key === latest ? reportTime : undefined}
+              onFirstFrame={() => setShown((runs) => runs.filter((x) => x.key >= r.key))}
+            />
+          </IntroErrorBoundary>
+        ))}
+      </>
+    );
+  }
   if (mode === "stars")
     return (
       <IntroErrorBoundary key={run?.key} onError={skip}>

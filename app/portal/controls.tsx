@@ -142,3 +142,58 @@ export function Choice<T extends string>({
     </div>
   );
 }
+
+/** A round dial for an angle: drag it, use the arrow keys, or pick a preset. */
+export function Dial({ label, hint, value, onChange }: { label: string; hint?: string; value: number; onChange: (deg: number) => void }) {
+  const id = useId();
+  function fromPointer(e: React.PointerEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dx = e.clientX - (rect.left + rect.width / 2);
+    const dy = e.clientY - (rect.top + rect.height / 2);
+    const deg = (Math.round((Math.atan2(dx, -dy) * 180) / Math.PI) + 360) % 360;
+    onChange(deg);
+  }
+  return (
+    <div className={styles.control}>
+      <div className={styles.controlRow}>
+        <span className={styles.controlLabel} id={id}>
+          {label}
+        </span>
+        <output className={styles.controlValue}>{Math.round(value)}°</output>
+      </div>
+      <div className={styles.dialRow}>
+        <div
+          className={styles.dial}
+          role="slider"
+          tabIndex={0}
+          aria-labelledby={id}
+          aria-valuemin={0}
+          aria-valuemax={359}
+          aria-valuenow={Math.round(value)}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            fromPointer(e);
+          }}
+          onPointerMove={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) fromPointer(e);
+          }}
+          onKeyDown={(e) => {
+            const step = e.shiftKey ? 15 : 5;
+            if (e.key === "ArrowRight" || e.key === "ArrowUp") onChange((value + step) % 360);
+            if (e.key === "ArrowLeft" || e.key === "ArrowDown") onChange((value - step + 360) % 360);
+          }}
+        >
+          <span className={styles.dialHand} style={{ transform: `rotate(${value}deg)` }} />
+        </div>
+        <div className={styles.dialPresets}>
+          {[0, 45, 90, 180, 270].map((deg) => (
+            <button key={deg} type="button" className={styles.dialPreset} data-on={Math.round(value) === deg} onClick={() => onChange(deg)}>
+              {deg}°
+            </button>
+          ))}
+        </div>
+      </div>
+      {hint && <p className={styles.controlHint}>{hint}</p>}
+    </div>
+  );
+}

@@ -12,11 +12,12 @@ import { createSparkleTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
 import { bigStarPose, planBigStar, waveRadius } from "@/lib/intro/big-star-path";
 import { createRng, randomSeed } from "@/lib/intro/rng";
-import { CAMERA_Z, createStarComposer, createStarInstances, createStarScene } from "@/lib/intro/star-scene";
+import { CAMERA_Z, addDepthBlur, createStarComposer, createStarInstances, createStarScene, lightStarScene } from "@/lib/intro/star-scene";
 import { backdropFogColor, createBackdropPass } from "@/lib/intro/backdrop-art";
 import { publishFieldStars, type FieldStar } from "@/lib/intro/handoff";
 import { layerOf, pickSpread } from "@/lib/intro/field-plan";
 import { createGlassPlane } from "@/lib/intro/glass-plane";
+import { createAdaptiveQuality } from "@/lib/intro/adaptive-quality";
 import { T } from "@/lib/intro/timeline";
 import {
   bezier,
@@ -34,7 +35,6 @@ import { useIntroSettings } from "@/lib/intro/settings-context";
 import styles from "./StarIntro.module.css";
 
 const LOGO_GOLD = new THREE.Color("#fff195"); // the flat gold of /images/brand/logo.svg
-const AMBIENT_COUNT = 260;
 
 /** Where the hero logo is on screen (falls back to a centred rectangle if it isn't in view). */
 function measureLogoRect() {
@@ -55,6 +55,17 @@ function pulse(t: number, start: number, peak: number, end: number) {
   return t < peak ? easeOutCubic((t - start) / (peak - start)) : 1 - easeInQuad((t - peak) / (end - peak));
 }
 
+// Scroll stays locked while any intro is on screen (in the portal preview a new run overlaps the old one briefly).
+let scrollLocks = 0;
+let unlockedOverflow = "";
+function lockScroll() {
+  if (scrollLocks++ === 0) unlockedOverflow = document.documentElement.style.overflow;
+  document.documentElement.style.overflow = "hidden";
+}
+function unlockScroll() {
+  if (--scrollLocks === 0) document.documentElement.style.overflow = unlockedOverflow;
+}
+
 export interface StarIntroProps {
   onReveal: () => void;
   onDone: () => void;
@@ -66,9 +77,11 @@ export interface StarIntroProps {
   seed?: number;
   /** Reports the playhead a few times a second (portal preview). */
   onTime?: (t: number) => void;
+  /** Called once the first frame is on screen (the preview then removes the run it replaces, without a flash). */
+  onFirstFrame?: () => void;
 }
 
-export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed, onTime }: StarIntroProps) {
+export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed, onTime, onFirstFrame }: StarIntroProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const vignetteRef = useRef<HTMLDivElement>(null);
@@ -108,9 +121,13 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const starScene = createStarScene(renderer, backdropFogColor(settings), vw / vh, "underlay");
     const { scene, camera } = starScene;
     camera.position.z = CAMERA_Z + 2;
-    // The page's premium backdrop fades in under the stars as the intro ends, matching the page exactly.
-    const backdrop = createBackdropPass(settings, vw / vh);
-    const composer = createStarComposer(renderer, scene, camera, vw, vh, dpr, glow, backdrop.pass);
+    // The premium backdrop eases in under the stars from the start; by the end it matches the page exactly.
+    const backdrop = createBackdropPass(settings, vw / vh, settings.art.softIntro);
+    // Two scenes: the stars (which can take depth blur), and a sharp layer drawn over them — the logo,
+    // the big star, the glitter and the glints — so the hero of the show is always in focus.
+    const front = new THREE.Scene();
+    lightStarScene(front, starScene.envTexture);
+    const composer = createStarComposer(renderer, scene, camera, vw, vh, dpr, glow, backdrop.pass, front);
 
     // --- stage: map the hero logo's on-screen rect onto the z = 0 plane -----
     const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
@@ -133,7 +150,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     // --- planning (all random choices come from one seeded source) ------------
     const slots = sampleLogoSlots(LOGO_BODY_PATH, LOGO_VIEWBOX.width, LOGO_VIEWBOX.height, settings.formationCount, rand);
     const formation = planFormation(stage, slots, look);
-    const ambient = planAmbient(stage, AMBIENT_COUNT, look);
+    const ambient = planAmbient(stage, settings.introAmbient, look);
     const bigPlan = planBigStar(stage, rand);
 
     // --- the crisp logo, revealed by the wave ----------------------------------------
@@ -148,11 +165,18 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const logoPlane = new THREE.Mesh(logoGeometry, reveal.material);
     logoPlane.position.set(logo.x, logo.y, 0);
     logoPlane.renderOrder = 1;
-    scene.add(logoPlane);
+    front.add(logoPlane);
 
     // --- the dark tinted glass behind the logo (the same glass the page has) ------------------
     const glass = createGlassPlane(settings, vw, vh, tanHalfFov);
     scene.add(glass.mesh);
+
+    // Depth of field, focused on the logo plane: far and very near stars soften, the logo's stars stay crisp.
+    const blur = settings.introBlur > 0 ? addDepthBlur(composer, scene, camera, CAMERA_Z + 2, [glass.mesh]) : null;
+    if (blur) {
+      blur.aperture.value = settings.introBlur * 0.0007;
+      blur.maxblur.value = 0.004 + 0.012 * settings.introBlur;
+    }
 
     // --- stars ------------------------------------------------------------------------
     const depth = 0.42 * settings.starDepth;
@@ -200,7 +224,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const bigStar = new THREE.Mesh(bigStarGeometry, bigMaterial);
     bigStar.visible = false;
     bigStar.renderOrder = 2;
-    scene.add(bigStar);
+    front.add(bigStar);
 
     // --- glitter: flight trails, the big star's trail, the wave's sparkle ----------------
     const dustGeometry = buildDustGeometry(stage, formation, bigPlan, palette, glowColor, rand);
@@ -210,7 +234,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const dust = new THREE.Points(dustGeometry, dustMaterial);
     dust.frustumCulled = false;
     dust.renderOrder = 3;
-    scene.add(dust);
+    front.add(dust);
 
     // --- light effects: small glints catching the big star's points as it lands and shivers ----
     const sparkleTexture = createSparkleTexture();
@@ -227,7 +251,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       const sprite = new THREE.Sprite(material);
       sprite.renderOrder = 4;
       sprite.visible = false;
-      scene.add(sprite);
+      front.add(sprite);
       return sprite;
     }
     const dockGlint = fxSprite();
@@ -272,6 +296,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         Math.cos(t * 0.27) * 0.15 * drift,
         THREE.MathUtils.lerp(CAMERA_Z + 2, CAMERA_Z, easeInOutCubic(clamp01(t / T.cameraSettle))),
       );
+      if (blur) blur.focus.value = camera.position.z; // the logo plane is at z = 0
 
       const wave = waveRadius(bigPlan, t);
       u.uWaveRadius.value = wave;
@@ -280,7 +305,11 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       dustMaterial.uniforms.uTime.value = t;
       const settling = easeInOutCubic(clamp01((t - T.glassStart) / (T.revealAt - T.glassStart)));
       glass.setAmount(settling);
-      backdrop.update(t, settling);
+      backdrop.update(t, {
+        // Present from the start but quiet; it reaches full strength as the glass settles over it.
+        amount: 0.55 * easeInOutCubic(clamp01(t / 2.4)) + 0.45 * settling,
+        softness: THREE.MathUtils.lerp(settings.art.softIntro, settings.art.softPage, settling),
+      });
 
       // Formation: fly in, tumble, settle and glint — tremble with the big star's shiver — then ride the wave and dissolve.
       const shiverK = t > T.shiverStart && t < T.waveStart ? easeInQuad((t - T.shiverStart) / (T.waveStart - T.shiverStart)) : 0;
@@ -358,6 +387,14 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     let raf = 0;
     let last = performance.now();
     let lastReport = 0;
+    let firstFrameShown = false;
+    const adapt = createAdaptiveQuality(dpr, (pixelRatio) => {
+      renderer.setPixelRatio(pixelRatio);
+      renderer.setSize(vw, vh, false);
+      composer.setPixelRatio(pixelRatio);
+      composer.setSize(vw, vh);
+      dustMaterial.uniforms.uProjScale.value = (vh * pixelRatio) / (2 * tanHalfFov);
+    });
 
     function markRevealed() {
       if (revealed) return;
@@ -392,8 +429,13 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       last = now;
       if (dt < 0 || dt > 0.25) dt = 1 / 60; // tab was hidden or stalled: don't jump the show forward
       if (!paused) t += dt;
+      adapt(dt);
       update(t);
       composer.render();
+      if (!firstFrameShown) {
+        firstFrameShown = true;
+        onFirstFrame?.();
+      }
       if (onTime && now - lastReport > 100) {
         lastReport = now;
         onTime(t);
@@ -411,6 +453,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const appearLater = [bigStar, glass.mesh, ...fxSprites].filter((o) => !o.visible);
     appearLater.forEach((o) => (o.visible = true));
     renderer.compile(scene, camera);
+    renderer.compile(front, camera);
     appearLater.forEach((o) => (o.visible = false));
     raf = requestAnimationFrame(frame);
 
@@ -435,15 +478,14 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       finish();
     }
 
-    const previousOverflow = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = "hidden";
+    lockScroll();
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", onResize);
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
 
     return () => {
       cancelAnimationFrame(raf);
-      document.documentElement.style.overflow = previousOverflow;
+      unlockScroll();
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("resize", onResize);
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);

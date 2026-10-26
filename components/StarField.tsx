@@ -12,6 +12,8 @@ import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
 import { GLINT_STRENGTH, createBrushedMetalTexture, createStarMaterial, createStarMaterials } from "@/lib/intro/star-material";
 import { CAMERA_Z, addDepthBlur, createStarComposer, createStarInstances, createStarScene, setBloomGlow } from "@/lib/intro/star-scene";
 import { backdropFogColor, createBackdropPass } from "@/lib/intro/backdrop-art";
+import { createGlassPasses } from "@/lib/intro/glass-pass";
+import { createAdaptiveQuality } from "@/lib/intro/adaptive-quality";
 import { pageGlowOf, type IntroSettings } from "@/lib/intro/settings";
 import styles from "./StarField.module.css";
 
@@ -60,6 +62,8 @@ interface Engine {
   cornerGeometry: THREE.BufferGeometry;
   corner: THREE.MeshPhysicalMaterial;
   backdrop: ReturnType<typeof createBackdropPass> | null;
+  glass: ReturnType<typeof createGlassPasses> | null;
+  pixelRatio: number;
   palette: THREE.Color[];
   rand: Rng;
   dispose: () => void;
@@ -84,15 +88,17 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
   const starScene = createStarScene(renderer, backdropFogColor(settings), width / height, back ? "underlay" : "transparent");
   const { scene, camera } = starScene;
   // The back layer also paints the premium backdrop under its stars (the plain background colour when it's off).
-  const backdrop = back ? createBackdropPass(settings, width / height) : null;
+  const backdrop = back ? createBackdropPass(settings, width / height, settings.art.softPage) : null;
   const composer = back ? createStarComposer(renderer, scene, camera, width, height, dpr, pageGlowOf(settings), backdrop!.pass) : null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // Focused just at the nearest background stars, so depth reads from crisp (near) to soft (far).
-  const blur =
-    composer && settings.field.depthBlur > 0 && !reducedMotion
-      ? addDepthBlur(composer, scene, camera, CAMERA_Z - FIELD_FRONT_Z)
-      : null;
-  if (blur) blur.maxblur.value = 0.004 + 0.012 * settings.field.depthBlur;
+  // (Also needed when only the intro had blur, so the hand-off can ease out of it.)
+  const anyBlur = Math.max(settings.field.depthBlur, settings.introBlur);
+  const blur = composer && anyBlur > 0 && !reducedMotion ? addDepthBlur(composer, scene, camera, CAMERA_Z - FIELD_FRONT_Z) : null;
+  if (blur) blur.maxblur.value = 0.004 + 0.012 * anyBlur;
+  // The tinted, frosted glass over the back stars (the front layer floats above it, untouched).
+  const glass = composer ? createGlassPasses(settings) : null;
+  if (composer && glass) for (const pass of glass.passes) composer.insertPass(pass, composer.passes.length - 1);
 
   const rand = createRng(randomSeed());
   const palette = settings.colors.map((c) => new THREE.Color(c.hex));
@@ -124,6 +130,8 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
     cornerGeometry,
     corner: corner.material,
     backdrop,
+    glass,
+    pixelRatio: dpr,
     palette,
     rand,
     dispose() {
@@ -135,6 +143,7 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
       glowing.material.dispose();
       starScene.dispose();
       backdrop?.dispose();
+      glass?.dispose();
       composer?.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
@@ -182,40 +191,80 @@ export function StarField({ layer }: { layer: StarLayer }) {
   const [engine, setEngine] = useState<Engine | null>(null);
   // Bumped when the browser drops this layer's graphics context, so the layer rebuilds instead of vanishing.
   const [epoch, setEpoch] = useState(0);
+  // One layout seed for the life of the layer, so changing a setting never reshuffles the stars.
+  const [seed] = useState(randomSeed);
 
   const back = layer === "back";
+  // Only settings that change how the layer is drawn rebuild its renderer and shaders. Everything else
+  // (counts, sizes, motion, frost) just re-places the stars, which is cheap and keeps the same canvas.
+  const engineKey = JSON.stringify([
+    settings.background,
+    settings.art,
+    settings.glow,
+    settings.pageGlow,
+    settings.glowLinked,
+    settings.glowColor,
+    settings.glowMatchStar,
+    settings.metallic,
+    settings.shine,
+    settings.starDepth,
+    settings.colors,
+    settings.field.depthBlur,
+    settings.introBlur,
+    settings.glassColor,
+    settings.glassOpacity,
+  ]);
   const count = back ? settings.field.count : settings.front.count;
   const needed = count > 0 || (back && settings.field.cornerStars > 0);
 
-  // 1. Prepare the layer (renderer, materials, compiled shaders) while the intro plays.
+  // Engines being replaced stay on screen (showing their last frame) until the new one has drawn — no flicker.
+  const [retired] = useState<Engine[]>(() => []); // one list for the layer's lifetime
+  const flushRetired = () => retired.splice(0).forEach((e) => e.dispose());
+
+  // 1. Prepare the layer (renderer, materials, compiled shaders) while the intro plays, and again when settings change.
   useEffect(() => {
     const wrap = wrapRef.current;
-    if (!wrap || !needed) return;
+    if (!wrap || !needed) {
+      flushRetired();
+      return;
+    }
     const built = createEngine(wrap, settings, back);
     if (!built) return;
     let cancelled = false;
+    let live = false;
     void warmUp(built).then(() => {
-      if (!cancelled) setEngine(built);
+      if (cancelled) return;
+      live = true;
+      setEngine(built);
     });
     return () => {
       cancelled = true;
-      setEngine(null);
-      built.dispose();
+      if (live) retired.push(built);
+      else built.dispose();
     };
-  }, [settings, back, needed, epoch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- flushRetired only touches the stable retire list
+  }, [engineKey, back, needed, epoch]);
+  // On unmount, dispose whatever is left (runs after the effect above has retired its engine).
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- as above
+  useEffect(() => () => flushRetired(), []);
+  const active = needed ? engine : null;
 
   // 2. Once the intro hands over (or there's no intro), place the stars and bring the layer to life.
   useEffect(() => {
     const wrap = wrapRef.current;
-    if (!wrap || !engine || handoff.status === "waiting") return;
-    const { renderer, scene, camera, composer, blur, tanHalfFov, rand } = engine;
+    if (!wrap || !active || handoff.status === "waiting") return;
+    const engine = active;
+    const { renderer, scene, camera, composer, blur, tanHalfFov } = engine;
+    const rand = createRng(seed);
     const { field } = settings;
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const finePointer = window.matchMedia("(pointer: fine)").matches;
     const motion = reducedMotion ? 0 : field.motion;
     const cursorStrength = reducedMotion || !finePointer ? 0 : field.cursor;
-    const blurAperture = field.depthBlur * 0.0007;
+    // Depth blur eases from the intro's (when its stars are handed over) to the page's.
+    const blurFrom = (handoff.status === "ready" ? settings.introBlur : 0) * 0.0007;
+    const blurTo = field.depthBlur * 0.0007;
     // Stars handed over from the intro keep the intro's glow for a moment, then ease to the page's glow.
     const pageGlow = pageGlowOf(settings);
     const startGlow = handoff.status === "ready" ? settings.glow : pageGlow;
@@ -301,6 +350,12 @@ export function StarField({ layer }: { layer: StarLayer }) {
     const ndc = new THREE.Vector3();
     let last = performance.now();
     let presence = 0;
+    const adapt = createAdaptiveQuality(engine.pixelRatio, (pixelRatio) => {
+      renderer.setPixelRatio(pixelRatio);
+      renderer.setSize(width, height, false);
+      composer?.setPixelRatio(pixelRatio);
+      composer?.setSize(width, height);
+    });
 
     function update(frameNow: number) {
       const time = Math.max(0, (frameNow - start) / 1000);
@@ -412,15 +467,20 @@ export function StarField({ layer }: { layer: StarLayer }) {
           c.start + c.spin * time,
         );
       }
-      if (blur) blur.aperture.value = blurAperture * arrive;
+      if (blur) blur.aperture.value = blurFrom + (blurTo - blurFrom) * arrive;
       const glow = startGlow + (pageGlow - startGlow) * arrive;
       engine!.glowing.emissiveIntensity = GLINT_STRENGTH * glow;
       engine!.corner.emissiveIntensity = 0.45 * glow;
       if (composer) setBloomGlow(composer, glow);
-      engine!.backdrop?.update(time);
+      // The backdrop's layers scroll and lean with the page at their own depths.
+      engine!.backdrop?.update(time, { scroll: scrolled / height, pointerX: cursorX * presence, pointerY: cursorY * presence });
+      // The glass frosts over as the page settles in.
+      engine!.glass?.setFrost(settings.glassFrost * arrive, width, height);
+      adapt(dt);
 
       if (composer) composer.render();
       else renderer.render(scene, camera);
+      if (retired.length) flushRetired();
     }
 
     // --- loop: a single still frame for reduced motion ----------------------------------
@@ -464,7 +524,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
     };
     // settings are already baked into the engine (it rebuilds when they change), so it's the engine that matters here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engine, handoff]);
+  }, [active, handoff, settings]);
 
   const softness = layer === "front" ? settings.front.blur : 0;
   return (

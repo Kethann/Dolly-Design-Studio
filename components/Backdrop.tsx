@@ -1,8 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useIntroSettings } from "@/lib/intro/settings-context";
-import { glassFill } from "@/lib/intro/glass";
 import styles from "./Backdrop.module.css";
 
 // three.js loads on its own, after the page, so it never delays the content.
@@ -10,17 +8,13 @@ const StarField = dynamic(() => import("@/components/StarField").then((m) => m.S
 
 /**
  * The site's layered background, fixed behind every page so the whole site feels like one space.
- * Back to front: background colour (on <html>) → back stars → tinted glass → front stars → page content.
+ * Back to front: the premium backdrop, the back stars and the tinted glass (all drawn by the back layer),
+ * then the front stars, then the page content.
  */
-export function Backdrop({ revealed }: { revealed: boolean }) {
-  const { settings } = useIntroSettings();
+export function Backdrop() {
   return (
-    <div className={styles.backdrop} data-revealed={revealed} aria-hidden="true">
+    <div className={styles.backdrop} aria-hidden="true">
       <StarField layer="back" />
-      <div
-        className={styles.glass}
-        style={{ backgroundColor: glassFill(settings), "--glass-frost": `${settings.glassFrost}px` } as React.CSSProperties}
-      />
       <StarField layer="front" />
     </div>
   );

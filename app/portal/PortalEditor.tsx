@@ -13,7 +13,7 @@ import {
 } from "@/lib/intro/settings";
 import { PREVIEW_PARAM, type PortalToSite, type PreviewRun, type SiteToPortal } from "@/lib/intro/preview-protocol";
 import { T } from "@/lib/intro/timeline";
-import { Choice, Section, Slider, Toggle, percent } from "./controls";
+import { Choice, Dial, Section, Slider, Toggle, percent } from "./controls";
 import styles from "./portal.module.css";
 
 const PREVIEW_W = 1440;
@@ -42,7 +42,16 @@ const TABS: { id: Tab; name: string; hint: string }[] = [
 
 type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
 
-const same = (a: IntroSettings, b: IntroSettings) => JSON.stringify(a) === JSON.stringify(b);
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** The settings the intro itself uses (page-only ones left out), to tell whether the preview needs to replay. */
+function introPart(s: IntroSettings) {
+  const { pageGlow, glowLinked, glassFrost, front, field, art, ...rest } = s;
+  void pageGlow;
+  void glowLinked;
+  void glassFrost;
+  return { ...rest, art: { ...art, softPage: 0 }, survivors: [field.count, front.count] };
+}
 
 export function PortalEditor({ initial }: { initial: IntroSettings }) {
   const router = useRouter();
@@ -142,9 +151,11 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
   useEffect(() => {
     if (!ready || sentRef.current === draft) return;
     const timer = setTimeout(() => {
+      const previous = sentRef.current;
       sentRef.current = draft;
       send({ source: "dds-portal", type: "settings", settings: draft });
       if (playheadRef.current >= T.fadeStart) return; // on the page: it and its stars already reflect the change
+      if (previous && same(introPart(previous), introPart(draft))) return; // a page-only change: the intro looks the same
       startRun(Math.min(playheadRef.current, LAST_INTRO_FRAME), true);
     }, 200);
     return () => clearTimeout(timer);
@@ -229,7 +240,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
           <span className={styles.brandName}>Dolly Studio</span>
           <span className={styles.brandDivider} aria-hidden="true" />
           <span className={styles.brandArea}>Creator portal</span>
-          <span className={styles.version}>Intro V2</span>
+          <span className={styles.version}>Intro V4</span>
         </div>
         <div className={styles.actions}>
           <span className={styles.status} data-kind={dirty ? "dirty" : save.kind} role="status">
@@ -553,7 +564,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                     </div>
                     <div className={styles.control}>
                       <div className={styles.controlRow}>
-                        <span className={styles.controlLabel}>Second colour</span>
+                        <span className={styles.controlLabel}>Light colour</span>
                         <span className={styles.colorField}>
                           <input
                             type="color"
@@ -565,8 +576,30 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                           <HexInput value={draft.art.tone} label="Gradient second colour code" onChange={(tone) => updateArt({ tone })} />
                         </span>
                       </div>
-                      <p className={styles.controlHint}>The gradient runs from the background colour to this one.</p>
+                      <p className={styles.controlHint}>The light end of the gradient and the raised bands.</p>
                     </div>
+                    <div className={styles.control}>
+                      <div className={styles.controlRow}>
+                        <span className={styles.controlLabel}>Shadow colour</span>
+                        <span className={styles.colorField}>
+                          <input
+                            type="color"
+                            aria-label="Gradient shadow colour"
+                            className={styles.swatch}
+                            value={draft.art.shadow}
+                            onChange={(e) => updateArt({ shadow: e.target.value })}
+                          />
+                          <HexInput value={draft.art.shadow} label="Gradient shadow colour code" onChange={(shadow) => updateArt({ shadow })} />
+                        </span>
+                      </div>
+                      <p className={styles.controlHint}>The dark end. The background colour sits between the two.</p>
+                    </div>
+                    <Dial
+                      label="Rotation"
+                      hint="Turn the whole design. Drag the dial, use the arrow keys, or pick a preset."
+                      value={draft.art.rotation}
+                      onChange={(rotation) => updateArt({ rotation })}
+                    />
                     <div className={styles.control}>
                       <div className={styles.controlRow}>
                         <span className={styles.controlLabel}>Line colour</span>
@@ -609,6 +642,26 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                       step={0.05}
                       format={(v) => (v === 0 ? "Still" : percent(v))}
                       onChange={(motion) => updateArt({ motion })}
+                    />
+                    <Slider
+                      label="Softness · intro"
+                      value={draft.art.softIntro}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={(v) => (v === 0 ? "Crisp" : percent(v))}
+                      hint="How soft the lines and edges are during the intro…"
+                      onChange={(softIntro) => updateArt({ softIntro })}
+                    />
+                    <Slider
+                      label="Softness · page"
+                      value={draft.art.softPage}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={(v) => (v === 0 ? "Crisp" : percent(v))}
+                      hint="…and on the page after it. The intro eases from one to the other. (The glass adds its own blur on top.)"
+                      onChange={(softPage) => updateArt({ softPage })}
                     />
                   </>
                 )}
@@ -707,6 +760,16 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   format={percent}
                   hint="Brushed, spun-metal grain on the facets."
                   onChange={(metallic) => update({ metallic })}
+                />
+                <Slider
+                  label="Shine"
+                  value={draft.shine}
+                  min={0.2}
+                  max={1.5}
+                  step={0.05}
+                  format={percent}
+                  hint="How strongly the metal reflects light. Lower it if the stars look too bright, without losing the glints."
+                  onChange={(shine) => update({ shine })}
                 />
               </Section>
 
@@ -838,6 +901,46 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   hint="How far behind and in front of the logo the stars spread."
                   onChange={(spaceDepth) => update({ spaceDepth })}
                 />
+                <Slider
+                  label="Depth blur · intro"
+                  value={draft.introBlur}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  format={(v) => (v === 0 ? "Off" : percent(v))}
+                  hint="Far and very near stars soften while the logo, its stars and the big star stay in focus."
+                  onChange={(introBlur) => update({ introBlur })}
+                />
+                <Slider
+                  label="Background stars"
+                  value={draft.introAmbient}
+                  min={0}
+                  max={400}
+                  step={10}
+                  format={(v) => (v === 0 ? "None" : String(Math.round(v)))}
+                  hint="Stars drifting around the scene while the logo forms."
+                  onChange={(introAmbient) => update({ introAmbient })}
+                />
+                <Slider
+                  label="Scatter"
+                  value={draft.scatter}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  format={percent}
+                  hint="How widely the stars sweep in, and how staggered their arrivals are."
+                  onChange={(scatter) => update({ scatter })}
+                />
+                <Slider
+                  label="Disperse"
+                  value={draft.disperse}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  format={(v) => (v === 0 ? "Tight" : percent(v))}
+                  hint="How loosely they settle around the letters."
+                  onChange={(disperse) => update({ disperse })}
+                />
               </Section>
             </>
           )}
@@ -960,6 +1063,9 @@ function randomLook(current: IntroSettings): IntroSettings {
     metallic: between(0.3, 0.85),
     spaceDepth: between(0.8, 1.3),
     formationCount: between(500, 950, 50),
+    scatter: between(0.3, 0.8),
+    disperse: between(0, 0.3),
+    shine: between(0.6, 1.1),
     glassOpacity: between(0.22, 0.5, 0.01),
     glassFrost: between(1.5, 5, 0.5),
     colors: current.colors.map((c) => ({ ...c, share: between(15, 60, 1) })),

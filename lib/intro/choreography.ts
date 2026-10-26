@@ -33,6 +33,8 @@ export interface StarLook {
   spaceDepth: number;
   glowChance: number;
   colorFractions: number[];
+  scatter: number;
+  disperse: number;
 }
 
 export function starLook(settings: IntroSettings, rand: Rng): StarLook {
@@ -42,6 +44,8 @@ export function starLook(settings: IntroSettings, rand: Rng): StarLook {
     spaceDepth: settings.spaceDepth,
     glowChance: settings.glowingShare / 100,
     colorFractions: colorFractions(settings.colors),
+    scatter: settings.scatter,
+    disperse: settings.disperse,
   };
 }
 
@@ -99,10 +103,12 @@ export function planFormation(stage: Stage, slots: LogoSlot[], look: StarLook): 
   const rand = (min: number, max: number) => range(look, min, max);
 
   return slots.map((slot) => {
+    // Disperse: how loosely the stars settle around the artwork.
+    const loose = logo.height * 0.08 * look.disperse;
     const target = new THREE.Vector3(
-      logo.x + (slot.u - 0.5) * logo.width,
-      logo.y - (slot.v - 0.5) * logo.height,
-      rand(0.05, 0.45), // just in front of the logo plane (z = 0) so they cover it until the sweep
+      logo.x + (slot.u - 0.5) * logo.width + rand(-1, 1) * loose,
+      logo.y - (slot.v - 0.5) * logo.height + rand(-1, 1) * loose,
+      rand(0.05, 0.45) + rand(0, 1.2) * look.disperse, // just in front of the logo plane (z = 0) so they cover it until the sweep
     );
 
     const z = randomStartDepth(look);
@@ -113,13 +119,15 @@ export function planFormation(stage: Stage, slots: LogoSlot[], look: StarLook): 
     // Bend the path with a control point pushed off the straight line, so stars arc in.
     const mid = start.clone().lerp(target, 0.5);
     const span = start.distanceTo(target);
-    const control = mid.add(new THREE.Vector3(rand(-0.35, 0.35) * span, rand(-0.35, 0.35) * span, rand(-1, 2)));
+    // Scatter: how wide the arcs swing (0 = nearly straight lines in).
+    const swing = 0.7 * look.scatter;
+    const control = mid.add(new THREE.Vector3(rand(-swing, swing) * span, rand(-swing, swing) * span, rand(-1, 2) * 2 * look.scatter));
 
     return {
       start,
       control,
       target,
-      delay: rand(0, 1), // the first stars are already streaming in on the very first frame
+      delay: rand(0, 0.4 + 1.2 * look.scatter), // the first stars are already streaming in on the very first frame
       duration: rand(1.4, 2.1),
       size: baseSize * rand(0.6, 1.3),
       color: pickColorIndex(look.colorFractions, look.rand()),

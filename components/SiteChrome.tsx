@@ -37,7 +37,7 @@ export function SiteChrome({
       <MotionProvider>
         <SmoothScroll />
         <PenCursor />
-        <Backdrop revealed={introDone} />
+        <Backdrop />
         {/* Painted in the background colour from the very first frame so the page never flashes before the intro mounts. */}
         {!introDone && <div className="intro-curtain" aria-hidden="true" />}
         <Intro onReveal={() => setIntroDone(true)} />

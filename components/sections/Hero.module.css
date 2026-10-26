@@ -9,21 +9,7 @@
   padding-top: var(--nav-h);
 }
 
-.frameField {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
 
-.ghostFrame {
-  position: absolute;
-  width: 90px;
-  aspect-ratio: 2 / 3;
-  border: 1px solid var(--smoke);
-  opacity: 0.5;
-  will-change: transform;
-}
 
 .logoBlock {
   position: relative;
@@ -86,8 +72,5 @@
   .scrollHint::after {
     animation: none;
     transform: translateY(0);
-  }
-  .ghostFrame {
-    transform: none !important;
   }
 }

@@ -935,3 +935,78 @@
   color: #1a1206;
   background: linear-gradient(180deg, var(--p-gold-bright), var(--p-gold));
 }
+
+/* --- rotation dial --------------------------------------------------------------------- */
+
+.dialRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.dial {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #2c2630, var(--p-raised) 70%);
+  border: 1px solid var(--p-line-strong);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    0 0 0 4px rgba(232, 176, 75, 0.06);
+  cursor: grab;
+  touch-action: none;
+}
+
+.dial:active {
+  cursor: grabbing;
+}
+
+.dialHand {
+  position: absolute;
+  left: 50%;
+  top: 7px;
+  width: 3px;
+  height: calc(50% - 7px);
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: linear-gradient(var(--p-gold-bright), var(--p-gold));
+  transform-origin: 50% 100%;
+}
+
+.dial::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--p-gold-bright);
+}
+
+.dialPresets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dialPreset {
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--p-muted);
+  border: 1px solid var(--p-line);
+}
+
+.dialPreset:hover {
+  color: var(--p-text);
+}
+
+.dialPreset[data-on="true"] {
+  color: #1a1206;
+  background: var(--p-gold);
+  border-color: var(--p-gold);
+}

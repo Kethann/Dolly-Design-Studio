@@ -114,10 +114,10 @@ export const GLINT_STRENGTH = 2.4;
 export function createStarMaterials(
   brush: THREE.Texture,
   envMap: THREE.Texture,
-  settings: { glow: number; metallic: number; glowColor: string; glowMatchStar: boolean },
+  settings: { glow: number; metallic: number; glowColor: string; glowMatchStar: boolean; shine: number },
 ) {
   const glowColor = settings.glowMatchStar ? null : new THREE.Color(settings.glowColor);
-  const common = { texture: settings.metallic, envMap, envIntensity: 0.55, glowColor };
+  const common = { texture: settings.metallic, envMap, envIntensity: 0.55 * settings.shine, glowColor };
   return {
     plain: createStarMaterial(brush, { ...common, metalness: 0.92, roughness: 0.16, glow: 0 }),
     glowing: createStarMaterial(brush, { ...common, metalness: 0.8, roughness: 0.16, glow: GLINT_STRENGTH * settings.glow }),
