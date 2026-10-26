@@ -166,7 +166,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   glowingShare: 4,
   formationCount: 450,
   introStarSize: 0.75,
-  introMetallic: 0.55,
+  introMetallic: 0.2,
   introShine: 0.5,
   introBlur: 0,
   introAmbient: 140,

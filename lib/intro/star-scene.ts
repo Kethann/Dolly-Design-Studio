@@ -85,7 +85,9 @@ export function createStarComposer(
   /** Drawn sharp over the (possibly blurred) stars, before the backdrop goes under: the logo, the big star, glitter. */
   overlay?: THREE.Scene,
 ) {
-  const composer = new EffectComposer(renderer);
+  // Multisampled (anti-aliased) buffers: without them every star edge renders jagged and shimmering.
+  const target = new THREE.WebGLRenderTarget(width * dpr, height * dpr, { type: THREE.HalfFloatType, samples: 4 });
+  const composer = new EffectComposer(renderer, target);
   composer.setPixelRatio(dpr);
   composer.setSize(width, height);
   composer.addPass(new RenderPass(scene, camera));
@@ -96,7 +98,7 @@ export function createStarComposer(
     composer.addPass(pass);
   }
   if (underlay) composer.addPass(underlay);
-  composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), bloomStrength(glow), 0.45, 0.96));
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), bloomStrength(glow), 0.15, 0.97));
   composer.addPass(new OutputPass());
   return composer;
 }

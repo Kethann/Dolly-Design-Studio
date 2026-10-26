@@ -15,7 +15,7 @@
   "metallic": 0.55,
   "glowingShare": 8,
   "formationCount": 450,
-  "introBlur": 0.3,
+  "introBlur": 0,
   "introAmbient": 140,
   "scatter": 0.2,
   "disperse": 0.05,
@@ -76,6 +76,6 @@
   "bigShine": 1,
   "bigGlow": 1,
   "introStarSize": 0.75,
-  "introMetallic": 0.55,
+  "introMetallic": 0.2,
   "introShine": 0.5
 }
