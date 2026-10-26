@@ -33,7 +33,11 @@ export interface FrontSettings {
   size: number;
 }
 
-export const ART_STYLES = ["waves", "silk", "halo", "minimal"] as const;
+export const ART_STYLES = ["waves", "silk", "halo", "minimal", "dots"] as const;
+
+/** Page groups that can each have their own Dots colours. */
+export const ART_PAGES = ["home", "work", "project"] as const;
+export type ArtPage = (typeof ART_PAGES)[number];
 export type ArtStyle = (typeof ART_STYLES)[number];
 
 /** The premium backdrop behind the stars: a deep gradient with sweeping layered curves and fine gold lines. */
@@ -61,6 +65,8 @@ export interface ArtSettings {
   lines: number;
   /** 0..1: how much the lines and curves drift. */
   motion: number;
+  /** Dots style: the two gradient colours, per page group (home page, work gallery, project pages). */
+  dots: Record<ArtPage, { a: string; b: string }>;
 }
 
 /** How the stars stream out of the core behind the logo (at the top of the page). */
@@ -198,6 +204,11 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
     tone: "#8c1c22",
     shadow: "#190002",
     rotation: 0,
+    dots: {
+      home: { a: "#1b8fb3", b: "#d23ac0" },
+      work: { a: "#1b8fb3", b: "#d23ac0" },
+      project: { a: "#1b8fb3", b: "#d23ac0" },
+    },
     softIntro: 0.1,
     softPage: 0.1,
     gold: "#d9a648",
@@ -321,6 +332,12 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       rotation: ((num(art.rotation, [-720, 720], d.art.rotation) % 360) + 360) % 360,
       softIntro: num(art.softIntro, [0, 1], d.art.softIntro),
       softPage: num(art.softPage, [0, 1], d.art.softPage),
+      dots: Object.fromEntries(
+        ART_PAGES.map((page) => {
+          const src = (art.dots && typeof art.dots === "object" ? (art.dots as Record<string, Record<string, unknown>>)[page] : null) ?? {};
+          return [page, { a: hex(src.a, d.art.dots[page].a), b: hex(src.b, d.art.dots[page].b) }];
+        }),
+      ) as Record<ArtPage, { a: string; b: string }>,
       gold: hex(art.gold, d.art.gold),
       lines: num(art.lines, [0, 1], d.art.lines),
       motion: num(art.motion, [0, 1], d.art.motion),

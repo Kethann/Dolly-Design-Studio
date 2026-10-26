@@ -6,6 +6,7 @@ import {
   DEFAULT_INTRO_SETTINGS,
   ART_STYLES,
   LIMITS,
+  type ArtPage,
   colorFractions,
   sanitizeIntroSettings,
   type FieldSettings,
@@ -72,6 +73,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
   const [draft, setDraft] = useState(initial);
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
   const [tab, setTab] = useState<Tab>("background");
+  const [dotsPage, setDotsPage] = useState<ArtPage>("home");
   const dirty = !same(saved, draft);
 
   // --- preview ------------------------------------------------------------------------
@@ -201,6 +203,10 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
   }
   function updateDial(patch: Partial<IntroSettings["dial"]>) {
     setDraft((d) => ({ ...d, dial: { ...d.dial, ...patch } }));
+    setSave({ kind: "idle" });
+  }
+  function updateDots(page: ArtPage, which: "a" | "b", hex: string) {
+    setDraft((d) => ({ ...d, art: { ...d.art, dots: { ...d.art.dots, [page]: { ...d.art.dots[page], [which]: hex } } } }));
     setSave({ kind: "idle" });
   }
   function updateArt(patch: Partial<IntroSettings["art"]>) {
@@ -369,9 +375,63 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                         { value: "silk", label: "Silk" },
                         { value: "halo", label: "Halo" },
                         { value: "minimal", label: "Minimal" },
+                        { value: "dots", label: "Dots" },
                       ]}
                       onChange={(style) => updateArt({ style })}
                     />
+                    {draft.art.style === "dots" && (
+                      <>
+                        <Choice
+                          label="Dots colours for"
+                          value={dotsPage}
+                          options={[
+                            { value: "home", label: "Home" },
+                            { value: "work", label: "Work" },
+                            { value: "project", label: "Project pages" },
+                          ]}
+                          hint="Each page can have its own two colours; the dots blend from the first to the second."
+                          onChange={setDotsPage}
+                        />
+                        {(["a", "b"] as const).map((which) => (
+                          <div key={which} className={styles.control}>
+                            <div className={styles.controlRow}>
+                              <span className={styles.controlLabel}>{which === "a" ? "Left colour" : "Right colour"}</span>
+                              <span className={styles.colorField}>
+                                <input
+                                  type="color"
+                                  aria-label={`Dots ${which === "a" ? "left" : "right"} colour`}
+                                  className={styles.swatch}
+                                  value={draft.art.dots[dotsPage][which]}
+                                  onChange={(e) => updateDots(dotsPage, which, e.target.value)}
+                                />
+                                <HexInput
+                                  value={draft.art.dots[dotsPage][which]}
+                                  label={`Dots ${which === "a" ? "left" : "right"} colour code`}
+                                  onChange={(hex) => updateDots(dotsPage, which, hex)}
+                                />
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                        <div className={styles.inlineActions}>
+                          <button
+                            type="button"
+                            className={styles.ghostButton}
+                            onClick={() =>
+                              updateArt({
+                                dots: {
+                                  home: draft.art.dots[dotsPage],
+                                  work: draft.art.dots[dotsPage],
+                                  project: draft.art.dots[dotsPage],
+                                },
+                              })
+                            }
+                          >
+                            Use these colours on every page
+                          </button>
+                        </div>
+                      </>
+                    )}
                     <div className={styles.inlineActions}>
                       <button
                         type="button"

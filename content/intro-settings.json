@@ -68,7 +68,21 @@
     "softPage": 1,
     "gold": "#d9a648",
     "lines": 0.25,
-    "motion": 0.6
+    "motion": 0.6,
+    "dots": {
+      "home": {
+        "a": "#1b8fb3",
+        "b": "#d23ac0"
+      },
+      "work": {
+        "a": "#1b8fb3",
+        "b": "#d23ac0"
+      },
+      "project": {
+        "a": "#1b8fb3",
+        "b": "#d23ac0"
+      }
+    }
   },
   "revealStyle": "wave",
   "logoGlow": {

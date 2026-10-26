@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import * as THREE from "three";
 import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { useIntroSettings } from "@/lib/intro/settings-context";
@@ -220,6 +221,9 @@ async function warmUp(engine: Engine) {
 export function StarField({ layer }: { layer: StarLayer }) {
   const { settings } = useIntroSettings();
   const wrapRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname() ?? "/";
+  // Each page group can have its own Dots colours.
+  const artPage = pathname === "/" ? "home" : pathname === "/work" ? "work" : "project";
   const handoff = useSyncExternalStore(subscribeHandoff, getHandoff, () => WAITING);
   const [engine, setEngine] = useState<Engine | null>(null);
   // Bumped when the browser drops this layer's graphics context, so the layer rebuilds instead of vanishing.
@@ -281,6 +285,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
     const cursorStrength = reducedMotion || !finePointer ? 0 : field.cursor;
     // Depth blur eases from the intro's (when its stars are handed over) to the page's.
     applyLiveSettings(engine, settings);
+    engine.backdrop?.setPage(artPage);
     const blurFrom = (handoff.status === "ready" ? settings.introBlur : 0) * 0.0007;
     const blurTo = field.depthBlur * 0.0007;
     // Stars handed over from the intro keep the intro's glow for a moment, then ease to the page's glow.
@@ -575,7 +580,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
     };
     // settings are already baked into the engine (it rebuilds when they change), so it's the engine that matters here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, handoff, settings]);
+  }, [active, handoff, settings, artPage]);
 
   const softness = layer === "front" ? settings.front.blur : 0;
   return (

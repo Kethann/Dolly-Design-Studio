@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { createRng } from "./rng";
-import { ART_STYLES, type IntroSettings } from "./settings";
+import { ART_STYLES, type ArtPage, type IntroSettings } from "./settings";
 
 /**
  * The premium backdrop, painted *under* the stars after they're rendered (and
@@ -39,6 +39,8 @@ const fragmentShader = /* glsl */ `
   uniform vec4 uB;         // gold ribbon (height, swing, frequency, phase)
   uniform vec4 uC;         // line band (height, swing, frequency, phase)
   uniform vec4 uD;         // glint spots (x1, y1, x2, mirror)
+  uniform vec3 uDotsA;     // dots style: gradient colours (left → right)
+  uniform vec3 uDotsB;
   varying vec2 vUv;
 
   // A thin line where d = 0. 'fw' is the screen-space rate of change of a *continuous* coordinate: taking
@@ -140,6 +142,39 @@ const fragmentShader = /* glsl */ `
       sparkle += glint(h, at + vec2(-0.32 / uAspect, -0.05), 0.5);
     }
 
+    if (style == 4) {
+      // Dots: wave sheets made of a fine halftone dot grid, in two layers of depth, over soft colour glows.
+      col = uBase * mix(0.95, 0.55, uDepth);
+      vec2 ga = (p - vec2(0.05, 0.8)) * vec2(1.3, 1.0);
+      vec2 gb = (p - vec2(0.95, 0.62)) * vec2(1.3, 1.0);
+      col += uDotsA * 0.3 * exp(-dot(ga, ga) * 3.0) + uDotsB * 0.38 * exp(-dot(gb, gb) * 3.2);
+      for (int k = 0; k < 2; k++) {
+        float kf = float(k);
+        vec2 a = layer(p, 0.22 + 0.28 * kf); // the far sheet drifts slower than the near one
+        float tile = floor(a.y / 1.25);
+        float y = a.y - tile * 1.25;
+        float ph = uA.w + tile * 1.9 + kf * 2.3;
+        float c = 0.62 + 0.16 * sin(a.x * (2.0 + 0.6 * kf) + ph + t * 0.08) - 0.06 * a.x;
+        float halfW = 0.2 + 0.06 * sin(a.x * 1.3 + ph);
+        float s = (y - c) / halfW; // -1 (near edge) .. 1 (far edge) across the sheet
+        if (abs(s) < 1.2) {
+          float near = clamp(0.5 - 0.5 * s, 0.0, 1.0);
+          // A grid that bends with the sheet: rows follow the wave, columns run across the screen.
+          float colW = 0.0115 + 0.003 * kf;
+          float rowH = 2.0 * halfW / 18.0;
+          vec2 cell = fract(vec2(a.x * uAspect / colW, (s + 1.0) * 9.0)) - 0.5;
+          float d = length(cell * vec2(colW, rowH));
+          float r = mix(0.0011, 0.0034, near) * (0.75 + 0.25 * kf); // nearer: bigger dots
+          float aa = 0.0007 + 0.003 * uSoft;
+          float dotMask = 1.0 - smoothstep(r - aa, r + aa, d);
+          float fade = 1.0 - smoothstep(0.65, 1.15, abs(s));
+          vec3 dc = mix(uDotsA, uDotsB, smoothstep(0.1, 0.95, p.x));
+          float hot = exp(-pow((p.x - 0.9) * 3.0, 2.0)) * near;
+          col += (dc * (1.0 + 0.8 * hot) + vec3(hot * 0.35)) * dotMask * fade * (0.3 + 0.7 * near) * (0.5 + 0.5 * kf) * (0.6 + 0.8 * uLines);
+        }
+      }
+    }
+
     // A band of fine gold lines on the nearest layer (waves and silk), quieter where the main text sits.
     if (style <= 1) {
       vec2 l = layer(p, 0.45);
@@ -222,12 +257,19 @@ export function createBackdropPass(settings: IntroSettings, aspect: number, soft
       uB: { value: new THREE.Vector4() },
       uC: { value: new THREE.Vector4() },
       uD: { value: new THREE.Vector4() },
+      uDotsA: { value: new THREE.Color() },
+      uDotsB: { value: new THREE.Color() },
     },
   });
   const pass = new ShaderPass(material);
   const u = material.uniforms;
   let seed = -1;
   /** Applies the creator's settings live (no rebuild, no flash). */
+  let page: ArtPage = "home";
+  function applyDots() {
+    (u.uDotsA.value as THREE.Color).set(art.dots[page].a);
+    (u.uDotsB.value as THREE.Color).set(art.dots[page].b);
+  }
   function apply(s: IntroSettings) {
     art = s.art;
     (u.uBase.value as THREE.Color).set(s.background);
@@ -237,6 +279,7 @@ export function createBackdropPass(settings: IntroSettings, aspect: number, soft
     u.uLines.value = art.lines;
     u.uDepth.value = art.depth;
     u.uStyle.value = Math.max(0, ART_STYLES.indexOf(art.style));
+    applyDots();
     const angle = THREE.MathUtils.degToRad(art.rotation);
     (u.uRot.value as THREE.Vector2).set(Math.cos(angle), Math.sin(angle));
     if (art.seed !== seed) {
@@ -252,6 +295,12 @@ export function createBackdropPass(settings: IntroSettings, aspect: number, soft
   return {
     pass,
     apply,
+    /** Which page group's Dots colours to use. */
+    setPage(next: ArtPage) {
+      if (next === page) return;
+      page = next;
+      applyDots();
+    },
     /**
      * `amount`: 0..1 how much of the backdrop shows (the intro eases it in); `softness`: 0..1;
      * `scroll` in screen heights; `pointerX/Y` in -1..1.
