@@ -11,7 +11,7 @@ import { createLogoRevealMaterial } from "@/lib/intro/logo-reveal-material";
 import { createSparkleTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
 import { bigStarPose, planBigStar, revealTimeAt, waveRadius } from "@/lib/intro/big-star-path";
-import { planSweep, sweepPose, sweepStamps, sweepTimeAt } from "@/lib/intro/sweep-path";
+import { planSweep, sweepPose, sweepShapeKey, sweepStamps, sweepStarShape, sweepTimeAt } from "@/lib/intro/sweep-path";
 import { addStarPattern } from "@/lib/intro/star-pattern";
 import { createRng, randomSeed } from "@/lib/intro/rng";
 import {
@@ -372,18 +372,23 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const resolution = new THREE.Vector2();
     // Settings that can change while the portal preview is open apply live, without rebuilding the scene.
     let live = settings;
+    // The Sweep star's own build (its depth, bevel, edge, facets and arms), rebuilt only when one of them changes.
+    let sweepShapeBuilt = "";
     function applyLive(s: typeof settings) {
       // Facet depth: swap the star shape in place (same shaders, so no rebuild and no flash).
       if (s.starDepth !== live.starDepth) {
         const d = 0.42 * s.starDepth;
         const nextStar = createFacetedStarGeometry({ depth: d });
-        const nextBig = createFacetedStarGeometry({ innerRadius: 0.389, depth: d });
         for (const mesh of stars.meshes) mesh.geometry = nextStar;
-        bigStar.geometry = nextBig;
         starGeometry.dispose();
-        bigStarGeometry.dispose();
         starGeometry = nextStar;
-        bigStarGeometry = nextBig;
+        // The big star follows the same depth, except in the Sweep, where it has its own shape controls.
+        if (!sweepMode) {
+          const nextBig = createFacetedStarGeometry({ innerRadius: 0.389, depth: d });
+          bigStar.geometry = nextBig;
+          bigStarGeometry.dispose();
+          bigStarGeometry = nextBig;
+        }
       }
       live = s;
       backdrop.apply(s);
@@ -527,8 +532,16 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         bigStar.visible = sp.visible;
         bigStar.position.set(sp.x, sp.y, sp.z);
         bigStar.rotation.set(sp.rotX, sp.rotY, sp.rotZ);
-        const depthK = (0.08 + 0.82 * sw.depth) / Math.max(1e-3, 0.42 * live.starDepth);
-        bigStar.scale.set(sp.scale, sp.scale, sp.scale * depthK);
+        // Its shape follows the portal's controls: rebuilt (in place, same shaders) only when one of them changes.
+        const shapeKey = sweepShapeKey(sw);
+        if (shapeKey !== sweepShapeBuilt) {
+          sweepShapeBuilt = shapeKey;
+          const next = createFacetedStarGeometry(sweepStarShape(sw));
+          bigStar.geometry = next;
+          bigStarGeometry.dispose();
+          bigStarGeometry = next;
+        }
+        bigStar.scale.setScalar(sp.scale);
         bigMaterial.color.copy(bigGold);
         bigMaterial.emissive.copy(bigEmber);
         bigMaterial.emissiveIntensity = 0.35 * sw.glow;

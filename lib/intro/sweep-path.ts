@@ -2,6 +2,7 @@ import type * as THREE from "three";
 import { T } from "./timeline";
 import { clamp01, viewHalfExtents, type Stage } from "./choreography";
 import type { SweepSettings } from "./settings";
+import type { StarShape } from "./star-geometry";
 
 /**
  * The Sweep reveal: at the reveal moment the big star crosses in front of the formed logo — from fully off one side
@@ -54,6 +55,31 @@ export function planSweep(stage: Stage, s: SweepSettings, worldPerPx: number): S
     feather: s.feather * worldPerPx,
   };
 }
+
+/**
+ * The star's build, from the portal's shape controls. Every control is clamped away from a degenerate star (a zero-
+ * thickness wall or crown would give faces with no area, which shade as black).
+ */
+export function sweepStarShape(s: Pick<SweepSettings, "depth" | "bevel" | "edge" | "facets" | "arms">): StarShape {
+  return {
+    innerRadius: 0.28 + 0.27 * s.arms, // 0.389 (the default arms) matches the logo's own star
+    depth: 0.03 + 0.9 * s.depth,
+    edge: 0.01 + 0.31 * s.edge,
+    crown: 0.85 - 0.66 * s.bevel,
+    relief: s.facets / 0.6, // the default (0.6) is the original gem cut
+  };
+}
+
+/** A stable key for the shape, so the geometry is rebuilt only when it really changes. */
+export const sweepShapeKey = (s: Pick<SweepSettings, "depth" | "bevel" | "edge" | "facets" | "arms">) =>
+  [s.depth, s.bevel, s.edge, s.facets, s.arms].map((v) => v.toFixed(3)).join("|");
+
+/** One-click looks for the star's shape. */
+export const SWEEP_SHAPE_PRESETS = {
+  minimal: { label: "Minimal", depth: 0.1, bevel: 0.12, edge: 0.06, facets: 0.08, arms: 0.4 },
+  gem: { label: "Gem", depth: 0.5, bevel: 0.5, edge: 0.5, facets: 0.6, arms: 0.4 },
+  bold: { label: "Bold", depth: 0.85, bevel: 0.75, edge: 0.65, facets: 1, arms: 0.55 },
+} as const;
 
 /** power2.inOut: an easy start, a confident middle, an easy exit. */
 const easeInOutQuad = (x: number) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);

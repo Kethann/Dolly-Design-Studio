@@ -1,8 +1,13 @@
 "use client";
 
 import type { SweepSettings } from "@/lib/intro/settings";
+import { SWEEP_SHAPE_PRESETS } from "@/lib/intro/sweep-path";
 import { Choice, Section, Slider, percent } from "./controls";
 import { StarTextureEditor } from "./StarTextureEditor";
+import styles from "./portal.module.css";
+
+/** The settings the shape presets set. */
+const SHAPE_KEYS = ["depth", "bevel", "edge", "facets", "arms"] as const;
 
 /** Portal controls for the Sweep reveal: how the big star crosses the logo, how it looks, and its texture. */
 export function SweepEditor({
@@ -93,7 +98,99 @@ export function SweepEditor({
         />
       </Section>
 
-      <Section title="Sweep star" scope="Intro" hint="The same clean, faceted gold as the background stars.">
+      <Section
+        title="Sweep star shape"
+        scope="Intro"
+        hint="Build the star's form: from a thin, flat cut-out to a deep, sharply faceted gem."
+      >
+        <div className={styles.control}>
+          <div className={styles.controlRow}>
+            <span className={styles.controlLabel}>Preset</span>
+          </div>
+          <div className={styles.choice} role="group" aria-label="Star shape presets">
+            {(Object.keys(SWEEP_SHAPE_PRESETS) as (keyof typeof SWEEP_SHAPE_PRESETS)[]).map((key) => {
+              const preset = SWEEP_SHAPE_PRESETS[key];
+              const active = SHAPE_KEYS.every((k) => Math.abs(value[k] - preset[k]) < 0.001);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={styles.choiceOption}
+                  aria-pressed={active}
+                  data-active={active}
+                  onClick={() => {
+                    onChange({
+                      depth: preset.depth,
+                      bevel: preset.bevel,
+                      edge: preset.edge,
+                      facets: preset.facets,
+                      arms: preset.arms,
+                    });
+                    onShowStar();
+                  }}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className={styles.controlHint}>
+            Minimal is a slim, nearly flat star; Gem is the default cut; Bold is deep and sharp.
+          </p>
+        </div>
+        <Slider
+          label="Depth"
+          value={value.depth}
+          min={0}
+          max={1}
+          step={0.02}
+          format={percent}
+          hint="How thick the star is. Low is a slim, nearly flat cut-out."
+          onChange={(depth) => onChange({ depth })}
+        />
+        <Slider
+          label="Bevel"
+          value={value.bevel}
+          min={0}
+          max={1}
+          step={0.02}
+          format={percent}
+          hint="How wide the angled rim around its face is. Low is a crisp, hairline edge."
+          onChange={(bevel) => onChange({ bevel })}
+        />
+        <Slider
+          label="Edge thickness"
+          value={value.edge}
+          min={0}
+          max={1}
+          step={0.02}
+          format={percent}
+          hint="The thickness of its side wall, seen as it turns side-on."
+          onChange={(edge) => onChange({ edge })}
+        />
+        <Slider
+          label="Facets"
+          value={value.facets}
+          min={0}
+          max={1}
+          step={0.02}
+          format={percent}
+          hint="How pronounced the ridges and valleys on its face are. Low is a smooth, flat crown."
+          onChange={(facets) => onChange({ facets })}
+        />
+        <Slider
+          label="Arm width"
+          value={value.arms}
+          min={0}
+          max={1}
+          step={0.02}
+          format={percent}
+          hint="Low gives thin, sharp arms; high gives broad, stubby ones."
+          onChange={(arms) => onChange({ arms })}
+        />
+      </Section>
+
+      <Section title="Sweep star finish" scope="Intro" hint="The same clean gold as the background stars.">
         <Slider
           label="Size"
           value={value.size}
@@ -103,16 +200,6 @@ export function SweepEditor({
           format={percent}
           hint="100% is a little taller than the logo."
           onChange={(size) => onChange({ size })}
-        />
-        <Slider
-          label="Depth"
-          value={value.depth}
-          min={0.05}
-          max={1}
-          step={0.05}
-          format={percent}
-          hint="How deep its faceted arms are."
-          onChange={(depth) => onChange({ depth })}
         />
         <Slider
           label="Texture"

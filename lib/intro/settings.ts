@@ -105,8 +105,16 @@ export interface SweepSettings {
   spin: number;
   /** 0..1: how far it tilts in 3D as it passes, catching the light on its facets. */
   tilt: number;
-  /** 0..1: how deep its faceted arms are. */
+  /** 0..1: how thick the star is (0 = nearly flat, a minimal cut-out). */
   depth: number;
+  /** 0..1: how wide the bevelled rim around its face is (0 = a hairline). */
+  bevel: number;
+  /** 0..1: how thick its side wall is (0 = a razor edge). */
+  edge: number;
+  /** 0..1: how pronounced its facets are (0 = a smooth flat crown, 1 = a sharp gem cut). */
+  facets: number;
+  /** 0..1: arm width (0 = thin and sharp, 1 = broad and stubby). */
+  arms: number;
   /** 0..1: the brushed-metal texture on its facets. */
   texture: number;
   /** 0..1: how much its polished gold reflects. */
@@ -179,7 +187,11 @@ function sanitizeSweep(input: unknown, d: SweepSettings): SweepSettings {
     duration: num(src.duration, [1.2, 2.4], d.duration),
     spin: num(src.spin, [-2, 2], d.spin),
     tilt: num(src.tilt, [0, 1], d.tilt),
-    depth: num(src.depth, [0.05, 1], d.depth),
+    depth: num(src.depth, [0, 1], d.depth),
+    bevel: num(src.bevel, [0, 1], d.bevel),
+    edge: num(src.edge, [0, 1], d.edge),
+    facets: num(src.facets, [0, 1], d.facets),
+    arms: num(src.arms, [0, 1], d.arms),
     texture: num(src.texture, [0, 1], d.texture),
     shine: num(src.shine, [0, 1], d.shine),
     glow: num(src.glow, [0, 1], d.glow),
@@ -348,6 +360,10 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
     spin: 0.35,
     tilt: 0.35,
     depth: 0.5,
+    bevel: 0.5,
+    edge: 0.5,
+    facets: 0.6,
+    arms: 0.4,
     texture: 0.6,
     shine: 0.6,
     glow: 0.35,

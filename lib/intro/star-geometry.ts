@@ -11,18 +11,40 @@ import * as THREE from "three";
  * silhouette is the exact star outline, so a flattened big star lines up with
  * the logo's own star pixel-for-pixel.
  */
+export interface StarShape {
+  points?: number;
+  outerRadius?: number;
+  /** Arm width: the inner radius as a fraction of the outer (smaller = thinner, sharper arms). */
+  innerRadius?: number;
+  /** Height of the apex over the middle of the star. */
+  depth?: number;
+  /** Half-thickness of the side wall, as a fraction of the depth (the default look is 0.16). */
+  edge?: number;
+  /** Where the bevelled rim ends and the crown begins, as a fraction of the outline (smaller = a wider bevel). */
+  crown?: number;
+  /**
+   * How pronounced the facets are: 1 is the default gem cut, 0 a flat crown with no ridges and valleys (minimal),
+   * above 1 sharper ridges.
+   */
+  relief?: number;
+}
+
 export function createFacetedStarGeometry({
   points = 5,
   outerRadius = 1,
   innerRadius = 0.42,
   depth = 0.42,
-}: { points?: number; outerRadius?: number; innerRadius?: number; depth?: number } = {}) {
+  edge: edgeShare = 0.16,
+  crown = 0.52,
+  relief = 1,
+}: StarShape = {}) {
   const n = points * 2;
-  const edge = depth * 0.16; // half-thickness of the side wall
-  const crown = 0.52; // crown ring, as a fraction of the outline
-  const zTip = edge + (depth - edge) * 0.62; // crown height over the arm tips (the ridges)…
-  const zValley = edge + (depth - edge) * 0.4; // …and over the valleys between arms
-  const zFold = edge + (depth - edge) * 0.34; // the fold halfway along each arm side
+  const edge = depth * edgeShare; // half-thickness of the side wall
+  // Crown heights as fractions of the climb from the rim to the apex: at relief 0 they're all level.
+  const level = 0.5;
+  const zTip = edge + (depth - edge) * (level + (0.62 - level) * relief); // over the arm tips (the ridges)…
+  const zValley = edge + (depth - edge) * (level + (0.4 - level) * relief); // …and over the valleys between arms
+  const zFold = edge + (depth - edge) * (level + (0.34 - level) * relief); // the fold halfway along each arm side
 
   const outline: THREE.Vector2[] = [];
   for (let k = 0; k < n; k++) {
