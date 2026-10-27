@@ -653,6 +653,10 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       o.style.top = "0";
       o.style.height = `${window.innerHeight}px`;
       o.style.zIndex = "40"; // under the nav and side rail, over the hero it is drawing
+      // Its lower edge melts into the page below, rather than ending in a hard line as it scrolls up.
+      const fade = "linear-gradient(to bottom, #000 78%, transparent)";
+      o.style.setProperty("-webkit-mask-image", fade);
+      o.style.setProperty("mask-image", fade);
       markRevealed();
       if (scrollLocked) {
         scrollLocked = false;
