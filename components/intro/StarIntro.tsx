@@ -72,7 +72,12 @@ function lockScroll() {
   document.documentElement.style.overflow = "hidden";
 }
 function unlockScroll() {
-  if (--scrollLocks === 0) document.documentElement.style.overflow = unlockedOverflow;
+  if (--scrollLocks === 0) {
+    document.documentElement.style.overflow = unlockedOverflow;
+    // The intro pins the page to the top while it plays; afterwards the browser remembers scroll positions again,
+    // so Back from a project returns to the exact spot.
+    if ("scrollRestoration" in history) history.scrollRestoration = "auto";
+  }
 }
 
 export interface StarIntroProps {

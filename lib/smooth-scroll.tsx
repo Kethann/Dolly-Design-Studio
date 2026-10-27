@@ -12,6 +12,17 @@ export function jumpTo(y: number) {
   else window.scrollTo({ top: y, behavior: "instant" });
 }
 
+/** Glide to a position or an element (smooth, unless the visitor prefers reduced motion). */
+export function glideTo(target: number | HTMLElement) {
+  if (active) {
+    active.scrollTo(target, { duration: 1.2, easing: (t) => 1 - Math.pow(1 - t, 4) });
+    return;
+  }
+  const top = typeof target === "number" ? target : target.getBoundingClientRect().top + window.scrollY;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top, behavior: reduced ? "instant" : "smooth" });
+}
+
 /** Mounts Lenis smooth scroll once, disabled entirely under reduced motion. */
 export function SmoothScroll() {
   const { reducedMotion } = useMotion();
