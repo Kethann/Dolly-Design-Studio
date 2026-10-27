@@ -175,14 +175,14 @@ img {
 
 .intro-curtain::after {
   background-image:
-    radial-gradient(1.4px 1.4px at 12% 18%, #ffe39a, transparent),
-    radial-gradient(1px 1px at 27% 72%, #f5c66a, transparent),
-    radial-gradient(1.6px 1.6px at 41% 33%, #fff1c2, transparent),
-    radial-gradient(1px 1px at 58% 81%, #f5c66a, transparent),
-    radial-gradient(1.3px 1.3px at 69% 24%, #ffe39a, transparent),
-    radial-gradient(1px 1px at 83% 61%, #f5c66a, transparent),
-    radial-gradient(1.5px 1.5px at 92% 12%, #fff1c2, transparent),
-    radial-gradient(1px 1px at 6% 88%, #ffe39a, transparent);
+    radial-gradient(2.4px 2.4px at 12% 18%, #ffe39a, transparent),
+    radial-gradient(1.7px 1.7px at 27% 72%, #f5c66a, transparent),
+    radial-gradient(2.7px 2.7px at 41% 33%, #fff1c2, transparent),
+    radial-gradient(1.7px 1.7px at 58% 81%, #f5c66a, transparent),
+    radial-gradient(2.2px 2.2px at 69% 24%, #ffe39a, transparent),
+    radial-gradient(1.7px 1.7px at 83% 61%, #f5c66a, transparent),
+    radial-gradient(2.5px 2.5px at 92% 12%, #fff1c2, transparent),
+    radial-gradient(1.7px 1.7px at 6% 88%, #ffe39a, transparent);
   background-size: 420px 300px;
   animation:
     curtain-in 1s ease 0.15s forwards,
