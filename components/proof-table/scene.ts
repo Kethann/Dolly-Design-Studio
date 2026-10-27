@@ -513,6 +513,7 @@ export function createProofScene(
         mine(
           new THREE.MeshBasicMaterial({
             map: sheenMap,
+            color: 0xffd98a,
             transparent: true,
             opacity: 0,
             blending: THREE.AdditiveBlending,
@@ -715,7 +716,11 @@ export function createProofScene(
       const frontZ = pl.z + Math.cos(pl.rot) * (pl.d / 2);
       pl.pivot.position.set(frontX, y + PLATE_T / 2 + st * 0.02, frontZ);
       pl.pivot.rotation.set(tiltX + pl.stand * standAngle + pl.sway.x, lerp(pl.rot, camYaw, st) + pl.sway.y, tiltZ);
-      pl.sheen.material.opacity = st * 0.5;
+      // Standing up, the card has the bright lightbox right behind it: its glass turns (nearly) solid in its own tint,
+      // so the light can't wash through it and the title stays readable. The sweep is a soft gold glint, not white.
+      const glassBase = (pl.glass.material.userData.base as number | undefined) ?? 1;
+      pl.glass.material.opacity = lerp(glassBase, Math.max(glassBase, 0.96), st) * fade;
+      pl.sheen.material.opacity = st * 0.22;
       pl.sheen.material.map!.offset.x = -(ndc.x * 0.6 + pl.sway.y);
 
       // Shadow: a soft pool when lying flat, a tight strip at its foot when standing.

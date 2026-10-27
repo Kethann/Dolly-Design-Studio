@@ -2,8 +2,8 @@
   "enabled": true,
   "background": "#460101",
   "glassColor": "#120204",
-  "glassOpacity": 0.58,
-  "glassFrost": 5.5,
+  "glassOpacity": 0.74,
+  "glassFrost": 4,
   "glow": 0.1,
   "pageGlow": 0.75,
   "glowLinked": false,
@@ -65,6 +65,126 @@
       "posters": false
     }
   },
+  "proofTable": {
+    "enabled": true,
+    "length": 1.8,
+    "cardSize": 0.8,
+    "glassColor": "#0c0806",
+    "glassOpacity": 0.85,
+    "frost": 0,
+    "reflection": 0.3,
+    "items": [
+      {
+        "src": "/images/proof-table/dacoit.webp",
+        "type": "title-png",
+        "film": "Dacoit",
+        "year": 2026,
+        "tag": "Title",
+        "slug": "dacoit",
+        "alt": "Dacoit title design",
+        "tint": "#000000"
+      },
+      {
+        "src": "/images/proof-table/korean-kanakaraju.webp",
+        "type": "title-png",
+        "film": "Korean Kanakaraju",
+        "year": 2026,
+        "tag": "Title",
+        "slug": "korean-kanakaraju",
+        "alt": "Korean Kanakaraju English title design"
+      },
+      {
+        "src": "/images/proof-table/brindhavihari.webp",
+        "type": "title-png",
+        "film": "Brindhavihari",
+        "year": 2026,
+        "tag": "Title",
+        "slug": "brindhavihari",
+        "alt": "Brindhavihari Kannada title design"
+      },
+      {
+        "src": "/images/proof-table/goodachari-2.webp",
+        "type": "title-png",
+        "film": "Goodachari 2",
+        "year": 2027,
+        "tag": "Title",
+        "slug": "goodachari-2",
+        "alt": "Goodachari 2 title design"
+      },
+      {
+        "src": "/images/proof-table/romeo-juliet.webp",
+        "type": "title-png",
+        "film": "Romeo Juliet",
+        "year": 2026,
+        "tag": "Title",
+        "slug": "romeo-juliet",
+        "alt": "Romeo Juliet title design"
+      },
+      {
+        "src": "/images/proof-table/oka-manchi-prema-katha.webp",
+        "type": "title-png",
+        "film": "Oka Manchi Prema Katha",
+        "year": 2024,
+        "tag": "Title",
+        "slug": "oka-manchi-prema-katha",
+        "alt": "Oka Manchi Prema Katha Telugu handwritten title"
+      },
+      {
+        "src": "/images/proof-table/isakapatnam.webp",
+        "type": "title-png",
+        "film": "Isakapatnam",
+        "year": 2026,
+        "tag": "Title",
+        "slug": "title-designs",
+        "alt": "Isakapatnam title design"
+      },
+      {
+        "src": "/images/proof-table/inkosaari.webp",
+        "type": "title-png",
+        "film": "Inkosaari!",
+        "year": 2025,
+        "tag": "Title",
+        "slug": "independent-films",
+        "alt": "Inkosaari neon script title design"
+      },
+      {
+        "src": "/images/proof-table/korean-kanakaraju-telugu.webp",
+        "type": "title-png",
+        "film": "Korean Kanakaraju",
+        "year": 2026,
+        "tag": "Telugu title",
+        "slug": "korean-kanakaraju",
+        "alt": "Korean Kanakaraju Telugu title design"
+      },
+      {
+        "src": "/images/proof-table/naukari.webp",
+        "type": "title-png",
+        "film": "Naukari",
+        "year": 2026,
+        "tag": "Title",
+        "slug": "title-designs",
+        "alt": "Naukari brush-script title design"
+      },
+      {
+        "src": "/images/proof-table/inkosaari-telugu.webp",
+        "type": "title-png",
+        "film": "Inkosaari!",
+        "year": 2025,
+        "tag": "Telugu title",
+        "slug": "independent-films",
+        "alt": "Inkosaari Telugu neon title design"
+      },
+      {
+        "src": "/images/proof-table/brindhavihari.webp",
+        "type": "title-png",
+        "film": "New title",
+        "year": 2026,
+        "tag": "Title",
+        "slug": "title-designs",
+        "alt": "Title design"
+      }
+    ]
+  },
   "cursor": {
     "color": "#fff195",
     "size": 1,
@@ -73,7 +193,7 @@
   },
   "dial": {
     "enabled": true,
-    "size": 0.57,
+    "size": 0.58,
     "darkness": 0.45
   },
   "art": {
