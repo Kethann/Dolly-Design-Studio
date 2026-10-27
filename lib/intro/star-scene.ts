@@ -130,6 +130,9 @@ export function addDepthBlur(
       exclude.forEach((o, i) => (o.visible = visible[i]));
     };
   }
+  // With no blur asked for, skip the pass entirely: it re-renders the scene for depth and blurs the whole screen.
+  const uniforms = pass.uniforms as { aperture: { value: number } };
+  Object.defineProperty(pass, "enabled", { get: () => uniforms.aperture.value > 1e-6, configurable: true });
   composer.insertPass(pass, 1);
   return pass.uniforms as { aperture: { value: number }; maxblur: { value: number }; focus: { value: number } };
 }

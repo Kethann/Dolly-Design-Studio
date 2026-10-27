@@ -11,7 +11,14 @@ import { starLook } from "@/lib/intro/choreography";
 import { createRng, randomSeed, type Rng } from "@/lib/intro/rng";
 import { createFacetedStarGeometry } from "@/lib/intro/star-geometry";
 import { GLINT_STRENGTH, createBrushedMetalTexture, createStarMaterial, createStarMaterials } from "@/lib/intro/star-material";
-import { CAMERA_Z, addDepthBlur, createStarComposer, createStarInstances, createStarScene, setBloomGlow } from "@/lib/intro/star-scene";
+import {
+  CAMERA_Z,
+  addDepthBlur,
+  createStarComposer,
+  createStarInstances,
+  createStarScene,
+  setBloomGlow,
+} from "@/lib/intro/star-scene";
 import { backdropFogColor, createBackdropPass } from "@/lib/intro/backdrop-art";
 import { createGlassPasses } from "@/lib/intro/glass-pass";
 import { createAdaptiveQuality } from "@/lib/intro/adaptive-quality";
@@ -85,7 +92,8 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
   }
   const width = Math.max(1, wrap.clientWidth);
   const height = Math.max(1, wrap.clientHeight);
-  const dpr = Math.min(window.devicePixelRatio, 1.25); // it runs behind every page, so keep it light
+  // It runs behind every page, so keep it light. The back layer sits under frosted glass, so 1x is visually the same.
+  const dpr = Math.min(window.devicePixelRatio, back ? 1 : 1.25);
   renderer.setPixelRatio(dpr);
   renderer.setSize(width, height, false);
   wrap.appendChild(renderer.domElement);
@@ -95,7 +103,9 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
   const { scene, camera } = starScene;
   // The back layer also paints the premium backdrop under its stars (the plain background colour when it's off).
   const backdrop = back ? createBackdropPass(settings, width / height, settings.art.softPage) : null;
-  const composer = back ? createStarComposer(renderer, scene, camera, width, height, dpr, pageGlowOf(settings), backdrop!.pass) : null;
+  const composer = back
+    ? createStarComposer(renderer, scene, camera, width, height, dpr, pageGlowOf(settings), backdrop!.pass)
+    : null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // Focused just at the nearest background stars, so depth reads from crisp (near) to soft (far).
   // (Also needed when only the intro had blur, so the hand-off can ease out of it.)
@@ -188,10 +198,16 @@ function applyLiveSettings(engine: Engine, settings: IntroSettings) {
 
 /** Compiles the exact shader variants the layer will use (instanced, glowing or not, corner stars), off the main thread where supported. */
 async function warmUp(engine: Engine) {
-  const dummy = createStarInstances(engine.geometry, engine.plain, engine.glowing, [
-    { glow: false, color: 0 },
-    { glow: true, color: 0 },
-  ], engine.palette);
+  const dummy = createStarInstances(
+    engine.geometry,
+    engine.plain,
+    engine.glowing,
+    [
+      { glow: false, color: 0 },
+      { glow: true, color: 0 },
+    ],
+    engine.palette,
+  );
   const cornerDummy = new THREE.Mesh(engine.cornerGeometry, engine.corner);
   engine.scene.add(...dummy.meshes, cornerDummy);
   // Off the main thread where the browser supports it (never waiting more than a moment); otherwise compile now.
@@ -306,7 +322,13 @@ export function StarField({ layer }: { layer: StarLayer }) {
     const streamSeed = handoff.status === "ready" ? handoff.stream.seed : seed;
     const streamList = streaming ? planStream(count, layer, settings, streamSeed) : [];
     const list: FieldStar[] = planFieldStars(count, width / height, look, layer);
-    const instances = createStarInstances(engine.geometry, engine.plain, engine.glowing, [...streamList, ...list], engine.palette);
+    const instances = createStarInstances(
+      engine.geometry,
+      engine.plain,
+      engine.glowing,
+      [...streamList, ...list],
+      engine.palette,
+    );
     const pushes = [...streamList, ...list].map(() => new THREE.Vector3());
     const flip = new THREE.Quaternion();
     scene.add(...instances.meshes);
@@ -497,7 +519,8 @@ export function StarField({ layer }: { layer: StarLayer }) {
         }
         if (lift > 0.001) {
           tiltAxis.set(-push.y, push.x, 0);
-          if (tiltAxis.lengthSq() > 1e-8) quat.premultiply(tilt.setFromAxisAngle(tiltAxis.normalize(), Math.min(0.8, lift * 0.7)));
+          if (tiltAxis.lengthSq() > 1e-8)
+            quat.premultiply(tilt.setFromAxisAngle(tiltAxis.normalize(), Math.min(0.8, lift * 0.7)));
         }
 
         scale.setScalar(Math.max(size, 1e-5));
@@ -511,7 +534,11 @@ export function StarField({ layer }: { layer: StarLayer }) {
       // Corner stars glide in from just beyond the corner after the hand-off, then turn slowly, rocking on the swell.
       for (const c of cornerStars) {
         const out = (1 - arrive) * c.mesh.scale.x * 1.4;
-        c.mesh.position.set(c.home.x + c.cx * out, c.home.y + c.cy * out + water * 0.12 * Math.sin(0.4 * time + c.phase), c.home.z);
+        c.mesh.position.set(
+          c.home.x + c.cx * out,
+          c.home.y + c.cy * out + water * 0.12 * Math.sin(0.4 * time + c.phase),
+          c.home.z,
+        );
         c.mesh.rotation.set(
           water * 0.18 * Math.sin(0.3 * time + c.phase),
           water * 0.22 * Math.sin(0.25 * time + c.phase * 1.3),
@@ -613,6 +640,11 @@ export function StarField({ layer }: { layer: StarLayer }) {
 
   const softness = layer === "front" ? settings.front.blur : 0;
   return (
-    <div ref={wrapRef} className={styles.field} style={softness > 0 ? { filter: `blur(${softness}px)` } : undefined} aria-hidden="true" />
+    <div
+      ref={wrapRef}
+      className={styles.field}
+      style={softness > 0 ? { filter: `blur(${softness}px)` } : undefined}
+      aria-hidden="true"
+    />
   );
 }

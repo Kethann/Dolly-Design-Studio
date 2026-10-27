@@ -38,7 +38,7 @@ function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2
 /** The floor: dark stage-tinted paper with a fine dot grid, printer's marks and press labels, fading out at the edges. */
 /** The clear sheet under the table: gold stars and fine crop marks only (no text, so nothing busy to scroll past). */
 function floorTexture() {
-  const S = 2048;
+  const S = 1536;
   const U = S / 24; // px per world unit (the floor plane is 24 units wide)
   return canvasTexture(S, S, (ctx) => {
     const c = (x: number) => S / 2 + x * U;
@@ -65,7 +65,7 @@ function floorTexture() {
         const a = fade * (bright ? 0.75 : 0.32);
         if (a <= 0.02) continue;
         ctx.fillStyle = bright ? `rgba(255,241,149,${a})` : `rgba(232,176,75,${a})`;
-        star(c(jx), c(jy), (bright ? 5.5 : 3) + rand() * 2.5, rand() * Math.PI);
+        star(c(jx), c(jy), ((bright ? 5.5 : 3) + rand() * 2.5) * (S / 2048), rand() * Math.PI);
       }
     }
 
@@ -116,7 +116,7 @@ function panelTexture(pw: number, pd: number) {
 
 /** A soft rounded rectangle (alpha): `inner` is the solid part (0..1 of the texture), `feather` how far it fades. */
 function softRect(inner: number, feather: number) {
-  const S = 512;
+  const S = 256; // a soft blur: smooth at this size, and quick to build
   return canvasTexture(
     S,
     S,
@@ -208,6 +208,8 @@ export interface ProofScene {
   /** Swap the cards (new slots, removed slots, a new size) without flicker: the new set replaces the old once loaded. */
   setItems: (items: ProofItem[], cardSize: number) => void;
   setGlass: (glass: GlassLook) => void;
+  /** Uploads textures and compiles shaders in idle moments, before the section is on screen. */
+  warmUp: () => Promise<void>;
   dispose: () => void;
 }
 
@@ -245,6 +247,9 @@ export function createProofScene(
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.5 : 1.75));
   renderer.setClearColor(0x000000, 0);
+  // Checking each shader right after compiling makes the browser wait for it; in production let them compile in the
+  // background instead (they're checked during development).
+  renderer.debug.checkShaderErrors = process.env.NODE_ENV !== "production";
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
@@ -351,24 +356,35 @@ export function createProofScene(
   const plateShadowTex = track(softRect(0.8, 0.1));
   const rippleTex = track(rippleTexture());
   const sheenTex = track(sheenTexture());
-  const loader = new THREE.TextureLoader();
+  // Titles are decoded off the main thread (ImageBitmap) and capped at 1024px wide: sharp on the cards at any size
+  // they're shown, a quarter of the upload work of the full files, and no decode stall while scrolling.
   const textures = new Map<string, Promise<THREE.Texture | null>>();
   const loadTexture = (src: string) => {
     if (!textures.has(src))
       textures.set(
         src,
-        new Promise((resolve) =>
-          loader.load(
-            src,
-            (tex) => {
-              tex.colorSpace = THREE.SRGBColorSpace;
-              tex.anisotropy = maxAniso;
-              resolve(track(tex));
-            },
-            undefined,
-            () => resolve(null),
-          ),
-        ),
+        fetch(src)
+          .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(String(res.status)))))
+          .then(async (blob) => {
+            const probe = await createImageBitmap(blob);
+            const width = Math.min(1024, probe.width);
+            probe.close();
+            return createImageBitmap(blob, {
+              imageOrientation: "flipY",
+              premultiplyAlpha: "none",
+              resizeWidth: width,
+              resizeQuality: "high",
+            });
+          })
+          .then((bitmap) => {
+            const tex = new THREE.Texture(bitmap);
+            tex.flipY = false; // already flipped while decoding
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.anisotropy = maxAniso;
+            tex.needsUpdate = true;
+            return track(tex);
+          })
+          .catch(() => null),
       );
     return textures.get(src)!;
   };
@@ -533,9 +549,10 @@ export function createProofScene(
     });
   }
 
+  let itemsReady: Promise<void> = Promise.resolve();
   function setItems(items: ProofItem[], cardSize: number) {
     const version = ++itemsVersion;
-    Promise.all(items.map((it) => loadTexture(it.src))).then((texs) => {
+    itemsReady = Promise.all(items.map((it) => loadTexture(it.src))).then((texs) => {
       if (disposed || version !== itemsVersion) return;
       const next = buildPlates(items, cardSize, texs);
       // Swap in one go, after everything is ready: no empty frame, no flicker.
@@ -547,6 +564,49 @@ export function createProofScene(
       for (const pl of plates) scene.add(pl.pivot, pl.shadow, pl.ripple);
       dirty = true;
     });
+  }
+
+  /**
+   * Gets the GPU ready before the section is on screen: uploads every texture one per idle moment, then compiles the
+   * shaders (in parallel where the browser supports it). So nothing stalls when you scroll into the table.
+   */
+  async function warmUp() {
+    await itemsReady;
+    const idle = () =>
+      new Promise<void>((done) =>
+        "requestIdleCallback" in window ? requestIdleCallback(() => done(), { timeout: 250 }) : setTimeout(done, 20),
+      );
+    const texs = new Set<THREE.Texture>();
+    scene.traverse((o) => {
+      const mats = (o as THREE.Mesh).material;
+      for (const m of Array.isArray(mats) ? mats : mats ? [mats] : []) {
+        const mm = m as THREE.MeshBasicMaterial;
+        if (mm.map) texs.add(mm.map);
+        if (mm.alphaMap) texs.add(mm.alphaMap);
+      }
+    });
+    for (const t of texs) {
+      if (disposed) return;
+      await idle();
+      renderer.initTexture(t);
+    }
+    if (disposed) return;
+    await idle();
+    // Compile with every card visible (they start hidden until they drop), then let update() set visibility again.
+    const hidden: THREE.Object3D[] = [];
+    scene.traverse((o) => {
+      if (!o.visible) {
+        hidden.push(o);
+        o.visible = true;
+      }
+    });
+    try {
+      await Promise.race([renderer.compileAsync(scene, camera), new Promise((done) => setTimeout(done, 3000))]);
+    } catch {
+      // A failed warm-up only means the first frame compiles instead.
+    }
+    for (const o of hidden) o.visible = false;
+    dirty = true;
   }
 
   function setGlass(next: GlassLook) {
@@ -743,5 +803,5 @@ export function createProofScene(
   }
 
   setItems(opts.items, opts.cardSize);
-  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, dispose };
+  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, warmUp, dispose };
 }

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { FullScreenQuad, Pass } from "three/examples/jsm/postprocessing/Pass.js";
 import { createRng } from "./rng";
 import { ART_STYLES, type ArtPage, type IntroSettings } from "./settings";
 
@@ -20,7 +20,6 @@ import { ART_STYLES, type ArtPage, type IntroSettings } from "./settings";
  * band and its gold edge). The centre stays calm and dark so text reads clearly.
  */
 const fragmentShader = /* glsl */ `
-  uniform sampler2D tDiffuse;
   uniform vec3 uBase;
   uniform vec3 uTone;
   uniform vec3 uShadow;
@@ -76,7 +75,6 @@ const fragmentShader = /* glsl */ `
   }
 
   void main() {
-    vec4 stars = texture2D(tDiffuse, vUv);
     // Rotate the design about the centre (keeping it round on a wide screen).
     vec2 q = (vUv - 0.5) * vec2(uAspect, 1.0);
     q = vec2(uRot.x * q.x - uRot.y * q.y, uRot.y * q.x + uRot.x * q.y);
@@ -252,9 +250,71 @@ const fragmentShader = /* glsl */ `
     col *= mix(1.0 - 0.45 * uDepth, 1.0, vig);
 
     vec3 backdrop = mix(uBase, col, uAmount);
-    gl_FragColor = vec4(stars.rgb + backdrop * (1.0 - stars.a), 1.0);
+    gl_FragColor = vec4(backdrop, 1.0);
   }
 `;
+
+/** Lays the (lower-resolution) backdrop under the stars: out = stars + backdrop × (1 − stars' alpha). */
+const compositeShader = /* glsl */ `
+  uniform sampler2D tDiffuse;
+  uniform sampler2D tArt;
+  varying vec2 vUv;
+  void main() {
+    vec4 stars = texture2D(tDiffuse, vUv);
+    gl_FragColor = vec4(stars.rgb + texture2D(tArt, vUv).rgb * (1.0 - stars.a), 1.0);
+  }
+`;
+
+/**
+ * The backdrop is drawn into its own buffer at a reduced resolution, then laid under the stars. It's soft by nature
+ * (and usually under frosted glass), so this looks the same while costing a fraction: the patterns (bubbles, dots,
+ * line bands) are the heaviest full-screen work on the page.
+ */
+class BackdropPass extends Pass {
+  scale = 1;
+  private target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+  private artQuad: FullScreenQuad;
+  private composite: THREE.ShaderMaterial;
+  private quad: FullScreenQuad;
+  private size = new THREE.Vector2(1, 1);
+
+  constructor(art: THREE.ShaderMaterial) {
+    super();
+    this.artQuad = new FullScreenQuad(art);
+    this.composite = new THREE.ShaderMaterial({
+      vertexShader,
+      fragmentShader: compositeShader,
+      uniforms: { tDiffuse: { value: null }, tArt: { value: this.target.texture } },
+    });
+    this.quad = new FullScreenQuad(this.composite);
+  }
+
+  setScale(scale: number) {
+    if (scale === this.scale) return;
+    this.scale = scale;
+    this.setSize(this.size.x, this.size.y);
+  }
+
+  setSize(width: number, height: number) {
+    this.size.set(width, height);
+    this.target.setSize(Math.max(1, Math.round(width * this.scale)), Math.max(1, Math.round(height * this.scale)));
+  }
+
+  render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget) {
+    renderer.setRenderTarget(this.target);
+    this.artQuad.render(renderer);
+    this.composite.uniforms.tDiffuse.value = readBuffer.texture;
+    renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
+    this.quad.render(renderer);
+  }
+
+  dispose() {
+    this.target.dispose();
+    this.artQuad.dispose();
+    this.quad.dispose();
+    this.composite.dispose();
+  }
+}
 
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
@@ -289,7 +349,6 @@ export function createBackdropPass(settings: IntroSettings, aspect: number, soft
     vertexShader,
     fragmentShader,
     uniforms: {
-      tDiffuse: { value: null },
       uBase: { value: new THREE.Color() },
       uTone: { value: new THREE.Color() },
       uShadow: { value: new THREE.Color() },
@@ -314,7 +373,7 @@ export function createBackdropPass(settings: IntroSettings, aspect: number, soft
       uDotGrid: { value: new THREE.Vector2(1, 1) },
     },
   });
-  const pass = new ShaderPass(material);
+  const pass = new BackdropPass(material);
   const u = material.uniforms;
   let seed = -1;
   /** Applies the creator's settings live (no rebuild, no flash). */
@@ -335,6 +394,8 @@ export function createBackdropPass(settings: IntroSettings, aspect: number, soft
     applyDots();
     (u.uBubbles.value as THREE.Vector2).set(art.bubbles.count, art.bubbles.size);
     (u.uDotGrid.value as THREE.Vector2).set(art.dotGrid.density, art.dotGrid.size);
+    // Under frosted glass nothing fine survives anyway: a lighter buffer. Crisp line styles keep full detail otherwise.
+    pass.setScale(s.glassFrost >= 2 ? 0.6 : art.style === "bubbles" || art.style === "dots" ? 0.75 : 1);
     const angle = THREE.MathUtils.degToRad(art.rotation);
     (u.uRot.value as THREE.Vector2).set(Math.cos(angle), Math.sin(angle));
     if (art.seed !== seed) {
@@ -365,7 +426,16 @@ export function createBackdropPass(settings: IntroSettings, aspect: number, soft
      * `amount`: 0..1 how much of the backdrop shows (the intro eases it in); `softness`: 0..1;
      * `scroll` in screen heights; `pointerX/Y` in -1..1.
      */
-    update(time: number, { amount = 1, softness, scroll = 0, pointerX = 0, pointerY = 0 }: { amount?: number; softness?: number; scroll?: number; pointerX?: number; pointerY?: number } = {}) {
+    update(
+      time: number,
+      {
+        amount = 1,
+        softness,
+        scroll = 0,
+        pointerX = 0,
+        pointerY = 0,
+      }: { amount?: number; softness?: number; scroll?: number; pointerX?: number; pointerY?: number } = {},
+    ) {
       u.uTime.value = time * art.motion * 2.5;
       u.uAmount.value = art.enabled ? amount : 0;
       if (softness !== undefined) u.uSoft.value = softness;

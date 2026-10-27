@@ -158,11 +158,13 @@ export function ProofTable() {
       scene.resize(r.width, r.height);
       shown = held = progress();
       setVars(shown);
-      scene.update(shown, 0);
+      // Off screen: don't draw yet (that would upload everything at once); warm the GPU up in idle moments instead.
+      if (visible) scene.update(shown, 0);
+      else void scene.warmUp();
       run();
     }
 
-    const near = new IntersectionObserver(([e]) => e.isIntersecting && init(), { rootMargin: "150% 0px" });
+    const near = new IntersectionObserver(([e]) => e.isIntersecting && init(), { rootMargin: "250% 0px" });
     near.observe(section);
     const inView = new IntersectionObserver(([e]) => {
       visible = e.isIntersecting;
