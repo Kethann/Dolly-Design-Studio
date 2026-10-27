@@ -19,14 +19,27 @@
   margin: 0 0 48px;
 }
 
+/* The list sits on a soft dark glass panel, so the text stays crisp over the moving background. */
 .list {
-  border-top: 1px solid var(--smoke);
+  padding-inline: clamp(16px, 3vw, 36px);
+  border-radius: 20px;
+  border: 1px solid rgba(232, 176, 75, 0.12);
+  background: linear-gradient(180deg, rgba(14, 6, 10, 0.5), rgba(14, 6, 10, 0.3));
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  backdrop-filter: blur(12px) saturate(1.1);
+  box-shadow:
+    0 40px 90px -40px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 241, 149, 0.07);
+}
+
+.row:last-child {
+  border-bottom: none;
 }
 
 .row {
   position: relative;
   display: grid;
-  grid-template-columns: 56px 1fr auto;
+  grid-template-columns: 108px 1fr auto;
   align-items: center;
   gap: 24px;
   padding-block: 26px;
@@ -39,13 +52,38 @@
   background: rgba(232, 176, 75, 0.05);
 }
 
+/* The number, then a soft gold curve leading into the title; it reaches further and brightens on hover. */
 .num {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--font-display);
   color: var(--gold);
   font-size: 18px;
 }
 
+.num::after {
+  content: "";
+  width: 52px;
+  height: 12px;
+  flex: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 12'%3E%3Cpath d='M1 10.5 C 14 10.5 19 1.5 47 1.5' fill='none' stroke='%23e8b04b' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E") left center / 100% 100% no-repeat;
+  -webkit-mask-image: linear-gradient(90deg, #000 35%, transparent);
+  mask-image: linear-gradient(90deg, #000 35%, transparent);
+  opacity: 0.8;
+  transition:
+    opacity 0.35s ease,
+    width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.row:hover .num::after,
+.row:focus-within .num::after {
+  width: 68px;
+  opacity: 1;
+}
+
 .name {
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
   font-family: var(--font-display);
   font-weight: 700;
   font-size: clamp(18px, 2.4vw, 26px);
@@ -53,7 +91,8 @@
 
 .desc {
   font-size: 14px;
-  opacity: 0.65;
+  opacity: 0.72;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
   max-width: 560px;
   margin-top: 6px;
 }
@@ -84,7 +123,11 @@
 
 @media (max-width: 720px) {
   .row {
-    grid-template-columns: 40px 1fr;
+    grid-template-columns: 72px 1fr;
+    gap: 14px;
+  }
+  .num::after {
+    width: 28px;
   }
   .preview {
     display: none;
