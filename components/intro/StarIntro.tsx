@@ -338,6 +338,12 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     }
 
     const dialCenterY = 1 - (px.top + px.height / 2) / vh;
+    const glowTint = new THREE.Color();
+    let glowTintDirty = false;
+    const smoothstepJs = (a: number, b: number, x: number) => {
+      const k = clamp01((x - a) / (b - a));
+      return k * k * (3 - 2 * k);
+    };
     const resolution = new THREE.Vector2();
     // Settings that can change while the portal preview is open apply live, without rebuilding the scene.
     let live = settings;
@@ -422,7 +428,15 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
           size *=
             settings.revealStyle === "wave"
               ? (1 + 0.2 * lift) * (1 - easeInQuad(clamp01((since + 0.04) / 0.2)))
-              : 1 - easeInOutCubic(clamp01(since / 0.7));
+              : 1 - easeInOutCubic(clamp01((since - 0.25) / 0.65));
+          if (settings.revealStyle === "glow") {
+            // The star itself brightens in its own colour, peaks, then fades with it.
+            const g = smoothstepJs(-0.15, 0.2, since) * (1 - smoothstepJs(0.25, 0.9, since));
+            glowTint.copy(palette[s.color] ?? glowTint.set(1, 1, 1)).multiplyScalar(1 + 2.5 * g);
+            const { mesh, index } = formationSlots[i];
+            mesh.setColorAt(index, glowTint);
+            glowTintDirty = true;
+          }
         }
         const settle = easeOutQuart(local);
         const angle = (1 - settle) * s.spinTurns * Math.PI * 2 + settle * Math.sin(t * 1.6 + s.wobblePhase) * 0.35;
@@ -449,6 +463,8 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         const { mesh, index } = streamSlots[i];
         setInstance(mesh, index, size * streamIn);
       }
+      if (glowTintDirty) for (const mesh of stars.meshes) if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      glowTintDirty = false;
       stars.markDirty();
 
       // Big star.

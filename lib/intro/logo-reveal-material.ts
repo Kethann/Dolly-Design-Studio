@@ -82,9 +82,9 @@ const fragmentShader = /* glsl */ `
       // Glow: the stars glow up first; the logo emerges through their glow, lit, and the light then eases
       // smoothly away into the original flat gold.
       float tl = uTime - uRevealStart;
-      revealed = smoothstep(0.1, 0.75, tl);
-      float rise = smoothstep(0.05, 0.4, tl);
-      float settle = 1.0 - smoothstep(0.4, 1.6, tl);
+      revealed = smoothstep(0.25, 0.9, tl);
+      float rise = smoothstep(0.15, 0.5, tl);
+      float settle = 1.0 - smoothstep(0.5, 1.8, tl);
       float flash = rise * settle * settle * (3.0 - 2.0 * settle);
       light = flash * 2.0 * uGlow;
       core = flash * flash;

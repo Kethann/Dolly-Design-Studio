@@ -173,7 +173,6 @@ export function createStarInstances(
     const mesh = s.glow ? glowMesh : plainMesh;
     const index = s.glow ? nextGlow++ : nextPlain++;
     tint.copy(palette[s.color] ?? white);
-    if (s.glow) tint.lerp(white, 0.35);
     mesh.setColorAt(index, tint);
     return { mesh, index };
   });

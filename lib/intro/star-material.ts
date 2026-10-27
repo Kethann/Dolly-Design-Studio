@@ -66,7 +66,7 @@ export function createStarMaterial(brush: THREE.Texture, opts: StarMaterialOptio
     color: 0xffffff,
     metalness: opts.metalness,
     roughness: opts.roughness,
-    clearcoat: 0.35,
+    clearcoat: 0, // a clear coat adds a white reflection that made coloured stars look silver
     clearcoatRoughness: 0.12,
     emissive: 0xffffff, // strength comes from emissiveIntensity, so the glow can be eased in and out
     emissiveIntensity: opts.glow,

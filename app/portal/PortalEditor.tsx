@@ -401,6 +401,51 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                       ]}
                       onChange={(style) => updateArt({ style })}
                     />
+                    {draft.art.style === "bubbles" && (
+                      <>
+                        <Slider
+                          label="Number of bubbles"
+                          value={draft.art.bubbles.count}
+                          min={0.05}
+                          max={0.95}
+                          step={0.05}
+                          format={percent}
+                          onChange={(count) => updateArt({ bubbles: { ...draft.art.bubbles, count } })}
+                        />
+                        <Slider
+                          label="Bubble size"
+                          value={draft.art.bubbles.size}
+                          min={0.3}
+                          max={2}
+                          step={0.05}
+                          format={percent}
+                          onChange={(size) => updateArt({ bubbles: { ...draft.art.bubbles, size } })}
+                        />
+                      </>
+                    )}
+                    {draft.art.style === "dots" && (
+                      <>
+                        <Slider
+                          label="Dot density"
+                          value={draft.art.dotGrid.density}
+                          min={0.4}
+                          max={2}
+                          step={0.05}
+                          format={percent}
+                          hint="How tightly the dots are packed."
+                          onChange={(density) => updateArt({ dotGrid: { ...draft.art.dotGrid, density } })}
+                        />
+                        <Slider
+                          label="Dot size"
+                          value={draft.art.dotGrid.size}
+                          min={0.3}
+                          max={2.5}
+                          step={0.05}
+                          format={percent}
+                          onChange={(size) => updateArt({ dotGrid: { ...draft.art.dotGrid, size } })}
+                        />
+                      </>
+                    )}
                     {(draft.art.style === "dots" || draft.art.style === "bubbles") && (
                       <>
                         <div className={styles.control}>

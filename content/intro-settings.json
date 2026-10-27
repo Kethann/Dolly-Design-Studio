@@ -116,6 +116,14 @@
         "a": "#d23ac0",
         "b": "#3a4fd8"
       }
+    },
+    "bubbles": {
+      "count": 0.45,
+      "size": 1
+    },
+    "dotGrid": {
+      "density": 1,
+      "size": 1
     }
   },
   "revealStyle": "wave",

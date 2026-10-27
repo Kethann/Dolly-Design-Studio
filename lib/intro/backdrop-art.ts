@@ -41,6 +41,8 @@ const fragmentShader = /* glsl */ `
   uniform vec4 uD;         // glint spots (x1, y1, x2, mirror)
   uniform vec3 uDotsA;     // dots style: gradient colours (left → right)
   uniform vec3 uDotsB;
+  uniform vec2 uBubbles;   // bubbles: (count 0..1, size)
+  uniform vec2 uDotGrid;   // dots: (density, dot size)
   varying vec2 vUv;
 
   // A thin line where d = 0. 'fw' is the screen-space rate of change of a *continuous* coordinate: taking
@@ -164,11 +166,11 @@ const fragmentShader = /* glsl */ `
         if (abs(s) < 1.2) {
           float near = clamp(0.5 - 0.5 * s, 0.0, 1.0);
           // A grid that bends with the sheet: rows follow the wave, columns run across the screen.
-          float colW = 0.0115 + 0.003 * kf;
-          float rowH = 2.0 * halfW / 18.0;
-          vec2 cell = fract(vec2(a.x * uAspect / colW, (s + 1.0) * 9.0)) - 0.5;
+          float colW = (0.0115 + 0.003 * kf) / uDotGrid.x;
+          float rowH = 2.0 * halfW / (18.0 * uDotGrid.x);
+          vec2 cell = fract(vec2(a.x * uAspect / colW, (s + 1.0) * 9.0 * uDotGrid.x)) - 0.5;
           float d = length(cell * vec2(colW, rowH));
-          float r = mix(0.0011, 0.0034, near) * (0.75 + 0.25 * kf); // nearer: bigger dots
+          float r = mix(0.0011, 0.0034, near) * (0.75 + 0.25 * kf) * uDotGrid.y / uDotGrid.x; // nearer: bigger dots
           float aa = 0.0007 + 0.003 * uSoft;
           float dotMask = 1.0 - smoothstep(r - aa, r + aa, d);
           float fade = 1.0 - smoothstep(0.65, 1.15, abs(s));
@@ -199,9 +201,9 @@ const fragmentShader = /* glsl */ `
           for (int i = -1; i <= 1; i++) {
             vec2 id = cellId + vec2(float(i), float(j));
             vec3 h = hash3(id + vec2(kf * 17.31, uA.w * 3.7));
-            if (h.z > 0.55) continue; // not every cell has a bubble
+            if (h.z > uBubbles.x) continue; // not every cell has a bubble
             vec3 h2 = hash3(id.yx + vec2(5.1 + kf, 9.7));
-            float radius = cellSize * mix(0.16, 0.42, h2.x);
+            float radius = min(cellSize * mix(0.16, 0.42, h2.x) * uBubbles.y, cellSize * 0.95);
             vec2 centre = (id + 0.25 + 0.5 * h.xy) * cellSize + vec2(0.0, 0.015 * sin(t * 0.35 + h2.y * 6.28));
             vec2 rel = (q - centre) / radius;
             float dd = dot(rel, rel);
@@ -308,6 +310,8 @@ export function createBackdropPass(settings: IntroSettings, aspect: number, soft
       uD: { value: new THREE.Vector4() },
       uDotsA: { value: new THREE.Color() },
       uDotsB: { value: new THREE.Color() },
+      uBubbles: { value: new THREE.Vector2(0.45, 1) },
+      uDotGrid: { value: new THREE.Vector2(1, 1) },
     },
   });
   const pass = new ShaderPass(material);
@@ -329,6 +333,8 @@ export function createBackdropPass(settings: IntroSettings, aspect: number, soft
     u.uDepth.value = art.depth;
     u.uStyle.value = Math.max(0, ART_STYLES.indexOf(art.style));
     applyDots();
+    (u.uBubbles.value as THREE.Vector2).set(art.bubbles.count, art.bubbles.size);
+    (u.uDotGrid.value as THREE.Vector2).set(art.dotGrid.density, art.dotGrid.size);
     const angle = THREE.MathUtils.degToRad(art.rotation);
     (u.uRot.value as THREE.Vector2).set(Math.cos(angle), Math.sin(angle));
     if (art.seed !== seed) {

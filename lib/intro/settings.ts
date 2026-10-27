@@ -71,6 +71,10 @@ export interface ArtSettings {
   motion: number;
   /** Dots and Bubbles styles: the two gradient colours, per page group (home page, work gallery, project pages). */
   dots: Record<ArtPage, { a: string; b: string }>;
+  /** Bubbles style: how many bubbles (0..1) and how big (1 = default). */
+  bubbles: { count: number; size: number };
+  /** Dots style: how dense the dot grid is and how big the dots are (1 = default). */
+  dotGrid: { density: number; size: number };
   /** Home page: a colour pair per section; neighbouring sections blend smoothly into each other. */
   sections: Record<ArtSection, { a: string; b: string }>;
 }
@@ -215,6 +219,8 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
       work: { a: "#1b8fb3", b: "#d23ac0" },
       project: { a: "#1b8fb3", b: "#d23ac0" },
     },
+    bubbles: { count: 0.45, size: 1 },
+    dotGrid: { density: 1, size: 1 },
     sections: {
       top: { a: "#1b8fb3", b: "#d23ac0" },
       agency: { a: "#3a4fd8", b: "#c23aa0" },
@@ -348,6 +354,14 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       rotation: ((num(art.rotation, [-720, 720], d.art.rotation) % 360) + 360) % 360,
       softIntro: num(art.softIntro, [0, 1], d.art.softIntro),
       softPage: num(art.softPage, [0, 1], d.art.softPage),
+      bubbles: {
+        count: num((art.bubbles as Record<string, unknown> | undefined)?.count, [0.05, 0.95], d.art.bubbles.count),
+        size: num((art.bubbles as Record<string, unknown> | undefined)?.size, [0.3, 2], d.art.bubbles.size),
+      },
+      dotGrid: {
+        density: num((art.dotGrid as Record<string, unknown> | undefined)?.density, [0.4, 2], d.art.dotGrid.density),
+        size: num((art.dotGrid as Record<string, unknown> | undefined)?.size, [0.3, 2.5], d.art.dotGrid.size),
+      },
       dots: Object.fromEntries(
         ART_PAGES.map((page) => {
           const src = (art.dots && typeof art.dots === "object" ? (art.dots as Record<string, Record<string, unknown>>)[page] : null) ?? {};
