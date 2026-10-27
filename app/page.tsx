@@ -7,10 +7,11 @@ import { Making } from "@/components/sections/Making";
 import { About } from "@/components/sections/About";
 import { Clients } from "@/components/sections/Clients";
 import { Contact } from "@/components/sections/Contact";
+import { ProofTable } from "@/components/proof-table/ProofTable";
 
 /**
  * The home page, in order: Intro · About the agency (statement + what we do) · Our projects ·
- * How we work · BTS / making stills · About us · Our clients · Contact us.
+ * How we work · BTS / making stills · About us · Our clients · Collaborations (the Proof Table) · Contact us.
  */
 export default function HomePage() {
   return (
@@ -23,6 +24,7 @@ export default function HomePage() {
       <Making />
       <About />
       <Clients />
+      <ProofTable />
       <Contact />
     </>
   );
