@@ -12,6 +12,7 @@ import { createSparkleTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
 import { bigStarPose, planBigStar, revealTimeAt, waveRadius } from "@/lib/intro/big-star-path";
 import { planSweep, sweepPose, sweepStamps, sweepTimeAt } from "@/lib/intro/sweep-path";
+import { addStarPattern } from "@/lib/intro/star-pattern";
 import { createRng, randomSeed } from "@/lib/intro/rng";
 import {
   CAMERA_Z,
@@ -284,6 +285,9 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     bigMaterial.color.copy(bigGold);
     bigMaterial.emissive.copy(bigEmber);
     bigMaterial.transparent = true;
+    // The Sweep star can wear an uploaded pattern (Portal › Intro › Sweep star texture).
+    const starPattern = addStarPattern(bigMaterial);
+    const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
     const bigStar = new THREE.Mesh(bigStarGeometry, bigMaterial);
     bigStar.visible = false;
     bigStar.renderOrder = 2;
@@ -534,6 +538,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         bigMaterial.bumpScale = 0.35 * sw.texture;
         big.uniforms.uTexture.value = sw.texture;
         big.uniforms.uGlint.value = 1;
+        starPattern.apply(sw.pattern, maxAnisotropy);
         bigMaterial.opacity = 1;
         u.uStarDock.value = 1; // the logo's own star is part of the logo the sweep uncovers
         const stamps = sweepStamps(sweepPlan, t, CAMERA_Z, sw.bloom, u.uSweepStamps.value as THREE.Vector4[]);
@@ -721,6 +726,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       plain.material.dispose();
       glowing.material.dispose();
       bigMaterial.dispose();
+      starPattern.dispose();
       dustMaterial.dispose();
       fxSprites.forEach((s) => s.material.dispose());
       sparkleTexture.dispose();

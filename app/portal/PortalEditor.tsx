@@ -121,7 +121,14 @@ function introLayout(s: IntroSettings) {
     s.enabled,
     s.formationCount,
     s.revealStyle,
-    s.sweep,
+    // The sweep's path (its look, texture included, updates live on the held frame).
+    s.sweep.duration,
+    s.sweep.direction,
+    s.sweep.size,
+    s.sweep.grow,
+    s.sweep.spin,
+    s.sweep.tilt,
+    s.sweep.feather,
     s.introStarSize,
     s.starSize,
     s.spaceDepth,
@@ -1387,7 +1394,12 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
                 />
               </Section>
               {draft.revealStyle === "sweep" && (
-                <SweepEditor value={draft.sweep} onChange={(patch) => update({ sweep: { ...draft.sweep, ...patch } })} />
+                <SweepEditor
+                  value={draft.sweep}
+                  onChange={(patch) => update({ sweep: { ...draft.sweep, ...patch } })}
+                  // Hold the moment the star is right over the logo, so its look and texture are easy to judge.
+                  onShowStar={() => startRun(T.docked + draft.sweep.duration * 0.5, true)}
+                />
               )}
             </>
           )}

@@ -97,7 +97,7 @@ export function ProofTableEditor({
         <Slider
           label="Scroll length"
           value={value.length}
-          min={1.4}
+          min={0.8}
           max={4}
           step={0.1}
           format={(v) => `${v.toFixed(1)} screens`}

@@ -1,5 +1,80 @@
 /* The creator portal: a quiet, dark control room, so the gold of the preview is what draws the eye. */
 
+/* --- Sweep star texture library: square tiles of each uploaded pattern ----------------------------- */
+.texGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.texItem {
+  position: relative;
+}
+
+.texTile {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 9px;
+  border: 1px solid var(--p-line-strong);
+  background-color: var(--p-raised);
+  background-size: cover;
+  background-position: center;
+  display: grid;
+  place-items: center;
+  font-size: 11.5px;
+  color: var(--p-muted);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.texTile:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(232, 176, 75, 0.6);
+}
+
+.texTile[data-active="true"] {
+  border-color: var(--p-gold);
+  box-shadow:
+    0 0 0 2px rgba(232, 176, 75, 0.35),
+    0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.texNone {
+  font-size: 12px;
+  color: var(--p-text);
+}
+
+.texUpload {
+  border-style: dashed;
+  color: var(--p-gold-bright);
+}
+
+.texRemove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--p-text);
+  background: #2a1714;
+  border: 1px solid rgba(255, 143, 122, 0.5);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.texItem:hover .texRemove,
+.texRemove:focus-visible {
+  opacity: 1;
+}
+
 .shell,
 .loginShell {
   --p-bg: #0c0a0d;

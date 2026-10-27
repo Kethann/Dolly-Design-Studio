@@ -121,6 +121,55 @@ export interface SweepSettings {
   bloom: number;
   /** "rtl": enters from the right, leaves left; "ltr": the other way. */
   direction: "rtl" | "ltr";
+  /** An uploaded image laid over the star like a pattern overlay. */
+  pattern: StarPattern;
+}
+
+export type PatternBlend = "normal" | "multiply" | "overlay" | "screen" | "soft-light";
+export const PATTERN_BLENDS: PatternBlend[] = ["normal", "multiply", "overlay", "screen", "soft-light"];
+
+export interface StarPattern {
+  /** The image (an upload in /images/textures/), or null for none. */
+  src: string | null;
+  blend: PatternBlend;
+  /** 0..1: how strongly it shows (like a layer's opacity). */
+  amount: number;
+  /** Size of one tile: 1 = one tile across the whole star; smaller repeats it. */
+  scale: number;
+  /** Turn of the pattern, in degrees. */
+  rotation: number;
+  /** 0..1: how deeply it's pressed into the metal, so it catches the light. */
+  relief: number;
+  /** A colour laid over the pattern, and how much of it. */
+  tint: string;
+  tintAmount: number;
+}
+
+const DEFAULT_PATTERN: StarPattern = {
+  src: null,
+  blend: "overlay",
+  amount: 0.8,
+  scale: 1,
+  rotation: 0,
+  relief: 0.4,
+  tint: "#ffffff",
+  tintAmount: 0,
+};
+
+function sanitizePattern(input: unknown, d: StarPattern): StarPattern {
+  const src = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const image =
+    typeof src.src === "string" && /^\/images\/textures\/[\w\-.]+$/.test(src.src) && !src.src.includes("..") ? src.src : null;
+  return {
+    src: src.src === null ? null : (image ?? d.src),
+    blend: PATTERN_BLENDS.includes(src.blend as PatternBlend) ? (src.blend as PatternBlend) : d.blend,
+    amount: num(src.amount, [0, 1], d.amount),
+    scale: num(src.scale, [0.1, 4], d.scale),
+    rotation: num(src.rotation, [-180, 180], d.rotation),
+    relief: num(src.relief, [0, 1], d.relief),
+    tint: hex(src.tint, d.tint),
+    tintAmount: num(src.tintAmount, [0, 1], d.tintAmount),
+  };
 }
 
 function sanitizeSweep(input: unknown, d: SweepSettings): SweepSettings {
@@ -138,6 +187,7 @@ function sanitizeSweep(input: unknown, d: SweepSettings): SweepSettings {
     feather: num(src.feather, [6, 120], d.feather),
     bloom: num(src.bloom, [0, 2], d.bloom),
     direction: src.direction === "ltr" ? "ltr" : src.direction === "rtl" ? "rtl" : d.direction,
+    pattern: sanitizePattern(src.pattern, d.pattern),
   };
 }
 
@@ -182,7 +232,7 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
     : d.items;
   return {
     enabled: bool(src.enabled, d.enabled),
-    length: num(src.length, [1.4, 4], d.length),
+    length: num(src.length, [0.8, 4], d.length),
     cardSize: num(src.cardSize, [0.4, 1], d.cardSize),
     glassColor: hex(src.glassColor, d.glassColor),
     glassOpacity: num(src.glassOpacity, [0.15, 1], d.glassOpacity),
@@ -305,6 +355,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
     feather: 30,
     bloom: 0.9,
     direction: "rtl",
+    pattern: DEFAULT_PATTERN,
   },
   formationCount: 450,
   introStarSize: 0.75,
@@ -336,7 +387,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   cursor: { color: "#fff195", size: 1, glow: 0.3, logoColor: "#ffffff" },
   proofTable: {
     enabled: true,
-    length: 1.8,
+    length: 1.3,
     cardSize: 0.8,
     glassColor: "#0c0806",
     glassOpacity: 0.85,

@@ -2,9 +2,19 @@
 
 import type { SweepSettings } from "@/lib/intro/settings";
 import { Choice, Section, Slider, percent } from "./controls";
+import { StarTextureEditor } from "./StarTextureEditor";
 
-/** Portal controls for the Sweep reveal: how the big star crosses the logo, and how it looks. */
-export function SweepEditor({ value, onChange }: { value: SweepSettings; onChange: (patch: Partial<SweepSettings>) => void }) {
+/** Portal controls for the Sweep reveal: how the big star crosses the logo, how it looks, and its texture. */
+export function SweepEditor({
+  value,
+  onChange,
+  onShowStar,
+}: {
+  value: SweepSettings;
+  onChange: (patch: Partial<SweepSettings>) => void;
+  /** Holds the preview with the star over the logo. */
+  onShowStar: () => void;
+}) {
   return (
     <>
       <Section
@@ -135,6 +145,12 @@ export function SweepEditor({ value, onChange }: { value: SweepSettings; onChang
           onChange={(glow) => onChange({ glow })}
         />
       </Section>
+
+      <StarTextureEditor
+        value={value.pattern}
+        onChange={(patch) => onChange({ pattern: { ...value.pattern, ...patch } })}
+        onShowStar={onShowStar}
+      />
     </>
   );
 }

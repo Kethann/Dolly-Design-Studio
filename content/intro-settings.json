@@ -67,7 +67,7 @@
   },
   "proofTable": {
     "enabled": true,
-    "length": 1.8,
+    "length": 1.3,
     "cardSize": 0.8,
     "glassColor": "#0c0806",
     "glassOpacity": 0.85,
