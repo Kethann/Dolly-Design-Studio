@@ -1,0 +1,46 @@
+/* Laid exactly over the hovered logo (position and size set from JS). */
+.overlay {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 150; /* over the nav, under the pen cursor */
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+
+.overlay[data-on] {
+  opacity: 1;
+}
+
+/* A light pool around the cursor, cut to the logo's own shape. */
+.shape {
+  position: absolute;
+  inset: 0;
+  -webkit-mask: var(--mask) center / 100% 100% no-repeat;
+  mask: var(--mask) center / 100% 100% no-repeat;
+  background: radial-gradient(
+    circle var(--glow-spread) at var(--gx) var(--gy),
+    var(--glow-color),
+    color-mix(in srgb, var(--glow-color) 40%, transparent) 45%,
+    transparent 100%
+  );
+}
+
+/* The letters themselves light up near the cursor. */
+.core {
+  opacity: var(--glow-intensity);
+  mix-blend-mode: plus-lighter;
+}
+
+/* A soft halo spreading off the lit letters. */
+.halo {
+  position: absolute;
+  inset: 0;
+  opacity: var(--glow-intensity);
+  filter: blur(calc(var(--glow-spread) / 14)) brightness(1.4);
+  mix-blend-mode: plus-lighter;
+}

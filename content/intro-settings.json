@@ -131,6 +131,19 @@
     "enabled": true,
     "intensity": 0.7,
     "spread": 180,
-    "color": "#ffe7a0"
+    "color": "#ffe7a0",
+    "places": {
+      "heroLogo": true,
+      "navLogo": true,
+      "titles": false,
+      "links": false,
+      "posters": false
+    }
+  },
+  "cursor": {
+    "color": "#fff195",
+    "size": 1,
+    "glow": 0.3,
+    "logoColor": "#ffffff"
   }
 }

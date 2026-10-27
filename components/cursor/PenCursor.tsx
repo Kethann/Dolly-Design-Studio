@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { useMotion } from "@/lib/motion";
+import { useIntroSettings } from "@/lib/intro/settings-context";
 import { NIB_PATH, NIB_VIEWBOX } from "@/content/generated/nib-path";
 import { sharedLabels } from "@/content/pages";
 import styles from "./PenCursor.module.css";
@@ -14,12 +15,14 @@ import styles from "./PenCursor.module.css";
  */
 export function PenCursor() {
   const { reducedMotion, isTouch } = useMotion();
+  const { color, size, glow, logoColor } = useIntroSettings().settings.cursor;
 
   const penRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
   const [state, setState] = useState<"idle" | "link" | "poster">("idle");
   const [visible, setVisible] = useState(false);
+  const [onLogo, setOnLogo] = useState(false);
 
   const enabled = !isTouch && !reducedMotion;
 
@@ -58,6 +61,8 @@ export function PenCursor() {
       el instanceof Element ? el.closest<HTMLElement>("[data-cursor]") : null;
 
     function onOver(e: PointerEvent) {
+      // Over a logo the pen turns its own colour, so it never disappears into the gold.
+      setOnLogo(e.target instanceof Element && !!e.target.closest("[data-cursor-logo]"));
       const target = resolve(e.target);
       if (!target) return;
       const kind = target.dataset.cursor === "poster" ? "poster" : "link";
@@ -104,10 +109,21 @@ export function PenCursor() {
   return (
     <div className={styles.layer} aria-hidden="true">
       <div ref={frameRef} className={styles.posterFrame} />
-      <div ref={penRef} className={styles.pen} style={{ opacity: visible ? 1 : 0 }}>
+      <div
+        ref={penRef}
+        className={styles.pen}
+        style={
+          {
+            opacity: visible ? 1 : 0,
+            "--pen-size": size,
+            "--pen-color": onLogo ? logoColor : color,
+            "--pen-glow": glow,
+          } as React.CSSProperties
+        }
+      >
         <div className={`${styles.nib} ${state !== "idle" ? styles.nibActive : ""}`}>
           <svg viewBox={NIB_VIEWBOX} width="30">
-            <path d={NIB_PATH} fill="var(--gold-bright)" />
+            <path d={NIB_PATH} />
           </svg>
         </div>
         <span ref={labelRef} className={`${styles.label} ${state === "poster" ? styles.labelVisible : ""}`} />

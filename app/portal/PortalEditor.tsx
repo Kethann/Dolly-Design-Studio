@@ -12,11 +12,37 @@ import {
   sanitizeIntroSettings,
   type FieldSettings,
   type IntroSettings,
+  GLOW_PLACES,
+  type GlowPlace,
 } from "@/lib/intro/settings";
 import { PREVIEW_PARAM, type PortalToSite, type PreviewRun, type SiteToPortal } from "@/lib/intro/preview-protocol";
 import { T } from "@/lib/intro/timeline";
 import { Choice, Dial, Section, Slider, Toggle, percent } from "./controls";
 import styles from "./portal.module.css";
+
+const GLOW_PLACE_LABELS: Record<GlowPlace, string> = {
+  heroLogo: "Main logo (top of the home page)",
+  navLogo: "Corner logo (top left)",
+  titles: "Section titles",
+  links: "Menu links",
+  posters: "Project posters",
+};
+
+/** A colour picker with its hex code beside it. */
+function ColorRow({ label, hint, value, onChange }: { label: string; hint?: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className={styles.control}>
+      <div className={styles.controlRow}>
+        <span className={styles.controlLabel}>{label}</span>
+        <span className={styles.colorField}>
+          <input type="color" aria-label={label} className={styles.swatch} value={value} onChange={(e) => onChange(e.target.value)} />
+          <HexInput value={value} label={`${label} code`} onChange={onChange} />
+        </span>
+      </div>
+      {hint && <p className={styles.controlHint}>{hint}</p>}
+    </div>
+  );
+}
 
 const PREVIEW_W = 1440;
 const PREVIEW_H = 810;
@@ -215,6 +241,10 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
   }
   function updateLogoGlow(patch: Partial<IntroSettings["logoGlow"]>) {
     setDraft((d) => ({ ...d, logoGlow: { ...d.logoGlow, ...patch } }));
+    setSave({ kind: "idle" });
+  }
+  function updateCursor(patch: Partial<IntroSettings["cursor"]>) {
+    setDraft((d) => ({ ...d, cursor: { ...d.cursor, ...patch } }));
     setSave({ kind: "idle" });
   }
   function updateDial(patch: Partial<IntroSettings["dial"]>) {
@@ -1068,37 +1098,53 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                 />
               </Section>
 
-              <Section
-                title="Logo hover glow"
-                scope="Page"
-                hint="The part of the logo around the cursor lights up, with a soft halo."
-              >
-                <Toggle
-                  label="Glow on hover"
-                  checked={draft.logoGlow.enabled}
-                  onChange={(enabled) => updateLogoGlow({ enabled })}
+              <Section title="Cursor" scope="Page" hint="The pen that follows the mouse.">
+                <ColorRow label="Pen colour" value={draft.cursor.color} onChange={(color) => updateCursor({ color })} />
+                <ColorRow
+                  label="Colour over the logo"
+                  hint="The pen switches to this colour on the logos, so it stays visible on the gold."
+                  value={draft.cursor.logoColor}
+                  onChange={(logoColor) => updateCursor({ logoColor })}
                 />
+                <Slider
+                  label="Pen size"
+                  value={draft.cursor.size}
+                  min={0.6}
+                  max={2}
+                  step={0.05}
+                  format={percent}
+                  onChange={(size) => updateCursor({ size })}
+                />
+                <Slider
+                  label="Pen glow"
+                  value={draft.cursor.glow}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  format={percent}
+                  hint="A soft light around the pen, in its own colour."
+                  onChange={(glow) => updateCursor({ glow })}
+                />
+              </Section>
+
+              <Section title="Cursor glow" scope="Page" hint="Things light up around the cursor as it passes over them.">
+                <Toggle label="Glow on hover" checked={draft.logoGlow.enabled} onChange={(enabled) => updateLogoGlow({ enabled })} />
                 {draft.logoGlow.enabled && (
                   <>
-                    <div className={styles.control}>
-                      <div className={styles.controlRow}>
-                        <span className={styles.controlLabel}>Glow colour</span>
-                        <span className={styles.colorField}>
+                    <fieldset className={styles.places}>
+                      <legend className={styles.controlLabel}>Where it glows</legend>
+                      {GLOW_PLACES.map((place) => (
+                        <label key={place} className={styles.place}>
                           <input
-                            type="color"
-                            aria-label="Logo glow colour"
-                            className={styles.swatch}
-                            value={draft.logoGlow.color}
-                            onChange={(e) => updateLogoGlow({ color: e.target.value })}
+                            type="checkbox"
+                            checked={draft.logoGlow.places[place]}
+                            onChange={(e) => updateLogoGlow({ places: { ...draft.logoGlow.places, [place]: e.target.checked } })}
                           />
-                          <HexInput
-                            value={draft.logoGlow.color}
-                            label="Logo glow colour code"
-                            onChange={(color) => updateLogoGlow({ color })}
-                          />
-                        </span>
-                      </div>
-                    </div>
+                          <span>{GLOW_PLACE_LABELS[place]}</span>
+                        </label>
+                      ))}
+                    </fieldset>
+                    <ColorRow label="Glow colour" value={draft.logoGlow.color} onChange={(color) => updateLogoGlow({ color })} />
                     <Slider
                       label="Glow intensity"
                       value={draft.logoGlow.intensity}
@@ -1115,7 +1161,7 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                       max={400}
                       step={10}
                       format={(v) => `${Math.round(v)} px`}
-                      hint="How far around the cursor the logo lights up."
+                      hint="How far around the cursor things light up."
                       onChange={(spread) => updateLogoGlow({ spread })}
                     />
                   </>

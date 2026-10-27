@@ -15,7 +15,7 @@ export function ProjectCard({ project, priority = false }: { project: Project; p
       data-cursor="poster"
       data-cursor-label={sharedLabels.posterHover}
     >
-      <div className={styles.frame}>
+      <div className={styles.frame} data-glow="poster">
         <Image
           src={versionedSrc(cover.src)}
           alt={cover.alt}

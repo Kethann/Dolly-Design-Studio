@@ -36,8 +36,8 @@ export function Nav() {
 
   return (
     <header className={styles.nav}>
-      <Link href="/" className={styles.brand} data-cursor="link" aria-label={`${site.name} — home`}>
-        <svg className={styles.monogram} viewBox={`0 0 ${LOGO_VIEWBOX.width} ${LOGO_VIEWBOX.height}`} aria-hidden="true">
+      <Link href="/" className={styles.brand} data-cursor="link" data-cursor-logo aria-label={`${site.name} — home`}>
+        <svg data-glow="nav-logo" className={styles.monogram} viewBox={`0 0 ${LOGO_VIEWBOX.width} ${LOGO_VIEWBOX.height}`} aria-hidden="true">
           <path d={LOGO_BODY_PATH} fill="var(--gold-bright)" fillRule="evenodd" />
         </svg>
         <span className={styles.brandName}>{site.shortName}</span>

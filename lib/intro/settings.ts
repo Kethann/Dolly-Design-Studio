@@ -91,6 +91,10 @@ export interface StreamSettings {
   corners: number;
 }
 
+/** Places on the page the cursor glow can light up. */
+export const GLOW_PLACES = ["heroLogo", "navLogo", "titles", "links", "posters"] as const;
+export type GlowPlace = (typeof GLOW_PLACES)[number];
+
 export interface IntroSettings {
   enabled: boolean;
   /** Page and intro background. */
@@ -154,8 +158,10 @@ export interface IntroSettings {
   art: ArtSettings;
   /** How the background stars move (in the intro and on the page). */
   stream: StreamSettings;
-  /** The glow that follows the cursor over the page's logo. */
-  logoGlow: { enabled: boolean; intensity: number; spread: number; color: string };
+  /** The glow that follows the cursor, in each place ticked. */
+  logoGlow: { enabled: boolean; intensity: number; spread: number; color: string; places: Record<GlowPlace, boolean> };
+  /** The pen cursor: its colour, size, glow, and the colour it turns over a logo. */
+  cursor: { color: string; size: number; glow: number; logoColor: string };
   /** A soft pool of dark glass behind the logo that the stars stream out of. */
   dial: DialSettings;
 }
@@ -205,7 +211,14 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   front: { count: 12, blur: 0, size: 1 },
   stream: { speed: 0.4, spin: 0.4, flips: 0.35, corners: 0.5 },
   dial: { enabled: true, size: 0.6, darkness: 0.35 },
-  logoGlow: { enabled: true, intensity: 0.7, spread: 180, color: "#ffe7a0" },
+  logoGlow: {
+    enabled: true,
+    intensity: 0.7,
+    spread: 180,
+    color: "#ffe7a0",
+    places: { heroLogo: true, navLogo: true, titles: false, links: false, posters: false },
+  },
+  cursor: { color: "#fff195", size: 1, glow: 0.3, logoColor: "#ffffff" },
   art: {
     enabled: true,
     style: "waves",
@@ -277,6 +290,8 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
   const stream = (src.stream && typeof src.stream === "object" ? src.stream : {}) as Record<string, unknown>;
   const dial = (src.dial && typeof src.dial === "object" ? src.dial : {}) as Record<string, unknown>;
   const logoGlow = (src.logoGlow && typeof src.logoGlow === "object" ? src.logoGlow : {}) as Record<string, unknown>;
+  const places = (logoGlow.places && typeof logoGlow.places === "object" ? logoGlow.places : {}) as Record<string, unknown>;
+  const cursor = (src.cursor && typeof src.cursor === "object" ? src.cursor : {}) as Record<string, unknown>;
 
   const rawColors = Array.isArray(src.colors) ? src.colors.slice(0, LIMITS.colorCount[1]) : [];
   const colors = rawColors
@@ -338,6 +353,13 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       intensity: num(logoGlow.intensity, [0, 1], d.logoGlow.intensity),
       spread: num(logoGlow.spread, [60, 400], d.logoGlow.spread),
       color: hex(logoGlow.color, d.logoGlow.color),
+      places: Object.fromEntries(GLOW_PLACES.map((p) => [p, bool(places[p], d.logoGlow.places[p])])) as Record<GlowPlace, boolean>,
+    },
+    cursor: {
+      color: hex(cursor.color, d.cursor.color),
+      size: num(cursor.size, [0.6, 2], d.cursor.size),
+      glow: num(cursor.glow, [0, 1], d.cursor.glow),
+      logoColor: hex(cursor.logoColor, d.cursor.logoColor),
     },
     dial: {
       enabled: bool(dial.enabled, d.dial.enabled),

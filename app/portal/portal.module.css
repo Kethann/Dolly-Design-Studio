@@ -1042,3 +1042,38 @@
   border: 1px solid var(--p-line-strong);
   border-radius: 7px;
 }
+
+/* Where the cursor glow appears: a column of checkboxes. */
+.places {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 0 12px;
+  border: none;
+  border-top: 1px solid var(--p-line);
+}
+
+.places legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+.place {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--p-text);
+  cursor: pointer;
+}
+
+.place input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--p-gold-bright);
+  cursor: pointer;
+}

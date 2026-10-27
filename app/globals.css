@@ -204,3 +204,46 @@ html.lenis {
 .lenis.lenis-stopped {
   overflow: hidden;
 }
+
+/* Cursor glow on text (section titles, menu links): a lit copy of the words, revealed around the cursor. */
+[data-glow-text]::after {
+  content: attr(data-glow-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: transparent;
+  background: radial-gradient(
+    circle calc(var(--glow-spread) * 0.8) at var(--gx) var(--gy),
+    var(--glow-color),
+    color-mix(in srgb, var(--glow-color) 35%, transparent) 50%,
+    transparent 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 calc(var(--glow-spread) / 24) color-mix(in srgb, var(--glow-color) 70%, transparent));
+  opacity: 0;
+  transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Cursor glow on posters: a soft sheen of light following the cursor across the image. */
+[data-glow-sheen]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    circle var(--glow-spread) at var(--gx) var(--gy),
+    color-mix(in srgb, var(--glow-color) 45%, transparent),
+    color-mix(in srgb, var(--glow-color) 12%, transparent) 55%,
+    transparent 100%
+  );
+  mix-blend-mode: soft-light;
+  opacity: 0;
+  transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-glow-text][data-glow-on]::after,
+[data-glow-sheen][data-glow-on]::after {
+  opacity: var(--glow-intensity);
+}
