@@ -40,6 +40,7 @@ import {
   starLook,
   type Stage,
 } from "@/lib/intro/choreography";
+import { reportIntroProgress } from "@/lib/intro/loading";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import styles from "./StarIntro.module.css";
 
@@ -94,6 +95,9 @@ export interface StarIntroProps {
   /** Called once the first frame is on screen (the preview then removes the run it replaces, without a flash). */
   onFirstFrame?: () => void;
 }
+
+/** How long the intro takes to fade to the page when the visitor scrolls during it. */
+const SKIP_FADE_MS = 600;
 
 export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed, onTime, onFirstFrame }: StarIntroProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -301,7 +305,10 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         blending: THREE.AdditiveBlending,
         opacity: 0,
       });
-      material.color.copy(glowColor).lerp(new THREE.Color(1, 1, 1), 0.4).multiplyScalar(2); // above the bloom threshold
+      material.color
+        .copy(glowColor)
+        .lerp(new THREE.Color(1, 1, 1), 0.4)
+        .multiplyScalar(2); // above the bloom threshold
       const sprite = new THREE.Sprite(material);
       sprite.renderOrder = 4;
       sprite.visible = false;
@@ -313,7 +320,11 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const fxSprites = [dockGlint, shiverGlint];
     // On two of the star's points: the top one and the upper-right one.
     const tip = (angle: number) =>
-      new THREE.Vector3(bigPlan.glyph.x + Math.cos(angle) * bigPlan.glyphRadius * 0.92, bigPlan.glyph.y + Math.sin(angle) * bigPlan.glyphRadius * 0.92, 0.4);
+      new THREE.Vector3(
+        bigPlan.glyph.x + Math.cos(angle) * bigPlan.glyphRadius * 0.92,
+        bigPlan.glyph.y + Math.sin(angle) * bigPlan.glyphRadius * 0.92,
+        0.4,
+      );
     dockGlint.position.copy(tip(Math.PI / 2 - (2 * Math.PI) / 5));
     shiverGlint.position.copy(tip(Math.PI / 2));
 
@@ -398,12 +409,19 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       u.uWaveRadius.value = wave;
       u.uTime.value = t;
       u.uWaveFade.value = 1 - easeInOutCubic(clamp01((t - (T.waveEnd - 0.1)) / 0.7));
-      u.uSheen.value = t >= T.sheenStart && t <= T.sheenEnd ? easeInOutCubic((t - T.sheenStart) / (T.sheenEnd - T.sheenStart)) : -1;
+      u.uSheen.value =
+        t >= T.sheenStart && t <= T.sheenEnd ? easeInOutCubic((t - T.sheenStart) / (T.sheenEnd - T.sheenStart)) : -1;
       dustMaterial.uniforms.uTime.value = t;
       const settling = easeInOutCubic(clamp01((t - T.glassStart) / (T.revealAt - T.glassStart)));
       // The glass settles over the stars as the logo appears; the dial grows out of the core from the start.
       // No backdrop design in the intro — just the plain colour — so nothing competes with the logo.
-      glass.update(live, Math.max(settling, easeOutCubic(clamp01(t / 1.2))), easeOutCubic(clamp01(t / 1.6)), dialCenterY, resolution.set(vw, vh).multiplyScalar(renderer.getPixelRatio()));
+      glass.update(
+        live,
+        Math.max(settling, easeOutCubic(clamp01(t / 1.2))),
+        easeOutCubic(clamp01(t / 1.6)),
+        dialCenterY,
+        resolution.set(vw, vh).multiplyScalar(renderer.getPixelRatio()),
+      );
       backdrop.update(t, { amount: 0 });
 
       // Formation: fly in, tumble, settle and glint — tremble with the big star's shiver — then ride the wave and dissolve.
@@ -508,13 +526,17 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     let lastReport = 0;
     let firstFrameShown = false;
     // Never below full resolution: a softer render would blur the stars as they form the logo.
-    const adapt = createAdaptiveQuality(dpr, (pixelRatio) => {
-      renderer.setPixelRatio(pixelRatio);
-      renderer.setSize(vw, vh, false);
-      composer.setPixelRatio(pixelRatio);
-      composer.setSize(vw, vh);
-      dustMaterial.uniforms.uProjScale.value = (vh * pixelRatio) / (2 * tanHalfFov);
-    }, Math.min(1, dpr));
+    const adapt = createAdaptiveQuality(
+      dpr,
+      (pixelRatio) => {
+        renderer.setPixelRatio(pixelRatio);
+        renderer.setSize(vw, vh, false);
+        composer.setPixelRatio(pixelRatio);
+        composer.setSize(vw, vh);
+        dustMaterial.uniforms.uProjScale.value = (vh * pixelRatio) / (2 * tanHalfFov);
+      },
+      Math.min(1, dpr),
+    );
 
     function markRevealed() {
       if (revealed) return;
@@ -554,6 +576,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       composer.render();
       if (!firstFrameShown) {
         firstFrameShown = true;
+        reportIntroProgress(1); // on screen: the loader fades away as the stars come in
         onFirstFrame?.();
       }
       if (onTime && now - lastReport > 100) {
@@ -563,6 +586,14 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
       // The vignette lifts as the logo finishes, so the last frame matches the (vignette-free) page exactly.
       if (vignette) vignette.style.opacity = String(1 - clamp01((t - T.sheenStart) / (T.fadeStart - T.sheenStart)));
+      if (skippedAt !== null) {
+        // Skipped by scrolling: a quick fade to the page, then done.
+        const k = clamp01((now - skippedAt) / SKIP_FADE_MS);
+        overlay!.style.opacity = String(1 - easeInOutCubic(k));
+        if (k >= 1) return finish();
+        raf = requestAnimationFrame(frame);
+        return;
+      }
       overlay!.style.opacity = String(1 - easeInOutCubic(clamp01((t - T.fadeStart) / (T.end - T.fadeStart))));
       if (t >= T.revealAt) markRevealed();
       if (t >= T.end) return finish();
@@ -570,16 +601,45 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     }
     // Compile every shader up front — including the big star, glints and glass that only appear later —
     // so nothing stutters mid-show while the GPU builds a program.
+    reportIntroProgress(0.75); // the scene is built
     const appearLater = [bigStar, glass.mesh, ...fxSprites].filter((o) => !o.visible);
     appearLater.forEach((o) => (o.visible = true));
     renderer.compile(scene, camera);
     renderer.compile(front, camera);
     appearLater.forEach((o) => (o.visible = false));
+    reportIntroProgress(0.92); // shaders compiled
     raf = requestAnimationFrame(frame);
 
     // Esc jumps straight to the hand-off (keyboard accessibility). No on-screen skip, no accidental skips.
+    // Scrolling (wheel, swipe, or the scroll keys) during the show skips it gracefully: the page is released at
+    // once, the stars are handed to the page, and the intro fades away over a moment — the scroll carries on.
+    // (Not in the portal's preview, which plays the intro on purpose.)
+    let skippedAt: number | null = null;
+    let scrollLocked = true;
+    function skipToPage() {
+      if (skippedAt !== null || finished || paused || onTime) return;
+      skippedAt = performance.now();
+      markRevealed();
+      overlay!.style.pointerEvents = "none";
+      if (scrollLocked) {
+        scrollLocked = false;
+        unlockScroll();
+      }
+    }
+    const SCROLL_KEYS = new Set(["ArrowDown", "PageDown", "End", " ", "Spacebar"]);
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape" && t < T.fadeStart) t = T.fadeStart;
+      else if (SCROLL_KEYS.has(e.key)) skipToPage();
+    }
+    function onWheel(e: WheelEvent) {
+      if (e.deltaY > 0) skipToPage();
+    }
+    let touchY = 0;
+    function onTouchStart(e: TouchEvent) {
+      touchY = e.touches[0]?.clientY ?? 0;
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (touchY - (e.touches[0]?.clientY ?? touchY) > 24) skipToPage(); // a swipe up = scrolling down
     }
     // The on-screen layout is baked in at the start; if the window changes size, hand off cleanly.
     function onResize() {
@@ -600,13 +660,19 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
     lockScroll();
     window.addEventListener("keydown", onKey);
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("resize", onResize);
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
 
     return () => {
       cancelAnimationFrame(raf);
-      unlockScroll();
+      if (scrollLocked) unlockScroll();
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("resize", onResize);
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
       starGeometry.dispose();

@@ -6,9 +6,14 @@ import { postToPortal, useIntroSettings } from "@/lib/intro/settings-context";
 import { settleHandoff } from "@/lib/intro/handoff";
 import type { PreviewRun } from "@/lib/intro/preview-protocol";
 import { IntroFirstLight } from "./IntroFirstLight";
+import { reportIntroProgress } from "@/lib/intro/loading";
 
 // three.js only loads for visitors who actually get the 3D intro…
-const loadStarIntro = () => import("./intro/StarIntro").then((m) => m.StarIntro);
+const loadStarIntro = () =>
+  import("./intro/StarIntro").then((m) => {
+    reportIntroProgress(0.6); // the code has arrived (the loader shows real steps, not a guess)
+    return m.StarIntro;
+  });
 const StarIntro = dynamic(loadStarIntro, { ssr: false });
 
 // …and for them, start downloading it the moment this module runs, in parallel with hydration.
@@ -69,6 +74,7 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
 
   /** Show the page without (or after) the 3D intro; the hero's star field then lays out its own stars. */
   function skip() {
+    reportIntroProgress(1); // whatever happens, the loader never stays up
     // Remember that the intro has played, only once it really finished (not on the first, discarded dev-mode check).
     if (!preview && window.location.pathname === "/") {
       try {
@@ -87,7 +93,10 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
       skip();
       return;
     }
-    if (preview) return; // the portal decides when to play
+    if (preview) {
+      reportIntroProgress(1); // the portal decides when to play: no loader in its preview
+      return;
+    }
     // Once per visit: coming back to the home page within the visit goes straight to the page.
     let seen = false;
     try {
@@ -103,7 +112,9 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
     // so the context values aren't populated yet at this point.
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const isTouch = window.matchMedia("(pointer: coarse)").matches;
-    setMode(!reducedMotion && !isTouch && supportsWebGL() ? "stars" : "fallback");
+    const next = !reducedMotion && !isTouch && supportsWebGL() ? "stars" : "fallback";
+    if (next === "fallback") reportIntroProgress(1); // the light version needs no loading
+    setMode(next);
     // Decide once on mount; onReveal is a stable setter from the parent.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -93,7 +93,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <script dangerouslySetInnerHTML={{ __html: introSkipScript(introSettings.enabled) }} />
         <noscript>
-          <style>{".intro-curtain{display:none}.site-main{opacity:1}"}</style>
+          <style>{".intro-curtain,.intro-loader{display:none}.site-main{opacity:1}"}</style>
         </noscript>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         <SiteChrome introSettings={introSettings} footer={<Footer />}>

@@ -8,6 +8,7 @@ import { IntroSettingsProvider } from "@/lib/intro/settings-context";
 import type { IntroSettings } from "@/lib/intro/settings";
 import { PenCursor } from "@/components/cursor/PenCursor";
 import { Intro } from "@/components/Intro";
+import { IntroLoader } from "@/components/IntroLoader";
 import { Nav } from "@/components/Nav";
 import { RightRail } from "@/components/RightRail";
 import { ScrollProgress } from "@/components/ScrollProgress";
@@ -42,6 +43,7 @@ export function SiteChrome({
         <Backdrop />
         {/* Painted in the background colour from the very first frame so the page never flashes before the intro mounts. */}
         {!introDone && <div className="intro-curtain" aria-hidden="true" />}
+        <IntroLoader />
         <Intro onReveal={() => setIntroDone(true)} />
         <a href="#main" className="skip-link">
           Skip to content
