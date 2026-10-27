@@ -69,6 +69,12 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
 
   /** Show the page without (or after) the 3D intro; the hero's star field then lays out its own stars. */
   function skip() {
+    // Remember that the intro has played, only once it really finished (not on the first, discarded dev-mode check).
+    if (!preview && window.location.pathname === "/") {
+      try {
+        sessionStorage.setItem("dolly-intro-seen", "1");
+      } catch {}
+    }
     settleHandoff();
     onReveal();
     setMode("done");
@@ -86,7 +92,6 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
     let seen = false;
     try {
       seen = sessionStorage.getItem("dolly-intro-seen") === "1";
-      sessionStorage.setItem("dolly-intro-seen", "1");
     } catch {}
     if (seen) {
       skip();
