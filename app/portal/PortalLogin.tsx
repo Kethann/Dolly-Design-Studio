@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./portal.module.css";
 
-export function PortalLogin({ configured }: { configured: boolean }) {
+export function PortalLogin({ configured, setup = false }: { configured: boolean; setup?: boolean }) {
   const router = useRouter();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -18,7 +19,7 @@ export function PortalLogin({ configured }: { configured: boolean }) {
       const res = await fetch("/api/portal/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
       if (res.ok) {
         router.refresh();
@@ -40,8 +41,27 @@ export function PortalLogin({ configured }: { configured: boolean }) {
         </span>
         <h1 className={styles.loginTitle}>Creator portal</h1>
         <p className={styles.loginLead}>Dolly Design Studio</p>
+        {configured && setup && (
+          <p className={styles.loginNote}>
+            First time here? Sign in as <code>admin</code> with the setup password, then create your own account.
+          </p>
+        )}
         {configured ? (
           <>
+            <label htmlFor="portal-username" className={styles.controlLabel}>
+              Username
+            </label>
+            <input
+              id="portal-username"
+              type="text"
+              className={styles.loginInput}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              autoFocus
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
             <label htmlFor="portal-password" className={styles.controlLabel}>
               Password
             </label>
@@ -50,7 +70,6 @@ export function PortalLogin({ configured }: { configured: boolean }) {
               type="password"
               className={styles.loginInput}
               autoComplete="current-password"
-              autoFocus
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -59,7 +78,7 @@ export function PortalLogin({ configured }: { configured: boolean }) {
                 {error}
               </p>
             )}
-            <button type="submit" className={styles.primaryButton} disabled={busy || !password}>
+            <button type="submit" className={styles.primaryButton} disabled={busy || !password || !username}>
               {busy ? "Signing in…" : "Sign in"}
             </button>
           </>

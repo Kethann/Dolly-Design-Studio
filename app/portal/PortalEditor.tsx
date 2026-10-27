@@ -19,6 +19,8 @@ import { PREVIEW_PARAM, type PortalToSite, type PreviewRun, type SiteToPortal } 
 import { T } from "@/lib/intro/timeline";
 import { Choice, ColorRow, Dial, HexInput, Section, Slider, Toggle, percent } from "./controls";
 import { ProofTableEditor } from "./ProofTableEditor";
+import { AccountPanel } from "./AccountPanel";
+import type { PortalUser } from "@/lib/portal/users";
 import styles from "./portal.module.css";
 
 const GLOW_PLACE_LABELS: Record<GlowPlace, string> = {
@@ -28,7 +30,6 @@ const GLOW_PLACE_LABELS: Record<GlowPlace, string> = {
   links: "Menu links",
   posters: "Project posters",
 };
-
 
 const PREVIEW_W = 1440;
 const PREVIEW_H = 810;
@@ -61,14 +62,39 @@ const SECTION_NAMES: Record<ArtSection, string> = {
 const colourPair = (s: IntroSettings, target: ColourTarget) =>
   target === "work" || target === "project" ? s.art.dots[target] : s.art.sections[target];
 
-type Tab = "background" | "stars" | "look" | "titles" | "intro";
-const TABS: { id: Tab; name: string; hint: string }[] = [
-  { id: "background", name: "Background", hint: "colour · gradient · glass" },
-  { id: "stars", name: "Stars", hint: "layers · motion" },
-  { id: "look", name: "Look", hint: "glow · colours" },
-  { id: "titles", name: "Titles", hint: "3D proof table" },
-  { id: "intro", name: "Intro", hint: "the opening" },
+type Tab = "background" | "glass" | "colours" | "finish" | "layers" | "motion" | "intro" | "cursor" | "titles" | "account";
+/** The portal's pages, grouped by what they change. */
+const NAV: { group: string; pages: { id: Tab; name: string; hint: string }[] }[] = [
+  {
+    group: "Design",
+    pages: [
+      { id: "background", name: "Background", hint: "colour, gradient, section colours" },
+      { id: "glass", name: "Glass & shield", hint: "tinted glass, logo shield" },
+    ],
+  },
+  {
+    group: "Stars",
+    pages: [
+      { id: "colours", name: "Colours", hint: "the star colour mix" },
+      { id: "finish", name: "Finish", hint: "glow, size, metal, shine" },
+      { id: "layers", name: "Layers", hint: "front, back and big stars" },
+      { id: "motion", name: "Movement", hint: "stream, scroll, cursor" },
+    ],
+  },
+  {
+    group: "Experience",
+    pages: [
+      { id: "intro", name: "Intro", hint: "the opening animation" },
+      { id: "cursor", name: "Cursor & glow", hint: "pen cursor, hover glow" },
+      { id: "titles", name: "Proof Table", hint: "3D title cards" },
+    ],
+  },
+  { group: "Account", pages: [{ id: "account", name: "Users & security", hint: "people, passwords" }] },
 ];
+const PAGE = Object.fromEntries(NAV.flatMap((g) => g.pages.map((pg) => [pg.id, pg]))) as Record<
+  Tab,
+  (typeof NAV)[number]["pages"][number]
+>;
 
 type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
 
@@ -96,12 +122,13 @@ function introLayout(s: IntroSettings) {
   ];
 }
 
-export function PortalEditor({ initial }: { initial: IntroSettings }) {
+export function PortalEditor({ initial, user }: { initial: IntroSettings; user: PortalUser }) {
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
-  const [tab, setTab] = useState<Tab>("background");
+  // A first-run (setup) sign-in goes straight to creating the owner account.
+  const [tab, setTab] = useState<Tab>(user.setup ? "account" : "background");
   const [dotsPage, setDotsPage] = useState<ColourTarget>("top");
   const dirty = !same(saved, draft);
 
@@ -309,7 +336,6 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
           <span className={styles.brandName}>Dolly Studio</span>
           <span className={styles.brandDivider} aria-hidden="true" />
           <span className={styles.brandArea}>Creator portal</span>
-          <span className={styles.version}>Intro V4</span>
         </div>
         <div className={styles.actions}>
           <span className={styles.status} data-kind={dirty ? "dirty" : save.kind} role="status">
@@ -326,47 +352,70 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
           <button type="button" className={styles.ghostButton} disabled={!dirty} onClick={() => setDraft(saved)}>
             Discard changes
           </button>
-          <button
-            type="button"
-            className={styles.ghostButton}
-            title="Try a new look: random finish, colour mix, motion and glass (background and colours kept)"
-            onClick={() => update(randomLook(draft))}
-          >
-            ⚄ Randomize
-          </button>
-          <button
-            type="button"
-            className={styles.ghostButton}
-            onClick={() => update(sanitizeIntroSettings(DEFAULT_INTRO_SETTINGS))}
-          >
-            Reset to defaults
-          </button>
           <button type="button" className={styles.primaryButton} disabled={!dirty || save.kind === "saving"} onClick={publish}>
             Save &amp; publish
           </button>
-          <button type="button" className={styles.linkButton} onClick={signOut}>
-            Sign out
-          </button>
+          <span className={styles.userChip}>
+            <span className={styles.avatar} aria-hidden="true">
+              {(user.name || user.username).slice(0, 1).toUpperCase()}
+            </span>
+            <span className={styles.userName}>{user.name}</span>
+            <button type="button" className={styles.linkButton} onClick={signOut}>
+              Sign out
+            </button>
+          </span>
         </div>
       </header>
 
-      <div className={styles.workspace}>
+      <div className={styles.workspace} data-page={tab}>
+        <nav className={styles.sidenav} aria-label="Portal sections">
+          {NAV.map((g) => (
+            <div key={g.group} className={styles.navGroup}>
+              <p className={styles.navGroupName}>{g.group}</p>
+              {g.pages.map((pg) => (
+                <button
+                  key={pg.id}
+                  type="button"
+                  className={styles.navItem}
+                  data-active={tab === pg.id}
+                  aria-current={tab === pg.id ? "page" : undefined}
+                  disabled={user.setup && pg.id !== "account"}
+                  onClick={() => setTab(pg.id)}
+                >
+                  <span className={styles.navName}>{pg.name}</span>
+                  <span className={styles.navHint}>{pg.hint}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+          <div className={styles.navTools}>
+            <p className={styles.navGroupName}>Tools</p>
+            <button
+              type="button"
+              className={styles.ghostButton}
+              title="Try a new look: random finish, colour mix, motion and glass (background and colours kept)"
+              onClick={() => update(randomLook(draft))}
+            >
+              ⚄ Randomize the look
+            </button>
+            <button
+              type="button"
+              className={styles.ghostButton}
+              onClick={() => {
+                if (window.confirm("Reset every setting to the defaults? (Nothing changes on the site until you publish.)")) {
+                  update(sanitizeIntroSettings(DEFAULT_INTRO_SETTINGS));
+                }
+              }}
+            >
+              Reset to defaults
+            </button>
+          </div>
+        </nav>
+
         <aside className={styles.panel} aria-label="Settings">
-          <div className={styles.tabs} role="tablist" aria-label="Settings groups">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                className={styles.tab}
-                data-active={tab === t.id}
-                onClick={() => setTab(t.id)}
-              >
-                <span className={styles.tabName}>{t.name}</span>
-                <span className={styles.tabHint}>{t.hint}</span>
-              </button>
-            ))}
+          <div className={styles.pageHead}>
+            <h2>{PAGE[tab].name}</h2>
+            <p>{PAGE[tab].hint}</p>
           </div>
 
           {tab === "background" && (
@@ -648,7 +697,11 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   </>
                 )}
               </Section>
+            </>
+          )}
 
+          {tab === "glass" && (
+            <>
               <Section
                 id="layer-glass"
                 tag="Layer 2"
@@ -734,7 +787,200 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
             </>
           )}
 
-          {tab === "stars" && (
+          {tab === "colours" && (
+            <>
+              <Section
+                title="Star colours"
+                scope="Intro & page"
+                hint="Set each colour’s share with its slider — the ratio below shows how the stars are split."
+              >
+                <p className={styles.ratio}>
+                  Ratio{" "}
+                  {draft.colors.map((c, i) => (
+                    <span key={i}>
+                      {i > 0 && " : "}
+                      <span style={{ color: c.hex }}>{Math.round(fractions[i] * 100)}</span>
+                    </span>
+                  ))}
+                </p>
+                <div className={styles.mixBar} aria-hidden="true">
+                  {draft.colors.map((c, i) => (
+                    <span key={i} style={{ background: c.hex, flexGrow: fractions[i] }} />
+                  ))}
+                </div>
+                <ul className={styles.colorList}>
+                  {draft.colors.map((c, i) => (
+                    <li key={i} className={styles.colorRow}>
+                      <input
+                        type="color"
+                        aria-label={`Colour ${i + 1}`}
+                        className={styles.swatch}
+                        value={c.hex}
+                        onChange={(e) => updateColor(i, { hex: e.target.value })}
+                      />
+                      <HexInput value={c.hex} label={`Colour ${i + 1} code`} onChange={(hex) => updateColor(i, { hex })} />
+                      <input
+                        type="range"
+                        aria-label={`Colour ${i + 1} share`}
+                        className={styles.range}
+                        min={LIMITS.colorShare[0]}
+                        max={LIMITS.colorShare[1]}
+                        step={1}
+                        value={c.share}
+                        style={{ "--fill": `${c.share}%` } as React.CSSProperties}
+                        onChange={(e) => updateColor(i, { share: Number(e.target.value) })}
+                      />
+                      <span className={styles.share}>{Math.round(fractions[i] * 100)}%</span>
+                      <button
+                        type="button"
+                        className={styles.iconButton}
+                        aria-label={`Remove colour ${i + 1}`}
+                        disabled={draft.colors.length <= LIMITS.colorCount[0]}
+                        onClick={() =>
+                          update({
+                            colors: draft.colors.filter((_, k) => k !== i),
+                          })
+                        }
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <div className={styles.inlineActions}>
+                  <button
+                    type="button"
+                    className={styles.ghostButton}
+                    disabled={draft.colors.length >= LIMITS.colorCount[1]}
+                    onClick={() => {
+                      const hex = NEW_COLORS.find((h) => !draft.colors.some((c) => c.hex === h)) ?? "#ffffff";
+                      update({ colors: [...draft.colors, { hex, share: 25 }] });
+                    }}
+                  >
+                    + Add colour
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.ghostButton}
+                    disabled={draft.colors.length < 2}
+                    onClick={() =>
+                      update({
+                        colors: draft.colors.map((c) => ({ ...c, share: 50 })),
+                      })
+                    }
+                  >
+                    Even split
+                  </button>
+                </div>
+              </Section>
+            </>
+          )}
+
+          {tab === "finish" && (
+            <>
+              <Section
+                title="Star finish"
+                scope="Intro & page"
+                hint="How the stars on the page look. (The intro’s stars have their own size, texture and shine under Intro; big stars under Stars.)"
+              >
+                <Slider
+                  label={draft.glowLinked ? "Glow · intro & page" : "Glow · intro"}
+                  value={draft.glow}
+                  min={LIMITS.glow[0]}
+                  max={LIMITS.glow[1]}
+                  step={0.05}
+                  format={percent}
+                  hint="100% is the original intro’s glow."
+                  onChange={(glow) => update({ glow })}
+                />
+                <Toggle
+                  label="Same glow on the page"
+                  hint="Off: set the glow of the stars on the page (after the reveal) separately."
+                  checked={draft.glowLinked}
+                  onChange={(glowLinked) => update({ glowLinked, pageGlow: draft.glow })}
+                />
+                {!draft.glowLinked && (
+                  <Slider
+                    label="Glow · page"
+                    value={draft.pageGlow}
+                    min={LIMITS.glow[0]}
+                    max={LIMITS.glow[1]}
+                    step={0.05}
+                    format={percent}
+                    hint="The stars behind and in front of the glass, after the intro. They ease into it after the hand-off."
+                    onChange={(pageGlow) => update({ pageGlow })}
+                  />
+                )}
+                <div className={styles.control}>
+                  <div className={styles.controlRow}>
+                    <span className={styles.controlLabel}>Glow colour</span>
+                    <span className={styles.colorField}>
+                      <input
+                        type="color"
+                        aria-label="Glow colour"
+                        className={styles.swatch}
+                        value={draft.glowColor}
+                        disabled={draft.glowMatchStar}
+                        onChange={(e) => update({ glowColor: e.target.value })}
+                      />
+                      <HexInput value={draft.glowColor} label="Glow colour code" onChange={(hex) => update({ glowColor: hex })} />
+                    </span>
+                  </div>
+                  <p className={styles.controlHint}>The glints on the stars, the glitter, and the light of the reveal wave.</p>
+                </div>
+                <Slider
+                  label="Glowing stars"
+                  value={draft.glowingShare}
+                  min={LIMITS.glowingShare[0]}
+                  max={LIMITS.glowingShare[1]}
+                  step={1}
+                  format={(v) => `${Math.round(v)}% of stars`}
+                  onChange={(glowingShare) => update({ glowingShare })}
+                />
+                <Slider
+                  label="Star size"
+                  value={draft.starSize}
+                  min={LIMITS.starSize[0]}
+                  max={LIMITS.starSize[1]}
+                  step={0.05}
+                  format={percent}
+                  onChange={(starSize) => update({ starSize })}
+                />
+                <Slider
+                  label="Facet depth"
+                  value={draft.starDepth}
+                  min={LIMITS.starDepth[0]}
+                  max={LIMITS.starDepth[1]}
+                  step={0.05}
+                  format={percent}
+                  hint="How deeply each star’s facets are cut."
+                  onChange={(starDepth) => update({ starDepth })}
+                />
+                <Slider
+                  label="Metallic texture"
+                  value={draft.metallic}
+                  min={LIMITS.metallic[0]}
+                  max={LIMITS.metallic[1]}
+                  step={0.05}
+                  format={percent}
+                  hint="Brushed, spun-metal grain on the facets."
+                  onChange={(metallic) => update({ metallic })}
+                />
+                <Slider
+                  label="Shine"
+                  value={draft.shine}
+                  min={0.2}
+                  max={1.5}
+                  step={0.05}
+                  format={percent}
+                  hint="How strongly the metal reflects light. Lower it if the stars look too bright, without losing the glints."
+                  onChange={(shine) => update({ shine })}
+                />
+              </Section>
+            </>
+          )}
+
+          {tab === "layers" && (
             <>
               <nav className={styles.layerMap} aria-label="Layers, front to back">
                 <p className={styles.layerMapTitle}>Layers · front to back</p>
@@ -781,7 +1027,9 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                       <a
                         href={`#${l.id}`}
                         className={styles.layerLink}
-                        onClick={() => setTab(l.id === "layer-glass" || l.id === "layer-background" ? "background" : "stars")}
+                        onClick={() =>
+                          setTab(l.id === "layer-glass" ? "glass" : l.id === "layer-background" ? "background" : "layers")
+                        }
                       >
                         <span className={styles.layerNum}>{i + 1}</span>
                         <span className={styles.layerName}>{l.name}</span>
@@ -913,7 +1161,11 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   onChange={(bigGlow) => update({ bigGlow })}
                 />
               </Section>
+            </>
+          )}
 
+          {tab === "motion" && (
+            <>
               <Section
                 title="Movement"
                 scope="Intro & page"
@@ -979,276 +1231,6 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
                   hint="Moving the cursor sends soft ripples through the stars."
                   onChange={(cursor) => updateField({ cursor })}
                 />
-              </Section>
-            </>
-          )}
-
-          {tab === "titles" && (
-            <ProofTableEditor
-              value={draft.proofTable}
-              onChange={(patch) => {
-                setDraft((d) => ({ ...d, proofTable: { ...d.proofTable, ...patch } }));
-                setSave({ kind: "idle" });
-              }}
-              onShow={() => send({ source: "dds-portal", type: "scroll", to: "collaborations" })}
-            />
-          )}
-
-          {tab === "look" && (
-            <>
-              <Section
-                title="Star finish"
-                scope="Intro & page"
-                hint="How the stars on the page look. (The intro’s stars have their own size, texture and shine under Intro; big stars under Stars.)"
-              >
-                <Slider
-                  label={draft.glowLinked ? "Glow · intro & page" : "Glow · intro"}
-                  value={draft.glow}
-                  min={LIMITS.glow[0]}
-                  max={LIMITS.glow[1]}
-                  step={0.05}
-                  format={percent}
-                  hint="100% is the original intro’s glow."
-                  onChange={(glow) => update({ glow })}
-                />
-                <Toggle
-                  label="Same glow on the page"
-                  hint="Off: set the glow of the stars on the page (after the reveal) separately."
-                  checked={draft.glowLinked}
-                  onChange={(glowLinked) => update({ glowLinked, pageGlow: draft.glow })}
-                />
-                {!draft.glowLinked && (
-                  <Slider
-                    label="Glow · page"
-                    value={draft.pageGlow}
-                    min={LIMITS.glow[0]}
-                    max={LIMITS.glow[1]}
-                    step={0.05}
-                    format={percent}
-                    hint="The stars behind and in front of the glass, after the intro. They ease into it after the hand-off."
-                    onChange={(pageGlow) => update({ pageGlow })}
-                  />
-                )}
-                <div className={styles.control}>
-                  <div className={styles.controlRow}>
-                    <span className={styles.controlLabel}>Glow colour</span>
-                    <span className={styles.colorField}>
-                      <input
-                        type="color"
-                        aria-label="Glow colour"
-                        className={styles.swatch}
-                        value={draft.glowColor}
-                        disabled={draft.glowMatchStar}
-                        onChange={(e) => update({ glowColor: e.target.value })}
-                      />
-                      <HexInput value={draft.glowColor} label="Glow colour code" onChange={(hex) => update({ glowColor: hex })} />
-                    </span>
-                  </div>
-                  <p className={styles.controlHint}>The glints on the stars, the glitter, and the light of the reveal wave.</p>
-                </div>
-                <Slider
-                  label="Glowing stars"
-                  value={draft.glowingShare}
-                  min={LIMITS.glowingShare[0]}
-                  max={LIMITS.glowingShare[1]}
-                  step={1}
-                  format={(v) => `${Math.round(v)}% of stars`}
-                  onChange={(glowingShare) => update({ glowingShare })}
-                />
-                <Slider
-                  label="Star size"
-                  value={draft.starSize}
-                  min={LIMITS.starSize[0]}
-                  max={LIMITS.starSize[1]}
-                  step={0.05}
-                  format={percent}
-                  onChange={(starSize) => update({ starSize })}
-                />
-                <Slider
-                  label="Facet depth"
-                  value={draft.starDepth}
-                  min={LIMITS.starDepth[0]}
-                  max={LIMITS.starDepth[1]}
-                  step={0.05}
-                  format={percent}
-                  hint="How deeply each star’s facets are cut."
-                  onChange={(starDepth) => update({ starDepth })}
-                />
-                <Slider
-                  label="Metallic texture"
-                  value={draft.metallic}
-                  min={LIMITS.metallic[0]}
-                  max={LIMITS.metallic[1]}
-                  step={0.05}
-                  format={percent}
-                  hint="Brushed, spun-metal grain on the facets."
-                  onChange={(metallic) => update({ metallic })}
-                />
-                <Slider
-                  label="Shine"
-                  value={draft.shine}
-                  min={0.2}
-                  max={1.5}
-                  step={0.05}
-                  format={percent}
-                  hint="How strongly the metal reflects light. Lower it if the stars look too bright, without losing the glints."
-                  onChange={(shine) => update({ shine })}
-                />
-              </Section>
-
-              <Section title="Cursor" scope="Page" hint="The pen that follows the mouse.">
-                <ColorRow label="Pen colour" value={draft.cursor.color} onChange={(color) => updateCursor({ color })} />
-                <ColorRow
-                  label="Colour over the logo"
-                  hint="The pen switches to this colour on the logos, so it stays visible on the gold."
-                  value={draft.cursor.logoColor}
-                  onChange={(logoColor) => updateCursor({ logoColor })}
-                />
-                <Slider
-                  label="Pen size"
-                  value={draft.cursor.size}
-                  min={0.6}
-                  max={2}
-                  step={0.05}
-                  format={percent}
-                  onChange={(size) => updateCursor({ size })}
-                />
-                <Slider
-                  label="Pen glow"
-                  value={draft.cursor.glow}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  format={percent}
-                  hint="A soft light around the pen, in its own colour."
-                  onChange={(glow) => updateCursor({ glow })}
-                />
-              </Section>
-
-              <Section title="Cursor glow" scope="Page" hint="Things light up around the cursor as it passes over them.">
-                <Toggle label="Glow on hover" checked={draft.logoGlow.enabled} onChange={(enabled) => updateLogoGlow({ enabled })} />
-                {draft.logoGlow.enabled && (
-                  <>
-                    <fieldset className={styles.places}>
-                      <legend className={styles.controlLabel}>Where it glows</legend>
-                      {GLOW_PLACES.map((place) => (
-                        <label key={place} className={styles.place}>
-                          <input
-                            type="checkbox"
-                            checked={draft.logoGlow.places[place]}
-                            onChange={(e) => updateLogoGlow({ places: { ...draft.logoGlow.places, [place]: e.target.checked } })}
-                          />
-                          <span>{GLOW_PLACE_LABELS[place]}</span>
-                        </label>
-                      ))}
-                    </fieldset>
-                    <ColorRow label="Glow colour" value={draft.logoGlow.color} onChange={(color) => updateLogoGlow({ color })} />
-                    <Slider
-                      label="Glow intensity"
-                      value={draft.logoGlow.intensity}
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      format={percent}
-                      onChange={(intensity) => updateLogoGlow({ intensity })}
-                    />
-                    <Slider
-                      label="Glow spread"
-                      value={draft.logoGlow.spread}
-                      min={60}
-                      max={400}
-                      step={10}
-                      format={(v) => `${Math.round(v)} px`}
-                      hint="How far around the cursor things light up."
-                      onChange={(spread) => updateLogoGlow({ spread })}
-                    />
-                  </>
-                )}
-              </Section>
-
-              <Section
-                title="Star colours"
-                scope="Intro & page"
-                hint="Set each colour’s share with its slider — the ratio below shows how the stars are split."
-              >
-                <p className={styles.ratio}>
-                  Ratio{" "}
-                  {draft.colors.map((c, i) => (
-                    <span key={i}>
-                      {i > 0 && " : "}
-                      <span style={{ color: c.hex }}>{Math.round(fractions[i] * 100)}</span>
-                    </span>
-                  ))}
-                </p>
-                <div className={styles.mixBar} aria-hidden="true">
-                  {draft.colors.map((c, i) => (
-                    <span key={i} style={{ background: c.hex, flexGrow: fractions[i] }} />
-                  ))}
-                </div>
-                <ul className={styles.colorList}>
-                  {draft.colors.map((c, i) => (
-                    <li key={i} className={styles.colorRow}>
-                      <input
-                        type="color"
-                        aria-label={`Colour ${i + 1}`}
-                        className={styles.swatch}
-                        value={c.hex}
-                        onChange={(e) => updateColor(i, { hex: e.target.value })}
-                      />
-                      <HexInput value={c.hex} label={`Colour ${i + 1} code`} onChange={(hex) => updateColor(i, { hex })} />
-                      <input
-                        type="range"
-                        aria-label={`Colour ${i + 1} share`}
-                        className={styles.range}
-                        min={LIMITS.colorShare[0]}
-                        max={LIMITS.colorShare[1]}
-                        step={1}
-                        value={c.share}
-                        style={{ "--fill": `${c.share}%` } as React.CSSProperties}
-                        onChange={(e) => updateColor(i, { share: Number(e.target.value) })}
-                      />
-                      <span className={styles.share}>{Math.round(fractions[i] * 100)}%</span>
-                      <button
-                        type="button"
-                        className={styles.iconButton}
-                        aria-label={`Remove colour ${i + 1}`}
-                        disabled={draft.colors.length <= LIMITS.colorCount[0]}
-                        onClick={() =>
-                          update({
-                            colors: draft.colors.filter((_, k) => k !== i),
-                          })
-                        }
-                      >
-                        ×
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <div className={styles.inlineActions}>
-                  <button
-                    type="button"
-                    className={styles.ghostButton}
-                    disabled={draft.colors.length >= LIMITS.colorCount[1]}
-                    onClick={() => {
-                      const hex = NEW_COLORS.find((h) => !draft.colors.some((c) => c.hex === h)) ?? "#ffffff";
-                      update({ colors: [...draft.colors, { hex, share: 25 }] });
-                    }}
-                  >
-                    + Add colour
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.ghostButton}
-                    disabled={draft.colors.length < 2}
-                    onClick={() =>
-                      update({
-                        colors: draft.colors.map((c) => ({ ...c, share: 50 })),
-                      })
-                    }
-                  >
-                    Even split
-                  </button>
-                </div>
               </Section>
             </>
           )}
@@ -1358,9 +1340,109 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
               </Section>
             </>
           )}
+
+          {tab === "cursor" && (
+            <>
+              <Section title="Cursor" scope="Page" hint="The pen that follows the mouse.">
+                <ColorRow label="Pen colour" value={draft.cursor.color} onChange={(color) => updateCursor({ color })} />
+                <ColorRow
+                  label="Colour over the logo"
+                  hint="The pen switches to this colour on the logos, so it stays visible on the gold."
+                  value={draft.cursor.logoColor}
+                  onChange={(logoColor) => updateCursor({ logoColor })}
+                />
+                <Slider
+                  label="Pen size"
+                  value={draft.cursor.size}
+                  min={0.6}
+                  max={2}
+                  step={0.05}
+                  format={percent}
+                  onChange={(size) => updateCursor({ size })}
+                />
+                <Slider
+                  label="Pen glow"
+                  value={draft.cursor.glow}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  format={percent}
+                  hint="A soft light around the pen, in its own colour."
+                  onChange={(glow) => updateCursor({ glow })}
+                />
+              </Section>
+
+              <Section title="Cursor glow" scope="Page" hint="Things light up around the cursor as it passes over them.">
+                <Toggle
+                  label="Glow on hover"
+                  checked={draft.logoGlow.enabled}
+                  onChange={(enabled) => updateLogoGlow({ enabled })}
+                />
+                {draft.logoGlow.enabled && (
+                  <>
+                    <fieldset className={styles.places}>
+                      <legend className={styles.controlLabel}>Where it glows</legend>
+                      {GLOW_PLACES.map((place) => (
+                        <label key={place} className={styles.place}>
+                          <input
+                            type="checkbox"
+                            checked={draft.logoGlow.places[place]}
+                            onChange={(e) => updateLogoGlow({ places: { ...draft.logoGlow.places, [place]: e.target.checked } })}
+                          />
+                          <span>{GLOW_PLACE_LABELS[place]}</span>
+                        </label>
+                      ))}
+                    </fieldset>
+                    <ColorRow label="Glow colour" value={draft.logoGlow.color} onChange={(color) => updateLogoGlow({ color })} />
+                    <Slider
+                      label="Glow intensity"
+                      value={draft.logoGlow.intensity}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      format={percent}
+                      onChange={(intensity) => updateLogoGlow({ intensity })}
+                    />
+                    <Slider
+                      label="Glow spread"
+                      value={draft.logoGlow.spread}
+                      min={60}
+                      max={400}
+                      step={10}
+                      format={(v) => `${Math.round(v)} px`}
+                      hint="How far around the cursor things light up."
+                      onChange={(spread) => updateLogoGlow({ spread })}
+                    />
+                  </>
+                )}
+              </Section>
+            </>
+          )}
+
+          {tab === "titles" && (
+            <ProofTableEditor
+              value={draft.proofTable}
+              onChange={(patch) => {
+                setDraft((d) => ({ ...d, proofTable: { ...d.proofTable, ...patch } }));
+                setSave({ kind: "idle" });
+              }}
+              onShow={() => send({ source: "dds-portal", type: "scroll", to: "collaborations" })}
+            />
+          )}
+
+          {tab === "account" && (
+            <div className={styles.accountAside}>
+              <p>Manage who can open this portal, their roles and passwords. Your design work stays untouched here.</p>
+            </div>
+          )}
         </aside>
 
-        <main className={styles.stageColumn}>
+        {tab === "account" && (
+          <main className={styles.accountColumn}>
+            <AccountPanel me={user} />
+          </main>
+        )}
+        <main className={styles.stageColumn} hidden={tab === "account"}>
           <div className={styles.stageFrame}>
             <div ref={stageRef} className={styles.stage} style={{ aspectRatio: `${PREVIEW_W} / ${PREVIEW_H}` }}>
               <iframe

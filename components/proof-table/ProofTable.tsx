@@ -8,6 +8,7 @@ import { useIntroSettings } from "@/lib/intro/settings-context";
 import { ProofTableFallback } from "./Fallback";
 import type { ProofScene } from "./scene";
 import { STAGES } from "./stages";
+import { jumpTo } from "@/lib/smooth-scroll";
 import styles from "./ProofTable.module.css";
 
 type Mode = "pinned" | "static" | "fallback";
@@ -74,6 +75,8 @@ export function ProofTable() {
     let visible = false;
     let shown = 0; // smoothed progress
     let held = 0; // the furthest the story has played on this pass: it only moves forward
+    let lastTarget = 0;
+    let upMove = 0;
     let last = performance.now();
     let disposed = false;
     let loading = false;
@@ -109,7 +112,18 @@ export function ProofTable() {
       // The story plays only while scrolling down. Scrolling back up leaves everything where it landed; once the
       // section is left behind above (it sits fully below the screen), the next time down plays it again.
       if (mode === "pinned" && section.getBoundingClientRect().top >= window.innerHeight) held = shown = 0;
-      held = Math.max(held, progress());
+      const target = progress();
+      // Scrolling back up doesn't replay anything, so there's nothing to scroll through: one clear move up jumps to
+      // the start of the pinned stretch. The view there is identical (same held frame), so the jump is invisible, and
+      // the very next scroll up continues to the section above.
+      upMove = target < lastTarget ? upMove + (lastTarget - target) : 0;
+      lastTarget = target;
+      if (mode === "pinned" && target > 0.002 && upMove > 0.012) {
+        upMove = 0;
+        lastTarget = 0;
+        jumpTo(section.getBoundingClientRect().top + window.scrollY);
+      }
+      held = Math.max(held, target);
       shown += (held - shown) * (1 - Math.exp(-dt * 9));
       if (Math.abs(held - shown) < 0.0004) shown = held;
       setVars(shown);
@@ -134,7 +148,6 @@ export function ProofTable() {
         items: itemsRef.current,
         cardSize: look.cardSize,
         glass: { color: look.glassColor, opacity: look.glassOpacity, frost: look.frost, reflection: look.reflection },
-        labels: proofTable.labels,
         mobile,
         stage: getComputedStyle(document.documentElement).getPropertyValue("--stage").trim() || "#410000",
       });

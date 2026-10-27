@@ -4,6 +4,14 @@ import { useEffect } from "react";
 import Lenis from "lenis";
 import { useMotion } from "./motion";
 
+let active: Lenis | null = null;
+
+/** Jump straight to a scroll position (no easing), cancelling any smooth scroll in flight. */
+export function jumpTo(y: number) {
+  if (active) active.scrollTo(y, { immediate: true, force: true });
+  else window.scrollTo({ top: y, behavior: "instant" });
+}
+
 /** Mounts Lenis smooth scroll once, disabled entirely under reduced motion. */
 export function SmoothScroll() {
   const { reducedMotion } = useMotion();
@@ -16,6 +24,7 @@ export function SmoothScroll() {
       easing: (t) => 1 - Math.pow(1 - t, 3),
       smoothWheel: true,
     });
+    active = lenis;
 
     let raf = 0;
     function loop(time: number) {
@@ -27,6 +36,7 @@ export function SmoothScroll() {
     return () => {
       cancelAnimationFrame(raf);
       lenis.destroy();
+      if (active === lenis) active = null;
     };
   }, [reducedMotion]);
 

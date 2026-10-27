@@ -212,10 +212,19 @@
 
 /* --- workspace ------------------------------------------------------------------ */
 
+/* Sidebar (pages by category) · settings for the page · live preview. */
 .workspace {
   display: grid;
-  grid-template-columns: minmax(320px, 400px) 1fr;
+  grid-template-columns: 210px minmax(320px, 390px) 1fr;
   min-height: 0;
+}
+
+.workspace[data-page="account"] {
+  grid-template-columns: 210px 1fr;
+}
+
+.workspace[data-page="account"] .panel {
+  display: none;
 }
 
 .panel {
@@ -1152,4 +1161,438 @@
   gap: 10px;
   font-size: 11.5px;
   color: var(--p-muted);
+}
+
+/* --- sidebar: the portal's pages, grouped ------------------------------------------- */
+
+.sidenav {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 12px 24px;
+  overflow-y: auto;
+  border-right: 1px solid var(--p-line);
+  background: var(--p-bg);
+  scrollbar-width: thin;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navGroupName {
+  margin: 0 0 6px;
+  padding: 0 10px;
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 9px;
+  text-align: left;
+  border-left: 2px solid transparent;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.navItem:hover:not(:disabled) {
+  background: var(--p-card);
+}
+
+.navItem[data-active="true"] {
+  background: linear-gradient(90deg, rgba(232, 176, 75, 0.16), rgba(232, 176, 75, 0.04));
+  border-left-color: var(--p-gold);
+}
+
+.navItem:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.navName {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--p-text);
+}
+
+.navItem[data-active="true"] .navName {
+  color: var(--p-gold-bright);
+}
+
+.navHint {
+  font-size: 11px;
+  color: var(--p-muted);
+}
+
+.navTools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--p-line);
+}
+
+.navTools .ghostButton {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+/* The settings column's heading: which page you're on. */
+.pageHead {
+  padding: 2px 2px 4px;
+}
+
+.pageHead h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--p-text);
+}
+
+.pageHead p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--p-muted);
+}
+
+.accountAside {
+  font-size: 13px;
+  color: var(--p-muted);
+}
+
+/* --- who is signed in ------------------------------------------------------------- */
+
+.userChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 1px solid var(--p-line-strong);
+}
+
+.userName {
+  font-size: 13px;
+  color: var(--p-text);
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1a1206;
+  background: linear-gradient(135deg, var(--p-gold-bright), var(--p-gold));
+}
+
+/* --- users & security ---------------------------------------------------------------- */
+
+.accountColumn {
+  overflow-y: auto;
+  padding: 28px 32px 48px;
+  scrollbar-width: thin;
+}
+
+.account {
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.accountHead h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+}
+
+.accountHead p {
+  margin: 4px 0 0;
+  color: var(--p-muted);
+  font-size: 14px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: 14px;
+  background: var(--p-card);
+  border: 1px solid var(--p-line);
+}
+
+.card h3 {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--p-gold);
+}
+
+.card h4 {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--p-text);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notice {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13.5px;
+}
+
+.notice[data-kind="ok"] {
+  background: rgba(120, 200, 140, 0.12);
+  border: 1px solid rgba(120, 200, 140, 0.35);
+  color: #bfe8c8;
+}
+
+.notice[data-kind="error"] {
+  background: rgba(255, 143, 122, 0.1);
+  border: 1px solid rgba(255, 143, 122, 0.4);
+  color: var(--p-danger);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+  align-items: start;
+}
+
+.formGrid > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.formRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.formRow .field {
+  flex: 1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--p-muted);
+}
+
+.field small {
+  font-size: 11.5px;
+  color: var(--p-muted);
+}
+
+.field .loginInput {
+  font-size: 14px;
+  padding: 9px 11px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 18px;
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.facts dt {
+  color: var(--p-muted);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--p-line);
+}
+
+.person .formRow {
+  flex-basis: 100%;
+}
+
+.personMain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.personMain small {
+  color: var(--p-muted);
+  font-size: 12px;
+}
+
+.personActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.you {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  color: var(--p-gold-bright);
+  border: 1px solid rgba(232, 176, 75, 0.45);
+}
+
+.roleBadge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  border: 1px solid var(--p-line-strong);
+  color: var(--p-text);
+}
+
+.roleBadge[data-role="owner"] {
+  color: var(--p-gold-bright);
+  border-color: rgba(232, 176, 75, 0.5);
+}
+
+.dangerButton {
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--p-danger);
+  border: 1px solid rgba(255, 143, 122, 0.35);
+  transition: background 0.15s ease;
+}
+
+.dangerButton:hover {
+  background: rgba(255, 143, 122, 0.1);
+}
+
+.checks {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--p-muted);
+}
+
+.loginNote {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--p-muted);
+}
+
+@media (max-width: 1180px) {
+  .workspace {
+    grid-template-columns: 180px minmax(300px, 360px) 1fr;
+  }
+}
+
+@media (max-width: 960px) {
+  .workspace,
+  .workspace[data-page="account"] {
+    grid-template-columns: 1fr;
+  }
+
+  .sidenav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--p-line);
+  }
+
+  .navGroup {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .navGroupName,
+  .navHint,
+  .navTools {
+    display: none;
+  }
+
+  .navItem {
+    width: auto;
+    padding: 6px 10px;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .userName {
+    display: none;
+  }
+}
+
+/* The preview stays loaded behind the account page, just out of the layout. */
+.stageColumn[hidden] {
+  display: none !important;
+}
+
+/* Confirmations and errors stay in view while you work further down the page. */
+.account .notice {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  backdrop-filter: blur(8px);
+}
+
+.account .notice[data-kind="ok"] {
+  background: #17261b;
+}
+
+.account .notice[data-kind="error"] {
+  background: #2a1714;
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { hasPortalSession, isPortalConfigured } from "@/lib/portal/auth";
+import { getPortalUser, isPortalConfigured } from "@/lib/portal/auth";
 import { readIntroSettings } from "@/lib/portal/settings-store";
+import { hasAccounts } from "@/lib/portal/users";
 import { PortalEditor } from "./PortalEditor";
 import { PortalLogin } from "./PortalLogin";
 
@@ -13,7 +14,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function PortalPage() {
-  if (!isPortalConfigured()) return <PortalLogin configured={false} />;
-  if (!(await hasPortalSession())) return <PortalLogin configured />;
-  return <PortalEditor initial={await readIntroSettings()} />;
+  if (!(await isPortalConfigured())) return <PortalLogin configured={false} />;
+  const user = await getPortalUser();
+  if (!user) return <PortalLogin configured setup={!(await hasAccounts())} />;
+  return <PortalEditor initial={await readIntroSettings()} user={user} />;
 }

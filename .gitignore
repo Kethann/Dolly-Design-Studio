@@ -7,3 +7,6 @@ out
 next-env.d.ts
 .vercel
 *.tmp.*
+
+# portal accounts (hashed passwords): never committed
+.data

@@ -81,7 +81,17 @@ export function Slider({
   );
 }
 
-export function Toggle({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
+export function Toggle({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
   const id = useId();
   return (
     <div className={styles.control}>
@@ -148,7 +158,17 @@ export function Choice<T extends string>({
 }
 
 /** A round dial for an angle: drag it, use the arrow keys, or pick a preset. */
-export function Dial({ label, hint, value, onChange }: { label: string; hint?: string; value: number; onChange: (deg: number) => void }) {
+export function Dial({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: number;
+  onChange: (deg: number) => void;
+}) {
   const id = useId();
   function fromPointer(e: React.PointerEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -191,7 +211,13 @@ export function Dial({ label, hint, value, onChange }: { label: string; hint?: s
         </div>
         <div className={styles.dialPresets}>
           {[0, 45, 90, 180, 270].map((deg) => (
-            <button key={deg} type="button" className={styles.dialPreset} data-on={Math.round(value) === deg} onClick={() => onChange(deg)}>
+            <button
+              key={deg}
+              type="button"
+              className={styles.dialPreset}
+              data-on={Math.round(value) === deg}
+              onClick={() => onChange(deg)}
+            >
               {deg}°
             </button>
           ))}
@@ -231,13 +257,29 @@ export function HexInput({ value, label, onChange }: { value: string; label: str
 }
 
 /** A colour picker with its hex code beside it. */
-export function ColorRow({ label, hint, value, onChange }: { label: string; hint?: string; value: string; onChange: (v: string) => void }) {
+export function ColorRow({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <div className={styles.control}>
       <div className={styles.controlRow}>
         <span className={styles.controlLabel}>{label}</span>
         <span className={styles.colorField}>
-          <input type="color" aria-label={label} className={styles.swatch} value={value} onChange={(e) => onChange(e.target.value)} />
+          <input
+            type="color"
+            aria-label={label}
+            className={styles.swatch}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          />
           <HexInput value={value} label={`${label} code`} onChange={onChange} />
         </span>
       </div>

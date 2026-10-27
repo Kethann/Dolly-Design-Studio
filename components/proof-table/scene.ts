@@ -36,7 +36,8 @@ function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2
 }
 
 /** The floor: dark stage-tinted paper with a fine dot grid, printer's marks and press labels, fading out at the edges. */
-function floorTexture(labels: { proof: string; bleed: string; reg: string }) {
+/** The clear sheet under the table: gold stars and fine crop marks only (no text, so nothing busy to scroll past). */
+function floorTexture() {
   const S = 2048;
   const U = S / 24; // px per world unit (the floor plane is 24 units wide)
   return canvasTexture(S, S, (ctx) => {
@@ -83,40 +84,6 @@ function floorTexture(labels: { proof: string; bleed: string; reg: string }) {
         ctx.lineTo(c(sx * (hw + 0.75)), c(sz * hd));
         ctx.stroke();
       }
-    // Registration targets in the middle of each side.
-    const reg = (x: number, y: number) => {
-      const r = 0.2 * U;
-      ctx.beginPath();
-      ctx.arc(c(x), c(y), r, 0, Math.PI * 2);
-      ctx.moveTo(c(x) - r * 1.6, c(y));
-      ctx.lineTo(c(x) + r * 1.6, c(y));
-      ctx.moveTo(c(x), c(y) - r * 1.6);
-      ctx.lineTo(c(x), c(y) + r * 1.6);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(c(x), c(y), r * 0.45, 0, Math.PI * 2);
-      ctx.stroke();
-    };
-    reg(0, -hd - 0.55);
-    reg(0, hd + 0.55);
-    reg(-hw - 0.55, 0);
-    reg(hw + 0.55, 0);
-    // CMYK + tint colour bar along the front edge.
-    const bar = ["#00a3e0", "#e6007e", "#ffed00", "#1a1a1a", "#7fd1f0", "#f27fbe", "#fff67f", "#8c8c8c"];
-    bar.forEach((col, i) => {
-      ctx.globalAlpha = 0.55;
-      ctx.fillStyle = col;
-      ctx.fillRect(c(-hw + 1.2 + i * 0.32), c(hd + 0.3), 0.3 * U, 0.18 * U);
-    });
-    ctx.globalAlpha = 1;
-    // Press labels.
-    ctx.fillStyle = "rgba(244,237,225,0.5)";
-    ctx.font = `500 ${0.15 * U}px ${MONO}`;
-    ctx.textBaseline = "middle";
-    ctx.fillText(labels.proof, c(-hw), c(-hd - 0.35));
-    ctx.fillText(labels.bleed, c(hw - 1.2), c(-hd - 0.35));
-    ctx.fillText(labels.reg, c(hw - 0.6), c(hd + 0.4));
-    ctx.fillText("SHEET A1 · 350 GSM", c(-hw + 4), c(hd + 0.4));
   });
 }
 
@@ -296,7 +263,6 @@ export function createProofScene(
     items: ProofItem[];
     cardSize: number;
     glass: GlassLook;
-    labels: { proof: string; bleed: string; reg: string };
     mobile: boolean;
     stage: string;
   },
@@ -327,7 +293,7 @@ export function createProofScene(
   const stageColor = new THREE.Color(opts.stage);
 
   // --- Floor -------------------------------------------------------------------------------------
-  const floorTex = track(floorTexture(opts.labels));
+  const floorTex = track(floorTexture());
   floorTex.anisotropy = maxAniso;
   const floor = new THREE.Mesh(
     track(new THREE.PlaneGeometry(24, 24).rotateX(-Math.PI / 2)),
