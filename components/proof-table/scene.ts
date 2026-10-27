@@ -141,32 +141,6 @@ function softRect(inner: number, feather: number) {
   );
 }
 
-/** A soft glow hugging a rounded rectangle's edge (alpha): strongest on the edge, fading both ways. */
-function softRing(inner: number, feather: number) {
-  const S = 512;
-  return canvasTexture(
-    S,
-    S,
-    (ctx) => {
-      const data = ctx.createImageData(S, S);
-      const h = inner / 2;
-      const rad = 0.06;
-      for (let y = 0; y < S; y++)
-        for (let x = 0; x < S; x++) {
-          const qx = Math.abs((x + 0.5) / S - 0.5) - (h - rad);
-          const qy = Math.abs((y + 0.5) / S - 0.5) - (h - rad);
-          const d = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - rad;
-          const a = Math.exp(-((d / (d > 0 ? feather : feather * 0.35)) ** 2));
-          const k = (y * S + x) * 4;
-          data.data[k] = data.data[k + 1] = data.data[k + 2] = Math.round(a * 255);
-          data.data[k + 3] = 255;
-        }
-      ctx.putImageData(data, 0, 0);
-    },
-    false,
-  );
-}
-
 function rippleTexture() {
   return canvasTexture(
     256,
@@ -372,26 +346,6 @@ export function createProofScene(
   panel.position.y = T + 0.001;
   scene.add(panel);
 
-  // Light bleeding out around the panel: a soft ring floating just above the frame (above every slab surface, so
-  // it can't depth-fight with the rounded edge), brightest at the panel's rim.
-  const bleed = new THREE.Mesh(
-    track(new THREE.PlaneGeometry(W + 2, D + 2).rotateX(-Math.PI / 2)),
-    track(
-      new THREE.MeshBasicMaterial({
-        color: 0xfff1d0,
-        alphaMap: track(softRing(pw / (W + 2), 0.07)),
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        opacity: 0,
-      }),
-    ),
-  );
-  bleed.renderOrder = 0;
-  bleed.position.y = T + 0.07;
-  bleed.material.opacity = 0.3;
-  scene.add(bleed);
-
   // --- Proofs ----------------------------------------------------------------------------------
   const shadowGeo = track(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2));
   const plateShadowTex = track(softRect(0.8, 0.1));
@@ -436,8 +390,15 @@ export function createProofScene(
     m.color.set((m.userData.tint as string | undefined) ?? glass.color);
     m.userData.base = glass.opacity;
     m.roughness = 0.06 + glass.frost * 0.55;
-    m.clearcoat = glass.reflection;
-    m.envMapIntensity = 0.05 + glass.reflection * 1.1;
+    m.userData.clearcoat = glass.reflection;
+    // The studio environment has very bright light panels: kept low, so the glass shines without mirroring them white.
+    m.userData.env = 0.02 + glass.reflection * 0.4;
+    m.userData.roughness = m.roughness;
+    // The key light's mirror highlight: what turned a card facing the camera white. Follows the Reflection setting.
+    m.userData.specular = 0.15 + glass.reflection * 0.85;
+    m.specularIntensity = m.userData.specular;
+    m.clearcoat = m.userData.clearcoat;
+    m.envMapIntensity = m.userData.env;
     const transmission = glass.frost > 0.01 ? 1 : 0;
     if (m.transmission !== transmission) {
       m.transmission = transmission; // frosted: the lightbox shows through, blurred by the roughness
@@ -719,8 +680,14 @@ export function createProofScene(
       // Standing up, the card has the bright lightbox right behind it: its glass turns (nearly) solid in its own tint,
       // so the light can't wash through it and the title stays readable. The sweep is a soft gold glint, not white.
       const glassBase = (pl.glass.material.userData.base as number | undefined) ?? 1;
-      pl.glass.material.opacity = lerp(glassBase, Math.max(glassBase, 0.96), st) * fade;
-      pl.sheen.material.opacity = st * 0.22;
+      const gm = pl.glass.material;
+      gm.opacity = lerp(glassBase, 1, st) * fade;
+      // Facing the camera, the glass would mirror the bright room: its reflections fade out as it stands.
+      gm.clearcoat = (gm.userData.clearcoat as number) * (1 - 0.97 * st);
+      gm.specularIntensity = (gm.userData.specular as number) * (1 - st);
+      gm.envMapIntensity = (gm.userData.env as number) * (1 - 0.95 * st);
+      gm.roughness = (gm.userData.roughness as number) + st * 0.3; // any reflection left is soft, never a hot spot
+      pl.sheen.material.opacity = st * 0.14;
       pl.sheen.material.map!.offset.x = -(ndc.x * 0.6 + pl.sway.y);
 
       // Shadow: a soft pool when lying flat, a tight strip at its foot when standing.
