@@ -82,6 +82,16 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
       return;
     }
     if (preview) return; // the portal decides when to play
+    // Once per visit: coming back to the home page (the DOLLY logo, a reload) goes straight to the page.
+    let seen = false;
+    try {
+      seen = sessionStorage.getItem("dolly-intro-seen") === "1";
+      sessionStorage.setItem("dolly-intro-seen", "1");
+    } catch {}
+    if (seen) {
+      skip();
+      return;
+    }
     // Read media queries directly: child effects run before MotionProvider's,
     // so the context values aren't populated yet at this point.
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
