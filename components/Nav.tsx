@@ -60,7 +60,12 @@ export function Nav() {
         aria-label={`${site.name} — home`}
         onClick={glideOnHome()}
       >
-        <svg data-glow="nav-logo" className={styles.monogram} viewBox={`0 0 ${LOGO_VIEWBOX.width} ${LOGO_VIEWBOX.height}`} aria-hidden="true">
+        <svg
+          data-glow="nav-logo"
+          className={styles.monogram}
+          viewBox={`0 0 ${LOGO_VIEWBOX.width} ${LOGO_VIEWBOX.height}`}
+          aria-hidden="true"
+        >
           <path d={LOGO_BODY_PATH} fill="var(--gold-bright)" fillRule="evenodd" />
         </svg>
         <span className={styles.brandName}>{site.shortName}</span>

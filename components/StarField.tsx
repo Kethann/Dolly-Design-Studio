@@ -389,7 +389,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
 
     function update(frameNow: number) {
       const time = Math.max(0, (frameNow - start) / 1000);
-      const dt = Math.min(0.1, (frameNow - last) / 1000);
+      const dt = Math.min(0.1, Math.max(0, (frameNow - last) / 1000)); // never a negative step
       last = frameNow;
       const ease = 1 - Math.exp(-dt * 5);
       presence += ((pointer.inside ? 1 : 0) - presence) * ease;

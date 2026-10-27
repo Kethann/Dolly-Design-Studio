@@ -1,5 +1,6 @@
 "use client";
 
+import { glideTo } from "@/lib/smooth-scroll";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { sanitizeIntroSettings, type IntroSettings } from "./settings";
 import { PREVIEW_PARAM, type PortalToSite, type PreviewRun, type SiteToPortal } from "./preview-protocol";
@@ -56,11 +57,22 @@ export function IntroSettingsProvider({ initial, children }: { initial: IntroSet
       if (msg.type === "settings") setSettings(sanitizeIntroSettings(msg.settings));
       if (msg.type === "run") setRun(msg.run);
       if (msg.type === "scroll") {
-        const el = document.getElementById(msg.to);
-        if (el) {
-          const r = el.getBoundingClientRect();
-          window.scrollTo({ top: r.bottom + window.scrollY - window.innerHeight, behavior: "instant" });
-        }
+        const { to, at } = msg;
+        const glide = () => {
+          const el = to === "top" ? null : document.getElementById(to);
+          if (to === "top") glideTo(0);
+          else if (el) {
+            const r = el.getBoundingClientRect();
+            glideTo(at === "end" ? r.bottom + window.scrollY - window.innerHeight : r.top + window.scrollY);
+          }
+        };
+        // While the intro is finishing it holds the page still; glide as soon as it lets go (give up after 4s).
+        const started = performance.now();
+        const whenFree = () => {
+          if (document.documentElement.style.overflow !== "hidden" || performance.now() - started > 4000) glide();
+          else requestAnimationFrame(whenFree);
+        };
+        whenFree();
       }
     }
     window.addEventListener("message", onMessage);

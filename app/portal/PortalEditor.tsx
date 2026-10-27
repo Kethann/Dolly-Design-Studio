@@ -62,6 +62,20 @@ const SECTION_NAMES: Record<ArtSection, string> = {
 const colourPair = (s: IntroSettings, target: ColourTarget) =>
   target === "work" || target === "project" ? s.art.dots[target] : s.art.sections[target];
 
+/** Where the preview goes for each page of the portal, so you always see what you're changing. */
+function previewFocus(
+  tab: Tab,
+  target: ColourTarget,
+): { to: string; at: "start" | "end"; label: string; intro?: boolean } | null {
+  if (tab === "account") return null;
+  if (tab === "intro") return { to: "top", at: "start", label: "The opening", intro: true };
+  if (tab === "titles") return { to: "collaborations", at: "end", label: "Proof Table" };
+  if (tab === "background" && target !== "top" && target !== "project") {
+    return { to: target, at: "start", label: SECTION_NAMES[target] };
+  }
+  return { to: "top", at: "start", label: "Top of the home page" };
+}
+
 type Tab = "background" | "glass" | "colours" | "finish" | "layers" | "motion" | "intro" | "cursor" | "titles" | "account";
 /** The portal's pages, grouped by what they change. */
 const NAV: { group: string; pages: { id: Tab; name: string; hint: string }[] }[] = [
@@ -232,6 +246,31 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
     return () => clearTimeout(timer);
   }, [draft, ready, send, startRun]);
 
+  // The preview follows what you're editing: opening a page (or picking the background's colour target) moves the
+  // preview to that part of the site.
+  const focus = previewFocus(tab, dotsPage);
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function showInPreview(next: ReturnType<typeof previewFocus>) {
+    if (!ready || !next) return;
+    if (focusTimer.current) clearTimeout(focusTimer.current);
+    if (next.intro) {
+      send({ source: "dds-portal", type: "scroll", to: "top" });
+      startRun(0, false);
+      return;
+    }
+    // Off the intro and onto the page first (the intro holds the page at the top), then glide there.
+    const onPage = playheadRef.current >= T.fadeStart;
+    if (!onPage) startRun(T.end, false);
+    focusTimer.current = setTimeout(
+      () => send({ source: "dds-portal", type: "scroll", to: next.to, at: next.at }),
+      onPage ? 0 : 700,
+    );
+  }
+  function openPage(next: Tab) {
+    setTab(next);
+    if (next !== tab) showInPreview(previewFocus(next, dotsPage));
+  }
+
   // Don't lose unsaved work by accident.
   useEffect(() => {
     if (!dirty) return;
@@ -380,7 +419,7 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
                   data-active={tab === pg.id}
                   aria-current={tab === pg.id ? "page" : undefined}
                   disabled={user.setup && pg.id !== "account"}
-                  onClick={() => setTab(pg.id)}
+                  onClick={() => openPage(pg.id)}
                 >
                   <span className={styles.navName}>{pg.name}</span>
                   <span className={styles.navHint}>{pg.hint}</span>
@@ -523,7 +562,11 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
                               id="colour-target"
                               className={styles.select}
                               value={dotsPage}
-                              onChange={(e) => setDotsPage(e.target.value as ColourTarget)}
+                              onChange={(e) => {
+                                const target = e.target.value as ColourTarget;
+                                setDotsPage(target);
+                                showInPreview(previewFocus(tab, target));
+                              }}
                             >
                               <optgroup label="Home page sections">
                                 {ART_SECTIONS.map((id) => (
@@ -1443,6 +1486,9 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
           </main>
         )}
         <main className={styles.stageColumn} hidden={tab === "account"}>
+          <p className={styles.focusChip} aria-live="polite">
+            <span aria-hidden="true">◉</span> Preview · {focus?.label ?? "Home page"}
+          </p>
           <div className={styles.stageFrame}>
             <div ref={stageRef} className={styles.stage} style={{ aspectRatio: `${PREVIEW_W} / ${PREVIEW_H}` }}>
               <iframe

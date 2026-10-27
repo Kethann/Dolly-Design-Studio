@@ -107,7 +107,8 @@ export function ProofTable() {
     function frame(now: number) {
       raf = 0;
       if (disposed || !scene || !visible) return;
-      const dt = Math.min(0.05, (now - last) / 1000);
+      // A frame's timestamp can be a hair earlier than the clock read when the loop started: never a negative step.
+      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
       last = now;
       // The story plays only while scrolling down. Scrolling back up leaves everything where it landed; once the
       // section is left behind above (it sits fully below the screen), the next time down plays it again.
@@ -126,6 +127,7 @@ export function ProofTable() {
       held = Math.max(held, target);
       shown += (held - shown) * (1 - Math.exp(-dt * 9));
       if (Math.abs(held - shown) < 0.0004) shown = held;
+      shown = Math.min(1, Math.max(0, shown));
       setVars(shown);
       scene.update(shown, dt);
       canvas.style.cursor = scene.hovered() >= 0 ? "pointer" : "";
