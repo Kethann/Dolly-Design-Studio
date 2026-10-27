@@ -1,3 +1,4 @@
+import type * as THREE from "three";
 import { T } from "./timeline";
 import { clamp01, viewHalfExtents, type Stage } from "./choreography";
 import type { SweepSettings } from "./settings";
@@ -88,16 +89,6 @@ export function sweepPose(plan: SweepPlan, t: number): SweepPose {
   };
 }
 
-/**
- * The world x where the logo starts to show: just behind the star's back edge (its full outer radius, so no part of
- * the star — whatever its turn or tilt — reaches past it). Seen from the camera, so it's projected onto the logo plane.
- */
-export function sweepEdge(plan: SweepPlan, t: number, cameraZ: number) {
-  const pose = sweepPose(plan, t);
-  const toLogoPlane = cameraZ / (cameraZ - plan.z); // the star is nearer the camera, so it covers a wider band
-  return (pose.x + plan.dir * pose.scale) * toLogoPlane;
-}
-
 /** When the star's centre passes world x on the logo plane (the logo's stars slip away under it then). */
 export function sweepTimeAt(plan: SweepPlan, x: number, cameraZ: number) {
   const toLogoPlane = cameraZ / (cameraZ - plan.z);
@@ -111,4 +102,38 @@ export function sweepTimeAt(plan: SweepPlan, x: number, cameraZ: number) {
     else lo = mid;
   }
   return hi;
+}
+
+/** The most star prints the reveal can hold (the shader's array size). */
+export const SWEEP_STAMPS = 40;
+/** How many star prints the star leaves along its whole crossing. */
+const PRINTS = 16;
+/** Seconds a print takes to bloom fully open. */
+const BLOOM_TIME = 1;
+
+const smooth01 = (x: number) => {
+  const c = clamp01(x);
+  return c * c * (3 - 2 * c);
+};
+
+/**
+ * The star-shaped openings the logo is uncovered through. As it crosses, the star leaves a print of its own shape at
+ * regular moments, exactly where it is and turned as it is, projected onto the logo plane. Each print starts at half
+ * the star's size and blooms open (by `bloom`), still turning a little, so the logo appears through a run of opening
+ * stars behind it — each edge the star's own outline. Returns how many prints are showing, and how far the final
+ * clean-up has got (0 until the star has gone, then 1 a moment later, so the logo is always complete).
+ */
+export function sweepStamps(plan: SweepPlan, t: number, cameraZ: number, bloom: number, out: THREE.Vector4[]) {
+  const k = cameraZ / (cameraZ - plan.z);
+  const end = plan.start + plan.duration;
+  let count = 0;
+  for (let i = 0; i < PRINTS && count < out.length; i++) {
+    const ti = plan.start + (plan.duration * (i + 0.5)) / PRINTS;
+    if (ti > t) break;
+    const pose = sweepPose(plan, ti);
+    const age = t - ti;
+    const open = 0.5 + (0.5 + bloom) * smooth01(age / BLOOM_TIME);
+    out[count++].set(pose.x * k, pose.y * k, pose.scale * k * open, pose.rotZ + plan.dir * age * 0.5);
+  }
+  return { count, done: smooth01((t - end - 0.2) / 0.4) };
 }

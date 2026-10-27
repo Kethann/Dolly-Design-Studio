@@ -62,6 +62,16 @@ export function SweepEditor({ value, onChange }: { value: SweepSettings; onChang
           onChange={(grow) => onChange({ grow })}
         />
         <Slider
+          label="Reveal bloom"
+          value={value.bloom}
+          min={0}
+          max={2}
+          step={0.05}
+          format={percent}
+          hint="How far the star shapes it leaves behind open up. 0% uncovers the logo only exactly where the star passed."
+          onChange={(bloom) => onChange({ bloom })}
+        />
+        <Slider
           label="Reveal edge softness"
           value={value.feather}
           min={6}

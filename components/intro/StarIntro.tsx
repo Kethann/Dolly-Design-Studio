@@ -11,7 +11,7 @@ import { createLogoRevealMaterial } from "@/lib/intro/logo-reveal-material";
 import { createSparkleTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
 import { bigStarPose, planBigStar, revealTimeAt, waveRadius } from "@/lib/intro/big-star-path";
-import { planSweep, sweepEdge, sweepPose, sweepTimeAt } from "@/lib/intro/sweep-path";
+import { planSweep, sweepPose, sweepStamps, sweepTimeAt } from "@/lib/intro/sweep-path";
 import { createRng, randomSeed } from "@/lib/intro/rng";
 import {
   CAMERA_Z,
@@ -199,7 +199,6 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const u = reveal.material.uniforms;
     u.uWaveCenter.value.set(bigPlan.glyph.x, bigPlan.glyph.y);
     u.uMode.value = settings.revealStyle === "glow" ? 1 : sweepMode ? 2 : 0;
-    u.uSweepDir.value = sweepPlan.dir;
     u.uSweepFeather.value = sweepPlan.feather;
     u.uRevealStart.value = T.waveStart;
     u.uRevealDur.value = T.waveEnd - T.waveStart;
@@ -537,7 +536,9 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
         big.uniforms.uGlint.value = 1;
         bigMaterial.opacity = 1;
         u.uStarDock.value = 1; // the logo's own star is part of the logo the sweep uncovers
-        u.uSweepEdge.value = sweepEdge(sweepPlan, t, CAMERA_Z);
+        const stamps = sweepStamps(sweepPlan, t, CAMERA_Z, sw.bloom, u.uSweepStamps.value as THREE.Vector4[]);
+        u.uSweepCount.value = stamps.count;
+        u.uSweepDone.value = stamps.done;
         u.uGlow.value = (0.5 + 0.5 * live.glow) * (0.35 + 0.65 * sw.glow);
         setFx(dockGlint, 0, 0, 0);
         setFx(shiverGlint, 0, 0, 0);

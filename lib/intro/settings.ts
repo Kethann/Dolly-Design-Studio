@@ -117,6 +117,8 @@ export interface SweepSettings {
   grow: number;
   /** Width (px) of the soft edge where the logo appears behind the star. */
   feather: number;
+  /** How far the star shapes it leaves behind bloom open (0 = only exactly where it passed). */
+  bloom: number;
   /** "rtl": enters from the right, leaves left; "ltr": the other way. */
   direction: "rtl" | "ltr";
 }
@@ -134,6 +136,7 @@ function sanitizeSweep(input: unknown, d: SweepSettings): SweepSettings {
     glow: num(src.glow, [0, 1], d.glow),
     grow: num(src.grow, [1, 1.8], d.grow),
     feather: num(src.feather, [6, 120], d.feather),
+    bloom: num(src.bloom, [0, 2], d.bloom),
     direction: src.direction === "ltr" ? "ltr" : src.direction === "rtl" ? "rtl" : d.direction,
   };
 }
@@ -300,6 +303,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
     glow: 0.35,
     grow: 1.3,
     feather: 30,
+    bloom: 0.9,
     direction: "rtl",
   },
   formationCount: 450,
