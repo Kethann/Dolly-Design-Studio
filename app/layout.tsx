@@ -74,8 +74,11 @@ const jsonLd = {
   sameAs: site.social.map((s) => s.href),
 };
 
-// The intro only plays on the home page; on any other page, drop the black curtain before first paint.
-const INTRO_SKIP_SCRIPT = `if(location.pathname!=="/")document.documentElement.classList.add("intro-skip")`;
+// Runs before first paint: whenever the intro won't play, drop its curtain at once so the page shows instantly —
+// on any page but home, when the intro is switched off, and when coming back to home within the same visit
+// (a reload still plays it). Must agree with the checks in components/Intro.tsx. The portal preview decides itself.
+const introSkipScript = (enabled: boolean) =>
+  `(function(){if(location.search.indexOf("portal-preview")>=0)return;var seen=false;try{var n=performance.getEntriesByType("navigation")[0];seen=sessionStorage.getItem("dolly-intro-seen")==="1"&&!(n&&n.type==="reload")}catch(e){}if(location.pathname!=="/"||${!enabled}||seen)document.documentElement.classList.add("intro-skip")})()`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const introSettings = await readIntroSettings();
@@ -88,7 +91,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <body>
-        <script dangerouslySetInnerHTML={{ __html: INTRO_SKIP_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: introSkipScript(introSettings.enabled) }} />
         <noscript>
           <style>{".intro-curtain{display:none}.site-main{opacity:1}"}</style>
         </noscript>

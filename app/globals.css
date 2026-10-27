@@ -148,11 +148,68 @@ img {
 
 /* Intro hand-off: a plain background-coloured curtain until the intro starts, page fades in on reveal.
    html.intro-skip is set by a pre-paint script on pages where the intro doesn't play. */
+/* Painted from the very first frame while the 3D intro loads: the stage colour with a faint, slowly twinkling
+   field of gold stars and a soft glow where the logo will form, so the screen is never an empty block of colour. */
 .intro-curtain {
   position: fixed;
   inset: 0;
   z-index: 99;
   background: var(--stage);
+}
+
+.intro-curtain::before,
+.intro-curtain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.intro-curtain::before {
+  background:
+    radial-gradient(ellipse 34% 26% at 50% 46%, rgba(255, 214, 140, 0.09), transparent 70%),
+    radial-gradient(ellipse 120% 90% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.45));
+  animation: curtain-in 0.8s ease 0.1s forwards;
+}
+
+.intro-curtain::after {
+  background-image:
+    radial-gradient(1.4px 1.4px at 12% 18%, #ffe39a, transparent),
+    radial-gradient(1px 1px at 27% 72%, #f5c66a, transparent),
+    radial-gradient(1.6px 1.6px at 41% 33%, #fff1c2, transparent),
+    radial-gradient(1px 1px at 58% 81%, #f5c66a, transparent),
+    radial-gradient(1.3px 1.3px at 69% 24%, #ffe39a, transparent),
+    radial-gradient(1px 1px at 83% 61%, #f5c66a, transparent),
+    radial-gradient(1.5px 1.5px at 92% 12%, #fff1c2, transparent),
+    radial-gradient(1px 1px at 6% 88%, #ffe39a, transparent);
+  background-size: 420px 300px;
+  animation:
+    curtain-in 1s ease 0.15s forwards,
+    curtain-twinkle 3.2s ease-in-out 1.15s infinite alternate;
+}
+
+@keyframes curtain-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes curtain-twinkle {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-curtain::before,
+  .intro-curtain::after {
+    animation: none;
+    opacity: 1;
+  }
 }
 
 html.intro-skip .intro-curtain {
