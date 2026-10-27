@@ -20,6 +20,7 @@ import { T } from "@/lib/intro/timeline";
 import { Choice, ColorRow, Dial, HexInput, Section, Slider, Toggle, percent } from "./controls";
 import { ProofTableEditor } from "./ProofTableEditor";
 import { AccountPanel } from "./AccountPanel";
+import { SweepEditor } from "./SweepEditor";
 import type { PortalUser } from "@/lib/portal/users";
 import styles from "./portal.module.css";
 
@@ -120,6 +121,7 @@ function introLayout(s: IntroSettings) {
     s.enabled,
     s.formationCount,
     s.revealStyle,
+    s.sweep,
     s.introStarSize,
     s.starSize,
     s.spaceDepth,
@@ -1287,11 +1289,14 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
                   options={[
                     { value: "wave", label: "Wave" },
                     { value: "glow", label: "Glow" },
+                    { value: "sweep", label: "Sweep" },
                   ]}
                   hint={
                     draft.revealStyle === "wave"
                       ? "Light ripples out from the star through the letters, revealing the logo."
-                      : "The whole logo lights up from within in a warm glow, then settles into its gold."
+                      : draft.revealStyle === "glow"
+                        ? "The whole logo lights up from within in a warm glow, then settles into its gold."
+                        : "A big gold star sweeps across in front of the logo, turning as it goes, and the finished logo appears behind it."
                   }
                   onChange={(revealStyle) => update({ revealStyle })}
                 />
@@ -1381,6 +1386,9 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
                   onChange={(disperse) => update({ disperse })}
                 />
               </Section>
+              {draft.revealStyle === "sweep" && (
+                <SweepEditor value={draft.sweep} onChange={(patch) => update({ sweep: { ...draft.sweep, ...patch } })} />
+              )}
             </>
           )}
 

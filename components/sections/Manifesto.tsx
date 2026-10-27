@@ -28,9 +28,11 @@ function renderStatement(statement: string) {
           if (!w) return null;
           wordIndex += 1;
           return (
-            <span key={j} className={styles.word} data-word={wordIndex}>
-              {w}{" "}
-            </span>
+            <Fragment key={j}>
+              <span className={styles.word} data-word={wordIndex}>
+                {w}
+              </span>{" "}
+            </Fragment>
           );
         })}
       </Fragment>

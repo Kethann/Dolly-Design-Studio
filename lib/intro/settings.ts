@@ -96,6 +96,48 @@ export interface StreamSettings {
 export const GLOW_PLACES = ["heroLogo", "navLogo", "titles", "links", "posters"] as const;
 export type GlowPlace = (typeof GLOW_PLACES)[number];
 
+export interface SweepSettings {
+  /** Star size (1 = a little taller than the logo). */
+  size: number;
+  /** Seconds the star takes to cross (it must finish before the page appears). */
+  duration: number;
+  /** Turns while crossing (negative = the other way). */
+  spin: number;
+  /** 0..1: how far it tilts in 3D as it passes, catching the light on its facets. */
+  tilt: number;
+  /** 0..1: how deep its faceted arms are. */
+  depth: number;
+  /** 0..1: the brushed-metal texture on its facets. */
+  texture: number;
+  /** 0..1: how much its polished gold reflects. */
+  shine: number;
+  /** 0..1: a soft warm glow from the star and along the reveal edge. */
+  glow: number;
+  /** How much bigger it is when it leaves than when it enters. */
+  grow: number;
+  /** Width (px) of the soft edge where the logo appears behind the star. */
+  feather: number;
+  /** "rtl": enters from the right, leaves left; "ltr": the other way. */
+  direction: "rtl" | "ltr";
+}
+
+function sanitizeSweep(input: unknown, d: SweepSettings): SweepSettings {
+  const src = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  return {
+    size: num(src.size, [0.5, 2], d.size),
+    duration: num(src.duration, [1.2, 2.4], d.duration),
+    spin: num(src.spin, [-2, 2], d.spin),
+    tilt: num(src.tilt, [0, 1], d.tilt),
+    depth: num(src.depth, [0.05, 1], d.depth),
+    texture: num(src.texture, [0, 1], d.texture),
+    shine: num(src.shine, [0, 1], d.shine),
+    glow: num(src.glow, [0, 1], d.glow),
+    grow: num(src.grow, [1, 1.8], d.grow),
+    feather: num(src.feather, [6, 120], d.feather),
+    direction: src.direction === "ltr" ? "ltr" : src.direction === "rtl" ? "rtl" : d.direction,
+  };
+}
+
 export interface ProofTableSettings {
   enabled: boolean;
   /** How long the section stays pinned, in screen heights (shorter = the story plays faster). */
@@ -124,18 +166,16 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
         .slice(0, PROOF_LIMITS.items)
         .filter((it): it is Record<string, unknown> => !!it && typeof it === "object")
         .filter((it) => typeof it.src === "string" && /^\/images\/[\w\-./]+$/.test(it.src) && !it.src.includes(".."))
-        .map(
-          (it): ProofItem => ({
-            src: it.src as string,
-            type: it.type === "poster" ? "poster" : "title-png",
-            film: str(it.film, "Untitled"),
-            year: Math.round(num(it.year, [1950, 2100], new Date().getFullYear())),
-            tag: str(it.tag, "Title", 30),
-            slug: /^[a-z0-9-]{1,80}$/.test(String(it.slug)) ? String(it.slug) : "title-designs",
-            alt: str(it.alt, str(it.film, "Title design"), 160),
-            ...(typeof it.tint === "string" && /^#[0-9a-f]{6}$/i.test(it.tint) ? { tint: it.tint.toLowerCase() } : {}),
-          }),
-        )
+        .map((it): ProofItem => ({
+          src: it.src as string,
+          type: it.type === "poster" ? "poster" : "title-png",
+          film: str(it.film, "Untitled"),
+          year: Math.round(num(it.year, [1950, 2100], new Date().getFullYear())),
+          tag: str(it.tag, "Title", 30),
+          slug: /^[a-z0-9-]{1,80}$/.test(String(it.slug)) ? String(it.slug) : "title-designs",
+          alt: str(it.alt, str(it.film, "Title design"), 160),
+          ...(typeof it.tint === "string" && /^#[0-9a-f]{6}$/i.test(it.tint) ? { tint: it.tint.toLowerCase() } : {}),
+        }))
     : d.items;
   return {
     enabled: bool(src.enabled, d.enabled),
@@ -180,7 +220,9 @@ export interface IntroSettings {
   /** Percentage of stars that glow. */
   glowingShare: number;
   /** How the logo appears: light rippling out from the star ("wave"), or the whole logo glowing into being ("glow"). */
-  revealStyle: "wave" | "glow";
+  revealStyle: "wave" | "glow" | "sweep";
+  /** The sweep reveal (revealStyle "sweep"): the big star crossing the logo. */
+  sweep: SweepSettings;
   /** Stars that form the logo. */
   formationCount: number;
   /** The intro's stars: size of the logo-forming stars (on top of the overall star size)… */
@@ -247,6 +289,19 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   metallic: 0.55,
   glowingShare: 4,
   revealStyle: "wave",
+  sweep: {
+    size: 1,
+    duration: 1.9,
+    spin: 0.35,
+    tilt: 0.35,
+    depth: 0.5,
+    texture: 0.6,
+    shine: 0.6,
+    glow: 0.35,
+    grow: 1.3,
+    feather: 30,
+    direction: "rtl",
+  },
   formationCount: 450,
   introStarSize: 0.75,
   introMetallic: 0.2,
@@ -381,7 +436,9 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
     spaceDepth: num(src.spaceDepth, LIMITS.spaceDepth, d.spaceDepth),
     metallic: num(src.metallic, LIMITS.metallic, d.metallic),
     glowingShare: num(src.glowingShare, LIMITS.glowingShare, d.glowingShare),
-    revealStyle: src.revealStyle === "glow" ? "glow" : src.revealStyle === "wave" ? "wave" : d.revealStyle,
+    revealStyle:
+      src.revealStyle === "glow" || src.revealStyle === "wave" || src.revealStyle === "sweep" ? src.revealStyle : d.revealStyle,
+    sweep: sanitizeSweep(src.sweep, d.sweep),
     formationCount: Math.round(num(src.formationCount, LIMITS.formationCount, d.formationCount)),
     introStarSize: num(src.introStarSize, [0.3, 1.6], d.introStarSize),
     introMetallic: num(src.introMetallic, [0, 1], d.introMetallic),
@@ -419,7 +476,10 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       intensity: num(logoGlow.intensity, [0, 1], d.logoGlow.intensity),
       spread: num(logoGlow.spread, [60, 400], d.logoGlow.spread),
       color: hex(logoGlow.color, d.logoGlow.color),
-      places: Object.fromEntries(GLOW_PLACES.map((p) => [p, bool(places[p], d.logoGlow.places[p])])) as Record<GlowPlace, boolean>,
+      places: Object.fromEntries(GLOW_PLACES.map((p) => [p, bool(places[p], d.logoGlow.places[p])])) as Record<
+        GlowPlace,
+        boolean
+      >,
     },
     proofTable: sanitizeProofTable(src.proofTable, d.proofTable),
     cursor: {
@@ -453,13 +513,17 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       },
       dots: Object.fromEntries(
         ART_PAGES.map((page) => {
-          const src = (art.dots && typeof art.dots === "object" ? (art.dots as Record<string, Record<string, unknown>>)[page] : null) ?? {};
+          const src =
+            (art.dots && typeof art.dots === "object" ? (art.dots as Record<string, Record<string, unknown>>)[page] : null) ?? {};
           return [page, { a: hex(src.a, d.art.dots[page].a), b: hex(src.b, d.art.dots[page].b) }];
         }),
       ) as Record<ArtPage, { a: string; b: string }>,
       sections: Object.fromEntries(
         ART_SECTIONS.map((id) => {
-          const src = (art.sections && typeof art.sections === "object" ? (art.sections as Record<string, Record<string, unknown>>)[id] : null) ?? {};
+          const src =
+            (art.sections && typeof art.sections === "object"
+              ? (art.sections as Record<string, Record<string, unknown>>)[id]
+              : null) ?? {};
           return [id, { a: hex(src.a, d.art.sections[id].a), b: hex(src.b, d.art.sections[id].b) }];
         }),
       ) as Record<ArtSection, { a: string; b: string }>,

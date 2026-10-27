@@ -11,6 +11,7 @@ import { createLogoRevealMaterial } from "@/lib/intro/logo-reveal-material";
 import { createSparkleTexture } from "@/lib/intro/fx-textures";
 import { buildDustGeometry, createDustMaterial } from "@/lib/intro/dust";
 import { bigStarPose, planBigStar, revealTimeAt, waveRadius } from "@/lib/intro/big-star-path";
+import { planSweep, sweepEdge, sweepPose, sweepTimeAt } from "@/lib/intro/sweep-path";
 import { createRng, randomSeed } from "@/lib/intro/rng";
 import {
   CAMERA_Z,
@@ -95,9 +96,6 @@ export interface StarIntroProps {
   /** Called once the first frame is on screen (the preview then removes the run it replaces, without a flash). */
   onFirstFrame?: () => void;
 }
-
-/** How long the intro takes to fade to the page when the visitor scrolls during it. */
-const SKIP_FADE_MS = 600;
 
 export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed, onTime, onFirstFrame }: StarIntroProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -185,16 +183,24 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const streamBack = streaming ? planStream(settings.field.count, "back", settings, streamSeed) : [];
     const streamFront = streaming ? planStream(settings.front.count, "front", settings, streamSeed) : [];
     const bigPlan = planBigStar(stage, rand);
-    // When the reveal reaches each logo star (it turns to dust at that moment).
+    // The Sweep reveal: the big star crosses the formed logo instead of landing on it (see sweep-path.ts).
+    const sweepMode = settings.revealStyle === "sweep";
+    const sweepPlan = planSweep(stage, settings.sweep, (2 * halfH0) / vh);
+    const sweepAt = (x: number) => sweepTimeAt(sweepPlan, x, CAMERA_Z);
+    // When the reveal reaches each logo star (it turns to dust at that moment; with the sweep, as the star covers it).
     const revealTimes = formation.map((s) =>
-      revealTimeAt(bigPlan, Math.hypot(s.target.x - bigPlan.glyph.x, s.target.y - bigPlan.glyph.y), settings.revealStyle),
+      sweepMode
+        ? sweepAt(s.target.x)
+        : revealTimeAt(bigPlan, Math.hypot(s.target.x - bigPlan.glyph.x, s.target.y - bigPlan.glyph.y), settings.revealStyle),
     );
 
     // --- the crisp logo, revealed by the wave ----------------------------------------
     const reveal = createLogoRevealMaterial();
     const u = reveal.material.uniforms;
     u.uWaveCenter.value.set(bigPlan.glyph.x, bigPlan.glyph.y);
-    u.uMode.value = settings.revealStyle === "glow" ? 1 : 0;
+    u.uMode.value = settings.revealStyle === "glow" ? 1 : sweepMode ? 2 : 0;
+    u.uSweepDir.value = sweepPlan.dir;
+    u.uSweepFeather.value = sweepPlan.feather;
     u.uRevealStart.value = T.waveStart;
     u.uRevealDur.value = T.waveEnd - T.waveStart;
     u.uReach.value = bigPlan.waveReach;
@@ -285,7 +291,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     front.add(bigStar);
 
     // --- glitter: flight trails, the big star's trail, the wave's sparkle ----------------
-    const dustGeometry = buildDustGeometry(stage, formation, bigPlan, palette, glowColor, rand, settings.revealStyle);
+    const dustGeometry = buildDustGeometry(stage, formation, bigPlan, palette, glowColor, rand, settings.revealStyle, sweepAt);
     const dustMaterial = createDustMaterial();
     dustMaterial.uniforms.uProjScale.value = (vh * dpr) / (2 * tanHalfFov);
     dustMaterial.uniforms.uGlow.value = 0.5 + 0.5 * glow;
@@ -425,7 +431,8 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       backdrop.update(t, { amount: 0 });
 
       // Formation: fly in, tumble, settle and glint — tremble with the big star's shiver — then ride the wave and dissolve.
-      const shiverK = t > T.shiverStart && t < T.waveStart ? easeInQuad((t - T.shiverStart) / (T.waveStart - T.shiverStart)) : 0;
+      const shiverK =
+        !sweepMode && t > T.shiverStart && t < T.waveStart ? easeInQuad((t - T.shiverStart) / (T.waveStart - T.shiverStart)) : 0;
       for (let i = 0; i < formation.length; i++) {
         const s = formation[i];
         const local = clamp01((t - s.delay) / s.duration);
@@ -451,7 +458,9 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
           size *=
             settings.revealStyle === "wave"
               ? (1 + 0.2 * lift) * (1 - easeInQuad(clamp01((since + 0.04) / 0.2)))
-              : 1 - easeInOutCubic(clamp01((since - 0.25) / 0.65));
+              : sweepMode
+                ? 1 - easeInQuad(clamp01((since + 0.05) / 0.18)) // slips away under the passing star
+                : 1 - easeInOutCubic(clamp01((since - 0.25) / 0.65));
           if (settings.revealStyle === "glow") {
             // The star itself brightens in its own colour, peaks, then fades with it.
             const g = smoothstepJs(-0.15, 0.2, since) * (1 - smoothstepJs(0.25, 0.9, since));
@@ -507,6 +516,33 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       big.uniforms.uGlint.value = 1 - pose.morph; // glints on a few facets in flight, an even flat gold once docked
       bigMaterial.opacity = 1 - (pose.visible ? pose.dock : 0);
       u.uStarDock.value = pose.dock;
+
+      if (sweepMode) {
+        // The same clean, faceted gold as the background stars: crisp facets, a little shine, only a faint warmth.
+        const sw = live.sweep;
+        const sp = sweepPose(sweepPlan, t);
+        bigStar.visible = sp.visible;
+        bigStar.position.set(sp.x, sp.y, sp.z);
+        bigStar.rotation.set(sp.rotX, sp.rotY, sp.rotZ);
+        const depthK = (0.08 + 0.82 * sw.depth) / Math.max(1e-3, 0.42 * live.starDepth);
+        bigStar.scale.set(sp.scale, sp.scale, sp.scale * depthK);
+        bigMaterial.color.copy(bigGold);
+        bigMaterial.emissive.copy(bigEmber);
+        bigMaterial.emissiveIntensity = 0.35 * sw.glow;
+        bigMaterial.metalness = 1;
+        bigMaterial.roughness = 0.42 - 0.2 * sw.shine;
+        bigMaterial.envMapIntensity = 0.15 + 0.6 * sw.shine;
+        bigMaterial.bumpScale = 0.35 * sw.texture;
+        big.uniforms.uTexture.value = sw.texture;
+        big.uniforms.uGlint.value = 1;
+        bigMaterial.opacity = 1;
+        u.uStarDock.value = 1; // the logo's own star is part of the logo the sweep uncovers
+        u.uSweepEdge.value = sweepEdge(sweepPlan, t, CAMERA_Z);
+        u.uGlow.value = (0.5 + 0.5 * live.glow) * (0.35 + 0.65 * sw.glow);
+        setFx(dockGlint, 0, 0, 0);
+        setFx(shiverGlint, 0, 0, 0);
+        return;
+      }
 
       // Light effects: a glint flicks across a point as it lands, and another builds on its top point as it shivers.
       const r = bigPlan.glyphRadius;
@@ -586,14 +622,6 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
       // The vignette lifts as the logo finishes, so the last frame matches the (vignette-free) page exactly.
       if (vignette) vignette.style.opacity = String(1 - clamp01((t - T.sheenStart) / (T.fadeStart - T.sheenStart)));
-      if (skippedAt !== null) {
-        // Skipped by scrolling: a quick fade to the page, then done.
-        const k = clamp01((now - skippedAt) / SKIP_FADE_MS);
-        overlay!.style.opacity = String(1 - easeInOutCubic(k));
-        if (k >= 1) return finish();
-        raf = requestAnimationFrame(frame);
-        return;
-      }
       overlay!.style.opacity = String(1 - easeInOutCubic(clamp01((t - T.fadeStart) / (T.end - T.fadeStart))));
       if (t >= T.revealAt) markRevealed();
       if (t >= T.end) return finish();
@@ -611,16 +639,21 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     raf = requestAnimationFrame(frame);
 
     // Esc jumps straight to the hand-off (keyboard accessibility). No on-screen skip, no accidental skips.
-    // Scrolling (wheel, swipe, or the scroll keys) during the show skips it gracefully: the page is released at
-    // once, the stars are handed to the page, and the intro fades away over a moment — the scroll carries on.
-    // (Not in the portal's preview, which plays the intro on purpose.)
-    let skippedAt: number | null = null;
+    // Scrolling (wheel, swipe, or the scroll keys) during the show doesn't stop it: the intro becomes the opening
+    // scene at the top of the page and plays on there, while the page below appears and scrolls freely. It lets go of
+    // the screen (fixed → part of the page, at the very top, where the page is now) and hands the background stars to
+    // the page, so the page below has its stars too. (Not in the portal's preview, which plays the intro on purpose.)
+    let detached = false;
     let scrollLocked = true;
-    function skipToPage() {
-      if (skippedAt !== null || finished || paused || onTime) return;
-      skippedAt = performance.now();
+    function playOnInPage() {
+      if (detached || finished || paused || onTime) return;
+      detached = true;
+      const o = overlay!;
+      o.style.position = "absolute";
+      o.style.top = "0";
+      o.style.height = `${window.innerHeight}px`;
+      o.style.zIndex = "40"; // under the nav and side rail, over the hero it is drawing
       markRevealed();
-      overlay!.style.pointerEvents = "none";
       if (scrollLocked) {
         scrollLocked = false;
         unlockScroll();
@@ -629,17 +662,17 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const SCROLL_KEYS = new Set(["ArrowDown", "PageDown", "End", " ", "Spacebar"]);
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape" && t < T.fadeStart) t = T.fadeStart;
-      else if (SCROLL_KEYS.has(e.key)) skipToPage();
+      else if (SCROLL_KEYS.has(e.key)) playOnInPage();
     }
     function onWheel(e: WheelEvent) {
-      if (e.deltaY > 0) skipToPage();
+      if (e.deltaY > 0) playOnInPage();
     }
     let touchY = 0;
     function onTouchStart(e: TouchEvent) {
       touchY = e.touches[0]?.clientY ?? 0;
     }
     function onTouchMove(e: TouchEvent) {
-      if (touchY - (e.touches[0]?.clientY ?? touchY) > 24) skipToPage(); // a swipe up = scrolling down
+      if (touchY - (e.touches[0]?.clientY ?? touchY) > 24) playOnInPage(); // a swipe up = scrolling down
     }
     // The on-screen layout is baked in at the start; if the window changes size, hand off cleanly.
     function onResize() {
@@ -650,6 +683,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       backdrop.setAspect(w / h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      if (detached) overlay!.style.height = `${h}px`;
       if (t < T.fadeStart) t = T.fadeStart;
     }
     // If the GPU drops the context mid-show, go straight to the page rather than freezing.

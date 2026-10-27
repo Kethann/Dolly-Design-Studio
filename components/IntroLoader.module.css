@@ -7,18 +7,18 @@
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 22px;
+  gap: 18px;
   pointer-events: none;
   opacity: 0;
   animation: loader-in 0.5s ease 0.05s forwards;
   transition:
-    opacity 0.6s ease,
-    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .loader[data-done] {
   opacity: 0 !important;
-  transform: scale(1.08);
+  transform: scale(1.1);
   animation: none;
 }
 
@@ -30,20 +30,69 @@
 
 .mark {
   position: relative;
-  width: 168px;
-  height: 168px;
+  width: 196px;
+  height: 196px;
   display: grid;
   place-items: center;
 }
 
-/* The star turns slowly and breathes a soft gold light. */
-.star {
+/* A soft pool of gold light behind the star. */
+.mark::before {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 210, 120, 0.22), transparent 68%);
+  animation: breathe 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes breathe {
+  from {
+    transform: scale(0.92);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+/* The progress ring, starting at the top and filling clockwise. */
+.ring {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 0 18px rgba(232, 176, 75, 0.45)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
-  animation: spin 3.6s linear infinite;
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+
+.ringTrack,
+.ringFill {
+  fill: none;
+  stroke-width: 0.9;
+}
+
+.ringTrack {
+  stroke: rgba(244, 237, 225, 0.12);
+}
+
+.ringFill {
+  stroke: #f0c564;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: calc(100 - var(--progress) * 100);
+  filter: drop-shadow(0 0 3px rgba(255, 210, 120, 0.8));
+}
+
+/* The star turns slowly; crisp edges and a soft glow. */
+.star {
+  position: absolute;
+  inset: 13%;
+  width: 74%;
+  height: 74%;
+  filter: drop-shadow(0 0 14px rgba(232, 176, 75, 0.5)) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
+  animation: spin 4.2s linear infinite;
   will-change: transform;
 }
 
@@ -53,7 +102,7 @@
   }
 }
 
-/* The number stays upright on the turning star. */
+/* The number stays upright on the turning star: dark on gold, with a light edge so it reads at a glance. */
 .percent {
   position: relative;
   display: inline-flex;
@@ -61,34 +110,32 @@
   gap: 1px;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 24px;
-  color: #2a1606;
+  font-size: 27px;
+  line-height: 1;
+  color: #2b1503;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 0 rgba(255, 241, 194, 0.55);
+  text-shadow:
+    0 0 6px rgba(255, 236, 180, 0.9),
+    0 1px 0 rgba(255, 244, 204, 0.8);
 }
 
 .percent small {
-  font-size: 13px;
+  font-size: 14px;
 }
 
-/* A fine line underneath that fills with gold. */
-.track {
-  width: 160px;
-  height: 1px;
-  background: rgba(244, 237, 225, 0.14);
-  overflow: hidden;
-}
-
-.fill {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, rgba(232, 176, 75, 0.4), #fff1c2);
-  transform-origin: left center;
-  transform: scaleX(var(--progress));
+.caption {
+  margin: 0;
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.45em;
+  text-transform: uppercase;
+  color: rgba(244, 237, 225, 0.55);
+  padding-left: 0.45em; /* balances the letter spacing, so the word is truly centred */
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .star {
+  .star,
+  .mark::before {
     animation: none;
   }
 }

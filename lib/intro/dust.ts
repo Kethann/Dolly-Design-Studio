@@ -55,8 +55,12 @@ export function buildDustGeometry(
   palette: THREE.Color[],
   glowColor: THREE.Color,
   rand: Rng,
-  revealStyle: "wave" | "glow" = "wave",
+  revealStyle: "wave" | "glow" | "sweep" = "wave",
+  /** Sweep reveal: when the big star passes world x (the sweep is timed across the logo, not out from its star). */
+  sweepTimeAt?: (x: number) => number,
 ) {
+  const timeAt = (p: THREE.Vector3, d: number) =>
+    revealStyle === "sweep" && sweepTimeAt ? sweepTimeAt(p.x) : revealTimeAt(bigStar, d, revealStyle);
   const GOLD = glowColor;
   const range = (min: number, max: number) => min + rand() * (max - min);
   function randomUnit(out: THREE.Vector3, zScale = 1) {
@@ -82,21 +86,25 @@ export function buildDustGeometry(
       const birth = s.delay + s.duration * local;
       bezier(p, s.start, s.control, s.target, progress).add(randomUnit(jitter).multiplyScalar(s.size * 0.7));
       bezierTangent(tangent, s.start, s.control, s.target, progress).normalize();
-      v.copy(tangent).multiplyScalar(-range(0.05, 0.25)).add(randomUnit(jitter).multiplyScalar(range(0.03, 0.12)));
+      v.copy(tangent)
+        .multiplyScalar(-range(0.05, 0.25))
+        .add(randomUnit(jitter).multiplyScalar(range(0.03, 0.12)));
       // Mostly faint glitter; one in ten catches the light hard enough to bloom.
       const bright = rand() < 0.1;
       dust.add(p, v, birth, range(0.6, 1.4), base * range(0.5, 1.2), tint, bright ? range(1.4, 1.9) : range(0.35, 0.8));
     }
   }
 
-  // 2. The big star's trail as it comes in out of deep space.
+  // 2. The big star's trail as it comes in out of deep space (the wave and glow reveals; the sweep has no fly-in).
   const quat = new THREE.Quaternion();
-  for (let k = 0; k < 700; k++) {
+  for (let k = 0; k < (revealStyle === "sweep" ? 0 : 700); k++) {
     const t = range(T.bigStarEnter + 0.1, T.docked);
     const pose = bigStarPose(bigStar, t, p, quat);
     if (!pose.visible) continue;
     p.add(randomUnit(jitter).multiplyScalar(pose.scale * Math.sqrt(rand()) * 0.6));
-    randomUnit(v).multiplyScalar(range(0.1, 0.45)).add(jitter.set(0, -0.3, 0));
+    randomUnit(v)
+      .multiplyScalar(range(0.1, 0.45))
+      .add(jitter.set(0, -0.3, 0));
     const bright = rand() < 0.3;
     dust.add(p, v, t, range(0.7, 1.6), base * range(1, 2), bright ? GOLD : WARM_WHITE, bright ? range(1.4, 2) : range(0.5, 1));
   }
@@ -112,7 +120,15 @@ export function buildDustGeometry(
       .multiplyScalar(range(0.08, 0.35))
       .add(jitter.set(0, range(0, 0.2), range(0.05, 0.35)));
     const bright = rand() < 0.35;
-    dust.add(p, v, revealTimeAt(bigStar, d, revealStyle), range(0.5, 1.1), base * range(0.6, 1.4), bright ? GOLD : WARM_WHITE, bright ? range(1.1, 1.7) : range(0.4, 0.85));
+    dust.add(
+      p,
+      v,
+      timeAt(p, d),
+      range(0.5, 1.1),
+      base * range(0.6, 1.4),
+      bright ? GOLD : WARM_WHITE,
+      bright ? range(1.1, 1.7) : range(0.4, 0.85),
+    );
   }
 
   // 4a. Glow reveal: every formation star blooms into a soft halo of light in its own colour, which then eases
@@ -121,7 +137,15 @@ export function buildDustGeometry(
     for (const s of formation) {
       const d = Math.hypot(s.target.x - bigStar.glyph.x, s.target.y - bigStar.glyph.y);
       tint.copy(palette[s.color]).lerp(GOLD, 0.45).lerp(WARM_WHITE, 0.2);
-      dust.add(s.target, v.set(0, 0.03, 0), revealTimeAt(bigStar, d, revealStyle) - 0.08, range(1.3, 1.6), s.size * range(3, 4), tint, range(1.3, 1.7));
+      dust.add(
+        s.target,
+        v.set(0, 0.03, 0),
+        revealTimeAt(bigStar, d, revealStyle) - 0.08,
+        range(1.3, 1.6),
+        s.size * range(3, 4),
+        tint,
+        range(1.3, 1.7),
+      );
     }
   }
 
@@ -129,7 +153,10 @@ export function buildDustGeometry(
   //    the star's own size, drifting outward and up as it fades — the stars turn into dust as the crisp logo appears.
   for (const s of formation) {
     const d = Math.hypot(s.target.x - bigStar.glyph.x, s.target.y - bigStar.glyph.y);
-    const away = jitter.set(s.target.x - stage.logo.x, s.target.y - stage.logo.y, 0).normalize().clone();
+    const away = jitter
+      .set(s.target.x - stage.logo.x, s.target.y - stage.logo.y, 0)
+      .normalize()
+      .clone();
     tint.copy(palette[s.color]).lerp(WARM_WHITE, 0.25);
     for (let k = 0; k < 4; k++) {
       p.copy(s.target).add(randomUnit(v, 0.3).multiplyScalar(s.size * range(0.1, 0.9)));
@@ -137,7 +164,7 @@ export function buildDustGeometry(
         .multiplyScalar(range(0.05, 0.25))
         .add(randomUnit(jitter, 0.5).multiplyScalar(range(0.05, 0.22)))
         .add(jitter.set(0, range(0.05, 0.2), 0));
-      dust.add(p, v, revealTimeAt(bigStar, d, revealStyle) + range(0, 0.1), range(0.7, 1.5), base * range(0.9, 1.8), tint, range(1.1, 1.9));
+      dust.add(p, v, timeAt(s.target, d) + range(0, 0.1), range(0.7, 1.5), base * range(0.9, 1.8), tint, range(1.1, 1.9));
     }
   }
 

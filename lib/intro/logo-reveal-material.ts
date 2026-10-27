@@ -39,7 +39,10 @@ const fragmentShader = /* glsl */ `
   uniform float uWaveBand;   // world-space spacing of the light rings that follow the front
   uniform float uSoftness;   // world-space width of the soft front edge
   uniform float uWaveFade;   // 1 while the wave crosses the logo, fading to 0 once it has left
-  uniform float uMode;       // 0 = wave reveal, 1 = glow reveal
+  uniform float uMode;       // 0 = wave reveal, 1 = glow reveal, 2 = sweep reveal
+  uniform float uSweepEdge;    // sweep: world x of the edge behind the passing star
+  uniform float uSweepFeather; // sweep: world width of its soft edge
+  uniform float uSweepDir;     // sweep: +1 crossing right to left, -1 left to right
   uniform float uTime;       // intro time, in seconds (glow reveal)
   uniform float uRevealStart;
   uniform float uRevealDur;
@@ -78,6 +81,14 @@ const fragmentShader = /* glsl */ `
       float echoes = ring(behind, uWaveBand * 0.55, uSoftness * 1.3) * 0.5 + ring(behind, uWaveBand * 1.05, uSoftness * 1.5) * 0.25;
       light = (crest * 1.25 + echoes) * revealed * uWaveFade * uGlow;
       core = pow(crest, 3.0) * revealed * uWaveFade;
+    } else if (uMode > 1.5) {
+      // Sweep: the logo shows only where the big star has passed, through a soft edge just behind it, with a faint
+      // warm glint along that edge that fades as the edge moves on.
+      float past = (vWorld.x - uSweepEdge) * uSweepDir; // > 0 once the star has passed this point
+      revealed = smoothstep(0.0, uSweepFeather, past);
+      float glint = exp(-pow((past - uSweepFeather * 0.6) / (uSweepFeather * 0.9 + 1e-4), 2.0));
+      light = glint * revealed * uGlow * 0.9;
+      core = glint * glint * revealed * 0.5;
     } else {
       // Glow: the stars glow up first; the logo emerges through their glow, lit, and the light then eases
       // smoothly away into the original flat gold.
@@ -128,6 +139,9 @@ export function createLogoRevealMaterial(): LogoRevealMaterial {
       uSoftness: { value: 0.08 },
       uWaveFade: { value: 1 },
       uMode: { value: 0 },
+      uSweepEdge: { value: 1e6 },
+      uSweepFeather: { value: 0.1 },
+      uSweepDir: { value: 1 },
       uTime: { value: 0 },
       uRevealStart: { value: 0 },
       uRevealDur: { value: 1 },
