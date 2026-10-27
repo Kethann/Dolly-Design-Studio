@@ -15,7 +15,6 @@
   --r2: 0;
   --r3: 0;
   --r4: 0;
-  --gobo: 0;
   --hud: 1;
   position: sticky;
   top: 0;
@@ -39,52 +38,6 @@
   width: 100%;
   height: 100%;
   display: block;
-}
-
-/* Window-blind light drifting across the scene in the last act. */
-.gobo {
-  position: absolute;
-  inset: -20%;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    104deg,
-    transparent 0 60px,
-    rgba(0, 0, 0, 0.42) 90px 150px,
-    transparent 180px 220px
-  );
-  filter: blur(18px);
-  mix-blend-mode: multiply;
-  opacity: var(--gobo);
-  animation: gobo 22s ease-in-out infinite alternate;
-}
-
-@keyframes gobo {
-  from {
-    transform: translateX(-6%) rotate(0.5deg);
-  }
-  to {
-    transform: translateX(6%) rotate(-0.5deg);
-  }
-}
-
-/* Fine film grain over everything. */
-.grain {
-  position: absolute;
-  inset: -50%;
-  pointer-events: none;
-  opacity: 0.06;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  animation: grain 0.9s steps(6) infinite;
-}
-
-@keyframes grain {
-  0% { transform: translate(0, 0); }
-  20% { transform: translate(-3%, 2%); }
-  40% { transform: translate(2%, -3%); }
-  60% { transform: translate(-2%, -1%); }
-  80% { transform: translate(3%, 3%); }
-  100% { transform: translate(0, 0); }
 }
 
 /* Press labels in the corners; the counter ticks with the scroll. */
@@ -190,12 +143,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .gobo,
-  .grain {
-    animation: none;
-  }
-}
 
 /* ---- No-WebGL fallback: the table in CSS 3D ---------------------------------------------------- */
 .fbStage {

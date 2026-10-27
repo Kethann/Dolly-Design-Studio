@@ -5,13 +5,12 @@ import type { ProofItem } from "@/content/proof-table";
 import { STAGES } from "./stages";
 
 /**
- * "The Proof Table": a crumpled foil test print is ironed flat, becomes a backlit proofing table, the title designs
- * drop onto it as glass-mounted proofs, and the camera leans in low while the table slides right.
+ * "The Proof Table": the title designs drop onto a backlit proofing table as glass-mounted proofs, then the camera
+ * leans in low while the table slides right and the cards can be picked up (hover) and opened (click).
  *
- * Everything is a pure function of the scroll progress `p` (0..1), so scrubbing back plays it back exactly.
- *   0.00–0.10  press floor (printer's marks)        0.30–0.50  slab extrudes, lightbox powers on
- *   0.10–0.30  crumpled foil sheet irons flat       0.50–0.75  proofs drop in, one by one
- *                                                    0.75–1.00  camera swings low, table slides right
+ * Everything is a pure function of the scroll progress `p` (0..1); the section decides how p moves (see ProofTable).
+ *   drops    the cards drop in, one by one, with weight
+ *   inspect  the camera swings low and close, the table slides right
  */
 
 const W = 8; // slab width (x)
@@ -36,34 +35,36 @@ function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2
   return tex;
 }
 
-function rr(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r);
-}
-
 /** The floor: dark stage-tinted paper with a fine dot grid, printer's marks and press labels, fading out at the edges. */
-function floorTexture(stage: THREE.Color, labels: { proof: string; bleed: string; reg: string }) {
+function floorTexture(labels: { proof: string; bleed: string; reg: string }) {
   const S = 2048;
   const U = S / 24; // px per world unit (the floor plane is 24 units wide)
   return canvasTexture(S, S, (ctx) => {
     const c = (x: number) => S / 2 + x * U;
-    const base = stage.clone().lerp(new THREE.Color("#0b0806"), 0.55);
-    const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
-    g.addColorStop(0, `#${base.getHexString()}`);
-    g.addColorStop(0.62, `#${base.getHexString()}e0`);
-    g.addColorStop(1, `#${base.getHexString()}00`);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, S, S);
-
-    // Dot grid, fading radially.
-    for (let y = -11.5; y <= 11.5; y += 0.25) {
-      for (let x = -11.5; x <= 11.5; x += 0.25) {
-        const a = Math.max(0, 1 - Math.hypot(x, y) / 10.5) * 0.32;
-        if (a <= 0.01) continue;
-        ctx.fillStyle = `rgba(244,237,225,${a})`;
-        ctx.beginPath();
-        ctx.arc(c(x), c(y), 1.3, 0, Math.PI * 2);
-        ctx.fill();
+    // No paper fill: the sheet is clear, so the site's own background (set in the portal) shows through.
+    // Instead of a dot grid, small gold stars are printed across it, fading out towards the edges.
+    let seed = 7;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    const star = (x: number, y: number, r: number, turn: number) => {
+      ctx.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const a = turn + (k * Math.PI) / 5 - Math.PI / 2;
+        const rad = k % 2 === 0 ? r : r * 0.42;
+        ctx.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad);
+      }
+      ctx.closePath();
+      ctx.fill();
+    };
+    for (let y = -11; y <= 11; y += 0.42) {
+      for (let x = -11; x <= 11; x += 0.42) {
+        const jx = x + (rand() - 0.5) * 0.3;
+        const jy = y + (rand() - 0.5) * 0.3;
+        const fade = Math.max(0, 1 - Math.hypot(jx, jy) / 10);
+        const bright = rand() < 0.12;
+        const a = fade * (bright ? 0.75 : 0.32);
+        if (a <= 0.02) continue;
+        ctx.fillStyle = bright ? `rgba(255,241,149,${a})` : `rgba(232,176,75,${a})`;
+        star(c(jx), c(jy), (bright ? 5.5 : 3) + rand() * 2.5, rand() * Math.PI);
       }
     }
 
@@ -116,21 +117,6 @@ function floorTexture(stage: THREE.Color, labels: { proof: string; bleed: string
     ctx.fillText(labels.bleed, c(hw - 1.2), c(-hd - 0.35));
     ctx.fillText(labels.reg, c(hw - 0.6), c(hd + 0.4));
     ctx.fillText("SHEET A1 · 350 GSM", c(-hw + 4), c(hd + 0.4));
-  });
-}
-
-/** The foil sheet's printed face: a strip of film perforations down one edge. */
-function sheetTexture() {
-  return canvasTexture(1024, 720, (ctx) => {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, 1024, 720);
-    ctx.fillStyle = "#2a2318";
-    for (let y = 18; y < 700; y += 34) {
-      rr(ctx, 16, y, 26, 18, 4);
-      ctx.fill();
-    }
-    ctx.fillStyle = "rgba(42,35,24,0.25)";
-    ctx.fillRect(56, 0, 2, 720);
   });
 }
 
@@ -260,40 +246,10 @@ function tagTexture(text: string) {
   });
 }
 
-/** Crumpled-paper displacement in the vertex shader, ironed flat by a sweep from left to right. */
-const CRUMPLE_GLSL = /* glsl */ `
-  uniform float uIron;
-  uniform vec2 uSize;
-  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-  float vnoise(vec2 p) {
-    vec2 i = floor(p), f = fract(p);
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
-  }
-  // Ridged noise gives the sharp creases of crumpled foil.
-  float crumple(vec2 p) {
-    float h = 0.0, a = 0.5;
-    for (int i = 0; i < 4; i++) {
-      h += a * (1.0 - abs(vnoise(p) * 2.0 - 1.0));
-      p = mat2(1.6, 1.2, -1.2, 1.6) * p;
-      a *= 0.5;
-    }
-    return h;
-  }
-  vec3 displaced(vec3 pos) {
-    float xn = pos.x / uSize.x + 0.5;
-    float sweep = uIron * 1.5 - 0.25;
-    float k = smoothstep(sweep - 0.18, sweep + 0.18, xn); // 1 = still crumpled
-    float crest = 0.07 * exp(-pow((xn - sweep) / 0.05, 2.0)) * step(uIron, 0.999) * step(0.001, uIron);
-    vec3 q = pos;
-    q.xz *= 1.0 - 0.14 * k; // a crumpled sheet is smaller
-    q.y += (crumple(pos.xz * 0.9) - 0.45) * 0.55 * k + crest;
-    return q;
-  }
-`;
-
 export interface GlassLook {
   color: string;
+  /** 0..1: how strongly the glass mirrors the room (clear-coat shine and reflections). */
+  reflection: number;
   /** 0..1, 1 = solid. */
   opacity: number;
   /** 0..1 frosted blur. */
@@ -371,11 +327,11 @@ export function createProofScene(
   const stageColor = new THREE.Color(opts.stage);
 
   // --- Floor -------------------------------------------------------------------------------------
-  const floorTex = track(floorTexture(stageColor, opts.labels));
+  const floorTex = track(floorTexture(opts.labels));
   floorTex.anisotropy = maxAniso;
   const floor = new THREE.Mesh(
     track(new THREE.PlaneGeometry(24, 24).rotateX(-Math.PI / 2)),
-    track(new THREE.MeshStandardMaterial({ map: floorTex, transparent: true, roughness: 0.95, depthWrite: false })),
+    track(new THREE.MeshBasicMaterial({ map: floorTex, transparent: true, depthWrite: false, toneMapped: false })),
   );
   floor.renderOrder = -3;
   scene.add(floor);
@@ -391,45 +347,13 @@ export function createProofScene(
         polygonOffset: true, // lies on the floor without fighting it
         polygonOffsetFactor: -1,
         polygonOffsetUnits: -2,
-        opacity: 0,
+        opacity: 0.55,
       }),
     ),
   );
   slabShadow.renderOrder = -2;
+  slabShadow.material.opacity = 0.55;
   scene.add(slabShadow);
-
-  // --- Crumpled foil sheet ---------------------------------------------------------------------
-  const sheetUniforms = { uIron: { value: 0 }, uSize: { value: new THREE.Vector2(W - 0.2, D - 0.2) } };
-  const sheetMat = track(
-    new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color("#e3c27a"),
-      map: track(sheetTexture()),
-      metalness: 1,
-      roughness: 0.14,
-      side: THREE.DoubleSide,
-      transparent: true,
-      envMapIntensity: 1.3,
-    }),
-  );
-  sheetMat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, sheetUniforms);
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>\n${CRUMPLE_GLSL}`)
-      .replace(
-        "#include <beginnormal_vertex>",
-        `float e = 0.04;
-        vec3 c0 = displaced(position);
-        vec3 tx = displaced(position + vec3(e, 0.0, 0.0)) - c0;
-        vec3 tz = displaced(position + vec3(0.0, 0.0, e)) - c0;
-        vec3 objectNormal = normalize(cross(tz, tx));`,
-      )
-      .replace("#include <begin_vertex>", "vec3 transformed = c0;");
-  };
-  const sheet = new THREE.Mesh(
-    track(new THREE.PlaneGeometry(W - 0.2, D - 0.2, mobile ? 90 : 140, mobile ? 63 : 98).rotateX(-Math.PI / 2)),
-    sheetMat,
-  );
-  scene.add(sheet);
 
   // --- Lightbox slab ---------------------------------------------------------------------------
   const slab = new THREE.Mesh(
@@ -444,6 +368,7 @@ export function createProofScene(
       }),
     ),
   );
+  slab.position.y = T / 2;
   scene.add(slab);
 
   const pw = W - INSET * 2;
@@ -471,11 +396,14 @@ export function createProofScene(
     ),
     track(new THREE.MeshPhysicalMaterial({ color: "#9c7434", metalness: 0.9, roughness: 0.32, envMapIntensity: 1.1 })),
   );
+  frame.position.y = T - 0.005;
   scene.add(frame);
 
   // Opaque, so frosted glass can see (and blur) it.
   const panelMat = track(new THREE.MeshBasicMaterial({ map: track(panelTexture(pw, pd)), toneMapped: false, color: 0x000000 }));
+  panelMat.color.setScalar(0.86);
   const panel = new THREE.Mesh(track(new THREE.PlaneGeometry(pw, pd).rotateX(-Math.PI / 2)), panelMat);
+  panel.position.y = T + 0.001;
   scene.add(panel);
 
   // Light bleeding out around the panel: a soft ring floating just above the frame (above every slab surface, so
@@ -494,6 +422,8 @@ export function createProofScene(
     ),
   );
   bleed.renderOrder = 0;
+  bleed.position.y = T + 0.07;
+  bleed.material.opacity = 0.3;
   scene.add(bleed);
 
   // --- Proofs ----------------------------------------------------------------------------------
@@ -524,23 +454,24 @@ export function createProofScene(
   };
 
   let glass: GlassLook = opts.glass;
-  const glassMaterial = () => {
+  const glassMaterial = (tint?: string) => {
     const m = new THREE.MeshPhysicalMaterial({
-      clearcoat: 1,
-      clearcoatRoughness: 0.04,
+      clearcoatRoughness: 0.06,
       metalness: 0,
       transparent: true,
       ior: 1.45,
       thickness: PLATE_T,
     });
+    m.userData.tint = tint;
     styleGlass(m);
     return m;
   };
   function styleGlass(m: THREE.MeshPhysicalMaterial) {
-    m.color.set(glass.color);
+    m.color.set((m.userData.tint as string | undefined) ?? glass.color);
     m.userData.base = glass.opacity;
     m.roughness = 0.06 + glass.frost * 0.55;
-    m.envMapIntensity = 0.7;
+    m.clearcoat = glass.reflection;
+    m.envMapIntensity = 0.05 + glass.reflection * 1.1;
     const transmission = glass.frost > 0.01 ? 1 : 0;
     if (m.transmission !== transmission) {
       m.transmission = transmission; // frosted: the lightbox shows through, blurred by the roughness
@@ -585,7 +516,7 @@ export function createProofScene(
       const inner = new THREE.Group();
       inner.position.z = -d / 2; // the pivot is the front edge
       pivot.add(inner);
-      const glassM = mine(glassMaterial());
+      const glassM = mine(glassMaterial(it.tint));
       const glassMesh = new THREE.Mesh(mine(new RoundedBoxGeometry(w, PLATE_T, d, 3, 0.03)), glassM);
       glassMesh.renderOrder = 1;
       inner.add(glassMesh);
@@ -738,34 +669,12 @@ export function createProofScene(
     pick(now);
     let busy = false;
 
-    const sheetIn = smooth(range(p, STAGES.sheetIn));
-    const iron = smooth(range(p, STAGES.iron));
-    const grow = smooth(range(p, STAGES.slab));
-    const power = smooth(range(p, STAGES.power));
-    const slabH = lerp(0.02, T, grow);
-    const top = slabH;
-    sheetUniforms.uIron.value = iron;
-    sheetMat.roughness = lerp(0.12, 0.42, iron);
-    sheetMat.metalness = lerp(1, 0.82, iron);
-    sheetMat.opacity = sheetIn * (1 - power);
-    sheet.visible = sheetMat.opacity > 0.002;
-    sheet.position.y = top + 0.01 + (1 - sheetIn) * 1.2 + (1 - iron) * 0.35;
-
-    slab.visible = grow > 0.001;
-    slab.scale.y = slabH / T;
-    slab.position.y = slabH / 2;
-    frame.visible = slab.visible;
-    frame.position.y = top - 0.005;
-    panel.visible = grow > 0.98;
-    panel.position.y = top + 0.001;
-    panelMat.color.setScalar(lerp(0.05, 0.86, power));
-    bleed.position.y = top + 0.07;
-    bleed.material.opacity = power * 0.3;
-    slabShadow.material.opacity = grow * 0.55;
+    const top = T;
+    const power = 1;
 
     // Camera first (the cards turn to face it when they stand up).
     const insp = smooth(range(p, STAGES.inspect));
-    const push = smooth(range(p, [0, STAGES.slab[1]]));
+    const push = smooth(range(p, [0, STAGES.drops[1]]));
     const aspect = width / height;
     const fit = (9.6 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)))) * Math.max(1, 1.5 / aspect);
     const radius = fit * lerp(lerp(1.18, 1.05, push), mobile ? 0.66 : 0.74, insp);

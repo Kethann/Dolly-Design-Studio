@@ -137,6 +137,16 @@ export function ProofTableEditor({
           hint="Frosts the glass so the light behind it softens. Off = clear glass."
           onChange={(frost) => onChange({ frost })}
         />
+        <Slider
+          label="Reflection"
+          value={value.reflection}
+          min={0}
+          max={1}
+          step={0.05}
+          format={percent}
+          hint="How much the glass mirrors the room light. Lower it if the shine covers the titles."
+          onChange={(reflection) => onChange({ reflection })}
+        />
       </Section>
 
       <Section
@@ -230,6 +240,26 @@ export function ProofTableEditor({
                   ))}
                 </select>
               </label>
+              <div className={`${styles.slotWide} ${styles.slotTint}`}>
+                <span>Glass tint</span>
+                <span className={styles.colorField}>
+                  <input
+                    type="color"
+                    aria-label={`Glass tint for ${it.film}`}
+                    className={styles.swatch}
+                    value={it.tint ?? value.glassColor}
+                    onChange={(e) => patchItem(i, { tint: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className={styles.linkButton}
+                    disabled={!it.tint}
+                    onClick={() => patchItem(i, { tint: undefined })}
+                  >
+                    {it.tint ? "Use the glass colour" : "Same as the glass colour"}
+                  </button>
+                </span>
+              </div>
             </div>
           </div>
         ))}

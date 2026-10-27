@@ -107,6 +107,8 @@ export interface ProofTableSettings {
   glassOpacity: number;
   /** 0..1: frosted blur of the glass. */
   frost: number;
+  /** 0..1: how strongly the glass reflects (shine and mirrored room light). */
+  reflection: number;
   /** The title cards, in drop order. */
   items: ProofItem[];
 }
@@ -131,6 +133,7 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
             tag: str(it.tag, "Title", 30),
             slug: /^[a-z0-9-]{1,80}$/.test(String(it.slug)) ? String(it.slug) : "title-designs",
             alt: str(it.alt, str(it.film, "Title design"), 160),
+            ...(typeof it.tint === "string" && /^#[0-9a-f]{6}$/i.test(it.tint) ? { tint: it.tint.toLowerCase() } : {}),
           }),
         )
     : d.items;
@@ -141,6 +144,7 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
     glassColor: hex(src.glassColor, d.glassColor),
     glassOpacity: num(src.glassOpacity, [0.15, 1], d.glassOpacity),
     frost: num(src.frost, [0, 1], d.frost),
+    reflection: num(src.reflection, [0, 1], d.reflection),
     items,
   };
 }
@@ -273,11 +277,12 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   cursor: { color: "#fff195", size: 1, glow: 0.3, logoColor: "#ffffff" },
   proofTable: {
     enabled: true,
-    length: 2.2,
+    length: 1.8,
     cardSize: 0.8,
     glassColor: "#0c0806",
     glassOpacity: 0.85,
     frost: 0,
+    reflection: 0.3,
     items: proofTableContent.items,
   },
   art: {

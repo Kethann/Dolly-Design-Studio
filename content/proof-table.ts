@@ -23,6 +23,8 @@ export interface ProofItem {
   slug: string;
   /** Read out by screen readers. */
   alt: string;
+  /** Optional glass colour for this card (otherwise the portal's glass colour). */
+  tint?: string;
 }
 
 export const proofTable = {

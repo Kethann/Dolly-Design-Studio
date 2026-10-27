@@ -60,9 +60,9 @@ export function ProofTable() {
   }, [itemsKey, pt.cardSize]);
   useEffect(() => {
     lookRef.current = pt;
-    sceneRef.current?.setGlass({ color: pt.glassColor, opacity: pt.glassOpacity, frost: pt.frost });
+    sceneRef.current?.setGlass({ color: pt.glassColor, opacity: pt.glassOpacity, frost: pt.frost, reflection: pt.reflection });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pt.glassColor, pt.glassOpacity, pt.frost]);
+  }, [pt.glassColor, pt.glassOpacity, pt.frost, pt.reflection]);
 
   useEffect(() => {
     if (mode === "fallback" || !pt.enabled) return;
@@ -73,6 +73,7 @@ export function ProofTable() {
     let raf = 0;
     let visible = false;
     let shown = 0; // smoothed progress
+    let held = 0; // the furthest the story has played on this pass: it only moves forward
     let last = performance.now();
     let disposed = false;
     let loading = false;
@@ -89,7 +90,6 @@ export function ProofTable() {
       if (p === lastVars) return;
       lastVars = p;
       const insp = Math.min(1, Math.max(0, (p - STAGES.inspect[0]) / (STAGES.inspect[1] - STAGES.inspect[0])));
-      stage.style.setProperty("--gobo", mobile || mode === "static" ? "0" : (insp * 0.9).toFixed(3));
       stage.style.setProperty("--hud", (1 - insp * 0.7).toFixed(3));
       // Headline lines appear one after another as the camera settles.
       const from = STAGES.inspect[0] + (STAGES.inspect[1] - STAGES.inspect[0]) * 0.55;
@@ -106,9 +106,12 @@ export function ProofTable() {
       if (disposed || !scene || !visible) return;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const target = progress();
-      shown += (target - shown) * (1 - Math.exp(-dt * 9));
-      if (Math.abs(target - shown) < 0.0004) shown = target;
+      // The story plays only while scrolling down. Scrolling back up leaves everything where it landed; once the
+      // section is left behind above (it sits fully below the screen), the next time down plays it again.
+      if (mode === "pinned" && section.getBoundingClientRect().top >= window.innerHeight) held = shown = 0;
+      held = Math.max(held, progress());
+      shown += (held - shown) * (1 - Math.exp(-dt * 9));
+      if (Math.abs(held - shown) < 0.0004) shown = held;
       setVars(shown);
       scene.update(shown, dt);
       canvas.style.cursor = scene.hovered() >= 0 ? "pointer" : "";
@@ -130,7 +133,7 @@ export function ProofTable() {
       scene = createProofScene(canvas, {
         items: itemsRef.current,
         cardSize: look.cardSize,
-        glass: { color: look.glassColor, opacity: look.glassOpacity, frost: look.frost },
+        glass: { color: look.glassColor, opacity: look.glassOpacity, frost: look.frost, reflection: look.reflection },
         labels: proofTable.labels,
         mobile,
         stage: getComputedStyle(document.documentElement).getPropertyValue("--stage").trim() || "#410000",
@@ -138,7 +141,7 @@ export function ProofTable() {
       sceneRef.current = scene;
       const r = canvas.getBoundingClientRect();
       scene.resize(r.width, r.height);
-      shown = progress();
+      shown = held = progress();
       setVars(shown);
       scene.update(shown, 0);
       run();
@@ -148,6 +151,8 @@ export function ProofTable() {
     near.observe(section);
     const inView = new IntersectionObserver(([e]) => {
       visible = e.isIntersecting;
+      // Left behind above (scrolled back up past its start): rewind, so coming down again replays the drop.
+      if (!visible && mode === "pinned" && e.boundingClientRect.top > 0) held = shown = 0;
       run();
     });
     inView.observe(section);
@@ -232,8 +237,6 @@ export function ProofTable() {
     >
       <div ref={stageRef} className={`${styles.stage} ${mode === "static" ? styles.revealed : ""}`}>
         <canvas ref={canvasRef} className={styles.canvas} aria-hidden="true" />
-        <div className={styles.gobo} aria-hidden="true" />
-        <div className={styles.grain} aria-hidden="true" />
         <div className={styles.hud} aria-hidden="true">
           <span>{proofTable.labels.proof}</span>
           <span ref={counterRef}>001 / {FRAMES}</span>
