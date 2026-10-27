@@ -17,7 +17,8 @@ import {
 } from "@/lib/intro/settings";
 import { PREVIEW_PARAM, type PortalToSite, type PreviewRun, type SiteToPortal } from "@/lib/intro/preview-protocol";
 import { T } from "@/lib/intro/timeline";
-import { Choice, Dial, Section, Slider, Toggle, percent } from "./controls";
+import { Choice, ColorRow, Dial, HexInput, Section, Slider, Toggle, percent } from "./controls";
+import { ProofTableEditor } from "./ProofTableEditor";
 import styles from "./portal.module.css";
 
 const GLOW_PLACE_LABELS: Record<GlowPlace, string> = {
@@ -28,21 +29,6 @@ const GLOW_PLACE_LABELS: Record<GlowPlace, string> = {
   posters: "Project posters",
 };
 
-/** A colour picker with its hex code beside it. */
-function ColorRow({ label, hint, value, onChange }: { label: string; hint?: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <div className={styles.control}>
-      <div className={styles.controlRow}>
-        <span className={styles.controlLabel}>{label}</span>
-        <span className={styles.colorField}>
-          <input type="color" aria-label={label} className={styles.swatch} value={value} onChange={(e) => onChange(e.target.value)} />
-          <HexInput value={value} label={`${label} code`} onChange={onChange} />
-        </span>
-      </div>
-      {hint && <p className={styles.controlHint}>{hint}</p>}
-    </div>
-  );
-}
 
 const PREVIEW_W = 1440;
 const PREVIEW_H = 810;
@@ -75,11 +61,12 @@ const SECTION_NAMES: Record<ArtSection, string> = {
 const colourPair = (s: IntroSettings, target: ColourTarget) =>
   target === "work" || target === "project" ? s.art.dots[target] : s.art.sections[target];
 
-type Tab = "background" | "stars" | "look" | "intro";
+type Tab = "background" | "stars" | "look" | "titles" | "intro";
 const TABS: { id: Tab; name: string; hint: string }[] = [
   { id: "background", name: "Background", hint: "colour · gradient · glass" },
   { id: "stars", name: "Stars", hint: "layers · motion" },
   { id: "look", name: "Look", hint: "glow · colours" },
+  { id: "titles", name: "Titles", hint: "3D proof table" },
   { id: "intro", name: "Intro", hint: "the opening" },
 ];
 
@@ -996,6 +983,17 @@ export function PortalEditor({ initial }: { initial: IntroSettings }) {
             </>
           )}
 
+          {tab === "titles" && (
+            <ProofTableEditor
+              value={draft.proofTable}
+              onChange={(patch) => {
+                setDraft((d) => ({ ...d, proofTable: { ...d.proofTable, ...patch } }));
+                setSave({ kind: "idle" });
+              }}
+              onShow={() => send({ source: "dds-portal", type: "scroll", to: "collaborations" })}
+            />
+          )}
+
           {tab === "look" && (
             <>
               <Section
@@ -1504,32 +1502,4 @@ function randomLook(current: IntroSettings): IntroSettings {
       lines: between(0.35, 0.85),
     },
   });
-}
-
-/** A #rrggbb text box that only commits valid colour codes. */
-function HexInput({ value, label, onChange }: { value: string; label: string; onChange: (hex: string) => void }) {
-  const [text, setText] = useState(value);
-  const [editing, setEditing] = useState(false);
-  const shown = editing ? text : value;
-  return (
-    <input
-      type="text"
-      aria-label={label}
-      className={styles.hex}
-      value={shown}
-      spellCheck={false}
-      maxLength={7}
-      onFocus={() => {
-        setText(value);
-        setEditing(true);
-      }}
-      onBlur={() => setEditing(false)}
-      onChange={(e) => {
-        const next = e.target.value.trim();
-        setText(next);
-        const hex = next.startsWith("#") ? next : `#${next}`;
-        if (/^#[0-9a-f]{6}$/i.test(hex)) onChange(hex.toLowerCase());
-      }}
-    />
-  );
 }

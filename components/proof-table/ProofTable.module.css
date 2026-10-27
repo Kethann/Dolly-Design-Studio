@@ -2,14 +2,7 @@
   position: relative;
 }
 
-/* How long the section stays pinned while the story plays. */
-.pin {
-  height: 380vh;
-}
-
-.pinShort {
-  height: 240vh;
-}
+/* How long the section stays pinned is set inline from the portal (Titles → Scroll length). */
 
 .still {
   height: 100vh;

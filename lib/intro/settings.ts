@@ -1,3 +1,4 @@
+import { proofTable as proofTableContent, type ProofItem } from "@/content/proof-table";
 // The creator-tunable look of the star intro and the lasting background stars.
 // Shared by the server (reads/writes content/intro-settings.json), the site and the portal.
 
@@ -95,6 +96,55 @@ export interface StreamSettings {
 export const GLOW_PLACES = ["heroLogo", "navLogo", "titles", "links", "posters"] as const;
 export type GlowPlace = (typeof GLOW_PLACES)[number];
 
+export interface ProofTableSettings {
+  enabled: boolean;
+  /** How long the section stays pinned, in screen heights (shorter = the story plays faster). */
+  length: number;
+  /** Card width (1 = the widest that fits). */
+  cardSize: number;
+  glassColor: string;
+  /** 0..1: how see-through the glass plates are (1 = solid). */
+  glassOpacity: number;
+  /** 0..1: frosted blur of the glass. */
+  frost: number;
+  /** The title cards, in drop order. */
+  items: ProofItem[];
+}
+
+export const PROOF_LIMITS = { items: 16 } as const;
+
+const str = (v: unknown, fallback: string, max = 80) => (typeof v === "string" ? v.slice(0, max) : fallback);
+
+function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSettings {
+  const src = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const items = Array.isArray(src.items)
+    ? src.items
+        .slice(0, PROOF_LIMITS.items)
+        .filter((it): it is Record<string, unknown> => !!it && typeof it === "object")
+        .filter((it) => typeof it.src === "string" && /^\/images\/[\w\-./]+$/.test(it.src) && !it.src.includes(".."))
+        .map(
+          (it): ProofItem => ({
+            src: it.src as string,
+            type: it.type === "poster" ? "poster" : "title-png",
+            film: str(it.film, "Untitled"),
+            year: Math.round(num(it.year, [1950, 2100], new Date().getFullYear())),
+            tag: str(it.tag, "Title", 30),
+            slug: /^[a-z0-9-]{1,80}$/.test(String(it.slug)) ? String(it.slug) : "title-designs",
+            alt: str(it.alt, str(it.film, "Title design"), 160),
+          }),
+        )
+    : d.items;
+  return {
+    enabled: bool(src.enabled, d.enabled),
+    length: num(src.length, [1.4, 4], d.length),
+    cardSize: num(src.cardSize, [0.4, 1], d.cardSize),
+    glassColor: hex(src.glassColor, d.glassColor),
+    glassOpacity: num(src.glassOpacity, [0.15, 1], d.glassOpacity),
+    frost: num(src.frost, [0, 1], d.frost),
+    items,
+  };
+}
+
 export interface IntroSettings {
   enabled: boolean;
   /** Page and intro background. */
@@ -162,6 +212,8 @@ export interface IntroSettings {
   logoGlow: { enabled: boolean; intensity: number; spread: number; color: string; places: Record<GlowPlace, boolean> };
   /** The pen cursor: its colour, size, glow, and the colour it turns over a logo. */
   cursor: { color: string; size: number; glow: number; logoColor: string };
+  /** The Proof Table (collaborations section): its title cards and their glass. */
+  proofTable: ProofTableSettings;
   /** A soft pool of dark glass behind the logo that the stars stream out of. */
   dial: DialSettings;
 }
@@ -219,6 +271,15 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
     places: { heroLogo: true, navLogo: true, titles: false, links: false, posters: false },
   },
   cursor: { color: "#fff195", size: 1, glow: 0.3, logoColor: "#ffffff" },
+  proofTable: {
+    enabled: true,
+    length: 2.2,
+    cardSize: 0.8,
+    glassColor: "#0c0806",
+    glassOpacity: 0.85,
+    frost: 0,
+    items: proofTableContent.items,
+  },
   art: {
     enabled: true,
     style: "waves",
@@ -355,6 +416,7 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
       color: hex(logoGlow.color, d.logoGlow.color),
       places: Object.fromEntries(GLOW_PLACES.map((p) => [p, bool(places[p], d.logoGlow.places[p])])) as Record<GlowPlace, boolean>,
     },
+    proofTable: sanitizeProofTable(src.proofTable, d.proofTable),
     cursor: {
       color: hex(cursor.color, d.cursor.color),
       size: num(cursor.size, [0.6, 2], d.cursor.size),

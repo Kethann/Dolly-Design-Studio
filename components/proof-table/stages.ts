@@ -1,9 +1,12 @@
-/** When each act of the Proof Table plays, as fractions of the pinned scroll (see scene.ts). Tweak timings here. */
+/**
+ * When each act of the Proof Table plays, as fractions of the pinned scroll (see scene.ts). Tweak timings here;
+ * how long the whole section is pinned is set in the portal (Titles → Scroll length).
+ */
 export const STAGES = {
-  sheetIn: [0.03, 0.12],
-  iron: [0.1, 0.3],
-  slab: [0.3, 0.44],
-  power: [0.4, 0.52],
-  drops: [0.5, 0.75],
-  inspect: [0.74, 0.97],
+  sheetIn: [0, 0.05],
+  iron: [0.03, 0.18],
+  slab: [0.16, 0.28],
+  power: [0.24, 0.34],
+  drops: [0.32, 0.66],
+  inspect: [0.6, 0.9],
 } as const;

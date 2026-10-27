@@ -17,6 +17,8 @@ export interface PreviewRun {
 
 export type PortalToSite =
   | { source: "dds-portal"; type: "settings"; settings: IntroSettings }
-  | { source: "dds-portal"; type: "run"; run: PreviewRun };
+  | { source: "dds-portal"; type: "run"; run: PreviewRun }
+  /** Scroll the preview to the end of a section (e.g. to show the Proof Table's final view). */
+  | { source: "dds-portal"; type: "scroll"; to: string };
 
 export type SiteToPortal = { source: "dds-site"; type: "ready" } | { source: "dds-site"; type: "time"; t: number };

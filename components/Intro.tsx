@@ -88,12 +88,14 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
       return;
     }
     if (preview) return; // the portal decides when to play
-    // Once per visit: coming back to the home page (the DOLLY logo, a reload) goes straight to the page.
+    // Once per visit: coming back to the home page within the visit goes straight to the page.
     let seen = false;
     try {
       seen = sessionStorage.getItem("dolly-intro-seen") === "1";
     } catch {}
-    if (seen) {
+    // A reload (or a new tab) plays it again; only coming back within the visit skips it.
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (seen && nav?.type !== "reload") {
       skip();
       return;
     }

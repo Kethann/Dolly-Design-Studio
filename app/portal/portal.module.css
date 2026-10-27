@@ -1077,3 +1077,70 @@
   accent-color: var(--p-gold-bright);
   cursor: pointer;
 }
+
+/* Proof Table cards: one block per slot. */
+.slot {
+  padding: 12px 0 14px;
+  border-top: 1px solid var(--p-line);
+}
+
+.slotHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.slotThumb {
+  width: 92px;
+  height: 46px;
+  object-fit: contain;
+  padding: 4px;
+  border-radius: 6px;
+  background: #120c09;
+  border: 1px solid var(--p-line-strong);
+}
+
+.slotIndex {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--p-muted);
+}
+
+.slotActions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.slotGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+}
+
+.slotGrid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--p-muted);
+}
+
+.slotGrid .select {
+  width: 100%;
+  min-width: 0;
+}
+
+.slotWide {
+  grid-column: 1 / -1;
+}
+
+.slotFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--p-line);
+}

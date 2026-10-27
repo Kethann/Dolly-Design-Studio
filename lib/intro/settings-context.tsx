@@ -55,6 +55,13 @@ export function IntroSettingsProvider({ initial, children }: { initial: IntroSet
       if (!msg || msg.source !== "dds-portal") return;
       if (msg.type === "settings") setSettings(sanitizeIntroSettings(msg.settings));
       if (msg.type === "run") setRun(msg.run);
+      if (msg.type === "scroll") {
+        const el = document.getElementById(msg.to);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          window.scrollTo({ top: r.bottom + window.scrollY - window.innerHeight, behavior: "instant" });
+        }
+      }
     }
     window.addEventListener("message", onMessage);
     postToPortal({ source: "dds-site", type: "ready" });

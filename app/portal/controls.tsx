@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import styles from "./portal.module.css";
 
 export function Section({
@@ -196,6 +196,50 @@ export function Dial({ label, hint, value, onChange }: { label: string; hint?: s
             </button>
           ))}
         </div>
+      </div>
+      {hint && <p className={styles.controlHint}>{hint}</p>}
+    </div>
+  );
+}
+
+/** A #rrggbb text box that only commits valid colour codes. */
+export function HexInput({ value, label, onChange }: { value: string; label: string; onChange: (hex: string) => void }) {
+  const [text, setText] = useState(value);
+  const [editing, setEditing] = useState(false);
+  const shown = editing ? text : value;
+  return (
+    <input
+      type="text"
+      aria-label={label}
+      className={styles.hex}
+      value={shown}
+      spellCheck={false}
+      maxLength={7}
+      onFocus={() => {
+        setText(value);
+        setEditing(true);
+      }}
+      onBlur={() => setEditing(false)}
+      onChange={(e) => {
+        const next = e.target.value.trim();
+        setText(next);
+        const hex = next.startsWith("#") ? next : `#${next}`;
+        if (/^#[0-9a-f]{6}$/i.test(hex)) onChange(hex.toLowerCase());
+      }}
+    />
+  );
+}
+
+/** A colour picker with its hex code beside it. */
+export function ColorRow({ label, hint, value, onChange }: { label: string; hint?: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className={styles.control}>
+      <div className={styles.controlRow}>
+        <span className={styles.controlLabel}>{label}</span>
+        <span className={styles.colorField}>
+          <input type="color" aria-label={label} className={styles.swatch} value={value} onChange={(e) => onChange(e.target.value)} />
+          <HexInput value={value} label={`${label} code`} onChange={onChange} />
+        </span>
       </div>
       {hint && <p className={styles.controlHint}>{hint}</p>}
     </div>

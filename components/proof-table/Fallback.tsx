@@ -8,8 +8,8 @@ export function ProofTableFallback({ items, children }: { items: ProofItem[]; ch
     <div className={`${styles.stage} ${styles.revealed} ${styles.fbStage}`}>
       <div className={styles.fbScene} aria-hidden="true">
         <div className={styles.fbSlab}>
-          {items.map((it) => (
-            <div key={it.src} className={`${styles.fbPlate} ${it.type === "title-png" ? styles.fbSmoky : ""}`}>
+          {items.map((it, i) => (
+            <div key={`${it.src}-${i}`} className={`${styles.fbPlate} ${it.type === "title-png" ? styles.fbSmoky : ""}`}>
               <img src={it.src} alt="" loading="lazy" decoding="async" />
               <span>
                 {it.tag} · {it.film} · {it.year}
