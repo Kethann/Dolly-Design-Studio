@@ -19,116 +19,173 @@
   margin: 0 0 48px;
 }
 
-/* The list sits on a soft dark glass panel, so the text stays crisp over the moving background. */
-.list {
-  padding-inline: clamp(16px, 3vw, 36px);
-  border-radius: 20px;
-  border: 1px solid rgba(232, 176, 75, 0.12);
-  /* Tint only (no backdrop blur: that would re-blur the animated background on every frame while scrolling). */
-  background: linear-gradient(180deg, rgba(14, 6, 10, 0.62), rgba(14, 6, 10, 0.44));
-  box-shadow:
-    0 40px 90px -40px rgba(0, 0, 0, 0.65),
-    inset 0 1px 0 rgba(255, 241, 149, 0.07);
-}
-
-.row:last-child {
-  border-bottom: none;
-}
-
-.row {
-  position: relative;
+/* Cards side by side, as many as fit: four across on a wide screen, then two, then one. */
+.cards {
   display: grid;
-  grid-template-columns: 108px 1fr auto;
-  align-items: center;
-  gap: 24px;
-  padding-block: 26px;
-  border-bottom: 1px solid var(--smoke);
-  transition: background 0.3s ease;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: clamp(14px, 1.8vw, 24px);
 }
 
-.row:hover,
-.row:focus-within {
-  background: rgba(232, 176, 75, 0.05);
-}
-
-/* The number, then a soft gold curve leading into the title; it reaches further and brightens on hover. */
-.num {
+/* Each card is a pane of glass: a pale sheen, a bright rim, and the picture set into it. */
+.card {
+  --icon-bg: #1a0a10;
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: var(--font-display);
-  color: var(--gold);
-  font-size: 18px;
-}
-
-.num::after {
-  content: "";
-  width: 52px;
-  height: 12px;
-  flex: none;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 12'%3E%3Cpath d='M1 10.5 C 14 10.5 19 1.5 47 1.5' fill='none' stroke='%23e8b04b' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E") left center / 100% 100% no-repeat;
-  -webkit-mask-image: linear-gradient(90deg, #000 35%, transparent);
-  mask-image: linear-gradient(90deg, #000 35%, transparent);
-  opacity: 0.8;
+  flex-direction: column;
+  border-radius: 22px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03) 42%, rgba(255, 255, 255, 0.07)),
+    rgba(40, 20, 34, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 60px -30px rgba(0, 0, 0, 0.7);
   transition:
-    opacity 0.35s ease,
-    width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+  outline: none;
 }
 
-.row:hover .num::after,
-.row:focus-within .num::after {
-  width: 68px;
-  opacity: 1;
+/* A diagonal glint across the glass that drifts when you hover. */
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.14) 46%, transparent 60%);
+  background-size: 250% 100%;
+  background-position: 110% 0;
+  transition: background-position 0.9s ease;
+}
+
+.card:hover,
+.card:focus-visible {
+  transform: translateY(-6px);
+  border-color: rgba(255, 220, 140, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 40px 70px -28px rgba(0, 0, 0, 0.75),
+    0 0 40px -10px rgba(232, 176, 75, 0.35);
+}
+
+.card:hover::after,
+.card:focus-visible::after {
+  background-position: -30% 0;
+}
+
+.media {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.media img {
+  object-fit: cover;
+  transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Title art is transparent lettering: it sits whole on a dark glass panel instead of being cropped like a poster. */
+.media[data-fit="contain"] {
+  background:
+    radial-gradient(80% 70% at 50% 45%, rgba(232, 176, 75, 0.16), transparent 70%),
+    linear-gradient(180deg, #2a1e24, #120c10);
+}
+
+.media[data-fit="contain"] img {
+  object-fit: contain;
+  padding: 12%;
+}
+
+.card:hover .media img {
+  transform: scale(1.05);
+}
+
+/* The service's line icon, in a small glass disc on the picture. */
+.badge {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--gold-bright);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(14, 6, 10, 0.5);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.icon {
+  width: 30px;
+  height: 30px;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 10px 12px;
+}
+
+.num {
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--gold);
+  letter-spacing: 0.1em;
 }
 
 .name {
-  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(18px, 2.4vw, 26px);
+  font-size: clamp(20px, 2vw, 26px);
+  margin: 0;
 }
 
 .desc {
+  margin: 0;
   font-size: 14px;
-  opacity: 0.72;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
-  max-width: 560px;
-  margin-top: 6px;
+  line-height: 1.65;
+  opacity: 0.78;
 }
 
-.preview {
-  position: relative;
-  width: 100px;
-  aspect-ratio: 2 / 3;
-  border: 1px solid var(--gold);
-  overflow: hidden;
-  opacity: 0;
-  transform: translateX(16px) rotate(-3deg) scale(0.92);
-  transition: opacity 0.35s ease, transform 0.35s ease;
-  pointer-events: none;
+.name,
+.desc {
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55);
 }
 
-.row:hover .preview,
-.row:focus-within .preview {
-  opacity: 1;
-  transform: translateX(0) rotate(0deg) scale(1);
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.chips li {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-label);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  border: 1px solid rgba(232, 176, 75, 0.35);
+  background: rgba(232, 176, 75, 0.08);
 }
 
-@media (max-width: 720px) {
-  .row {
-    grid-template-columns: 72px 1fr;
-    gap: 14px;
-  }
-  .num::after {
-    width: 28px;
-  }
-  .preview {
-    display: none;
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card::after,
+  .media img {
+    transition: none;
   }
 }

@@ -1,17 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { site } from "@/content/site";
-import { home } from "@/content/home";
+import { useContent, tx } from "@/lib/content/context";
 import { Magnetic } from "@/components/Magnetic";
 import styles from "./Contact.module.css";
 
 type Status = "idle" | "sending" | "sent" | "error";
 
-const copy = home.contact;
-const form = copy.form;
-
 export function Contact() {
+  const { site, home } = useContent();
+  const copy = home.contact;
+  const form = copy.form;
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [flakes, setFlakes] = useState<{ id: number; left: number; delay: number }[]>([]);
@@ -55,9 +54,9 @@ export function Contact() {
       )}
 
       <div className="container">
-        <span className={styles.label}>{copy.label}</span>
-        <h2 className={styles.headline}>{copy.headline}</h2>
-        <p className={styles.availability}>{copy.availability}</p>
+        <span className={styles.label} {...tx("home.contact.label")}>{copy.label}</span>
+        <h2 className={styles.headline} {...tx("home.contact.headline")}>{copy.headline}</h2>
+        <p className={styles.availability} {...tx("home.contact.availability")}>{copy.availability}</p>
 
         <div className={styles.grid}>
           <div className={styles.quickLinks}>

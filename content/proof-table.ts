@@ -29,7 +29,7 @@ export interface ProofItem {
 
 export const proofTable = {
   id: "collaborations",
-  overline: "Title design",
+  overline: "Our projects slate",
   /** Two lines, shown in capitals. */
   headline: ["Titles that open the film", "before it starts."],
   body: "Every film we work on gets a title drawn for its story — proofed, printed and pinned to the light table until it carries the whole film in one word.",

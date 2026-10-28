@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionToken, getPortalUser, sessionCookie } from "@/lib/portal/auth";
+import { logActivity } from "@/lib/portal/activity";
+import { clearCodes } from "@/lib/portal/otp";
 import {
   UserError,
   checkOwnPassword,
@@ -59,7 +61,9 @@ export async function POST(req: NextRequest) {
       name: text(b.name, 60) ?? "",
       password: text(b.password, 200) ?? "",
       role: role(b.role) ?? "editor",
+      email: text(b.email, 120) || undefined,
     });
+    await logActivity({ headers: req.headers, actor: me, action: "person-added", detail: `${user.name} (${user.username}) as ${user.role}` });
     return NextResponse.json({ user });
   } catch (err) {
     return handle(err);
@@ -81,10 +85,25 @@ export async function PATCH(req: NextRequest) {
   }
   if (self && role(b.role) && role(b.role) !== me.role) return fail("Ask another owner to change your role.");
   try {
+    const before = (await listUsers()).find((u) => u.id === id);
     const { user, version } = await updateUser(id, { name: text(b.name, 60), role: self ? undefined : role(b.role), password });
     const res = NextResponse.json({ user });
     // Your own password change signs out your other devices, but keeps this one signed in.
     if (self && password !== undefined) res.cookies.set(sessionCookie(createSessionToken(user.id, version)));
+    if (password !== undefined) {
+      await clearCodes(user.id);
+      await logActivity(
+        self
+          ? { headers: req.headers, actor: me, action: "password-changed", detail: "Other devices were signed out" }
+          : { headers: req.headers, actor: me, action: "password-set-for", detail: `${user.name} (${user.username}) was signed out everywhere` },
+      );
+    }
+    if (b.name !== undefined && before && before.name !== user.name) {
+      await logActivity({ headers: req.headers, actor: me, action: "name-changed", detail: self ? `${before.name} → ${user.name}` : `${before.username}: ${before.name} → ${user.name}` });
+    }
+    if (!self && role(b.role) && before && before.role !== user.role) {
+      await logActivity({ headers: req.headers, actor: me, action: "role-changed", detail: `${user.name} (${user.username}) is now ${user.role === "owner" ? "an owner" : "an editor"}` });
+    }
     return res;
   } catch (err) {
     return handle(err);
@@ -98,7 +117,10 @@ export async function DELETE(req: NextRequest) {
   const id = text((await body(req)).id, 64) ?? "";
   if (id === me.id) return fail("You can’t remove your own account.");
   try {
+    const gone = (await listUsers()).find((u) => u.id === id);
     await removeUser(id);
+    await clearCodes(id);
+    if (gone) await logActivity({ headers: req.headers, actor: me, action: "person-removed", detail: `${gone.name} (${gone.username})` });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handle(err);

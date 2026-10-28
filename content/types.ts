@@ -69,3 +69,15 @@ export interface Testimonial {
   name: string;
   role: string;
 }
+
+/** A production house: its logo (leave empty to show the name as text) and its name. */
+export interface ClientEntry {
+  name: string;
+  logo: string;
+}
+
+/** A person the studio has worked with: their photo (a round portrait) and their name. */
+export interface CollaboratorEntry {
+  name: string;
+  photo: string;
+}

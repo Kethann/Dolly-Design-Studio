@@ -15,7 +15,7 @@ import { STAGES } from "./stages";
 
 const W = 8; // slab width (x)
 const D = 5.6; // slab depth (z)
-const T = 0.42; // slab thickness
+const T = 0.1; // slab thickness: a slim pane of glass
 const INSET = 0.32; // frame around the lit panel
 const PLATE_T = 0.05;
 const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
@@ -87,17 +87,13 @@ function floorTexture() {
   });
 }
 
-/** The lit panel: warm white with column guides, a safe area and a title-safe rectangle. */
+/** The guides printed on the glass: faint white column lines, a safe area and a title-safe rectangle. */
 function panelTexture(pw: number, pd: number) {
   const S = 1024;
   const h = Math.round((S * pd) / pw);
   return canvasTexture(S, h, (ctx) => {
-    const g = ctx.createRadialGradient(S / 2, h / 2, 0, S / 2, h / 2, S * 0.7);
-    g.addColorStop(0, "#fffaf0");
-    g.addColorStop(1, "#efe3c8");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, S, h);
-    ctx.strokeStyle = "rgba(185,133,58,0.35)";
+    ctx.clearRect(0, 0, S, h);
+    ctx.strokeStyle = "rgba(255,255,255,0.16)";
     ctx.lineWidth = 1.5;
     for (let i = 1; i < 12; i++) {
       const x = (S * i) / 12;
@@ -106,12 +102,58 @@ function panelTexture(pw: number, pd: number) {
       ctx.lineTo(x, h);
       ctx.stroke();
     }
-    ctx.strokeStyle = "rgba(185,133,58,0.55)";
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
     ctx.setLineDash([10, 8]);
     ctx.strokeRect(S * 0.05, h * 0.05, S * 0.9, h * 0.9);
     ctx.setLineDash([]);
     ctx.strokeRect(S * 0.1, h * 0.1, S * 0.8, h * 0.8);
   });
+}
+
+/** Points tracing a rounded rectangle lying flat at height y (for the glass rims). */
+function roundedRectPoints(w: number, d: number, r: number, y: number, seg = 6) {
+  const pts: THREE.Vector3[] = [];
+  const hw = w / 2 - r;
+  const hd = d / 2 - r;
+  const corners: [number, number, number][] = [
+    [hw, hd, 0],
+    [-hw, hd, Math.PI / 2],
+    [-hw, -hd, Math.PI],
+    [hw, -hd, Math.PI * 1.5],
+  ];
+  for (const [cx, cz, a0] of corners) {
+    for (let i = 0; i <= seg; i++) {
+      const a = a0 + (i / seg) * (Math.PI / 2);
+      pts.push(new THREE.Vector3(cx + Math.cos(a) * r, y, cz + Math.sin(a) * r));
+    }
+  }
+  return pts;
+}
+
+/** Soft diagonal streaks of light, like a reflection sliding across a pane of glass. */
+function glassSheenTexture() {
+  const W2 = 1024;
+  const H2 = 512;
+  return canvasTexture(
+    W2,
+    H2,
+    (ctx) => {
+      ctx.clearRect(0, 0, W2, H2);
+      ctx.transform(1, 0, 0.6, 1, -0.6 * (H2 / 2), 0); // slants the bands
+      const g = ctx.createLinearGradient(0, 0, W2, 0);
+      g.addColorStop(0, "rgba(255,255,255,0)");
+      g.addColorStop(0.18, "rgba(255,255,255,0)");
+      g.addColorStop(0.3, "rgba(255,255,255,0.55)");
+      g.addColorStop(0.4, "rgba(255,255,255,0)");
+      g.addColorStop(0.56, "rgba(255,255,255,0)");
+      g.addColorStop(0.62, "rgba(255,255,255,0.32)");
+      g.addColorStop(0.66, "rgba(255,255,255,0)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(-400, 0, W2 + 800, H2);
+    },
+    false,
+  );
 }
 
 /** A soft rounded rectangle (alpha): `inner` is the solid part (0..1 of the texture), `feather` how far it fades. */
@@ -197,6 +239,12 @@ export interface GlassLook {
   frost: number;
 }
 
+export interface SlabLook {
+  color: string;
+  /** 0..1: how see-through the slab is (1 = solid). */
+  opacity: number;
+}
+
 export interface ProofScene {
   /** Draws the scene at scroll progress p. Returns true while something is still animating (hover springs, ripples). */
   update: (p: number, dt: number) => boolean;
@@ -208,6 +256,7 @@ export interface ProofScene {
   /** Swap the cards (new slots, removed slots, a new size) without flicker: the new set replaces the old once loaded. */
   setItems: (items: ProofItem[], cardSize: number) => void;
   setGlass: (glass: GlassLook) => void;
+  setSlab: (slab: SlabLook) => void;
   /** Uploads textures and compiles shaders in idle moments, before the section is on screen. */
   warmUp: () => Promise<void>;
   dispose: () => void;
@@ -239,13 +288,14 @@ export function createProofScene(
     items: ProofItem[];
     cardSize: number;
     glass: GlassLook;
+    slab: SlabLook;
     mobile: boolean;
     stage: string;
   },
 ): ProofScene {
   const { mobile } = opts;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.5 : 1.75));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setClearColor(0x000000, 0);
   // Checking each shader right after compiling makes the browser wait for it; in production let them compile in the
   // background instead (they're checked during development).
@@ -297,27 +347,73 @@ export function createProofScene(
     ),
   );
   slabShadow.renderOrder = -2;
-  slabShadow.material.opacity = 0.55;
+  slabShadow.material.opacity = 0.22;
   scene.add(slabShadow);
 
-  // --- Lightbox slab ---------------------------------------------------------------------------
+  // The slab's tint also colours its polished edge and the frosted border, so the glass reads as one coloured pane.
+  const edgeTint = (hex: string) => new THREE.Color(hex).lerp(new THREE.Color(0xffffff), 0.4);
+
+  // --- Glass slab: a slim clear pane, tinted from the portal, with a bright polished edge -------------------
+  const slabGeo = track(new RoundedBoxGeometry(W, T, D, 4, 0.045));
   const slab = new THREE.Mesh(
-    track(new RoundedBoxGeometry(W, T, D, 5, 0.16)),
+    slabGeo,
     track(
       new THREE.MeshPhysicalMaterial({
-        color: stageColor.clone().lerp(new THREE.Color("#120d0a"), 0.7),
-        roughness: 0.38,
-        metalness: 0.25,
-        clearcoat: 0.7,
-        clearcoatRoughness: 0.25,
+        color: opts.slab.color,
+        transparent: true,
+        opacity: opts.slab.opacity,
+        roughness: 0.03,
+        metalness: 0,
+        clearcoat: 1,
+        clearcoatRoughness: 0.02,
+        ior: 1.52,
+        specularIntensity: 1,
+        envMapIntensity: 2.2,
+        iridescence: 0.3,
+        iridescenceIOR: 1.35,
+        depthWrite: false,
       }),
     ),
   );
   slab.position.y = T / 2;
+  slab.renderOrder = -1;
   scene.add(slab);
+  // Polished rims show the pane's thickness: a bright line along the top edge, a softer one along the bottom, and
+  // short lines down the corners.
+  const rimTop = track(new THREE.LineBasicMaterial({ color: edgeTint(opts.slab.color), transparent: true, opacity: 0.98, depthWrite: false }));
+  const rimLow = track(new THREE.LineBasicMaterial({ color: edgeTint(opts.slab.color), transparent: true, opacity: 0.5, depthWrite: false }));
+  const edge = new THREE.Group();
+  const loop = (y: number, m: THREE.LineBasicMaterial) =>
+    new THREE.LineLoop(track(new THREE.BufferGeometry().setFromPoints(roundedRectPoints(W - 0.02, D - 0.02, 0.06, y))), m);
+  edge.add(loop(T, rimTop), loop(0.002, rimLow));
+  const cornerPts: THREE.Vector3[] = [];
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) cornerPts.push(new THREE.Vector3(sx * (W / 2 - 0.05), 0.002, sz * (D / 2 - 0.05)), new THREE.Vector3(sx * (W / 2 - 0.05), T, sz * (D / 2 - 0.05)));
+  edge.add(new THREE.LineSegments(track(new THREE.BufferGeometry().setFromPoints(cornerPts)), rimLow));
+  scene.add(edge);
+
+  // A reflection that slides across the glass as the camera moves.
+  const slabSheenTex = track(glassSheenTexture());
+  slabSheenTex.wrapS = THREE.RepeatWrapping;
+  slabSheenTex.repeat.x = 0.5;
+  const slabSheenMat = track(
+    new THREE.MeshBasicMaterial({
+      map: slabSheenTex,
+      color: edgeTint(opts.slab.color),
+      transparent: true,
+      opacity: 0.55,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  const slabSheen = new THREE.Mesh(track(new THREE.PlaneGeometry(W - 0.12, D - 0.12).rotateX(-Math.PI / 2)), slabSheenMat);
+  slabSheen.position.y = T + 0.005;
+  slabSheen.renderOrder = 0;
+  scene.add(slabSheen);
 
   const pw = W - INSET * 2;
   const pd = D - INSET * 2;
+  // A frosted band around the printed area, like a sandblasted border on the pane.
   const frameShape = new THREE.Shape();
   frameShape.moveTo(-W / 2 + 0.12, -D / 2 + 0.12);
   frameShape.lineTo(W / 2 - 0.12, -D / 2 + 0.12);
@@ -330,25 +426,18 @@ export function createProofScene(
   hole.lineTo(pw / 2, -pd / 2);
   frameShape.holes.push(hole);
   const frame = new THREE.Mesh(
-    track(
-      new THREE.ExtrudeGeometry(frameShape, {
-        depth: 0.02,
-        bevelEnabled: true,
-        bevelSize: 0.035,
-        bevelThickness: 0.03,
-        bevelSegments: 3,
-      }).rotateX(-Math.PI / 2),
-    ),
-    track(new THREE.MeshPhysicalMaterial({ color: "#9c7434", metalness: 0.9, roughness: 0.32, envMapIntensity: 1.1 })),
+    track(new THREE.ShapeGeometry(frameShape).rotateX(-Math.PI / 2)),
+    track(new THREE.MeshBasicMaterial({ color: opts.slab.color, transparent: true, opacity: 0.16, depthWrite: false, toneMapped: false })),
   );
-  frame.position.y = T - 0.005;
+  frame.position.y = T + 0.002;
   scene.add(frame);
 
-  // Opaque, so frosted glass can see (and blur) it.
-  const panelMat = track(new THREE.MeshBasicMaterial({ map: track(panelTexture(pw, pd)), toneMapped: false, color: 0x000000 }));
-  panelMat.color.setScalar(0.86);
+  // The printed guides, on the glass.
+  const panelMat = track(
+    new THREE.MeshBasicMaterial({ map: track(panelTexture(pw, pd)), toneMapped: false, transparent: true, depthWrite: false }),
+  );
   const panel = new THREE.Mesh(track(new THREE.PlaneGeometry(pw, pd).rotateX(-Math.PI / 2)), panelMat);
-  panel.position.y = T + 0.001;
+  panel.position.y = T + 0.003;
   scene.add(panel);
 
   // --- Proofs ----------------------------------------------------------------------------------
@@ -356,7 +445,7 @@ export function createProofScene(
   const plateShadowTex = track(softRect(0.8, 0.1));
   const rippleTex = track(rippleTexture());
   const sheenTex = track(sheenTexture());
-  // Titles are decoded off the main thread (ImageBitmap) and capped at 1024px wide: sharp on the cards at any size
+  // Titles are decoded off the main thread (ImageBitmap) and capped at 2048px wide: sharp on the cards at any size
   // they're shown, a quarter of the upload work of the full files, and no decode stall while scrolling.
   const textures = new Map<string, Promise<THREE.Texture | null>>();
   const loadTexture = (src: string) => {
@@ -367,7 +456,7 @@ export function createProofScene(
           .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(String(res.status)))))
           .then(async (blob) => {
             const probe = await createImageBitmap(blob);
-            const width = Math.min(1024, probe.width);
+            const width = Math.min(2048, probe.width);
             probe.close();
             return createImageBitmap(blob, {
               imageOrientation: "flipY",
@@ -425,34 +514,57 @@ export function createProofScene(
   let plates: Plate[] = [];
   let itemsVersion = 0;
 
+  /** Cards are never squarer or longer than this (width : depth). */
+  const ASPECT_MIN = 1.3;
+  const ASPECT_MAX = 2.5;
+
   function buildPlates(items: ProofItem[], cardSize: number, texs: (THREE.Texture | null)[]): Plate[] {
-    const cols = mobile || items.length <= 4 ? 2 : items.length <= 9 ? 3 : 4;
-    const gap = 0.3;
-    const colW = ((pw - 0.5 - gap * (cols - 1)) / cols) * cardSize;
-    const heights = new Array(cols).fill(0);
+    // The cards use the whole glass: try every grid shape, stretch the cards to fill their cells (within sensible
+    // proportions) and keep the grid with the most card area. Only a thin margin is left at the edges, like a frame.
+    // More cards → a finer grid → smaller cards, and the glass stays full.
+    const n = Math.max(1, items.length);
+    const gap = 0.14;
+    const availW = pw - 0.3;
+    const availD = pd - 0.3;
+    let best = { cols: 1, rows: n, w: 0, d: 0 };
+    for (let c = 1; c <= n; c++) {
+      const r = Math.ceil(n / c);
+      let w = (availW - gap * (c - 1)) / c;
+      let d = (availD - gap * (r - 1)) / r;
+      if (w / d > ASPECT_MAX) w = d * ASPECT_MAX;
+      else if (w / d < ASPECT_MIN) d = w / ASPECT_MIN;
+      if (w * d > best.w * best.d) best = { cols: c, rows: r, w, d };
+    }
+    const { cols, rows } = best;
+    // "Card size" shrinks the cards inside their cells (100% = as big as the glass allows).
+    const colW = best.w * cardSize;
+    const d0 = best.d * cardSize;
+    const pitchX = Math.min(best.w + gap, (availW + gap) / cols);
+    const pitchZ = Math.min(best.d + gap, (availD + gap) / rows);
+    const s = 1;
     const placed = items.map((_, i) => {
       const img = texs[i]?.image as { width: number; height: number } | undefined;
       const aspect = Math.min(4.5, Math.max(0.6, img ? img.width / img.height : 2.4));
-      const imgW = colW * 0.82;
+      // Every card is the same size; the title is fitted inside it, whatever its shape.
+      const boxW = colW * 0.86;
+      const boxD = d0 * 0.72;
+      const imgW = Math.min(boxW, boxD * aspect);
       const imgD = imgW / aspect;
-      const d = imgD + 0.42 * cardSize;
-      const col = heights.indexOf(Math.min(...heights));
-      const z = heights[col] + d / 2;
-      heights[col] += d + gap;
-      return { col, z, d, imgW, imgD };
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const inRow = row === rows - 1 ? n - row * cols : cols; // a short last row sits in the middle
+      return { px: (col - (inRow - 1) / 2) * pitchX, pz: (row - (rows - 1) / 2) * pitchZ, imgW, imgD };
     });
-    const total = Math.max(0, ...heights) - gap;
-    const s = Math.min(1, (pd - 0.4) / Math.max(total, 0.01));
     return placed.map((pl, i) => {
       const it = items[i];
       const tex = texs[i];
       const own: { dispose: () => void }[] = [];
       const mine = <X extends { dispose: () => void }>(x: X) => (own.push(x), x);
       const rand = Math.sin(i * 91.7 + 3.1) * 0.5;
-      const w = colW * s;
-      const d = pl.d * s;
-      const x = (-(cols - 1) / 2 + pl.col) * (colW + gap) * s + rand * 0.1;
-      const z = (pl.z - (heights[pl.col] - gap) / 2) * s + Math.cos(i * 37.1) * 0.05;
+      const w = colW;
+      const d = d0;
+      const x = pl.px + rand * 0.02;
+      const z = pl.pz + Math.cos(i * 37.1) * 0.01;
 
       const pivot = new THREE.Group();
       pivot.rotation.order = "YXZ";
@@ -464,11 +576,17 @@ export function createProofScene(
       glassMesh.renderOrder = 1;
       inner.add(glassMesh);
       const fading: THREE.Material[] = [glassM];
+      const rimM = mine(new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false }));
+      rimM.userData.base = 0.6;
+      fading.push(rimM);
+      const rim = new THREE.LineLoop(mine(new THREE.BufferGeometry().setFromPoints(roundedRectPoints(w, d, 0.03, PLATE_T / 2 + 0.002, 4))), rimM);
+      rim.renderOrder = 2;
+      inner.add(rim);
       if (tex) {
         const m = mine(new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }));
         fading.push(m);
         const art = new THREE.Mesh(mine(new THREE.PlaneGeometry(pl.imgW * s, pl.imgD * s).rotateX(-Math.PI / 2)), m);
-        art.position.set(0, PLATE_T / 2 + 0.003, -0.1 * s * cardSize);
+        art.position.set(0, PLATE_T / 2 + 0.003, -d * 0.06);
         art.renderOrder = 2;
         inner.add(art);
       }
@@ -481,7 +599,7 @@ export function createProofScene(
       );
       fading.push(tagM);
       const tag = new THREE.Mesh(mine(new THREE.PlaneGeometry(w * 0.9, w * 0.9 * (64 / 1024)).rotateX(-Math.PI / 2)), tagM);
-      tag.position.set(0, PLATE_T / 2 + 0.003, d / 2 - 0.14 * s * cardSize);
+      tag.position.set(0, PLATE_T / 2 + 0.003, d / 2 - d * 0.11);
       tag.renderOrder = 2;
       inner.add(tag);
       const sheenMap = mine(Object.assign(sheenTex.clone(), { needsUpdate: true }));
@@ -609,6 +727,17 @@ export function createProofScene(
     dirty = true;
   }
 
+  function setSlab(next: SlabLook) {
+    const m = slab.material as THREE.MeshPhysicalMaterial;
+    m.color.set(next.color);
+    m.opacity = next.opacity;
+    rimTop.color.copy(edgeTint(next.color));
+    rimLow.color.copy(edgeTint(next.color));
+    slabSheenMat.color.copy(edgeTint(next.color));
+    (frame.material as THREE.MeshBasicMaterial).color.set(next.color);
+    dirty = true;
+  }
+
   function setGlass(next: GlassLook) {
     glass = next;
     for (const pl of plates) styleGlass(pl.glass.material);
@@ -668,6 +797,7 @@ export function createProofScene(
     const radius = fit * lerp(lerp(1.18, 1.05, push), mobile ? 0.66 : 0.74, insp);
     const elev = THREE.MathUtils.degToRad(lerp(55, mobile ? 34 : 24, insp));
     camYaw = THREE.MathUtils.degToRad(lerp(35, mobile ? 20 : 14, insp));
+    slabSheenTex.offset.x = 0.2 + (camYaw - 0.3) * 0.5 + push * 0.12 + insp * 0.1;
     target.set(lerp(0, mobile ? 0 : 0.6, insp), lerp(0.2, 0.35, insp), lerp(0, mobile ? 0 : 0.4, insp));
     camera.position.set(
       target.x + radius * Math.cos(elev) * Math.sin(camYaw),
@@ -741,7 +871,7 @@ export function createProofScene(
       // so the light can't wash through it and the title stays readable. The sweep is a soft gold glint, not white.
       const glassBase = (pl.glass.material.userData.base as number | undefined) ?? 1;
       const gm = pl.glass.material;
-      gm.opacity = lerp(glassBase, 1, st) * fade;
+      gm.opacity = lerp(glassBase, Math.max(glassBase, 0.6), st) * fade;
       // Facing the camera, the glass would mirror the bright room: its reflections fade out as it stands.
       gm.clearcoat = (gm.userData.clearcoat as number) * (1 - 0.97 * st);
       gm.specularIntensity = (gm.userData.specular as number) * (1 - st);
@@ -803,5 +933,5 @@ export function createProofScene(
   }
 
   setItems(opts.items, opts.cardSize);
-  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, warmUp, dispose };
+  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, setSlab, warmUp, dispose };
 }

@@ -37,7 +37,7 @@ export interface FrontSettings {
 export const ART_STYLES = ["waves", "silk", "halo", "minimal", "dots", "bubbles"] as const;
 
 /** Home-page sections that can each have their own Dots / Bubbles colours (they blend as you scroll). */
-export const ART_SECTIONS = ["top", "agency", "work", "process", "making", "about", "clients", "contact"] as const;
+export const ART_SECTIONS = ["top", "agency", "clients", "about", "work", "process", "services", "contact"] as const;
 export type ArtSection = (typeof ART_SECTIONS)[number];
 
 /** Page groups that can each have their own Dots colours. */
@@ -216,6 +216,10 @@ export interface ProofTableSettings {
   frost: number;
   /** 0..1: how strongly the glass reflects (shine and mirrored room light). */
   reflection: number;
+  /** The slim glass slab the cards lie on. */
+  slabColor: string;
+  /** 0..1: how see-through the slab is (1 = solid). */
+  slabOpacity: number;
   /** The title cards, in drop order. */
   items: ProofItem[];
 }
@@ -245,11 +249,13 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
   return {
     enabled: bool(src.enabled, d.enabled),
     length: num(src.length, [0.8, 4], d.length),
-    cardSize: num(src.cardSize, [0.4, 1], d.cardSize),
+    cardSize: num(src.cardSize, [0.25, 1], d.cardSize),
     glassColor: hex(src.glassColor, d.glassColor),
     glassOpacity: num(src.glassOpacity, [0.15, 1], d.glassOpacity),
     frost: num(src.frost, [0, 1], d.frost),
     reflection: num(src.reflection, [0, 1], d.reflection),
+    slabColor: hex(src.slabColor, d.slabColor),
+    slabOpacity: num(src.slabOpacity, [0.05, 1], d.slabOpacity),
     items,
   };
 }
@@ -404,11 +410,13 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   proofTable: {
     enabled: true,
     length: 1.3,
-    cardSize: 0.8,
-    glassColor: "#0c0806",
-    glassOpacity: 0.85,
-    frost: 0,
-    reflection: 0.3,
+    cardSize: 1,
+    glassColor: "#1c1630",
+    glassOpacity: 0.34,
+    frost: 0.15,
+    reflection: 0.85,
+    slabColor: "#5fd3e6",
+    slabOpacity: 0.24,
     items: proofTableContent.items,
   },
   art: {
@@ -431,7 +439,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
       agency: { a: "#3a4fd8", b: "#c23aa0" },
       work: { a: "#1b8fb3", b: "#7a3ad2" },
       process: { a: "#2a9d8f", b: "#3a6fd8" },
-      making: { a: "#c2502a", b: "#d23a7a" },
+      services: { a: "#c2502a", b: "#d23a7a" },
       about: { a: "#6a3ad2", b: "#d23ac0" },
       clients: { a: "#1b8fb3", b: "#d2a03a" },
       contact: { a: "#d23ac0", b: "#3a4fd8" },

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { proofTable } from "@/content/proof-table";
+import { useContent } from "@/lib/content/context";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import { ProofTableFallback } from "./Fallback";
 import type { ProofScene } from "./scene";
@@ -32,6 +33,7 @@ function hasWebGL() {
 export function ProofTable() {
   const router = useRouter();
   const { settings } = useIntroSettings();
+  const { slate } = useContent();
   const pt = settings.proofTable;
   const [mode, setMode] = useState<Mode>("pinned");
   const [mobile, setMobile] = useState(false);
@@ -59,6 +61,9 @@ export function ProofTable() {
     sceneRef.current?.setItems(items, pt.cardSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the items' content, not their identity
   }, [itemsKey, pt.cardSize]);
+  useEffect(() => {
+    sceneRef.current?.setSlab({ color: pt.slabColor, opacity: pt.slabOpacity });
+  }, [pt.slabColor, pt.slabOpacity]);
   useEffect(() => {
     lookRef.current = pt;
     sceneRef.current?.setGlass({ color: pt.glassColor, opacity: pt.glassOpacity, frost: pt.frost, reflection: pt.reflection });
@@ -149,6 +154,7 @@ export function ProofTable() {
       scene = createProofScene(canvas, {
         items: itemsRef.current,
         cardSize: look.cardSize,
+        slab: { color: look.slabColor, opacity: look.slabOpacity },
         glass: { color: look.glassColor, opacity: look.glassOpacity, frost: look.frost, reflection: look.reflection },
         mobile,
         stage: getComputedStyle(document.documentElement).getPropertyValue("--stage").trim() || "#410000",
@@ -212,17 +218,17 @@ export function ProofTable() {
   const copy = (
     <div className={styles.copy}>
       <span className={styles.overline} style={{ "--r": "var(--r0)" } as React.CSSProperties}>
-        {proofTable.overline}
+        {slate.overline}
       </span>
       <h2 className={styles.headline}>
-        {proofTable.headline.map((line, i) => (
+        {slate.headline.map((line, i) => (
           <span key={line} className={styles.line} style={{ "--r": `var(--r${i + 1})` } as React.CSSProperties}>
             {line}
           </span>
         ))}
       </h2>
       <p className={styles.body} style={{ "--r": "var(--r3)" } as React.CSSProperties}>
-        {proofTable.body}
+        {slate.body}
       </p>
       <Link
         href={proofTable.cta.href}
@@ -230,7 +236,7 @@ export function ProofTable() {
         data-cursor="link"
         style={{ "--r": "var(--r4)" } as React.CSSProperties}
       >
-        {proofTable.cta.label} <span aria-hidden="true">→</span>
+        {slate.ctaLabel} <span aria-hidden="true">→</span>
       </Link>
     </div>
   );

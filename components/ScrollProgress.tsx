@@ -42,7 +42,7 @@ export function ScrollProgress() {
   }, []);
 
   return (
-    <div className={styles.track} aria-hidden="true">
+    <div className={styles.track} data-chrome aria-hidden="true">
       <div ref={barRef} className={styles.bar} data-scroll-progress="" />
     </div>
   );

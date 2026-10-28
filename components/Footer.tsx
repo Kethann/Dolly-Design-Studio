@@ -1,9 +1,14 @@
+"use client";
+
 import Link from "next/link";
-import { navItems, site } from "@/content/site";
-import { footer } from "@/content/pages";
+import { usePathname } from "next/navigation";
+import { goToSection, isPlainClick } from "@/lib/section-nav";
+import { useContent } from "@/lib/content/context";
 import styles from "./Footer.module.css";
 
 export function Footer() {
+  const { site, nav: navItems, footer } = useContent();
+  const pathname = usePathname();
   const year = new Date().getFullYear();
   return (
     <footer className={styles.footer}>
@@ -13,7 +18,15 @@ export function Footer() {
         </span>
         <nav className={styles.links} aria-label="Footer">
           {navItems.map((item) => (
-            <Link key={item.id} href={item.id === "work" ? "/work" : `/#${item.id}`} data-cursor="link">
+            <Link
+              key={item.id}
+              href={item.id === "work" ? "/work" : `/#${item.id}`}
+              data-cursor="link"
+              onClick={(e) => {
+                if (item.id === "work" || pathname !== "/" || !isPlainClick(e)) return;
+                if (goToSection(item.id)) e.preventDefault();
+              }}
+            >
               {item.label}
             </Link>
           ))}

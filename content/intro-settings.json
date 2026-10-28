@@ -15,6 +15,34 @@
   "metallic": 0.6,
   "glowingShare": 8,
   "revealStyle": "glow",
+  "sweep": {
+    "size": 1,
+    "duration": 1.9,
+    "spin": 0.35,
+    "tilt": 0.35,
+    "depth": 0.5,
+    "bevel": 0.5,
+    "edge": 0.5,
+    "facets": 0.6,
+    "arms": 0.4,
+    "texture": 0.6,
+    "shine": 0.6,
+    "glow": 0.35,
+    "grow": 1.3,
+    "feather": 30,
+    "bloom": 0.9,
+    "direction": "rtl",
+    "pattern": {
+      "src": null,
+      "blend": "overlay",
+      "amount": 0.8,
+      "scale": 1,
+      "rotation": 0,
+      "relief": 0.4,
+      "tint": "#ffffff",
+      "tintAmount": 0
+    }
+  },
   "formationCount": 450,
   "introStarSize": 0.75,
   "introMetallic": 0.5,
@@ -68,11 +96,13 @@
   "proofTable": {
     "enabled": true,
     "length": 1.3,
-    "cardSize": 0.8,
-    "glassColor": "#0c0806",
-    "glassOpacity": 0.85,
-    "frost": 0,
-    "reflection": 0.3,
+    "cardSize": 1,
+    "glassColor": "#1c1630",
+    "glassOpacity": 0.34,
+    "frost": 0.15,
+    "reflection": 0.85,
+    "slabColor": "#5fd3e6",
+    "slabOpacity": 0.24,
     "items": [
       {
         "src": "/images/proof-table/dacoit.webp",
@@ -198,7 +228,7 @@
   },
   "art": {
     "enabled": true,
-    "style": "bubbles",
+    "style": "dots",
     "depth": 1,
     "seed": 240791208,
     "tone": "#1f0033",
@@ -211,8 +241,8 @@
       "size": 2
     },
     "dotGrid": {
-      "density": 1,
-      "size": 1
+      "density": 1.35,
+      "size": 0.65
     },
     "dots": {
       "home": {

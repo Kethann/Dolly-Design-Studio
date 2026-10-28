@@ -1,3 +1,4 @@
+import type { SiteContent } from "@/lib/content/types";
 import type { IntroSettings } from "./settings";
 
 /** Query parameter that turns the home page into the portal's live preview. */
@@ -17,6 +18,9 @@ export interface PreviewRun {
 
 export type PortalToSite =
   | { source: "dds-portal"; type: "settings"; settings: IntroSettings }
+  | { source: "dds-portal"; type: "content"; content: SiteContent }
+  /** Open breakdown number `index` in the preview's viewer (null closes it). */
+  | { source: "dds-portal"; type: "breakdown"; index: number | null }
   | { source: "dds-portal"; type: "run"; run: PreviewRun }
   /** Glide the preview to a section ("top" = the very top): its start, or its end (e.g. the Proof Table's final view). */
   | { source: "dds-portal"; type: "scroll"; to: string; at?: "start" | "end" };

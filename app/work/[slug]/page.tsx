@@ -2,23 +2,18 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { projects } from "@/content/projects";
-import { site } from "@/content/site";
-import { projectPage } from "@/content/pages";
+import { getContent } from "@/lib/content/store";
 import { placeholderProps, versionedSrc } from "@/lib/images";
 import styles from "./page.module.css";
 
-export function generateStaticParams() {
+export async function generateStaticParams() {
+  const { projects } = await getContent();
   return projects.map((p) => ({ slug: p.slug }));
-}
-
-function getProject(slug: string) {
-  return projects.find((p) => p.slug === slug);
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const project = getProject(slug);
+  const project = (await getContent()).projects.find((p) => p.slug === slug);
   if (!project) return {};
   return {
     title: project.title,
@@ -29,6 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function ProjectPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  const { projects, site, projectPage } = await getContent();
   const sorted = [...projects].sort((a, b) => a.order - b.order);
   const index = sorted.findIndex((p) => p.slug === slug);
   const project = sorted[index];
@@ -65,6 +61,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
               alt={cover.alt}
               fill
               sizes="(max-width: 900px) 92vw, 46vw"
+              quality={95}
               {...placeholderProps(cover.src)}
               priority
             />
@@ -117,6 +114,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
                     alt={img.alt}
                     fill
                     sizes="(max-width: 700px) 92vw, 30vw"
+                    quality={90}
                     {...placeholderProps(img.src)}
                   />
                 </div>

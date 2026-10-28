@@ -12,8 +12,6 @@ export const workPage = {
   title: "All work",
   /** The first filter button (the other buttons are the categories in types.ts). */
   allFilter: "All",
-  /** The first language button. */
-  allLanguages: "All languages",
   emptyCategory: "No projects in this category yet.",
 };
 

@@ -77,9 +77,8 @@ function lockScroll() {
 function unlockScroll() {
   if (--scrollLocks === 0) {
     document.documentElement.style.overflow = unlockedOverflow;
-    // The intro pins the page to the top while it plays; afterwards the browser remembers scroll positions again,
-    // so Back from a project returns to the exact spot.
-    if ("scrollRestoration" in history) history.scrollRestoration = "auto";
+    // The intro pins the page to the top while it plays. Afterwards the site itself puts you back where you were
+    // after Back / Forward (see NavHistory), so the browser's own restoration stays off.
   }
 }
 
@@ -134,7 +133,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const dpr = Math.min(window.devicePixelRatio, 1.5);
+    const dpr = Math.min(window.devicePixelRatio, 2);
 
     // --- renderer, camera, lighting, post-processing ------------------------
     renderer.setPixelRatio(dpr);

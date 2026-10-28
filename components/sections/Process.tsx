@@ -1,22 +1,94 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import Image from "next/image";
-import { projects } from "@/content/projects";
-import { home } from "@/content/home";
-import { placeholderProps, versionedSrc } from "@/lib/images";
+import { useContent, tx } from "@/lib/content/context";
 import { useMotion } from "@/lib/motion";
+import { BreakdownViewer } from "@/components/BreakdownViewer";
 import styles from "./Process.module.css";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
-const copy = home.process;
-// Falls back to the first project if the showcase slug in content/home.ts doesn't match one.
-const showcase = projects.find((p) => p.slug === copy.showcaseSlug) ?? projects[0];
+const ICON_ORDER = ["sketch", "camera", "pipeline", "layers"];
+
+/** A two-tone line illustration for each step: the strokes in gold, soft fills for depth. */
+function StepIcon({ name }: { name: string }) {
+  const line = { fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+  const soft = { fill: "currentColor", fillOpacity: 0.14, stroke: "none" } as const;
+  return (
+    <svg viewBox="0 0 64 64" className={styles.icon} aria-hidden="true">
+      {name === "sketch" ? (
+        <g {...line}>
+          {/* a sketchboard with construction lines, and a pencil drawing across it */}
+          <rect x="8" y="10" width="40" height="34" rx="3" {...soft} />
+          <rect x="8" y="10" width="40" height="34" rx="3" />
+          <path d="M14 36c5-12 9-14 14-8s9 2 14-10" strokeDasharray="2.5 3" opacity="0.7" />
+          <path d="M14 18h8M14 23h5" opacity="0.55" />
+          <path d="M34 50l2-8 18-18a3 3 0 0 1 4.2 0l1.8 1.8a3 3 0 0 1 0 4.2L42 48z" fill="#1a1115" />
+          <path d="M34 50l2-8 18-18a3 3 0 0 1 4.2 0l1.8 1.8a3 3 0 0 1 0 4.2L42 48z" />
+          <path d="M52 26l6 6M36 42l6 6" />
+          <path d="M34 50l3.5-1" />
+        </g>
+      ) : name === "camera" ? (
+        <g {...line}>
+          {/* a camera, with a lens, a viewfinder and a flash */}
+          <path d="M8 22h10l4-6h20l4 6h10a2 2 0 0 1 2 2v26a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V24a2 2 0 0 1 2-2z" {...soft} />
+          <path d="M8 22h10l4-6h20l4 6h10a2 2 0 0 1 2 2v26a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V24a2 2 0 0 1 2-2z" />
+          <circle cx="32" cy="37" r="11" />
+          <circle cx="32" cy="37" r="7" opacity="0.8" />
+          <circle cx="32" cy="37" r="3" fill="currentColor" fillOpacity="0.35" />
+          <path d="M28 33a6 6 0 0 1 5-2" opacity="0.7" />
+          <path d="M48 28h4" />
+          <path d="M12 28h4" opacity="0.6" />
+          <path d="M50 8l-2 6M56 10l-4 4M44 7l1 5" opacity="0.85" />
+        </g>
+      ) : name === "pipeline" ? (
+        <g {...line}>
+          {/* three stages joined by arrows, the last one completed */}
+          <rect x="5" y="22" width="14" height="20" rx="3" {...soft} />
+          <rect x="5" y="22" width="14" height="20" rx="3" />
+          <rect x="25" y="22" width="14" height="20" rx="3" {...soft} />
+          <rect x="25" y="22" width="14" height="20" rx="3" />
+          <rect x="45" y="22" width="14" height="20" rx="3" {...soft} />
+          <rect x="45" y="22" width="14" height="20" rx="3" />
+          <path d="M19 32h6M39 32h6" />
+          <path d="m22.5 29.5 2.5 2.5-2.5 2.5M42.5 29.5l2.5 2.5-2.5 2.5" />
+          <path d="M9 28h6M9 32h6M9 36h3" opacity="0.6" />
+          <path d="M29 28h6M29 32h6M29 36h3" opacity="0.6" />
+          <path d="m49 32 3 3 5-6" strokeWidth="2" />
+          <path d="M12 14v5M32 14v5M52 14v5M12 45v5M32 45v5M52 45v5" opacity="0.4" strokeDasharray="1 3" />
+        </g>
+      ) : name === "layers" ? (
+        <g {...line}>
+          {/* layers of art, with a play button on the top one */}
+          <path d="m32 46 24-12-24-12-24 12z" {...soft} />
+          <path d="m8 40 24 12 24-12" opacity="0.7" />
+          <path d="m8 34 24 12 24-12" opacity="0.85" />
+          <path d="m32 34 24-12-24-12-24 12z" fill="#1a1115" />
+          <path d="m32 34 24-12-24-12-24 12z" />
+          <path d="m29 17.5 8 4-8 4z" fill="currentColor" stroke="none" />
+        </g>
+      ) : (
+        <g {...line}>
+          <path d="M32 8l5.6 16.4L54 30l-16.4 5.6L32 52l-5.6-16.4L10 30l16.4-5.6z" {...soft} />
+          <path d="M32 8l5.6 16.4L54 30l-16.4 5.6L32 52l-5.6-16.4L10 30l16.4-5.6z" />
+        </g>
+      )}
+    </svg>
+  );
+}
 
 export function Process() {
+  const { home, breakdowns } = useContent();
+  const copy = home.process;
+  /** Which breakdown the viewer shows (null = closed). The portal can open it inside its preview. */
+  const [viewer, setViewer] = useState<number | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => setViewer((e as CustomEvent<number | null>).detail);
+    window.addEventListener("dds-breakdown", on);
+    return () => window.removeEventListener("dds-breakdown", on);
+  }, []);
   const { reducedMotion } = useMotion();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -34,41 +106,68 @@ export function Process() {
       }),
     );
     return () => triggers.forEach((t) => t.scrollTrigger?.kill());
-  }, [reducedMotion]);
+  }, [reducedMotion, copy.cards.length]);
 
   return (
     <section id="process" className={styles.section}>
       <div className="container">
         <div className={styles.head}>
-          <span className={styles.label}>{copy.label}</span>
-          <h2 className={styles.title}>{copy.title}</h2>
-          <p className={styles.body}>
-            {copy.introBefore} <strong>{showcase.title}</strong> {copy.introAfter}
-          </p>
+          <span className={styles.label} {...tx("home.process.label")}>{copy.label}</span>
+          <h2 className={styles.title} {...tx("home.process.title")}>{copy.title}</h2>
+          <p className={styles.body} {...tx("home.process.intro")}>{copy.intro}</p>
         </div>
 
         <div className={styles.steps} ref={ref}>
-          {copy.stages.map((stage, i) => {
-            const img = showcase.images[i] ?? showcase.images[0];
+          {copy.cards.map((card, i) => {
+            // A card can open the breakdown viewer (once there is something to show in it).
+            const opens = (card as { opensBreakdowns?: boolean }).opensBreakdowns === true && breakdowns.length > 0;
             return (
-              <div key={stage.title} className={styles.step} data-step style={reducedMotion ? { opacity: 1, transform: "none" } : undefined}>
-                <div className={styles.frame}>
-                  <Image
-                    src={versionedSrc(img.src)}
-                    alt={img.alt}
-                    fill
-                    sizes="(max-width: 700px) 45vw, 23vw"
-                    {...placeholderProps(img.src)}
-                  />
+              <div
+                key={i}
+                className={styles.step}
+                data-step
+                data-opens={opens}
+                style={reducedMotion ? { opacity: 1, transform: "none" } : undefined}
+                {...(opens
+                  ? {
+                      role: "button",
+                      tabIndex: 0,
+                      "data-cursor": "link",
+                      "aria-haspopup": "dialog",
+                      onClick: () => setViewer(0),
+                      onKeyDown: (e: React.KeyboardEvent) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setViewer(0);
+                        }
+                      },
+                    }
+                  : {})}
+              >
+                <h3 className={styles.stepTitle} {...tx("home.process.cards.title")}>
+                  {card.title}
+                </h3>
+                <div className={styles.cardRow}>
+                  <div className={styles.headRow}>
+                    <span className={styles.number}>{String(i + 1).padStart(2, "0")}</span>
+                    <p className={styles.note} {...tx("home.process.cards.note")}>
+                      {card.note}
+                    </p>
+                  </div>
+                  <span className={styles.tile}>
+                    <StepIcon name={(card as { icon?: string }).icon ?? ICON_ORDER[i] ?? "star"} />
+                  </span>
+                  <p className={styles.stepBody} {...tx("home.process.cards.body")}>
+                    {card.body}
+                  </p>
                 </div>
-                <span className={styles.number}>{String(i + 1).padStart(2, "0")}</span>
-                <h3 className={styles.stepTitle}>{stage.title}</h3>
-                <p className={styles.stepBody}>{stage.body}</p>
+                {opens && <span className={styles.cta}>View the breakdown →</span>}
               </div>
             );
           })}
         </div>
       </div>
+      {viewer !== null && breakdowns.length > 0 && <BreakdownViewer items={breakdowns} start={Math.min(viewer, breakdowns.length - 1)} onClose={() => setViewer(null)} />}
     </section>
   );
 }

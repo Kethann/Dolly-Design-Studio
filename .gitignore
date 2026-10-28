@@ -10,3 +10,7 @@ next-env.d.ts
 
 # portal accounts (hashed passwords): never committed
 .data
+
+.open-next
+.wrangler
+.dev.vars

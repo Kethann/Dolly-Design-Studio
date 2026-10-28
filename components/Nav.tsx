@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { navItems, site } from "@/content/site";
+import { useContent } from "@/lib/content/context";
 import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
-import { glideTo } from "@/lib/smooth-scroll";
+import { goToSection, isPlainClick } from "@/lib/section-nav";
 import styles from "./Nav.module.css";
 
 export function Nav() {
+  const { site, nav: navItems } = useContent();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("");
@@ -26,21 +27,18 @@ export function Nav() {
     );
     sections.forEach((s) => io.observe(s));
     return () => io.disconnect();
-  }, [pathname]);
+  }, [pathname, navItems]);
 
   /**
-   * Already on the home page, a link to it (the logo, or a section) glides there — even when the address already
-   * matches, where a plain link would do nothing. Elsewhere, links navigate normally.
+   * Already on the home page, a link to it (the logo, or a section) glides there and adds a step to the browser's
+   * history, so Back returns to where you were. Elsewhere, links navigate normally.
    */
   const glideOnHome = (id?: string) => (e: React.MouseEvent) => {
-    if (pathname !== "/" || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    if (pathname !== "/" || !isPlainClick(e)) return;
     e.preventDefault();
     setOpen(false);
     // Next frame, once the mobile menu has closed and the page can scroll again.
-    requestAnimationFrame(() => {
-      glideTo((id && document.getElementById(id)) || 0);
-      window.history.replaceState(window.history.state, "", id ? `/#${id}` : "/");
-    });
+    requestAnimationFrame(() => goToSection(id));
   };
 
   useEffect(() => {
@@ -51,7 +49,7 @@ export function Nav() {
   }, [open]);
 
   return (
-    <header className={styles.nav}>
+    <header className={styles.nav} data-chrome>
       <Link
         href="/"
         className={styles.brand}

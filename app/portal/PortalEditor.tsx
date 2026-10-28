@@ -18,8 +18,18 @@ import {
 import { PREVIEW_PARAM, type PortalToSite, type PreviewRun, type SiteToPortal } from "@/lib/intro/preview-protocol";
 import { T } from "@/lib/intro/timeline";
 import { Choice, ColorRow, Dial, HexInput, Section, Slider, Toggle, percent } from "./controls";
+import { ContentEditor, EditorProvider, MediaLibrary, ThemeEditor, TypographyEditor, type MediaApi } from "./ContentEditor";
+import { CONTENT_PAGES, type Field } from "./content-schema";
+import { Spotlight, type SpotEntry } from "./Spotlight";
+import { postFile } from "./upload";
+import { Dock, MenuBar, Win, MENUBAR_H, type DockGroup, type MenuDef, type WinState } from "./mac";
+import type { PageKey, SiteContent } from "@/lib/content/types";
+import { sanitizeContent } from "@/lib/content/sanitize";
+import mac from "./mac.module.css";
 import { ProofTableEditor } from "./ProofTableEditor";
 import { AccountPanel } from "./AccountPanel";
+import { ActivityPanel } from "./ActivityPanel";
+import { BreakdownsEditor } from "./BreakdownsEditor";
 import { SweepEditor } from "./SweepEditor";
 import type { PortalUser } from "@/lib/portal/users";
 import styles from "./portal.module.css";
@@ -32,8 +42,6 @@ const GLOW_PLACE_LABELS: Record<GlowPlace, string> = {
   posters: "Project posters",
 };
 
-const PREVIEW_W = 1440;
-const PREVIEW_H = 810;
 /** Latest moment a held frame still shows the intro (after this the page has taken over). */
 const LAST_INTRO_FRAME = T.fadeStart - 0.05;
 const NEW_COLORS = ["#b76e79", "#e8b04b", "#9fb7ff", "#ffffff", "#ff8a3d", "#7fd1b9"];
@@ -52,64 +60,157 @@ const BEATS = [
 type ColourTarget = ArtSection | "work" | "project";
 const SECTION_NAMES: Record<ArtSection, string> = {
   top: "Intro (top)",
-  agency: "The Agency",
-  work: "Our Projects",
+  agency: "About Our Agency",
+  clients: "Clients & Collaborations",
+  about: "About the Founder",
+  work: "Project Gallery",
   process: "How We Work",
-  making: "Making Stills",
-  about: "About Us",
-  clients: "Our Clients",
+  services: "Our Services",
   contact: "Contact Us",
 };
 const colourPair = (s: IntroSettings, target: ColourTarget) =>
   target === "work" || target === "project" ? s.art.dots[target] : s.art.sections[target];
 
-/** Where the preview goes for each page of the portal, so you always see what you're changing. */
+/** Where the preview goes for each window, so you always see what you're changing. */
 function previewFocus(
   tab: Tab,
   target: ColourTarget,
 ): { to: string; at: "start" | "end"; label: string; intro?: boolean } | null {
-  if (tab === "account") return null;
   if (tab === "intro") return { to: "top", at: "start", label: "The opening", intro: true };
-  if (tab === "titles") return { to: "collaborations", at: "end", label: "Proof Table" };
+  if (tab === "breakdowns") return { to: "process", at: "start", label: "How we work" };
+  if (tab === "slate") return { to: "collaborations", at: "end", label: "Slate" };
   if (tab === "background" && target !== "top" && target !== "project") {
     return { to: target, at: "start", label: SECTION_NAMES[target] };
   }
-  return { to: "top", at: "start", label: "Top of the home page" };
+  if (["glass", "colours", "finish", "layers", "motion", "cursor"].includes(tab)) {
+    return { to: "top", at: "start", label: "Top of the home page" };
+  }
+  return null; // content windows move the preview themselves, section by section
 }
 
-type Tab = "background" | "glass" | "colours" | "finish" | "layers" | "motion" | "intro" | "cursor" | "titles" | "account";
-/** The portal's pages, grouped by what they change. */
-const NAV: { group: string; pages: { id: Tab; name: string; hint: string }[] }[] = [
-  {
-    group: "Design",
-    pages: [
-      { id: "background", name: "Background", hint: "colour, gradient, section colours" },
-      { id: "glass", name: "Glass & shield", hint: "tinted glass, logo shield" },
-    ],
-  },
-  {
-    group: "Stars",
-    pages: [
-      { id: "colours", name: "Colours", hint: "the star colour mix" },
-      { id: "finish", name: "Finish", hint: "glow, size, metal, shine" },
-      { id: "layers", name: "Layers", hint: "front, back and big stars" },
-      { id: "motion", name: "Movement", hint: "stream, scroll, cursor" },
-    ],
-  },
-  {
-    group: "Experience",
-    pages: [
-      { id: "intro", name: "Intro", hint: "the opening animation" },
-      { id: "cursor", name: "Cursor & glow", hint: "pen cursor, hover glow" },
-      { id: "titles", name: "Proof Table", hint: "3D title cards" },
-    ],
-  },
-  { group: "Account", pages: [{ id: "account", name: "Users & security", hint: "people, passwords" }] },
+type Tab =
+  | "home"
+  | "work"
+  | "site"
+  | "projects"
+  | "breakdowns"
+  | "slate"
+  | "media"
+  | "type"
+  | "background"
+  | "theme"
+  | "glass"
+  | "colours"
+  | "finish"
+  | "layers"
+  | "motion"
+  | "intro"
+  | "cursor"
+  | "playback"
+  | "account"
+  | "activity";
+
+interface WinDef {
+  title: string;
+  /** One plain sentence: what changing things here does. */
+  hint: string;
+  glyph: string;
+  tint: [string, string];
+  /** Size when made smaller (a floating window). */
+  w: number;
+  h: number;
+  /** Opens as a small floating window instead of the large one (a control strip, not a settings page). */
+  small?: boolean;
+}
+
+/** Every window of the portal: its name, what it is for, icon colour and the size it takes when made smaller. */
+const WINDOWS: Record<Tab, WinDef> = {
+  home: { title: "Home page text", hint: "Every word, number and picture on the home page, section by section.", glyph: "home", tint: ["#ffb347", "#e8742a"], w: 460, h: 700 },
+  work: { title: "Gallery & project pages", hint: "The wording on the full gallery, on each project page and on “page not found”.", glyph: "work", tint: ["#ffcf5c", "#e8a31a"], w: 440, h: 620 },
+  site: { title: "Studio details & menu", hint: "Studio name, phone, email, social links, menu words, footer and the text Google shows.", glyph: "site", tint: ["#ff9aa2", "#e0556a"], w: 440, h: 640 },
+  projects: { title: "Projects", hint: "Add, remove and edit your projects — posters, credits and descriptions.", glyph: "projects", tint: ["#c9a0ff", "#7b4be0"], w: 480, h: 720 },
+  breakdowns: { title: "Breakdowns", hint: "Layered artworks that fall apart into labelled layers when someone hovers them.", glyph: "breakdowns", tint: ["#ffa56b", "#e0562a"], w: 480, h: 720 },
+  slate: { title: "Title slate (3D glass)", hint: "The glass table of title cards: its words, cards, size and glass look.", glyph: "slate", tint: ["#9fe0ff", "#3b8be0"], w: 460, h: 720 },
+  media: { title: "Images", hint: "Your picture library. Upload once, then pick the picture anywhere.", glyph: "media", tint: ["#7fe3c0", "#1fa57a"], w: 520, h: 600 },
+  type: { title: "Fonts & text styles", hint: "Change the fonts, or the size, weight and colour of any text.", glyph: "type", tint: ["#f4f4f4", "#9a9aa5"], w: 460, h: 680 },
+  background: { title: "Page background", hint: "The background colour, its gradient style, and the colours of each section.", glyph: "background", tint: ["#ff7eb3", "#7a3ad2"], w: 440, h: 700 },
+  theme: { title: "Brand colours", hint: "The gold accents, the bright highlights and the text colour of the whole site.", glyph: "colours", tint: ["#ffbf80", "#e0563a"], w: 420, h: 480 },
+  glass: { title: "Logo glass", hint: "The tinted glass over the stars and the soft shield behind the logo.", glyph: "glass", tint: ["#a8e6ff", "#4a7de0"], w: 420, h: 560 },
+  colours: { title: "Star colours", hint: "Which colours the stars are, and how much of each.", glyph: "colours", tint: ["#ffd86b", "#ee6b4a"], w: 420, h: 520 },
+  finish: { title: "Star look", hint: "How the stars shine: glow, size, metal and depth.", glyph: "finish", tint: ["#fff3a8", "#e8b04b"], w: 420, h: 680 },
+  layers: { title: "Star groups", hint: "The front, back and big stars: how many and how large.", glyph: "layers", tint: ["#b9b2ff", "#5a4be0"], w: 440, h: 700 },
+  motion: { title: "Star movement", hint: "How the stars drift, stream out of the logo and follow the mouse.", glyph: "motion", tint: ["#8fe9d8", "#1e9fb0"], w: 420, h: 620 },
+  intro: { title: "Opening animation", hint: "The stars that fly in and draw the logo when the site opens.", glyph: "intro", tint: ["#ff8a8a", "#d23a5a"], w: 440, h: 700 },
+  cursor: { title: "Cursor & glow", hint: "The pen that follows the mouse, and the glow when you hover.", glyph: "cursor", tint: ["#ffe28a", "#d9892a"], w: 420, h: 600 },
+  playback: { title: "Preview controls", hint: "Replay the opening animation, or pause it on any moment to adjust.", glyph: "playback", tint: ["#d0d0d8", "#6a6a78"], w: 560, h: 250, small: true },
+  account: { title: "People & passwords", hint: "Your username, email and password; who can sign in, their roles, and the email codes.", glyph: "account", tint: ["#9bb4c9", "#4a6075"], w: 560, h: 680 },
+  activity: { title: "Activity log", hint: "Who signed in, and what each person published, uploaded or changed.", glyph: "activity", tint: ["#b5e0a8", "#4f9a56"], w: 520, h: 680 },
+};
+
+const dockItem = (id: Tab, label?: string) => ({ id, label: label ?? WINDOWS[id].title, glyph: WINDOWS[id].glyph, tint: WINDOWS[id].tint });
+const DOCK: DockGroup[] = [
+  { name: "Pages & text", items: [dockItem("home"), dockItem("work"), dockItem("site"), dockItem("projects"), dockItem("breakdowns"), dockItem("slate"), dockItem("media"), dockItem("type")] },
+  { name: "Page look", items: [dockItem("background"), dockItem("theme"), dockItem("glass")] },
+  { name: "Stars", items: [dockItem("colours"), dockItem("finish"), dockItem("layers"), dockItem("motion")] },
+  { name: "Animation", items: [dockItem("intro"), dockItem("cursor"), dockItem("playback")] },
+  { name: "Account", items: [dockItem("account"), dockItem("activity")] },
 ];
-const PAGE = Object.fromEntries(NAV.flatMap((g) => g.pages.map((pg) => [pg.id, pg]))) as Record<
-  Tab,
-  (typeof NAV)[number]["pages"][number]
->;
+
+const DESIGN_WORDS: Partial<Record<Tab, string>> = {
+  background: "background colour gradient dots bubbles waves silk halo style density section colours",
+  theme: "brand colours colors accent gold bright text colour theme",
+  glass: "glass shield tint blur frost logo opacity",
+  colours: "star colours colors mix share",
+  finish: "stars glow size metal shine depth gold",
+  layers: "stars front back big layers count blur corner",
+  motion: "stars stream scroll cursor movement parallax speed",
+  intro: "intro opening animation reveal sweep star timing loader",
+  cursor: "cursor pen glow hover logo colour size",
+  breakdowns: "breakdown breakdowns layers psd photoshop png layer explode labels hover how we work",
+  slate: "slate glass slab cards table titles proof tint opacity frost reflection size scroll length add upload",
+  media: "images pictures photos upload library files",
+  type: "fonts typography typeface upload font file ttf otf woff size weight italic spacing text style headings paragraphs",
+  playback: "play pause hold scrub timeline intro preview",
+  account: "users people password login sign in security owner editor account username email reset forgot otp code two-step smtp gmail",
+  activity: "activity log history audit who signed in logged in changes published uploaded when",
+};
+
+const fieldWords = (fields: Field[]): string[] =>
+  fields.flatMap((f) => [f.label, ...(f.kind === "list" ? fieldWords(f.fields) : [])]);
+
+/** Everything the search can find: each window, and each section of each content page with its field names. */
+const SEARCH_ENTRIES: SpotEntry[] = [
+  ...(Object.keys(WINDOWS) as Tab[]).map((id) => ({
+    label: WINDOWS[id].title,
+    sub: WINDOWS[id].hint,
+    glyph: WINDOWS[id].glyph,
+    keywords: DESIGN_WORDS[id] ?? "",
+    tab: id,
+  })),
+  ...(["home", "work", "site", "slate", "projects"] as const).flatMap((page) =>
+    CONTENT_PAGES[page].sections.map((sec) => ({
+      label: sec.title,
+      sub: `${WINDOWS[page].title} › ${sec.title}`,
+      glyph: WINDOWS[page].glyph,
+      keywords: fieldWords(sec.fields).join(" "),
+      tab: page,
+      section: sec.id,
+    })),
+  ),
+];
+
+/** Where "View ▸ Show" can take the preview: the site's parts, in page order. The preview itself can't be scrolled by hand. */
+const JUMP_TO: { label: string; to: string; at?: "start" | "end" }[] = [
+  { label: "Top of the page", to: "top" },
+  { label: "About our agency", to: "agency" },
+  { label: "Clients & collaborations", to: "clients" },
+  { label: "About the founder", to: "about" },
+  { label: "Projects slate", to: "collaborations", at: "end" },
+  { label: "Project gallery", to: "work" },
+  { label: "How we work", to: "process" },
+  { label: "Our services", to: "services" },
+  { label: "Contact us", to: "contact" },
+];
 
 type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
 
@@ -145,20 +246,103 @@ function introLayout(s: IntroSettings) {
   ];
 }
 
-export function PortalEditor({ initial, user }: { initial: IntroSettings; user: PortalUser }) {
+export function PortalEditor({
+  initial,
+  initialContent,
+  user,
+}: {
+  initial: IntroSettings;
+  initialContent: SiteContent;
+  user: PortalUser;
+}) {
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
   // A first-run (setup) sign-in goes straight to creating the owner account.
-  const [tab, setTab] = useState<Tab>(user.setup ? "account" : "background");
   const [dotsPage, setDotsPage] = useState<ColourTarget>("top");
-  const dirty = !same(saved, draft);
+
+  // Content (text, lists, projects, images, fonts) is saved separately from the design settings.
+  const [contentSaved, setContentSaved] = useState(initialContent);
+  const [contentDraft, setContentDraft] = useState(initialContent);
+  const [images, setImages] = useState<string[]>([]);
+  const contentRef = useRef(contentDraft);
+  const sentContentRef = useRef<SiteContent | null>(null);
+  useEffect(() => {
+    contentRef.current = contentDraft;
+  }, [contentDraft]);
+  useEffect(() => {
+    fetch("/api/portal/media")
+      .then((r) => (r.ok ? r.json() : { images: [] }))
+      .then((d: { images?: string[] }) => setImages(d.images ?? []))
+      .catch(() => {});
+  }, []);
+  const media: MediaApi = {
+    images,
+    add: (src) => setImages((list) => (list.includes(src) ? list : [src, ...list])),
+    upload: async (file, onProgress) => {
+      const data = await postFile<{ src?: string }>("/api/portal/media", file, onProgress);
+      if (!data.src) throw new Error("Upload failed.");
+      setImages((list) => (list.includes(data.src!) ? list : [data.src!, ...list]));
+      return data.src;
+    },
+  };
+  const updateContent = (fn: (c: SiteContent) => SiteContent) => {
+    setContentDraft((c) => fn(c));
+    setSave({ kind: "idle" });
+  };
+
+  // Windows: which are open, where, and which is in front.
+  // A first-run sign-in opens straight onto creating the owner account.
+  const [wins, setWins] = useState<Partial<Record<Tab, WinState>>>(() =>
+    user.setup ? { account: { x: 220, y: MENUBAR_H + 20, w: 560, h: 600, z: 11, min: false, max: true } } : {},
+  );
+  const zRef = useRef(10);
+  const topId = (Object.entries(wins) as [Tab, WinState][])
+    .filter(([, w]) => !w.min)
+    .sort((a, b) => b[1].z - a[1].z)[0]?.[0];
+  const tab: Tab = topId ?? "background";
+
+
+  const [spotlight, setSpotlight] = useState(false);
+  const [device, setDevice] = useState<"desktop" | "tablet" | "phone">("desktop");
+  /** Which page the live preview shows: it follows the page whose settings are open. */
+  const [previewRoute, setPreviewRoute] = useState<PageKey>("home");
+  const previewPath =
+    previewRoute === "work" ? "/work" : previewRoute === "project" ? `/work/${contentSaved.projects[0]?.slug ?? ""}` : previewRoute === "notFound" ? "/page-not-found-preview" : "/";
+  const [wide, setWide] = useState(true);
+  useEffect(() => {
+    const on = () => setWide(window.innerWidth >= 900);
+    on();
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  /** A large window is in front: the live preview sits framed beside it, so you always see what you change. */
+  const docked = !!topId && !!wins[topId]?.max && wide;
+  const breakdownsOpen = !!wins.breakdowns;
+  useEffect(() => {
+    // Only the content windows for the gallery and project pages show another page; everything else shows the home page.
+    if (tab !== "work" && tab !== "home") setPreviewRoute("home"); // eslint-disable-line react-hooks/set-state-in-effect -- follows which window is in front
+  }, [tab]);
+  const [goto, setGoto] = useState<{ tab: Tab; section: string; n: number } | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSpotlight((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const settingsDirty = !same(saved, draft);
+  const contentDirty = !same(contentSaved, contentDraft);
+  const dirty = settingsDirty || contentDirty;
 
   // --- preview ------------------------------------------------------------------------
   const frameRef = useRef<HTMLIFrameElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.5);
   const [ready, setReady] = useState(false);
   const [playhead, setPlayhead] = useState(0);
   const [holding, setHolding] = useState(false);
@@ -206,15 +390,6 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
     [startRun],
   );
 
-  // Scale the full-size preview page down to fit the stage.
-  useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    const ro = new ResizeObserver(() => setScale(stage.clientWidth / PREVIEW_W));
-    ro.observe(stage);
-    return () => ro.disconnect();
-  }, []);
-
   // Messages from the preview page. When it says it's ready, hand it the current draft and play from the top.
   useEffect(() => {
     function onMessage(e: MessageEvent) {
@@ -228,7 +403,9 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
           type: "settings",
           settings: draftRef.current,
         });
-        startRun(0, false);
+        sentContentRef.current = contentRef.current;
+        send({ source: "dds-portal", type: "content", content: contentRef.current });
+        startRun(T.end, false); // the preview opens on the page itself: the logo and the stars, no opening animation
         setReady(true);
       }
       if (msg.type === "time") {
@@ -240,24 +417,52 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
     return () => window.removeEventListener("message", onMessage);
   }, [send, startRun]);
 
-  // Every change shows up in the preview straight away: the page and lasting stars update live, and the intro
-  // re-renders the moment you're looking at (held, so you can compare).
   useEffect(() => {
-    if (!ready || sentRef.current === draft) return;
-    const timer = setTimeout(() => {
+    // Closing the Breakdowns window also closes the viewer inside the preview.
+    if (!breakdownsOpen && ready) send({ source: "dds-portal", type: "breakdown", index: null });
+  }, [breakdownsOpen, ready, send]);
+
+  // Every change shows up in the preview as you make it: the page and lasting stars update live, and the intro
+  // re-renders the moment you're looking at (held, so you can compare). Updates go out at most every ~45 ms and always
+  // carry the latest value, so dragging a slider or typing never waits for you to stop, and never floods the preview.
+  const settingsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!ready || sentRef.current === draft || settingsTimer.current) return;
+    settingsTimer.current = setTimeout(() => {
+      settingsTimer.current = null;
+      const latest = draftRef.current;
       const previous = sentRef.current;
-      sentRef.current = draft;
-      send({ source: "dds-portal", type: "settings", settings: draft });
+      if (previous === latest) return;
+      sentRef.current = latest;
+      send({ source: "dds-portal", type: "settings", settings: latest });
       if (playheadRef.current >= T.fadeStart) return; // on the page: it and its stars already reflect the change
-      if (previous && same(introLayout(previous), introLayout(draft))) return; // shown live, no restart needed
+      if (previous && same(introLayout(previous), introLayout(latest))) return; // shown live, no restart needed
       startRun(Math.min(playheadRef.current, LAST_INTRO_FRAME), true);
-    }, 200);
-    return () => clearTimeout(timer);
+    }, 45);
   }, [draft, ready, send, startRun]);
+
+  // Content edits show up in the preview as you type.
+  useEffect(() => {
+    if (!ready || sentContentRef.current === contentDraft || contentTimer.current) return;
+    contentTimer.current = setTimeout(() => {
+      contentTimer.current = null;
+      const latest = contentRef.current;
+      if (sentContentRef.current === latest) return;
+      sentContentRef.current = latest;
+      send({ source: "dds-portal", type: "content", content: latest });
+    }, 45);
+  }, [contentDraft, ready, send]);
+  useEffect(
+    () => () => {
+      if (settingsTimer.current) clearTimeout(settingsTimer.current);
+      if (contentTimer.current) clearTimeout(contentTimer.current);
+    },
+    [],
+  );
 
   // The preview follows what you're editing: opening a page (or picking the background's colour target) moves the
   // preview to that part of the site.
-  const focus = previewFocus(tab, dotsPage);
   const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function showInPreview(next: ReturnType<typeof previewFocus>) {
     if (!ready || !next) return;
@@ -275,11 +480,41 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
       onPage ? 0 : 700,
     );
   }
-  function openPage(next: Tab) {
-    setTab(next);
-    if (next !== tab) showInPreview(previewFocus(next, dotsPage));
+  const frontOf = () => ++zRef.current;
+  function focusWin(id: Tab) {
+    setWins((w) => (w[id] && w[id]!.z !== zRef.current ? { ...w, [id]: { ...w[id]!, z: frontOf() } } : w));
   }
-
+  function closeWin(id: Tab) {
+    setWins((w) => {
+      const next = { ...w };
+      delete next[id];
+      return next;
+    });
+  }
+  /** Bring a window to the front (restoring it if it was minimised). */
+  function toggleWinOpen(id: Tab) {
+    setWins((w) => (w[id] ? { ...w, [id]: { ...w[id]!, min: false, z: frontOf() } } : w));
+  }
+  function toggleWin(id: Tab) {
+    const current = wins[id];
+    if (current && !current.min && id === topId) {
+      closeWin(id);
+      return;
+    }
+    if (current) {
+      setWins((w) => ({ ...w, [id]: { ...w[id]!, min: false, z: frontOf() } }));
+    } else {
+      const def = WINDOWS[id];
+      const n = Object.keys(wins).length;
+      const w = Math.min(def.w, window.innerWidth - 24);
+      const h = Math.min(def.h, window.innerHeight - 150);
+      setWins((all) => ({
+        ...all,
+        [id]: { x: Math.max(12, window.innerWidth - w - 24 - (n % 5) * 30), y: MENUBAR_H + 16 + (n % 5) * 28, w, h, z: frontOf(), min: false, max: !def.small },
+      }));
+    }
+    if (id !== tab || !current) showInPreview(previewFocus(id, dotsPage));
+  }
   // Don't lose unsaved work by accident.
   useEffect(() => {
     if (!dirty) return;
@@ -339,30 +574,43 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
   async function publish() {
     setSave({ kind: "saving" });
     try {
-      const res = await fetch("/api/portal/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draft),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (res.status === 401) router.refresh();
-        setSave({
-          kind: "error",
-          message: body.error ?? "Couldn’t save. Try again.",
+      if (settingsDirty) {
+        const res = await fetch("/api/portal/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(draft),
         });
-        return;
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status === 401) router.refresh();
+          setSave({ kind: "error", message: body.error ?? "Couldn’t save. Try again." });
+          return;
+        }
+        const next = sanitizeIntroSettings(body.settings);
+        if (same(next, draft)) sentRef.current = next; // the preview already shows exactly this
+        setSaved(next);
+        setDraft(next);
       }
-      const next = sanitizeIntroSettings(body.settings);
-      if (same(next, draft)) sentRef.current = next; // the preview already shows exactly this
-      setSaved(next);
-      setDraft(next);
+      if (contentDirty) {
+        const res = await fetch("/api/portal/content", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(contentDraft),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status === 401) router.refresh();
+          setSave({ kind: "error", message: body.error ?? "Couldn’t save the content. Try again." });
+          return;
+        }
+        const next = sanitizeContent(body.content);
+        sentContentRef.current = null; // let the preview pick up any tidying the server did
+        setContentSaved(next);
+        setContentDraft(next);
+      }
       setSave({ kind: "saved" });
     } catch {
-      setSave({
-        kind: "error",
-        message: "Couldn’t reach the server. Check the connection and try again.",
-      });
+      setSave({ kind: "error", message: "Couldn’t reach the server. Check the connection and try again." });
     }
   }
 
@@ -372,100 +620,9 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
   }
 
   const fractions = colorFractions(draft.colors);
-  const onPage = playhead >= T.fadeStart;
 
-  return (
-    <div className={styles.shell}>
-      <header className={styles.topbar}>
-        <div className={styles.brand}>
-          <span className={styles.brandStar} aria-hidden="true">
-            ★
-          </span>
-          <span className={styles.brandName}>Dolly Studio</span>
-          <span className={styles.brandDivider} aria-hidden="true" />
-          <span className={styles.brandArea}>Creator portal</span>
-        </div>
-        <div className={styles.actions}>
-          <span className={styles.status} data-kind={dirty ? "dirty" : save.kind} role="status">
-            {save.kind === "saving"
-              ? "Publishing…"
-              : save.kind === "error"
-                ? save.message
-                : dirty
-                  ? "Unsaved changes"
-                  : save.kind === "saved"
-                    ? "Published — live on the site"
-                    : "Everything is live"}
-          </span>
-          <button type="button" className={styles.ghostButton} disabled={!dirty} onClick={() => setDraft(saved)}>
-            Discard changes
-          </button>
-          <button type="button" className={styles.primaryButton} disabled={!dirty || save.kind === "saving"} onClick={publish}>
-            Save &amp; publish
-          </button>
-          <span className={styles.userChip}>
-            <span className={styles.avatar} aria-hidden="true">
-              {(user.name || user.username).slice(0, 1).toUpperCase()}
-            </span>
-            <span className={styles.userName}>{user.name}</span>
-            <button type="button" className={styles.linkButton} onClick={signOut}>
-              Sign out
-            </button>
-          </span>
-        </div>
-      </header>
-
-      <div className={styles.workspace} data-page={tab}>
-        <nav className={styles.sidenav} aria-label="Portal sections">
-          {NAV.map((g) => (
-            <div key={g.group} className={styles.navGroup}>
-              <p className={styles.navGroupName}>{g.group}</p>
-              {g.pages.map((pg) => (
-                <button
-                  key={pg.id}
-                  type="button"
-                  className={styles.navItem}
-                  data-active={tab === pg.id}
-                  aria-current={tab === pg.id ? "page" : undefined}
-                  disabled={user.setup && pg.id !== "account"}
-                  onClick={() => openPage(pg.id)}
-                >
-                  <span className={styles.navName}>{pg.name}</span>
-                  <span className={styles.navHint}>{pg.hint}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-          <div className={styles.navTools}>
-            <p className={styles.navGroupName}>Tools</p>
-            <button
-              type="button"
-              className={styles.ghostButton}
-              title="Try a new look: random finish, colour mix, motion and glass (background and colours kept)"
-              onClick={() => update(randomLook(draft))}
-            >
-              ⚄ Randomize the look
-            </button>
-            <button
-              type="button"
-              className={styles.ghostButton}
-              onClick={() => {
-                if (window.confirm("Reset every setting to the defaults? (Nothing changes on the site until you publish.)")) {
-                  update(sanitizeIntroSettings(DEFAULT_INTRO_SETTINGS));
-                }
-              }}
-            >
-              Reset to defaults
-            </button>
-          </div>
-        </nav>
-
-        <aside className={styles.panel} aria-label="Settings">
-          <div className={styles.pageHead}>
-            <h2>{PAGE[tab].name}</h2>
-            <p>{PAGE[tab].hint}</p>
-          </div>
-
+  const renderPanel = (tab: Tab) => (
+    <>
           {tab === "background" && (
             <>
               <Section
@@ -1080,7 +1237,7 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
                         href={`#${l.id}`}
                         className={styles.layerLink}
                         onClick={() =>
-                          setTab(l.id === "layer-glass" ? "glass" : l.id === "layer-background" ? "background" : "layers")
+                          toggleWin(l.id === "layer-glass" ? "glass" : l.id === "layer-background" ? "background" : "layers")
                         }
                       >
                         <span className={styles.layerNum}>{i + 1}</span>
@@ -1482,50 +1639,61 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
             </>
           )}
 
-          {tab === "titles" && (
-            <ProofTableEditor
-              value={draft.proofTable}
-              onChange={(patch) => {
-                setDraft((d) => ({ ...d, proofTable: { ...d.proofTable, ...patch } }));
-                setSave({ kind: "idle" });
-              }}
-              onShow={() => send({ source: "dds-portal", type: "scroll", to: "collaborations" })}
+          {tab === "slate" && (
+            <>
+              <ContentEditor page={CONTENT_PAGES.slate} goto={goto?.tab === "slate" ? goto : undefined} onFocus={(to) => showInPreview({ to, at: "end", label: "Slate" })} />
+              <ProofTableEditor
+                value={draft.proofTable}
+                projects={contentDraft.projects.map((p) => ({ slug: p.slug, title: p.title }))}
+                onChange={(patch) => {
+                  setDraft((d) => ({ ...d, proofTable: { ...d.proofTable, ...patch } }));
+                  setSave({ kind: "idle" });
+                }}
+                onShow={() => send({ source: "dds-portal", type: "scroll", to: "collaborations" })}
+              />
+            </>
+          )}
+
+          {tab === "home" && (
+            <ContentEditor
+              page={CONTENT_PAGES.home}
+              goto={goto?.tab === "home" ? goto : undefined}
+              onPage={setPreviewRoute}
+              onFocus={(to) => showInPreview({ to, at: "start", label: "Home page" })}
+              extra={(s) =>
+                s.art ? (
+                  <Section title="Background colours" scope="Page" hint="The two colours the dots and bubbles take in this part of the page.">
+                    <ColorRow label="Colour A" value={colourPair(draft, s.art).a} onChange={(hex) => updateDots(s.art!, "a", hex)} />
+                    <ColorRow label="Colour B" value={colourPair(draft, s.art).b} onChange={(hex) => updateDots(s.art!, "b", hex)} />
+                  </Section>
+                ) : null
+              }
             />
           )}
-
-          {tab === "account" && (
-            <div className={styles.accountAside}>
-              <p>Manage who can open this portal, their roles and passwords. Your design work stays untouched here.</p>
-            </div>
+          {tab === "work" && <ContentEditor page={CONTENT_PAGES.work} goto={goto?.tab === "work" ? goto : undefined} onFocus={() => {}} onPage={setPreviewRoute} />}
+          {tab === "site" && <ContentEditor page={CONTENT_PAGES.site} goto={goto?.tab === "site" ? goto : undefined} onFocus={() => {}} />}
+          {tab === "projects" && (
+            <ContentEditor
+              page={CONTENT_PAGES.projects}
+              goto={goto?.tab === "projects" ? goto : undefined}
+              firstOpen
+              onFocus={(to) => showInPreview({ to, at: "start", label: "Project gallery" })}
+              extra={(s) =>
+                s.art ? (
+                  <Section title="Background colours" scope="Page" hint="Colours behind the gallery.">
+                    <ColorRow label="Colour A" value={colourPair(draft, s.art).a} onChange={(hex) => updateDots(s.art!, "a", hex)} />
+                    <ColorRow label="Colour B" value={colourPair(draft, s.art).b} onChange={(hex) => updateDots(s.art!, "b", hex)} />
+                  </Section>
+                ) : null
+              }
+            />
           )}
-        </aside>
-
-        {tab === "account" && (
-          <main className={styles.accountColumn}>
-            <AccountPanel me={user} />
-          </main>
-        )}
-        <main className={styles.stageColumn} hidden={tab === "account"}>
-          <p className={styles.focusChip} aria-live="polite">
-            <span aria-hidden="true">◉</span> Preview · {focus?.label ?? "Home page"}
-          </p>
-          <div className={styles.stageFrame}>
-            <div ref={stageRef} className={styles.stage} style={{ aspectRatio: `${PREVIEW_W} / ${PREVIEW_H}` }}>
-              <iframe
-                ref={frameRef}
-                title="Live preview of the home page"
-                src={`/?${PREVIEW_PARAM}`}
-                className={styles.frame}
-                style={{
-                  width: PREVIEW_W,
-                  height: PREVIEW_H,
-                  transform: `scale(${scale})`,
-                }}
-              />
-              {!ready && <div className={styles.loading}>Loading preview…</div>}
-            </div>
-          </div>
-
+          {tab === "breakdowns" && <BreakdownsEditor onShow={(index) => send({ source: "dds-portal", type: "breakdown", index })} />}
+          {tab === "media" && <MediaLibrary />}
+          {tab === "type" && <TypographyEditor />}
+          {tab === "theme" && <ThemeEditor />}
+          {tab === "playback" && (
+            <>
           <div className={styles.transport}>
             <div className={styles.transportButtons}>
               <button type="button" className={styles.primaryButton} disabled={!ready} onClick={() => startRun(0, false)}>
@@ -1606,9 +1774,161 @@ export function PortalEditor({ initial, user }: { initial: IntroSettings; user: 
               visitors until you press <strong>Save &amp; publish</strong>.
             </p>
           </div>
-        </main>
+            </>
+          )}
+          {tab === "account" && <AccountPanel me={user} />}
+          {tab === "activity" && <ActivityPanel me={user} />}
+    </>
+  );
+
+  function pickSearch(e: SpotEntry) {
+    setSpotlight(false);
+    const id = e.tab as Tab;
+    if (e.section) setGoto((g) => ({ tab: id, section: e.section!, n: (g?.n ?? 0) + 1 }));
+    if (wins[id]) toggleWinOpen(id);
+    else toggleWin(id);
+  }
+
+  const openIds = (Object.keys(wins) as Tab[]).sort((a, b) => wins[a]!.z - wins[b]!.z);
+  const menus: MenuDef[] = [
+    {
+      label: "Desktop",
+      items: [
+        { label: "Randomize the look", disabled: !!user.setup, onClick: () => update(randomLook(draft)) },
+        {
+          label: "Reset design to defaults",
+          disabled: !!user.setup,
+          onClick: () => {
+            if (window.confirm("Reset every design setting to the defaults? (Nothing changes on the site until you publish.)")) {
+              update(sanitizeIntroSettings(DEFAULT_INTRO_SETTINGS));
+            }
+          },
+        },
+        { label: "Sign out", divider: true, onClick: signOut },
+      ],
+    },
+    {
+      label: "View",
+      items: [
+        { label: "Open the site in a new tab", onClick: () => window.open("/", "_blank") },
+        ...JUMP_TO.map((j, i) => ({
+          label: `Show: ${j.label}`,
+          divider: i === 0,
+          onClick: () => showInPreview({ to: j.to, at: j.at ?? "start", label: j.label }),
+        })),
+        { label: "Show all windows", divider: true, disabled: !openIds.length, onClick: () => setWins((w) => Object.fromEntries(Object.entries(w).map(([k, v]) => [k, { ...v!, min: false }]))) },
+        { label: "Close all windows", disabled: !openIds.length, onClick: () => setWins({}) },
+      ],
+    },
+    {
+      label: "Window",
+      items: [
+        ...(openIds.length
+          ? openIds.map((id) => ({ label: WINDOWS[id].title, hint: wins[id]!.min ? "minimised" : id === topId ? "front" : "", onClick: () => toggleWinOpen(id) }))
+          : [{ label: "No windows open", disabled: true }]),
+        { label: "Minimise all", divider: true, disabled: !openIds.length, onClick: () => setWins((w) => Object.fromEntries(Object.entries(w).map(([k, v]) => [k, { ...v!, min: true }]))) },
+      ],
+    },
+  ];
+
+  const open = new Set(Object.keys(wins));
+  const minimized = new Set((Object.entries(wins) as [Tab, WinState][]).filter(([, w]) => w.min).map(([id]) => id));
+  const onPage = playhead >= T.fadeStart;
+  const holdTime = (a: number) => a;
+  void holdTime;
+
+  return (
+    <EditorProvider value={{ content: contentDraft, update: updateContent, media }}>
+      <div className={`${styles.shell} ${mac.desktop}`}>
+        <div ref={stageRef} className={mac.wallpaper} data-framed={docked} data-device={device}>
+          {docked && (
+            <div className={mac.previewBar}>
+              <span className={mac.previewLive}>
+                <i aria-hidden="true" /> Live preview
+              </span>
+              <span className={mac.previewDevices} role="group" aria-label="Preview size">
+                {(["desktop", "tablet", "phone"] as const).map((d) => (
+                  <button key={d} type="button" data-on={device === d} onClick={() => setDevice(d)}>
+                    {d === "desktop" ? "Desktop" : d === "tablet" ? "Tablet" : "Phone"}
+                  </button>
+                ))}
+              </span>
+              <span className={mac.menuSpacer} />
+              <button type="button" className={mac.previewBtn} onClick={() => frameRef.current?.contentWindow?.location.reload()}>
+                ↻ Reload
+              </button>
+            </div>
+          )}
+          <iframe ref={frameRef} title="Live preview of the site" src={`${previewPath}?${PREVIEW_PARAM}`} />
+        </div>
+
+        <MenuBar menus={menus}>
+          <button type="button" className={mac.menuSearch} onClick={() => setSpotlight(true)} aria-label="Search settings">
+            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+              <circle cx="9" cy="9" r="5.5" />
+              <path d="m13.5 13.5 4 4" />
+            </svg>
+            Search settings <kbd>Ctrl K</kbd>
+          </button>
+          <span className={mac.menuStatus} data-kind={dirty ? "dirty" : save.kind} role="status">
+            {save.kind === "saving"
+              ? "Publishing…"
+              : save.kind === "error"
+                ? save.message
+                : dirty
+                  ? "Unsaved changes"
+                  : save.kind === "saved"
+                    ? "Published — live"
+                    : "Everything is live"}
+          </span>
+          <a className={mac.menuPill} href="/" target="_blank" rel="noreferrer">
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 2h5v5M14 2 7.5 8.5M12 9.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5" />
+            </svg>
+            View site
+          </a>
+          <button
+            type="button"
+            className={mac.menuBtn}
+            disabled={!dirty}
+            onClick={() => {
+              setDraft(saved);
+              setContentDraft(contentSaved);
+            }}
+          >
+            Discard
+          </button>
+          <button type="button" className={mac.menuPublish} disabled={!dirty || save.kind === "saving"} onClick={publish}>
+            Save &amp; publish
+          </button>
+          <span className={mac.avatar} title={user.name} aria-label={user.name}>
+            {(user.name || user.username).slice(0, 1).toUpperCase()}
+          </span>
+        </MenuBar>
+
+        {(Object.entries(wins) as [Tab, WinState][]).map(([id, state]) => (
+          <Win
+            key={id}
+            title={WINDOWS[id].title}
+            glyph={WINDOWS[id].glyph}
+            tint={WINDOWS[id].tint}
+            state={state}
+            onFocus={() => focusWin(id)}
+            onClose={() => closeWin(id)}
+            onChange={(patch) => setWins((w) => (w[id] ? { ...w, [id]: { ...w[id]!, ...patch } } : w))}
+          >
+            {id !== "playback" && id !== "account" && id !== "activity" && (
+              <p className={mac.winHint}>{WINDOWS[id].hint}</p>
+            )}
+            {renderPanel(id)}
+          </Win>
+        ))}
+
+        {spotlight && <Spotlight entries={user.setup ? SEARCH_ENTRIES.filter((e) => e.tab === "account") : SEARCH_ENTRIES} onPick={pickSearch} onClose={() => setSpotlight(false)} />}
+
+        <Dock groups={DOCK} open={open} minimized={minimized} disabled={(id) => !!user.setup && id !== "account"} onToggle={(id) => toggleWin(id as Tab)} />
       </div>
-    </div>
+    </EditorProvider>
   );
 }
 

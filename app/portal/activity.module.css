@@ -1,0 +1,165 @@
+/* The activity log window (colours come from the --p-* variables the portal shell defines). */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--p-muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chips button {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--p-muted);
+  border: 1px solid var(--p-line-strong);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chips button:hover {
+  color: var(--p-text);
+}
+
+.chips button[data-on="true"] {
+  color: #2b1503;
+  font-weight: 700;
+  border-color: transparent;
+  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
+}
+
+.tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.search,
+.person {
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--p-text);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--p-line-strong);
+  border-radius: 8px;
+}
+
+.search {
+  flex: 1;
+  min-width: 160px;
+}
+
+.search:focus,
+.person:focus {
+  outline: none;
+  border-color: var(--p-gold);
+}
+
+.refresh {
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--p-text);
+  border: 1px solid var(--p-line-strong);
+}
+
+.refresh:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.empty {
+  margin: 8px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--p-muted);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  display: flex;
+  gap: 12px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--p-line);
+}
+
+.icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  border-radius: 9px;
+  color: var(--p-gold-bright);
+  border: 1px solid var(--p-line-strong);
+  background: linear-gradient(180deg, #3a2e33, #1a1316);
+}
+
+.item[data-ok="false"] .icon {
+  color: var(--p-danger);
+  border-color: rgba(255, 143, 122, 0.4);
+}
+
+.body {
+  min-width: 0;
+}
+
+.sentence {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--p-text);
+  overflow-wrap: anywhere;
+}
+
+.sentence strong {
+  font-weight: 700;
+}
+
+.sentence em {
+  font-style: normal;
+  color: var(--p-gold-bright);
+}
+
+.item[data-ok="false"] .sentence em {
+  color: var(--p-danger);
+}
+
+.meta {
+  margin: 3px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11.5px;
+  color: var(--p-muted);
+}
+
+.more {
+  align-self: center;
+  margin-top: 6px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--p-gold-bright);
+  border: 1px solid rgba(232, 176, 75, 0.5);
+  background: rgba(232, 176, 75, 0.08);
+}

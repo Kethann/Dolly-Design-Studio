@@ -1,23 +1,25 @@
 import type { Metadata } from "next";
-import { projects } from "@/content/projects";
 import { WorkGrid } from "@/components/WorkGrid";
-import { workPage } from "@/content/pages";
+import { getContent } from "@/lib/content/store";
+import { tx } from "@/lib/content/tx";
 
-export const metadata: Metadata = {
-  title: workPage.metaTitle,
-  description: workPage.metaDescription,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { work } = await getContent();
+  return { title: work.metaTitle, description: work.metaDescription };
+}
 
-export default function WorkPage() {
+export default async function WorkPage() {
+  const { projects, work: workPage } = await getContent();
   const sorted = [...projects].sort((a, b) => a.order - b.order);
 
   return (
     <section style={{ paddingTop: "calc(var(--nav-h) + 56px)", paddingBottom: 120 }}>
       <div className="container">
-        <span className="label gold-text" style={{ fontSize: 11, display: "block", marginBottom: 14 }}>
+        <span className="label gold-text" style={{ fontSize: 11, display: "block", marginBottom: 14 }} {...tx("work.label")}>
           {workPage.label}
         </span>
         <h1
+          {...tx("work.title")}
           style={{
             fontFamily: "var(--font-display)",
             fontWeight: 700,

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { ProofItem } from "@/content/proof-table";
-import { projects } from "@/content/projects";
 import { PROOF_LIMITS, type ProofTableSettings } from "@/lib/intro/settings";
 import { ColorRow, Section, Slider, Toggle, percent } from "./controls";
+import { useMedia } from "./ContentEditor";
 import styles from "./portal.module.css";
 
 /**
@@ -13,24 +13,20 @@ import styles from "./portal.module.css";
  */
 export function ProofTableEditor({
   value,
+  projects,
   onChange,
   onShow,
 }: {
   value: ProofTableSettings;
+  projects: { slug: string; title: string }[];
   onChange: (patch: Partial<ProofTableSettings>) => void;
   /** Scrolls the preview to the section's final view. */
   onShow: () => void;
 }) {
-  const [images, setImages] = useState<string[]>([]);
+  const media = useMedia();
+  const images = media.images; // everything uploaded anywhere in the portal
   const [upload, setUpload] = useState<{ kind: "idle" | "busy" | "error"; message?: string }>({ kind: "idle" });
   const fileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    fetch("/api/portal/proof-image")
-      .then((r) => (r.ok ? r.json() : { images: [] }))
-      .then((d: { images?: string[] }) => setImages(d.images ?? []))
-      .catch(() => {});
-  }, []);
 
   const items = value.items;
   const setItems = (next: ProofItem[]) => onChange({ items: next });
@@ -71,7 +67,7 @@ export function ProofTableEditor({
       const res = await fetch("/api/portal/proof-image", { method: "POST", body: form });
       const data = (await res.json()) as { src?: string; error?: string };
       if (!res.ok || !data.src) throw new Error(data.error ?? "Upload failed.");
-      setImages((list) => (list.includes(data.src!) ? list : [...list, data.src!]));
+      media.add(data.src);
       addCard(data.src);
       setUpload({ kind: "idle" });
     } catch (err) {
@@ -79,11 +75,7 @@ export function ProofTableEditor({
     }
   }
 
-  const imageName = (src: string) =>
-    src
-      .split("/")
-      .pop()
-      ?.replace(/\.[^.]+$/, "") ?? src;
+  const imageName = (src: string) => src.replace("/images/", "");
 
   return (
     <>
@@ -106,12 +98,27 @@ export function ProofTableEditor({
         />
         <Slider
           label="Card size"
+          hint="100% fills the glass; more cards automatically make each card smaller."
           value={value.cardSize}
-          min={0.4}
+          min={0.25}
           max={1}
           step={0.05}
           format={percent}
           onChange={(cardSize) => onChange({ cardSize })}
+        />
+      </Section>
+
+      <Section title="Glass slab" scope="Page" hint="The slim pane of glass the cards lie on.">
+        <ColorRow label="Slab tint" value={value.slabColor} onChange={(slabColor) => onChange({ slabColor })} />
+        <Slider
+          label="Slab opacity"
+          value={value.slabOpacity}
+          min={0.05}
+          max={1}
+          step={0.05}
+          format={percent}
+          hint="Lower is clearer glass; the page behind shows through."
+          onChange={(slabOpacity) => onChange({ slabOpacity })}
         />
       </Section>
 

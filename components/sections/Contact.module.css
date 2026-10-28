@@ -56,6 +56,7 @@
 }
 
 .quickLinks {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -67,11 +68,20 @@
   gap: 10px;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(20px, 2.6vw, 28px);
+  /* On a phone the address is sized to fit the screen; it may also break at any character rather than run off it. */
+  font-size: clamp(15px, 4.6vw, 20px);
+  overflow-wrap: anywhere;
   color: var(--gold-bright);
   border-bottom: 2px solid var(--gold);
   padding-bottom: 6px;
   width: fit-content;
+  max-width: 100%;
+}
+
+@media (min-width: 560px) {
+  .emailButton {
+    font-size: clamp(20px, 2.6vw, 28px);
+  }
 }
 
 .contactRow {

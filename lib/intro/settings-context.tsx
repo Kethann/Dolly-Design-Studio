@@ -56,6 +56,7 @@ export function IntroSettingsProvider({ initial, children }: { initial: IntroSet
       if (!msg || msg.source !== "dds-portal") return;
       if (msg.type === "settings") setSettings(sanitizeIntroSettings(msg.settings));
       if (msg.type === "run") setRun(msg.run);
+      if (msg.type === "breakdown") window.dispatchEvent(new CustomEvent("dds-breakdown", { detail: msg.index }));
       if (msg.type === "scroll") {
         const { to, at } = msg;
         const glide = () => {

@@ -1,0 +1,5 @@
+# Copy to .dev.vars for `npm run cf:preview` (local Cloudflare simulation). Never commit .dev.vars.
+PORTAL_PASSWORD=change-me
+PORTAL_SECRET=any-long-random-string
+# RESEND_API_KEY=re_...
+# MAIL_FROM="Dolly Design Studio <portal@yourdomain.com>"

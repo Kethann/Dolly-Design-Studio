@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { railSections } from "@/content/site";
+import { goToSection, isPlainClick } from "@/lib/section-nav";
 import styles from "./RightRail.module.css";
 
 /** A right-edge rail of 2:3 mini-frames marking each section; the current one lights up. */
@@ -27,8 +28,12 @@ export function RightRail() {
       {railSections.map((s) => (
         <a
           key={s.id}
-          href={`#${s.id}`}
+          href={`/#${s.id}`}
           data-cursor="link"
+          onClick={(e) => {
+            if (!isPlainClick(e)) return;
+            if (goToSection(s.id)) e.preventDefault();
+          }}
           aria-label={s.label}
           aria-current={active === s.id ? "true" : undefined}
           className={`${styles.frame} ${active === s.id ? styles.active : ""}`}

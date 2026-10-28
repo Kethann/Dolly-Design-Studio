@@ -1,13 +1,12 @@
 /* Above the intro's canvas, so it can fade out over the first frames of the show. */
 .loader {
-  --progress: 0;
   position: fixed;
   inset: 0;
   z-index: 101;
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 18px;
+  gap: 22px;
   pointer-events: none;
   opacity: 0;
   animation: loader-in 0.5s ease 0.05s forwards;
@@ -30,8 +29,8 @@
 
 .mark {
   position: relative;
-  width: 196px;
-  height: 196px;
+  width: 188px;
+  height: 188px;
   display: grid;
   place-items: center;
 }
@@ -40,10 +39,10 @@
 .mark::before {
   content: "";
   position: absolute;
-  inset: 8%;
+  inset: 10%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 210, 120, 0.22), transparent 68%);
-  animation: breathe 2.4s ease-in-out infinite alternate;
+  background: radial-gradient(circle, rgba(255, 210, 120, 0.2), transparent 68%);
+  animation: breathe 2.6s ease-in-out infinite alternate;
 }
 
 @keyframes breathe {
@@ -57,43 +56,85 @@
   }
 }
 
-/* The progress ring, starting at the top and filling clockwise. */
+/* The ring sits tight around the star, on the same centre. */
 .ring {
   position: absolute;
+  inset: 10%;
+}
+
+/* The ring: every layer is a thin band cut out of a full circle. */
+.track,
+.tail {
+  position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-  overflow: visible;
+  border-radius: 50%;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
 }
 
-.ringTrack,
-.ringFill {
-  fill: none;
-  stroke-width: 0.9;
+.track {
+  background: rgba(244, 237, 225, 0.1);
 }
 
-.ringTrack {
-  stroke: rgba(244, 237, 225, 0.12);
+/* The comet turns without stopping, on the compositor: nothing here is touched by script. */
+.comet {
+  position: absolute;
+  inset: 0;
+  animation: spin 1.7s linear infinite;
+  will-change: transform;
 }
 
-.ringFill {
-  stroke: #f0c564;
-  stroke-linecap: round;
-  stroke-dasharray: 100;
-  stroke-dashoffset: calc(100 - var(--progress) * 100);
-  filter: drop-shadow(0 0 3px rgba(255, 210, 120, 0.8));
+/* The circle follows behind the pen: brightest at the head, fading away over three quarters of the way round. */
+.tail {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 80deg,
+    rgba(240, 197, 100, 0.34) 190deg,
+    rgba(246, 210, 122, 0.9) 330deg,
+    #fff1b8 360deg
+  );
 }
 
-/* The star turns slowly; crisp edges and a soft glow. */
+/* The pen nib at the head: the same nib and colour as the pointer. Its point sits exactly on the ring, at the top of
+   the comet, aimed the way it travels. */
+.head {
+  position: absolute;
+  inset: 0;
+}
+
+.nib {
+  position: absolute;
+  left: 50%;
+  /* The pen's tip sits on the ring's line (the middle of its band). */
+  top: calc(-8.8px * var(--pen-size, 1) + 1.5px);
+  transform-origin: 0 calc(8.8px * var(--pen-size, 1));
+  /* The pen lies along the ring behind its tip, like the logo's pen drawing the circle: the tail follows it. */
+  transform: rotate(192deg);
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.65));
+}
+
+.nib svg {
+  display: block;
+  width: calc(30px * var(--pen-size, 1));
+  height: auto;
+}
+
+.nib path {
+  fill: var(--pen-color, #fff195);
+}
+
+/* The star turns at a constant speed on its own layer: no filters, nothing restyled every frame, so it keeps turning
+   smoothly even while the page is busy building the scene. Its glow is the static light behind it. */
 .star {
   position: absolute;
-  inset: 13%;
-  width: 74%;
-  height: 74%;
-  filter: drop-shadow(0 0 14px rgba(232, 176, 75, 0.5)) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
-  animation: spin 4.2s linear infinite;
+  inset: 19%;
+  width: 62%;
+  height: 62%;
+  animation: spin 5.5s linear infinite;
   will-change: transform;
+  backface-visibility: hidden;
+  contain: layout paint;
 }
 
 @keyframes spin {
@@ -102,39 +143,19 @@
   }
 }
 
-/* The number stays upright on the turning star: dark on gold, with a light edge so it reads at a glance. */
-.percent {
-  position: relative;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 1px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 27px;
-  line-height: 1;
-  color: #2b1503;
-  font-variant-numeric: tabular-nums;
-  text-shadow:
-    0 0 6px rgba(255, 236, 180, 0.9),
-    0 1px 0 rgba(255, 244, 204, 0.8);
-}
-
-.percent small {
-  font-size: 14px;
-}
-
 .caption {
   margin: 0;
   font-family: var(--font-label);
   font-size: 10px;
   letter-spacing: 0.45em;
   text-transform: uppercase;
-  color: rgba(244, 237, 225, 0.55);
+  color: rgba(244, 237, 225, 0.5);
   padding-left: 0.45em; /* balances the letter spacing, so the word is truly centred */
 }
 
 @media (prefers-reduced-motion: reduce) {
   .star,
+  .comet,
   .mark::before {
     animation: none;
   }

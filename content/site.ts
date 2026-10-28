@@ -31,7 +31,7 @@ export const site = {
 
   /** What Google, WhatsApp, Instagram etc. show when the site is shared or searched. */
   description:
-    "Dolly Design Studio is a creative collective specialising in film publicity and title design. We blend artistry with strategy to craft unforgettable identities that elevate films and leave a lasting mark.",
+    "Dolly Design Studio is a creative collection specializing in film publicity and title design. We blend artistry with strategy to craft unforgettable identities that elevate films and leave a lasting mark.",
   seo: {
     /** Browser-tab title on the home page: "<name> — <this>". */
     titleSuffix: "Film Poster & Title Design Studio",
@@ -42,22 +42,24 @@ export const site = {
 
 /** The top menu (and footer links). `id` is the home-page section it scrolls to ("work" opens the full gallery). */
 export const navItems = [
+  { id: "agency", label: "About" },
+  { id: "clients", label: "Clients" },
+  { id: "about", label: "Founder" },
   { id: "work", label: "Projects" },
   { id: "process", label: "How We Work" },
-  { id: "making", label: "BTS" },
-  { id: "about", label: "About" },
-  { id: "clients", label: "Clients" },
+  { id: "services", label: "Services" },
   { id: "contact", label: "Contact" },
 ] as const;
 
 /** The small frames on the right edge of the home page, one per section, in page order. */
 export const railSections = [
   { id: "top", label: "Intro" },
-  { id: "agency", label: "The Agency" },
-  { id: "work", label: "Our Projects" },
+  { id: "agency", label: "About Our Agency" },
+  { id: "clients", label: "Clients & Collaborations" },
+  { id: "about", label: "About the Founder" },
+  { id: "collaborations", label: "Our Projects Slate" },
+  { id: "work", label: "Project Gallery" },
   { id: "process", label: "How We Work" },
-  { id: "making", label: "Making Stills" },
-  { id: "about", label: "About Us" },
-  { id: "clients", label: "Our Clients" },
+  { id: "services", label: "Our Services" },
   { id: "contact", label: "Contact Us" },
 ] as const;

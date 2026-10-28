@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
-import { projects } from "@/content/projects";
+import { getContent } from "@/lib/content/store";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const { projects } = await getContent();
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
   const staticRoutes = ["", "/work"].map((path) => ({
     url: `${base}${path}`,

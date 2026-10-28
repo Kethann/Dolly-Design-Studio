@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { hasPortalSession } from "@/lib/portal/auth";
-import { writeIntroSettings } from "@/lib/portal/settings-store";
+import { getPortalUser } from "@/lib/portal/auth";
+import { logActivity } from "@/lib/portal/activity";
+import { summarizeSettings } from "@/lib/portal/summary";
+import { readIntroSettings, writeIntroSettings } from "@/lib/portal/settings-store";
 import { sanitizeIntroSettings } from "@/lib/intro/settings";
 
 /** Save and publish the intro settings (creator portal only). */
 export async function PUT(req: NextRequest) {
-  if (!(await hasPortalSession())) {
+  const me = await getPortalUser();
+  if (!me) {
     return NextResponse.json({ error: "Your session has ended. Sign in again." }, { status: 401 });
   }
   // Defence in depth on top of the SameSite=Strict cookie: only accept saves from this site's own pages.
@@ -22,6 +25,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
 
+  const previous = await readIntroSettings();
   try {
     await writeIntroSettings(settings);
   } catch (err) {
@@ -33,5 +37,6 @@ export async function PUT(req: NextRequest) {
   }
 
   revalidatePath("/", "layout"); // every page picks up the new background and intro on its next visit
+  await logActivity({ headers: req.headers, actor: me, action: "published-design", detail: summarizeSettings(previous, settings) });
   return NextResponse.json({ ok: true, settings });
 }

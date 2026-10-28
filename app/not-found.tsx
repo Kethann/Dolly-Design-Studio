@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { notFoundPage } from "@/content/pages";
+import { getContent } from "@/lib/content/store";
 
-export default function NotFound() {
+export default async function NotFound() {
+  const { notFound: notFoundPage } = await getContent();
   return (
     <section
       style={{

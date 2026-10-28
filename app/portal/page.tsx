@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getPortalUser, isPortalConfigured } from "@/lib/portal/auth";
 import { readIntroSettings } from "@/lib/portal/settings-store";
 import { hasAccounts } from "@/lib/portal/users";
+import { getContent } from "@/lib/content/store";
 import { PortalEditor } from "./PortalEditor";
 import { PortalLogin } from "./PortalLogin";
 
@@ -17,5 +18,5 @@ export default async function PortalPage() {
   if (!(await isPortalConfigured())) return <PortalLogin configured={false} />;
   const user = await getPortalUser();
   if (!user) return <PortalLogin configured setup={!(await hasAccounts())} />;
-  return <PortalEditor initial={await readIntroSettings()} user={user} />;
+  return <PortalEditor initial={await readIntroSettings()} initialContent={await getContent()} user={user} />;
 }

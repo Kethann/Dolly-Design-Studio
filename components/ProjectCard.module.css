@@ -5,7 +5,7 @@
 
 .frame {
   position: relative;
-  aspect-ratio: 2 / 3;
+  aspect-ratio: var(--card-ratio, 2 / 3);
   overflow: hidden;
   border: 1px solid var(--smoke);
   background: var(--velvet);

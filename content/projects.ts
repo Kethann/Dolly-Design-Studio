@@ -23,9 +23,11 @@ export const projects: Project[] = [
     role: "Key art, theatrical campaign",
     deliverables: ["Character posters", "Theatrical one-sheet", "Release banner", "Title design (Telugu)"],
     brief:
-      "Betrayed by his better half, a man is convicted for a crime he didn’t commit. Once free, he hunts her down in pursuit of vengeance. The campaign had to hold romance and rage in the same frame.",
+      "Betrayed by his better half, a man is convicted for a crime he didn’t commit. Once free, he hunts her down in pursuit of vengeance, as their stories intertwine with a series of robberies. The campaign had to hold romance and rage in the same frame.",
     credits: [
       { label: "Cast", value: "Adivi Sesh · Mrunal Thakur · Anurag Kashyap" },
+      { label: "Genre", value: "Action, Drama, Romantic Thriller · UA13+ · 2h 32m · Released 10 Apr 2026" },
+      { label: "Writers", value: "Adivi Sesh · Abburi Ravi · Yash Eshwari · Shaneil Deo" },
       { label: "Director", value: "Shaneil Deo" },
       { label: "Studios", value: "Annapurna Studios · S.S. Creations" },
       { label: "Streaming", value: "Prime Video" },
@@ -64,15 +66,17 @@ export const projects: Project[] = [
     title: "G2",
     film: "Goodachari 2",
     category: "Film Publicity",
-    languages: ["Telugu"],
+    languages: ["Telugu", "Kannada"],
     year: 2027,
     client: "People Media Factory · Abhishek Agarwal Arts",
     role: "Key art, release campaign",
     deliverables: ["Teaser posters", "Release date posters", "Title treatment"],
     brief:
-      "Six years after Goodachari, Agent Gopi goes global. The campaign leans into cold steel, shattered glass and a barcode title that feels like classified intel.",
+      "Six years after ‘Goodachari’, G2 follows Agent Gopi on a global mission uncovering truths about his past, with patriotism, sacrifice and thrilling twists across five countries. The campaign leans into cold steel, shattered glass and a barcode title that feels like classified intel.",
     credits: [
       { label: "Cast", value: "Adivi Sesh · Emraan Hashmi · Wamiqa Gabbi" },
+      { label: "Genre", value: "Action, Thriller" },
+      { label: "Writers", value: "Adivi Sesh · Ritesh Rajwada" },
       { label: "Director", value: "Vinay Kumar Sirigineedi" },
       { label: "Studios", value: "People Media Factory · Abhishek Agarwal Arts · AK Entertainments" },
       { label: "Streaming", value: "Prime Video" },
@@ -91,15 +95,17 @@ export const projects: Project[] = [
     title: "Baahubali: The Epic",
     film: "Baahubali: The Epic",
     category: "Re-release",
-    languages: ["Telugu"],
+    languages: ["Telugu", "Kannada"],
     year: 2025,
     client: "Arka Media Works",
     role: "Re-release campaign",
     deliverables: ["Re-release key art", "Release date poster", "Character poster"],
     brief:
-      "A legend returns to the big screen. The re-release artwork had to feel monumental and new without losing the grandeur audiences remember.",
+      "A legendary warrior emerges from humble beginnings to challenge powerful forces threatening his homeland, as ancient prophecies and family bonds shape his journey. The re-release artwork had to feel monumental and new without losing the grandeur audiences remember.",
     credits: [
       { label: "Cast", value: "Prabhas · Rana Daggubati · Anushka Shetty" },
+      { label: "Genre", value: "Action, Drama · UA13+ · 3h 45m · Released 31 Oct 2025" },
+      { label: "Writers", value: "Vijayendra Prasad · S.S. Rajamouli" },
       { label: "Director", value: "S.S. Rajamouli" },
       { label: "Studio", value: "Arka Media Works" },
       { label: "Streaming", value: "Netflix" },
@@ -123,9 +129,11 @@ export const projects: Project[] = [
     role: "Key art, title design, campaign",
     deliverables: ["Title logo", "First look", "Release posters", "Song posters"],
     brief:
-      "A couple’s perfect marriage is tested when the wife grows suspicious of her husband’s odd behaviour. A bright, playful comedy that needed a title with a wink.",
+      "A couple’s perfect marriage, following their cute first meeting, is tested when the wife grows suspicious of her husband’s odd conduct, leading to a revelation that transforms their view of love. A bright, playful comedy that needed a title with a wink.",
     credits: [
-      { label: "Cast", value: "Priyadarshi Pulikonda · Anandhi · Vennela Kishore" },
+      { label: "Cast", value: "Priyadarshi Pulikonda · Kayal Anandhi · Vennela Kishore" },
+      { label: "Genre", value: "Comedy, Romance · UA13+ · 2h 17m · Released 21 Nov 2025" },
+      { label: "Writers", value: "Raj Kumar Kusuma · Navaneeth Sriram · Karthik Thupurani" },
       { label: "Director", value: "Navaneeth Sriram" },
       { label: "Studio", value: "Sree Venkateswara Cinemas LLP" },
       { label: "Streaming", value: "Netflix" },
@@ -152,6 +160,8 @@ export const projects: Project[] = [
       "A horror comedy with a Korean twist. Two title logos — Telugu and English — built from the same rough, kinetic energy.",
     credits: [
       { label: "Cast", value: "Varun Tej · Ritika Nayak · Satya" },
+      { label: "Genre", value: "Horror Comedy" },
+      { label: "Writer", value: "Merlapaka Gandhi" },
       { label: "Director", value: "Merlapaka Gandhi" },
       { label: "Studios", value: "UV Creations · First Frame Entertainments" },
     ],
@@ -177,7 +187,9 @@ export const projects: Project[] = [
     brief:
       "A romantic drama steeped in colour and festival light. The title design borrows from classical ornament, rendered in cool, carved blue.",
     credits: [
-      { label: "Cast", value: "Golden Star Ganesh · Devika Bhat · Malvika Sharma" },
+      { label: "Cast", value: "Goldenstar Ganesh · Devika Bhat · Malvika Sharma" },
+      { label: "Genre", value: "Romance, Drama" },
+      { label: "Writer", value: "Srinivasa Raju" },
       { label: "Director", value: "Srinivasa Raju" },
       { label: "Studio", value: "KVC Production" },
     ],
@@ -202,6 +214,8 @@ export const projects: Project[] = [
     brief: "A modern romance with a pop-art pulse — a bold red title and posters that feel like a night out in the city.",
     credits: [
       { label: "Cast", value: "Harshith Reddy · Vishaka Dimaan · Harsha Chemudu" },
+      { label: "Genre", value: "Romance, Drama" },
+      { label: "Writers", value: "Bhargav Macharla · Prashanth Babu Ragathi" },
       { label: "Director", value: "Bhargav Macharla" },
       { label: "Studio", value: "Navarasa Production" },
     ],
@@ -222,9 +236,11 @@ export const projects: Project[] = [
     role: "Title design, key art",
     deliverables: ["Telugu title logo", "Family poster", "Character poster"],
     brief:
-      "A corporate executive battling depression finds healing by reconnecting with her eighty-year-old mother. Soft daylight, handwritten type, and a lot of warmth.",
+      "A 50-year-old corporate executive battling depression finds healing and redemption through reconnecting with her 80-year-old mother, discovering that parental love can restore what ambition has broken. Soft daylight, handwritten type, and a lot of warmth.",
     credits: [
       { label: "Cast", value: "Samuthirakani · Rohini Hattangadi · Rohini" },
+      { label: "Genre", value: "Family Drama · UA13+ · 2h 04m · Released 19 Dec 2024" },
+      { label: "Writer", value: "Popuri Lalita Kumari (Volga)" },
       { label: "Director", value: "Akkineni Kutumba Rao" },
       { label: "Studio", value: "Sthira Productions LLP" },
       { label: "Streaming", value: "ETV Win" },

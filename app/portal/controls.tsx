@@ -3,9 +3,11 @@
 import { useId, useState, type ReactNode } from "react";
 import styles from "./portal.module.css";
 
+/** Plain words for where a setting shows up. */
+const SCOPE_WORDS = { Intro: "the opening animation", Page: "the page", "Intro & page": "the opening and the page" } as const;
+
 export function Section({
   id,
-  tag,
   scope,
   title,
   hint,
@@ -23,9 +25,8 @@ export function Section({
     <section id={id} className={styles.section}>
       <header className={styles.sectionHead}>
         <h2 className={styles.sectionTitle}>
-          {tag && <span className={styles.sectionTag}>{tag}</span>}
           {title}
-          {scope && <span className={styles.scope}>Affects: {scope}</span>}
+          {scope && <span className={styles.scope}>Changes {SCOPE_WORDS[scope]}</span>}
         </h2>
         {hint && <p className={styles.sectionHint}>{hint}</p>}
       </header>

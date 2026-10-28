@@ -14,39 +14,35 @@ export const home = {
 
   // 2. BASIC INFO ABOUT THE AGENCY — the statement that lights up word by word…
   manifesto: {
-    label: "The Agency",
+    label: "About Our Agency",
     /** Words wrapped in *asterisks* are set in gold italic. */
     statement: "Let us be the cover page of your beautiful book called *‘Cinema’.*",
-    body: "We design the first thing an audience ever sees of a film — the poster, the title, the type — and make sure it is impossible to look away.",
+    body: "Dolly Design Studio is a creative collection specializing in film publicity and title design. We blend artistry with strategy to craft unforgettable identities that elevate films and leave a lasting mark.",
   },
   // …followed by what the agency does (the services themselves are in services.ts).
   services: {
     label: "What We Do",
-    title: "Services",
+    title: "Our Services",
   },
 
-  // 3. OUR PROJECTS — every project, with language (Telugu / Kannada) and type filters.
+  // 3. OUR PROJECTS — every project, with type filters.
   gallery: {
-    label: "Our Projects",
-    title: "Telugu & Kannada cinema",
-    intro: "Posters, title designs and campaigns — choose a language, then a type.",
+    label: "Project Gallery",
+    title: "Posters, titles & campaigns",
+    intro: "Posters, title designs and campaigns — pick a type to filter.",
     viewAllLink: "Open the full gallery →",
   },
 
-  // 4. HOW WE WORK — uses the first four images of the showcase project.
+  // 4. HOW WE WORK — four simple cards in a single row, each with a line icon (sketch, camera, pipeline, layers).
   process: {
     label: "How We Work",
-    title: "How a poster is built",
-    /** Which project (its `slug` in projects.ts) illustrates the stages. */
-    showcaseSlug: "dacoit",
-    /** Shown as: "<introBefore> <project title> <introAfter>" */
-    introBefore: "Using",
-    introAfter: "as a showcase — every campaign moves through the same stages, from first brief to the art that fills a billboard.",
-    stages: [
-      { title: "Brief", body: "Betrayal, vengeance, romance — the studio sets the tone and the key emotion to chase." },
-      { title: "Character studies", body: "Each lead is explored in isolation: expression, light, grain, and mood." },
-      { title: "Composite", body: "The ensemble comes together — staging, colour grade and type start to lock." },
-      { title: "Final release art", body: "Title, credits and release details are set for the finished campaign." },
+    title: "From first sketch to final art",
+    intro: "Every project moves through the same four steps, so you always know what comes next.",
+    cards: [
+      { title: "Sketchboards", note: "Ideas on paper", body: "We sketch layouts and lettering first, so you see the direction early.", icon: "sketch", opensBreakdowns: false },
+      { title: "Photoshoot / BTS", note: "On the shoot floor", body: "We direct the shoot for the artwork and share the behind-the-scenes moments.", icon: "camera", opensBreakdowns: false },
+      { title: "Pipelines", note: "Brief to release", body: "Every project follows clear steps, so feedback always lands in the right stage.", icon: "pipeline", opensBreakdowns: false },
+      { title: "Breakdowns", note: "Layers / Videos", body: "We show how the final art is built, layer by layer and in short videos.", icon: "layers", opensBreakdowns: true },
     ],
   },
 
@@ -59,32 +55,35 @@ export const home = {
     empty: "Stills from our shoots and design desk are on their way.",
   },
 
-  // 6. ABOUT US — the studio, its founder, and the numbers.
-  about: {
-    label: "About Us",
-    title: "The studio",
-    /** [CLIENT TO CONFIRM] Add a founder bio and photo when ready. */
+  // 6. THE NUMBERS — shown right under the agency statement.
+  stats: [
+    { value: 4, suffix: "+", label: "Years of experience" },
+    { value: 10, suffix: "+", label: "Films" },
+    { value: 10, suffix: "+", label: "Happy clients" },
+  ],
+
+  // 7. ABOUT THE FOUNDER — name and role come from site.ts.
+  founder: {
+    label: "About the Founder",
+    /** A photo of the founder (empty = a monogram). */
+    photo: "",
+    /** [CLIENT TO CONFIRM] Add a fuller bio and a photo when ready. */
     paragraphs: [
-      "Dolly Design Studio is a creative collective based in Bangalore, specialising in film publicity and title design for Telugu and Kannada cinema.",
-      "We blend artistry with strategy — posters, title logos, typography and full campaigns — to craft identities that elevate films and leave a lasting mark.",
-    ],
-    founderLabel: "Founded by",
-    stats: [
-      { value: 4, suffix: "+", label: "Years of experience" },
-      { value: 10, suffix: "+", label: "Feature films" },
-      { value: 10, suffix: "+", label: "Happy clients" },
+      "Sasank Muppalla is the founder and creative director of Dolly Design Studio, designing film posters, title logos and typography from Bangalore.",
+      "His work has taken him across production houses such as Annapurna Studios, Arka Media Works and People Media Factory, and filmmakers and actors including Adivi Sesh and Varun Tej.",
     ],
   },
 
-  // 7. OUR CLIENTS — scrolling names (they're in clients.ts).
+  // 8. CLIENTS & COLLABORATIONS — scrolling names (they're in clients.ts).
   clients: {
     label: "Our Clients",
     title: "Clients & collaborations",
+    rowLabels: { clients: "Production houses", collaborators: "Filmmakers & actors" },
     /** Read out by screen readers before the list of names. */
     screenReaderIntro: "Clients and collaborators:",
   },
 
-  // 8. CONTACT US — the enquiry form.
+  // 9. CONTACT US — the enquiry form.
   contact: {
     label: "Contact Us",
     headline: "Let’s create something cinematic.",

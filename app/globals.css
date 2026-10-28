@@ -11,9 +11,9 @@
   --smoke: rgba(244, 237, 225, 0.08);
   --smoke-strong: rgba(244, 237, 225, 0.16);
 
-  --font-display: var(--font-bodoni), "Georgia", serif;
-  --font-label: var(--font-syne), "Inter", sans-serif;
-  --font-body: var(--font-inter), "Helvetica Neue", sans-serif;
+  --font-display: var(--font-lemon-bold), "Georgia", serif;
+  --font-label: var(--font-lemon-italic), "Inter", sans-serif;
+  --font-body: var(--font-lemon-light), "Helvetica Neue", sans-serif;
 
   --nav-h: 76px;
   --frame-ratio: 2 / 3;
@@ -274,4 +274,26 @@ html.lenis {
 [data-glow-text][data-glow-on]::after,
 [data-glow-sheen][data-glow-on]::after {
   opacity: var(--glow-intensity);
+}
+
+/* The portal's live preview shows only the page itself: no loader, no header (logo and menu), no progress line, no section rail, no scrollbar, and links
+   that would scroll or navigate do nothing (the portal moves the preview itself). */
+html.portal-preview .intro-loader,
+html.portal-preview nav[aria-label="Section progress"],
+html.portal-preview [data-chrome] {
+  display: none;
+}
+
+html.portal-preview {
+  scrollbar-width: none;
+}
+
+html.portal-preview::-webkit-scrollbar {
+  display: none;
+}
+
+html.portal-preview a[href^="/#"],
+html.portal-preview a[href="/work"],
+html.portal-preview a[href="/"] {
+  pointer-events: none;
 }

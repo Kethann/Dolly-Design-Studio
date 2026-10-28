@@ -1,0 +1,280 @@
+/* The breakdown viewer: a dim glass overlay with the artwork in the middle. */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300; /* above the menu, the pen cursor's layer is above this */
+  display: grid;
+  place-items: center;
+  padding: clamp(12px, 3vw, 40px);
+  overflow-y: auto;
+  background: rgba(10, 4, 8, 0.78);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  animation: bd-in 0.3s ease-out;
+}
+
+@keyframes bd-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.panel {
+  width: min(1040px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: clamp(16px, 2.4vw, 32px);
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 45%),
+    rgba(34, 18, 28, 0.66);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 40px 100px rgba(0, 0, 0, 0.6);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.kicker {
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.title {
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(22px, 3vw, 34px);
+}
+
+.note {
+  margin: 8px 0 0;
+  max-width: 60ch;
+  font-size: 14px;
+  line-height: 1.6;
+  opacity: 0.75;
+}
+
+.close {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--ivory);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+
+.close:hover,
+.close:focus-visible {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+  outline: none;
+}
+
+/* ── the stage: the artwork, and the room its layers fall into ─────────────── */
+
+.stage {
+  position: relative;
+  width: min(100%, 860px);
+  max-height: 62vh;
+  margin: 0 auto 130px; /* room below for the labels */
+  perspective: 1500px;
+  perspective-origin: 50% 40%;
+  cursor: zoom-in;
+  outline: none;
+  touch-action: manipulation;
+  transition: margin-bottom 0.3s ease; /* the labels' rows make room as they appear */
+}
+
+.stage[data-open="true"] {
+  cursor: zoom-out;
+}
+
+.stage:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 6px;
+  border-radius: 12px;
+}
+
+.stack {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.95s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  transition:
+    transform 0.95s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.6s ease;
+}
+
+.stage[data-open="true"] .layer {
+  filter: drop-shadow(0 20px 22px rgba(0, 0, 0, 0.5));
+}
+
+/* ── numbered labels and the lines to them ─────────────────────────────────── */
+
+.labels {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.labels[data-on="true"] {
+  opacity: 1;
+}
+
+.lines {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+}
+
+.lines line {
+  stroke: var(--gold);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 4;
+  opacity: 0.85;
+}
+
+.lines circle {
+  fill: var(--gold-bright);
+  filter: drop-shadow(0 0 5px rgba(255, 220, 140, 0.9));
+}
+
+.tag {
+  position: absolute;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ivory);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(20, 10, 16, 0.78);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.tag b {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  color: #2b1503;
+  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
+}
+
+.hint {
+  min-height: 1.2em;
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.pager > button {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--ivory);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+
+.pager > button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.dots {
+  display: flex;
+  gap: 8px;
+}
+
+.dots button {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+}
+
+.dots button[data-on="true"] {
+  width: 26px;
+  border-radius: 9px;
+  background: var(--gold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .stack,
+  .layer,
+  .labels {
+    animation: none;
+    transition-duration: 0.01s;
+    transition-delay: 0s !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .stage {
+    margin-bottom: 150px;
+  }
+
+  .tag {
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+  }
+}

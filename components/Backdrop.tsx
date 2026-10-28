@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { PageBackdrop } from "./PageBackdrop";
 import styles from "./Backdrop.module.css";
 
 // three.js loads on its own, after the page, so it never delays the content.
@@ -15,6 +16,7 @@ export function Backdrop() {
   return (
     <div className={styles.backdrop} aria-hidden="true">
       <StarField layer="back" />
+      <PageBackdrop />
       <StarField layer="front" />
     </div>
   );

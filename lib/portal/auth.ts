@@ -29,6 +29,28 @@ export function createSessionToken(userId: string, version: number): string {
   return `${payload}.${sign(payload, key)}`;
 }
 
+const CHALLENGE_MAX_AGE = 10 * 60 * 1000;
+
+/** After the right password, for people with two-step sign-in: proof of that, good for 10 minutes, until the code is typed. */
+export function createChallengeToken(userId: string): string {
+  const key = signingKey();
+  if (!key) throw new Error("Set PORTAL_SECRET (or PORTAL_PASSWORD) on the server");
+  const payload = `${userId}.${Date.now() + CHALLENGE_MAX_AGE}`;
+  return `c.${payload}.${sign(`challenge:${payload}`, key)}`;
+}
+
+/** The person a challenge token was made for, or null if it is forged or has expired. */
+export function readChallengeToken(token: string): string | null {
+  const key = signingKey();
+  const parts = token.split(".");
+  if (!key || parts.length !== 4 || parts[0] !== "c") return null;
+  const [, id, expires, signature] = parts;
+  if (!(Number(expires) > Date.now())) return null;
+  const expected = Buffer.from(sign(`challenge:${id}.${expires}`, key), "hex");
+  const given = Buffer.from(signature, "hex");
+  return given.length === expected.length && timingSafeEqual(given, expected) ? id : null;
+}
+
 async function sessionUser(token: string | undefined): Promise<PortalUser | null> {
   const key = signingKey();
   if (!key || !token) return null;

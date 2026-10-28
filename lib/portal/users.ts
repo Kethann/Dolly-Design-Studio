@@ -1,19 +1,18 @@
 // Server-only: the creator portal's user accounts.
 //
-// Stored in .data/portal-users.json (git-ignored: never pushed). Passwords are hashed with scrypt and a per-user
+// Stored in .data/portal-users.json on your computer (git-ignored: never pushed), or in the R2 bucket on Cloudflare. Passwords are hashed with scrypt and a per-user
 // salt; nothing reversible is kept. Each user has a `version` that changes with every password change or removal,
 // which instantly ends that user's sessions everywhere.
 //
 // First run: while no account exists, sign in as "admin" with PORTAL_PASSWORD (from the server's environment) and
 // create your own owner account. From then on PORTAL_PASSWORD no longer signs anyone in.
 import { randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual, createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readJson, writeJson } from "@/lib/storage";
 import { promisify } from "node:util";
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 
-const FILE = path.join(process.cwd(), ".data", "portal-users.json");
+const KEY = "data/portal-users.json";
 export const SETUP_USERNAME = "admin";
 const SETUP_ID = "setup";
 export const PASSWORD_MIN = 10;
@@ -30,6 +29,10 @@ interface StoredUser {
   version: number;
   createdAt: string;
   lastSignIn?: string;
+  /** Where codes are sent (sign-in, password reset). Always lower case, and unique among people. */
+  email?: string;
+  /** Ask for an emailed code after the password, every time. Needs an email address. */
+  twoFactor?: boolean;
 }
 
 /** What the portal (and the browser) may see about a user. */
@@ -40,6 +43,8 @@ export interface PortalUser {
   role: Role;
   createdAt: string;
   lastSignIn?: string;
+  email?: string;
+  twoFactor?: boolean;
   /** The temporary first-run login (PORTAL_PASSWORD), until a real owner account exists. */
   setup?: boolean;
 }
@@ -51,6 +56,8 @@ export const publicUser = (u: StoredUser): PortalUser => ({
   role: u.role,
   createdAt: u.createdAt,
   lastSignIn: u.lastSignIn,
+  email: u.email,
+  twoFactor: !!u.twoFactor && !!u.email,
 });
 
 const SETUP_USER: PortalUser = {
@@ -63,20 +70,13 @@ const SETUP_USER: PortalUser = {
 };
 
 async function load(): Promise<StoredUser[]> {
-  try {
-    const data = JSON.parse(await readFile(FILE, "utf8"));
-    return Array.isArray(data?.users) ? data.users : [];
-  } catch {
-    return [];
-  }
+  const data = await readJson<{ users?: StoredUser[] }>(KEY);
+  return Array.isArray(data?.users) ? data.users : [];
 }
 
-/** Atomic write (temp file + rename) so a crash mid-save never leaves a half-written file. */
+/** Saved as a whole file at a time (to disk, or to the R2 bucket on Cloudflare). */
 async function save(users: StoredUser[]) {
-  await mkdir(path.dirname(FILE), { recursive: true });
-  const tmp = `${FILE}.${process.pid}.tmp`;
-  await writeFile(tmp, JSON.stringify({ users }, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
-  await rename(tmp, FILE);
+  await writeJson(KEY, { users }, true);
 }
 
 async function hashPassword(password: string, salt = randomBytes(16)) {
@@ -100,6 +100,12 @@ export function validateUsername(u: string): string | null {
     ? null
     : "Usernames are 3–32 characters: letters, numbers, dots, dashes or underscores.";
 }
+
+export function validateEmail(e: string): string | null {
+  return e.length <= 120 && /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/.test(e) ? null : "That doesn’t look like an email address.";
+}
+
+export const normalizeEmail = (e: string) => e.trim().toLowerCase();
 
 export function validatePassword(p: string): string | null {
   if (p.length < PASSWORD_MIN) return `Passwords need at least ${PASSWORD_MIN} characters.`;
@@ -147,12 +153,14 @@ export async function listUsers(): Promise<PortalUser[]> {
   return (await load()).map(publicUser);
 }
 
-export async function createUser(input: { username: string; name: string; password: string; role: Role }): Promise<PortalUser> {
+export async function createUser(input: { username: string; name: string; password: string; role: Role; email?: string }): Promise<PortalUser> {
   const users = await load();
   const username = normalizeUsername(input.username);
-  const bad = validateUsername(username) ?? validatePassword(input.password);
+  const email = input.email ? normalizeEmail(input.email) : "";
+  const bad = validateUsername(username) ?? validatePassword(input.password) ?? (email ? validateEmail(email) : null);
   if (bad) throw new UserError(bad);
   if (users.some((u) => u.username === username)) throw new UserError("That username is taken.");
+  if (email && users.some((u) => u.email === email)) throw new UserError("Someone already uses that email address.");
   // The very first account is always an owner (it replaces the setup login).
   const role: Role = users.length === 0 ? "owner" : input.role;
   const user: StoredUser = {
@@ -163,6 +171,7 @@ export async function createUser(input: { username: string; name: string; passwo
     ...(await hashPassword(input.password)),
     version: 1,
     createdAt: new Date().toISOString(),
+    ...(email ? { email } : {}),
   };
   await save([...users, user]);
   return publicUser(user);
@@ -188,6 +197,72 @@ export async function updateUser(
   }
   await save(users);
   return { user: publicUser(user), version: user.version };
+}
+
+/** Finds someone by username or by email address (for "forgot password"). */
+export async function findUserByLogin(identifier: string): Promise<PortalUser | null> {
+  const key = identifier.trim().toLowerCase();
+  if (!key) return null;
+  const u = (await load()).find((x) => x.username === key || x.email === key);
+  return u ? publicUser(u) : null;
+}
+
+/** A person and their current password version (the version a fresh session must carry). */
+export async function getUserWithVersion(id: string): Promise<{ user: PortalUser; version: number } | null> {
+  const u = (await load()).find((x) => x.id === id);
+  return u ? { user: publicUser(u), version: u.version } : null;
+}
+
+export async function changeUsername(id: string, next: string): Promise<PortalUser> {
+  const users = await load();
+  const user = users.find((u) => u.id === id);
+  if (!user) throw new UserError("That account no longer exists.");
+  const username = normalizeUsername(next);
+  const bad = validateUsername(username);
+  if (bad) throw new UserError(bad);
+  if (users.some((u) => u.id !== id && u.username === username)) throw new UserError("That username is taken.");
+  user.username = username;
+  await save(users);
+  return publicUser(user);
+}
+
+/** Sets (or, with an empty string, removes) a person's email address. Removing it also ends two-step sign-in. */
+export async function setEmail(id: string, next: string): Promise<PortalUser> {
+  const users = await load();
+  const user = users.find((u) => u.id === id);
+  if (!user) throw new UserError("That account no longer exists.");
+  const email = normalizeEmail(next);
+  if (email) {
+    const bad = validateEmail(email);
+    if (bad) throw new UserError(bad);
+    if (users.some((u) => u.id !== id && u.email === email)) throw new UserError("Someone already uses that email address.");
+    user.email = email;
+  } else {
+    delete user.email;
+    user.twoFactor = false;
+  }
+  await save(users);
+  return publicUser(user);
+}
+
+export async function setTwoFactor(id: string, enabled: boolean): Promise<PortalUser> {
+  const users = await load();
+  const user = users.find((u) => u.id === id);
+  if (!user) throw new UserError("That account no longer exists.");
+  if (enabled && !user.email) throw new UserError("Add and confirm an email address first: the codes are sent there.");
+  user.twoFactor = enabled;
+  await save(users);
+  return publicUser(user);
+}
+
+/** Ends this person's sessions everywhere (the version in every session cookie stops matching). */
+export async function bumpVersion(id: string): Promise<number> {
+  const users = await load();
+  const user = users.find((u) => u.id === id);
+  if (!user) throw new UserError("That account no longer exists.");
+  user.version += 1;
+  await save(users);
+  return user.version;
 }
 
 export async function removeUser(id: string) {

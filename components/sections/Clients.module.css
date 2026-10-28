@@ -2,6 +2,7 @@
   padding-block: 120px;
   border-top: 1px solid var(--smoke);
   border-bottom: 1px solid var(--smoke);
+  overflow: hidden;
 }
 
 .label {
@@ -18,33 +19,206 @@
   font-family: var(--font-display);
   font-weight: 700;
   font-size: clamp(28px, 4vw, 44px);
-  margin: 0 0 48px;
+  margin: 0 0 56px;
 }
 
-.marqueeViewport {
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
-  margin-bottom: 72px;
+.rows {
+  display: grid;
+  gap: 40px;
 }
 
-.marqueeTrack {
-  display: flex;
-  width: max-content;
-  gap: 64px;
-  animation: scroll 32s linear infinite;
+.row {
+  display: grid;
+  gap: 14px;
 }
 
-.marqueeTrack span {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(20px, 3vw, 30px);
-  white-space: nowrap;
-  color: var(--ivory);
+/* The caption above each row lines up exactly with the heading (same left edge as the page's container). */
+.rowLabel {
+  padding-inline: calc(max(0px, (100vw - 1360px) / 2) + clamp(20px, 5vw, 64px));
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
   opacity: 0.55;
 }
 
-@keyframes scroll {
+.viewport {
+  /* Height of the picture zone: every logo and portrait is centred in it, and the stars sit on its middle line. */
+  --media-h: clamp(72px, 7.5vw, 108px);
+  overflow: hidden;
+  padding-block: 22px;
+  border-block: 1px solid var(--smoke);
+  background: linear-gradient(180deg, rgba(255, 241, 149, 0.035), transparent 60%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.track {
+  display: flex;
+  width: max-content;
+  animation: drift 120s linear infinite;
+}
+
+/* The second row runs the other way. */
+.reverse {
+  animation-direction: reverse;
+  animation-duration: 140s;
+}
+
+.viewport:hover .track {
+  animation-play-state: paused;
+}
+
+.half {
+  display: flex;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+/* ── a row of plain names (no pictures) ─────────────────────────────────── */
+
+.name {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(22px, 3.2vw, 38px);
+  white-space: nowrap;
+  color: var(--ivory);
+  opacity: 0.6;
+  transition: opacity 0.3s ease, color 0.3s ease;
+}
+
+.name:hover {
+  opacity: 1;
+  color: var(--gold-bright);
+}
+
+/* A small gold four-point star between the names. */
+.star {
+  width: 10px;
+  height: 10px;
+  margin-inline: clamp(28px, 4vw, 56px);
+  flex: none;
+  background: var(--gold);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  opacity: 0.8;
+}
+
+/* ── a row with pictures: logo or round photo on top, name underneath ───── */
+
+.item {
+  --gap: clamp(56px, 8vw, 112px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+  padding-right: var(--gap);
+  opacity: 0.92;
+  transition: opacity 0.3s ease;
+}
+
+.item:hover {
+  opacity: 1;
+}
+
+/* Every picture sits in a zone of the same height, so all of them are centred on one line. */
+.media {
+  display: grid;
+  place-items: center;
+  height: var(--media-h);
+}
+
+.logo {
+  display: block;
+  height: clamp(54px, 6vw, 84px);
+  width: auto;
+  max-width: clamp(130px, 15vw, 210px);
+  object-fit: contain;
+  transition: transform 0.35s ease, filter 0.35s ease;
+}
+
+.portrait {
+  display: block;
+  width: var(--media-h);
+  height: var(--media-h);
+  object-fit: cover;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.45),
+    0 0 0 4px rgba(255, 255, 255, 0.05);
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
+}
+
+/* A production house without a logo: its name stands in the picture zone. */
+.textMark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(20px, 2.6vw, 30px);
+  white-space: nowrap;
+  color: var(--ivory);
+  opacity: 0.7;
+}
+
+.item:hover .logo {
+  transform: scale(1.06);
+  filter: drop-shadow(0 0 14px rgba(255, 220, 140, 0.45));
+}
+
+.item:hover .portrait {
+  transform: scale(1.06);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.5),
+    0 0 0 4px rgba(255, 220, 140, 0.35);
+}
+
+/* The name: always centred under its picture; long names wrap to two tidy lines. */
+.caption {
+  width: clamp(120px, 13vw, 170px);
+  min-height: 2.6em;
+  text-align: center;
+  white-space: normal;
+  font-family: var(--font-label);
+  font-size: clamp(9px, 0.9vw, 11px);
+  line-height: 1.3;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ivory);
+  opacity: 0.75;
+}
+
+/* The star between two items sits on the middle line of the pictures, halfway into the gap. */
+.item .star {
+  position: absolute;
+  right: calc(var(--gap) / 2);
+  top: calc(var(--media-h) / 2 - 5px);
+  margin: 0;
+  translate: 50% 0;
+}
+
+.quote {
+  margin: 56px 0 0;
+  text-align: center;
+}
+
+.quote p {
+  font-family: var(--font-display);
+  font-size: clamp(18px, 2.4vw, 26px);
+}
+
+.quote footer {
+  margin-top: 12px;
+  opacity: 0.65;
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+@keyframes drift {
   from {
     transform: translateX(0);
   }
@@ -54,10 +228,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .marqueeTrack {
+  .track {
     animation: none;
-    flex-wrap: wrap;
-    width: auto;
+  }
+  .viewport {
+    overflow-x: auto;
   }
 }
-

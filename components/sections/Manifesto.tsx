@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { home } from "@/content/home";
+import { useContent, tx } from "@/lib/content/context";
 import { useMotion } from "@/lib/motion";
 import styles from "./Manifesto.module.css";
 
@@ -41,6 +41,7 @@ function renderStatement(statement: string) {
 }
 
 export function Manifesto() {
+  const { home } = useContent();
   const { reducedMotion } = useMotion();
   const ref = useRef<HTMLParagraphElement>(null);
 
@@ -67,16 +68,16 @@ export function Manifesto() {
       tl.scrollTrigger?.kill();
       tl.kill();
     };
-  }, [reducedMotion]);
+  }, [reducedMotion, home.manifesto.statement]);
 
   return (
     <section id="agency" className={styles.section}>
       <div className={`container ${styles.inner}`}>
-        <span className={styles.label}>{home.manifesto.label}</span>
-        <p ref={ref} className={styles.statement}>
+        <span className={styles.label} {...tx("home.manifesto.label")}>{home.manifesto.label}</span>
+        <p ref={ref} className={styles.statement} {...tx("home.manifesto.statement")}>
           {renderStatement(home.manifesto.statement)}
         </p>
-        <p className={styles.body}>{home.manifesto.body}</p>
+        <p className={styles.body} {...tx("home.manifesto.body")}>{home.manifesto.body}</p>
       </div>
     </section>
   );

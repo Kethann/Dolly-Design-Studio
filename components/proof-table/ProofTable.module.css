@@ -165,12 +165,16 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 18px;
   border-radius: 18px;
-  background: radial-gradient(circle at 50% 45%, #fffaf0, #efe3c8);
+  /* A slim pane of clear glass: faint tint, bright edge, a soft sheen across it. */
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, 0.07) 70%),
+    rgba(95, 211, 230, 0.2);
+  border: 1px solid rgba(160, 235, 245, 0.7);
   box-shadow:
-    0 0 0 10px #241a12,
-    0 0 0 12px #9c7434,
-    0 60px 120px rgba(0, 0, 0, 0.6),
-    0 0 120px rgba(255, 241, 208, 0.25);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 40px 90px rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   transform: translateX(22%) rotateX(52deg) rotateZ(-28deg);
 }
 
@@ -180,12 +184,15 @@
   gap: 8px;
   padding: 12px;
   border-radius: 8px;
-  background: rgba(22, 16, 12, 0.85);
-  box-shadow: 0 8px 18px rgba(42, 26, 8, 0.4);
+  background: rgba(43, 35, 71, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 .fbSmoky {
-  background: rgba(22, 16, 12, 0.62);
+  background: rgba(43, 35, 71, 0.4);
 }
 
 .fbPlate img {
