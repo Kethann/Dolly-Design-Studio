@@ -15,6 +15,19 @@ export const workPage = {
   emptyCategory: "No projects in this category yet.",
 };
 
+/** /breakdowns — every design taken apart, layer by layer (the page the “Breakdowns” card opens). */
+export const breakdownsPage = {
+  metaTitle: "Breakdowns",
+  metaDescription: "See how Dolly Design Studio’s designs are built, layer by layer.",
+  label: "How it’s made",
+  title: "Breakdowns",
+  intro: "Every finished design, taken apart layer by layer. Open one up to see how it was built.",
+  backLink: "← Back to how we work",
+  hintMouse: "Move your cursor over the image to break it into layers",
+  hintTouch: "Tap the image to break it into layers",
+  empty: "The first breakdowns are on their way.",
+};
+
 /** /work/<project> — a single project. Its own text lives in projects.ts. */
 export const projectPage = {
   backLink: "← Back to work",

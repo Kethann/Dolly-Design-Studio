@@ -300,6 +300,23 @@ const work: SchemaPage = {
     },
     pageLook("work", "Gallery page"),
     {
+      id: "breakdowns-page",
+      title: "Breakdowns page (/breakdowns)",
+      route: "breakdowns",
+      fields: [
+        { kind: "text", path: "breakdownsPage.metaTitle", label: "Browser-tab title" },
+        { kind: "area", path: "breakdownsPage.metaDescription", label: "Search-engine description" },
+        { kind: "text", path: "breakdownsPage.label", label: "Small heading", style: true },
+        { kind: "text", path: "breakdownsPage.title", label: "Heading", style: true },
+        { kind: "area", path: "breakdownsPage.intro", label: "Introduction", style: true },
+        { kind: "text", path: "breakdownsPage.backLink", label: "Back link" },
+        { kind: "text", path: "breakdownsPage.hintMouse", label: "Hint for a mouse" },
+        { kind: "text", path: "breakdownsPage.hintTouch", label: "Hint for a touch screen" },
+        { kind: "text", path: "breakdownsPage.empty", label: "Message when there are none yet" },
+      ],
+    },
+    pageLook("breakdowns", "Breakdowns page"),
+    {
       id: "project-page",
       title: "Project pages",
       route: "project",

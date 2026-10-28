@@ -1,19 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import type { Breakdown } from "@/lib/content/types";
 import { versionedSrc } from "@/lib/images";
-import styles from "./BreakdownViewer.module.css";
+import styles from "./BreakdownStage.module.css";
 
-/** How the exploded stack is turned, so the layers fan out sideways like parts in an exploded diagram. */
-const TURN = "rotateX(8deg) rotateY(-58deg)";
+/** How the exploded stack is turned: edge-on from the side like parts in an exploded diagram, or tilted to show more of each layer. */
+const TURNS = { side: "rotateX(8deg) rotateY(-58deg)", angled: "rotateX(20deg) rotateY(-36deg)" } as const;
+const SPREADS = { tight: 0.65, normal: 1, wide: 1.4 } as const;
 
 /**
  * One breakdown: the finished artwork, flat. Put the pointer anywhere on it (or tap it) and it falls apart into its
  * layers, one after another, each with a numbered line pointing to a label. Move away and it closes back up.
  */
-function ExplodeStage({ item }: { item: Breakdown }) {
+export function ExplodeStage({
+  item,
+  openSignal = 0,
+  onOpenChange,
+}: {
+  item: Breakdown;
+  /** Changes when something outside (the portal's preview) asks for it to be shown taken apart. */
+  openSignal?: number;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const n = item.layers.length;
   const [open, setOpen] = useState(false);
   const [aspect, setAspect] = useState(4 / 3);
@@ -23,6 +32,13 @@ function ExplodeStage({ item }: { item: Breakdown }) {
   const [rowOf, setRowOf] = useState<number[]>([]);
   const [labelsOn, setLabelsOn] = useState(false);
   const stage = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (openSignal > 0) setOpen(true); // eslint-disable-line react-hooks/set-state-in-effect -- asked to open from outside
+  }, [openSignal]);
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
   const layerEls = useRef<(HTMLImageElement | null)[]>([]);
 
   // The stage takes the shape of the artwork (the first layer's canvas).
@@ -89,7 +105,7 @@ function ExplodeStage({ item }: { item: Breakdown }) {
   // The layers fan out sideways (the stack is turned nearly edge-on), and the whole stack shrinks to leave room: the
   // more layers, the smaller each one and the tighter the spacing, so everything stays inside the viewer.
   const w = size.w || 800;
-  const gap = Math.max(60, Math.min(320, (w * 0.84) / (Math.max(1, n - 1) * 0.85)));
+  const gap = Math.max(60, Math.min(320, (w * 0.84) / (Math.max(1, n - 1) * 0.85))) * SPREADS[item.spread];
   const scale = n <= 2 ? 0.7 : n <= 3 ? 0.62 : n <= 5 ? 0.54 : 0.45;
   const zOf = (i: number) => (open ? (i - (n - 1) / 2) * gap : i * 0.4);
 
@@ -97,7 +113,7 @@ function ExplodeStage({ item }: { item: Breakdown }) {
     <div
       ref={stage}
       className={styles.stage}
-      style={{ aspectRatio: String(aspect), marginBottom: open && labelsOn ? 44 + (Math.max(0, ...rowOf) + 1) * 46 : undefined }}
+      style={{ aspectRatio: String(aspect), marginBottom: !item.labels ? 24 : open && labelsOn ? 44 + (Math.max(0, ...rowOf) + 1) * 46 : undefined }}
       data-open={open}
       role="button"
       tabIndex={0}
@@ -115,7 +131,7 @@ function ExplodeStage({ item }: { item: Breakdown }) {
         if (ev.key === "Escape") setOpen(false);
       }}
     >
-      <div className={styles.stack} style={{ transform: open ? `scale(${scale}) ${TURN}` : "none" }}>
+      <div className={styles.stack} style={{ transform: open ? `scale(${scale}) ${TURNS[item.turn]}` : "none" }}>
         {item.layers.map((layer, i) => (
           // eslint-disable-next-line @next/next/no-img-element -- transparent layer PNGs stacked in 3D
           <img
@@ -136,7 +152,7 @@ function ExplodeStage({ item }: { item: Breakdown }) {
       </div>
 
       {/* Numbered lines from each layer down to its label. */}
-      <div className={styles.labels} data-on={labelsOn} aria-hidden={!labelsOn}>
+      <div className={styles.labels} data-on={labelsOn && item.labels} aria-hidden={!labelsOn || !item.labels} hidden={!item.labels}>
         <svg className={styles.lines} width={size.w} height={size.h + 300} viewBox={`0 0 ${size.w} ${size.h + 300}`}>
           {points.map((pt, i) => {
             const row = rowOf[i] ?? 0;
@@ -161,69 +177,5 @@ function ExplodeStage({ item }: { item: Breakdown }) {
         })}
       </div>
     </div>
-  );
-}
-
-/** The breakdown viewer: a full-screen panel with one or several breakdowns to page through. */
-export function BreakdownViewer({ items, start = 0, onClose }: { items: Breakdown[]; start?: number; onClose: () => void }) {
-  const [index, setIndex] = useState(Math.min(start, items.length - 1));
-  const [touch, setTouch] = useState(false);
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const item = items[index] ?? items[0];
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time check of the input device
-    setTouch(window.matchMedia("(pointer: coarse)").matches);
-    const previous = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowRight") setIndex((i) => Math.min(items.length - 1, i + 1));
-      if (e.key === "ArrowLeft") setIndex((i) => Math.max(0, i - 1));
-    };
-    window.addEventListener("keydown", key);
-    return () => {
-      window.removeEventListener("keydown", key);
-      previous?.focus?.();
-    };
-  }, [items.length, onClose]);
-
-  if (!item || typeof document === "undefined") return null;
-  return createPortal(
-    <div className={styles.overlay} role="dialog" aria-modal="true" aria-label={`Breakdown: ${item.title}`} data-lenis-prevent onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={styles.panel}>
-        <header className={styles.head}>
-          <div>
-            <span className={styles.kicker}>Breakdown</span>
-            <h2 className={styles.title}>{item.title}</h2>
-            {item.note && <p className={styles.note}>{item.note}</p>}
-          </div>
-          <button ref={closeRef} type="button" className={styles.close} onClick={onClose} aria-label="Close the breakdown">
-            ×
-          </button>
-        </header>
-
-        <ExplodeStage key={index} item={item} />
-
-        <p className={styles.hint}>{item.layers.length > 1 ? (touch ? "Tap the image to break it into layers." : "Move your cursor over the image to break it into layers.") : ""}</p>
-
-        {items.length > 1 && (
-          <nav className={styles.pager} aria-label="Breakdowns">
-            <button type="button" onClick={() => setIndex((i) => Math.max(0, i - 1))} disabled={index === 0} aria-label="Previous breakdown">
-              ←
-            </button>
-            <span className={styles.dots}>
-              {items.map((it, i) => (
-                <button key={i} type="button" data-on={i === index} onClick={() => setIndex(i)} aria-label={`${it.title} (${i + 1} of ${items.length})`} aria-current={i === index} />
-              ))}
-            </span>
-            <button type="button" onClick={() => setIndex((i) => Math.min(items.length - 1, i + 1))} disabled={index === items.length - 1} aria-label="Next breakdown">
-              →
-            </button>
-          </nav>
-        )}
-      </div>
-    </div>,
-    document.body,
   );
 }

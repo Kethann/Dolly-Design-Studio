@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useContent, tx } from "@/lib/content/context";
 import { useMotion } from "@/lib/motion";
-import { BreakdownViewer } from "@/components/BreakdownViewer";
 import styles from "./Process.module.css";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
@@ -82,13 +82,7 @@ function StepIcon({ name }: { name: string }) {
 export function Process() {
   const { home, breakdowns } = useContent();
   const copy = home.process;
-  /** Which breakdown the viewer shows (null = closed). The portal can open it inside its preview. */
-  const [viewer, setViewer] = useState<number | null>(null);
-  useEffect(() => {
-    const on = (e: Event) => setViewer((e as CustomEvent<number | null>).detail);
-    window.addEventListener("dds-breakdown", on);
-    return () => window.removeEventListener("dds-breakdown", on);
-  }, []);
+  const router = useRouter();
   const { reducedMotion } = useMotion();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -119,7 +113,7 @@ export function Process() {
 
         <div className={styles.steps} ref={ref}>
           {copy.cards.map((card, i) => {
-            // A card can open the breakdown viewer (once there is something to show in it).
+            // A card can open the Breakdowns page (once there is something to show on it).
             const opens = (card as { opensBreakdowns?: boolean }).opensBreakdowns === true && breakdowns.length > 0;
             return (
               <div
@@ -133,12 +127,11 @@ export function Process() {
                       role: "button",
                       tabIndex: 0,
                       "data-cursor": "link",
-                      "aria-haspopup": "dialog",
-                      onClick: () => setViewer(0),
+                      onClick: () => router.push("/breakdowns"),
                       onKeyDown: (e: React.KeyboardEvent) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          setViewer(0);
+                          router.push("/breakdowns");
                         }
                       },
                     }
@@ -161,13 +154,12 @@ export function Process() {
                     {card.body}
                   </p>
                 </div>
-                {opens && <span className={styles.cta}>View the breakdown →</span>}
+                {opens && <span className={styles.cta}>See the breakdowns →</span>}
               </div>
             );
           })}
         </div>
       </div>
-      {viewer !== null && breakdowns.length > 0 && <BreakdownViewer items={breakdowns} start={Math.min(viewer, breakdowns.length - 1)} onClose={() => setViewer(null)} />}
     </section>
   );
 }

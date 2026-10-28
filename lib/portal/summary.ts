@@ -21,6 +21,7 @@ export function summarizeContent(prev: SiteContent, next: SiteContent): string {
     const reordered = !bits.length && differ(prev.projects.map((p) => p.slug), next.projects.map((p) => p.slug));
     parts.push(`Projects${bits.length ? ` (${bits.join(", ")})` : reordered ? " (reordered)" : ""}`);
   }
+  if (differ(prev.breakdownsPage, next.breakdownsPage)) parts.push("Breakdowns page text");
   if (differ([prev.work, prev.projectPage, prev.notFound], [next.work, next.projectPage, next.notFound])) parts.push("Gallery & project pages");
   if (differ([prev.site, prev.nav, prev.footer], [next.site, next.nav, next.footer])) parts.push("Studio details & menu");
   if (differ(prev.slate, next.slate)) parts.push("Slate text");

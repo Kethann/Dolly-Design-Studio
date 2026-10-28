@@ -1,14 +1,39 @@
 {
-  // Cloudflare deployment (Workers + static assets, built by OpenNext). See DEPLOY.md.
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "dolly-design-studio",
-  "main": ".open-next/worker.js",
-  "compatibility_date": "2025-09-01",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
-  "observability": { "enabled": true },
-  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "dolly-design-studio" }],
-  // Where the portal keeps its content, accounts and uploads. Create it once:  npx wrangler r2 bucket create dolly-portal
-  "r2_buckets": [{ "binding": "PORTAL_BUCKET", "bucket_name": "dolly-portal" }],
-  "vars": { "DEPLOY_TARGET": "cloudflare" }
+	// Cloudflare deployment (Workers + static assets, built by OpenNext). See DEPLOY.md.
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "dolly-design-studio",
+	"main": ".open-next/worker.js",
+	"compatibility_date": "2025-09-01",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"services": [
+		{
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "dolly-design-studio"
+		}
+	],
+	// Where the portal keeps its content, accounts and uploads. Create it once:  npx wrangler r2 bucket create dolly-portal
+	"r2_buckets": [
+		{
+			"binding": "PORTAL_BUCKET",
+			"bucket_name": "dolly-portal"
+		},
+		{
+			"bucket_name": "dolly-portal",
+			"binding": "dolly_portal",
+			"remote": true
+		}
+	],
+	"vars": {
+		"DEPLOY_TARGET": "cloudflare"
+	}
 }

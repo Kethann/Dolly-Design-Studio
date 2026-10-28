@@ -3,7 +3,7 @@ import { site, navItems } from "@/content/site";
 import { services } from "@/content/services";
 import { clients, collaborators, testimonials } from "@/content/clients";
 import { projects } from "@/content/projects";
-import { footer, notFoundPage, projectPage, workPage } from "@/content/pages";
+import { breakdownsPage, footer, notFoundPage, projectPage, workPage } from "@/content/pages";
 import { proofTable } from "@/content/proof-table";
 import { DEFAULT_FONT_ROLES } from "./fonts";
 import type { SiteContent } from "./types";
@@ -22,6 +22,7 @@ export function defaultContent(): SiteContent {
     testimonials,
     projects,
     work: workPage,
+    breakdownsPage,
     projectPage,
     notFound: notFoundPage,
     footer,
@@ -38,7 +39,7 @@ export function defaultContent(): SiteContent {
     galleryLayout: { columns: "Auto", shape: "Poster (tall)", showDetails: true, showFilters: true },
     breakdowns: [],
     pages: Object.fromEntries(
-      ["home", "work", "project", "notFound"].map((k) => [k, { fontDisplay: "", fontLabel: "", fontBody: "", accent: "", backdrop: "", backdropDim: 0.55 }]),
+      ["home", "work", "breakdowns", "project", "notFound"].map((k) => [k, { fontDisplay: "", fontLabel: "", fontBody: "", accent: "", backdrop: "", backdropDim: 0.55 }]),
     ),
   }) as unknown as SiteContent;
 }

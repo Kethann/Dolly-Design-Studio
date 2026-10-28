@@ -77,7 +77,6 @@ function previewFocus(
   target: ColourTarget,
 ): { to: string; at: "start" | "end"; label: string; intro?: boolean } | null {
   if (tab === "intro") return { to: "top", at: "start", label: "The opening", intro: true };
-  if (tab === "breakdowns") return { to: "process", at: "start", label: "How we work" };
   if (tab === "slate") return { to: "collaborations", at: "end", label: "Slate" };
   if (tab === "background" && target !== "top" && target !== "project") {
     return { to: target, at: "start", label: SECTION_NAMES[target] };
@@ -309,7 +308,7 @@ export function PortalEditor({
   /** Which page the live preview shows: it follows the page whose settings are open. */
   const [previewRoute, setPreviewRoute] = useState<PageKey>("home");
   const previewPath =
-    previewRoute === "work" ? "/work" : previewRoute === "project" ? `/work/${contentSaved.projects[0]?.slug ?? ""}` : previewRoute === "notFound" ? "/page-not-found-preview" : "/";
+    previewRoute === "work" ? "/work" : previewRoute === "breakdowns" ? "/breakdowns" : previewRoute === "project" ? `/work/${contentSaved.projects[0]?.slug ?? ""}` : previewRoute === "notFound" ? "/page-not-found-preview" : "/";
   const [wide, setWide] = useState(true);
   useEffect(() => {
     const on = () => setWide(window.innerWidth >= 900);
@@ -322,7 +321,8 @@ export function PortalEditor({
   const breakdownsOpen = !!wins.breakdowns;
   useEffect(() => {
     // Only the content windows for the gallery and project pages show another page; everything else shows the home page.
-    if (tab !== "work" && tab !== "home") setPreviewRoute("home"); // eslint-disable-line react-hooks/set-state-in-effect -- follows which window is in front
+    if (tab === "breakdowns") setPreviewRoute("breakdowns"); // eslint-disable-line react-hooks/set-state-in-effect -- follows which window is in front
+    else if (tab !== "work" && tab !== "home") setPreviewRoute("home"); // eslint-disable-line react-hooks/set-state-in-effect -- follows which window is in front
   }, [tab]);
   const [goto, setGoto] = useState<{ tab: Tab; section: string; n: number } | null>(null);
   useEffect(() => {

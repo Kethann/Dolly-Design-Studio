@@ -239,7 +239,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname() ?? "/";
   // Each page group can have its own Dots colours.
-  const artPage = pathname === "/" ? "home" : pathname === "/work" ? "work" : "project";
+  const artPage = pathname === "/" ? "home" : pathname === "/work" || pathname === "/breakdowns" ? "work" : "project";
   const handoff = useSyncExternalStore(subscribeHandoff, getHandoff, () => WAITING);
   const [engine, setEngine] = useState<Engine | null>(null);
   // Bumped when the browser drops this layer's graphics context, so the layer rebuilds instead of vanishing.

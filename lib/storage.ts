@@ -39,7 +39,7 @@ function diskPath(key: string): string {
     if (!key.startsWith(prefix)) continue;
     const rest = key.slice(prefix.length);
     if (rest.split("/").some((part) => part === ".." || part === "." || part.includes("\\"))) break;
-    return path.join(process.cwd(), ...dir, rest);
+    return path.join(/*turbopackIgnore: true*/ process.cwd(), ...dir, rest);
   }
   throw new Error(`Unknown storage key: ${key}`);
 }

@@ -58,7 +58,7 @@ export function SiteChrome({
         </a>
         <ScrollProgress />
         <Nav />
-        <RightRail />
+        {pathname !== "/breakdowns" && <RightRail />} {/* that page has its own numbers down the side */}
         <main id="main" className="site-main" data-revealed={introDone} data-page={pageKeyOf(pathname)}>
           {children}
           {footer}

@@ -5,6 +5,7 @@ import type { BreakdownLayer } from "@/lib/content/types";
 import { DropZone, FieldView, useEditor, useUploads } from "./ContentEditor";
 import type { Field } from "./content-schema";
 import styles from "./content.module.css";
+import bd from "./breakdowns.module.css";
 
 /** "0003-Speaker cone.png" → "Speaker cone": a readable first label from a layer's file name. */
 const labelFrom = (name: string) =>
@@ -16,20 +17,12 @@ const labelFrom = (name: string) =>
     .trim()
     .replace(/^./, (c) => c.toUpperCase()) || "Layer";
 
-const LAYERS_FIELD: Extract<Field, { kind: "list" }> = {
-  kind: "list",
-  path: "layers",
-  label: "Layers — the bottom one first, the top one last",
-  add: "Add one layer",
-  max: 24,
-  min: 1,
-  title: (it, i) => `${i + 1}. ${(it.label as string) || "Unnamed layer"}`,
-  blank: () => ({ image: "", label: "" }),
-  fields: [
-    { kind: "text", path: "label", label: "Label shown on its line" },
-    { kind: "image", path: "image", label: "Picture (a transparent PNG)" },
-  ],
-};
+const PAGE_FIELDS: Field[] = [
+  { kind: "text", path: "breakdownsPage.label", label: "Small heading", style: true },
+  { kind: "text", path: "breakdownsPage.title", label: "Page heading", style: true },
+  { kind: "area", path: "breakdownsPage.intro", label: "Introduction under the heading", style: true },
+  { kind: "text", path: "breakdownsPage.backLink", label: "Back link" },
+];
 
 /**
  * Breakdowns: layered artworks that fall apart into their layers when someone hovers them on the site. Each breakdown
@@ -50,6 +43,14 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
       [next[i], next[j]] = [next[j], next[i]];
       return { ...c, breakdowns: next };
     });
+  const moveLayer = (i: number, k: number, by: number) =>
+    patch(i, (x) => {
+      const j = k + by;
+      if (j < 0 || j >= x.layers.length) return x;
+      const layers = [...x.layers];
+      [layers[k], layers[j]] = [layers[j], layers[k]];
+      return { ...x, layers };
+    });
   const choose = (i: number | null) => {
     setOpen(i);
     onShow(i);
@@ -61,21 +62,30 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
         <div className={styles.sectionHeadStatic}>How it works</div>
         <div className={styles.sectionBody}>
           <p className={styles.hint}>
-            On the site, the “Breakdowns” card in <strong>How we work</strong> opens a viewer. It shows your finished artwork; when someone puts the cursor on the
-            image, it falls apart into its layers, each with a numbered line and the label you give it. Add as many layers as your file has, and as many
-            breakdowns as you like.
+            The “Breakdowns” card in <strong>How we work</strong> opens its own page on the site (<strong>/breakdowns</strong>), made like the other pages.
+            Every breakdown below follows the one before it down that page. Each shows your finished artwork; when someone puts the cursor on it, it falls
+            apart into its layers, each with a numbered line and the label you give it. Add as many breakdowns as you like, and as many layers as your file has.
           </p>
           <button
             type="button"
             className={styles.add}
             onClick={() => {
-              update((c) => ({ ...c, breakdowns: [...c.breakdowns, { title: "New breakdown", note: "", layers: [] }] }));
+              update((c) => ({ ...c, breakdowns: [...c.breakdowns, { title: "New breakdown", note: "", description: "", layers: [], spread: "normal", turn: "side", labels: true }] }));
               choose(items.length);
             }}
             disabled={items.length >= 12}
           >
             ＋ Add a breakdown
           </button>
+        </div>
+      </section>
+
+      <section className={styles.section} data-open="true">
+        <div className={styles.sectionHeadStatic}>The page&apos;s heading and text</div>
+        <div className={styles.sectionBody}>
+          {PAGE_FIELDS.map((f) => (
+            <FieldView key={f.path} field={f} />
+          ))}
         </div>
       </section>
 
@@ -121,6 +131,20 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
                 <input className={styles.input} value={b.note} onChange={(e) => patch(i, (x) => ({ ...x, note: e.target.value }))} placeholder="e.g. Poster for the first look — 9 layers" />
               </label>
 
+              <label className={styles.field}>
+                <span className={styles.label}>
+                  Description <em>shown on the left of the artwork — a blank line starts a new paragraph</em>
+                </span>
+                <textarea
+                  className={styles.input}
+                  rows={5}
+                  maxLength={1200}
+                  value={b.description}
+                  onChange={(e) => patch(i, (x) => ({ ...x, description: e.target.value }))}
+                  placeholder="Tell the story: what the design is for, the idea behind it, the tools and steps you used…"
+                />
+              </label>
+
               <LayerUpload
                 onFiles={async (files, start) => {
                   // In the order of the file names, each becoming the next layer up, named after its file.
@@ -133,7 +157,72 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
                 upload={media.upload}
               />
 
-              <FieldView field={LAYERS_FIELD} base={`breakdowns.${i}.`} />
+              <div className={styles.label}>
+                Layers <em>bottom first, top last — click a name to rename it</em>
+              </div>
+              {b.layers.length === 0 ? (
+                <p className={bd.empty}>No layers yet. Drop your PNG layers above.</p>
+              ) : (
+                <div className={bd.layers}>
+                  {b.layers.map((l, k) => (
+                    <div key={`${l.image}-${k}`} className={bd.row}>
+                      <span className={bd.num}>{k + 1}</span>
+                      <span className={bd.thumb}>
+                        {/* eslint-disable-next-line @next/next/no-img-element -- small preview of a library picture */}
+                        <img src={l.image} alt="" />
+                      </span>
+                      <input
+                        className={bd.name}
+                        value={l.label}
+                        maxLength={60}
+                        placeholder={`Name layer ${k + 1}`}
+                        aria-label={`Label for layer ${k + 1}`}
+                        onChange={(e) => patch(i, (x) => ({ ...x, layers: x.layers.map((y, j) => (j === k ? { ...y, label: e.target.value } : y)) }))}
+                      />
+                      <span className={styles.mini}>
+                        <button type="button" aria-label="Move this layer down (towards the bottom)" disabled={k === 0} onClick={() => moveLayer(i, k, -1)}>
+                          ↑
+                        </button>
+                        <button type="button" aria-label="Move this layer up (towards the top)" disabled={k === b.layers.length - 1} onClick={() => moveLayer(i, k, 1)}>
+                          ↓
+                        </button>
+                        <button type="button" aria-label="Remove this layer" onClick={() => patch(i, (x) => ({ ...x, layers: x.layers.filter((_, j) => j !== k) }))}>
+                          ×
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Choice
+                label="How far the layers spread"
+                value={b.spread}
+                options={[
+                  ["tight", "Close"],
+                  ["normal", "Normal"],
+                  ["wide", "Far apart"],
+                ]}
+                onPick={(v) => patch(i, (x) => ({ ...x, spread: v }))}
+              />
+              <Choice
+                label="Viewing angle"
+                value={b.turn}
+                options={[
+                  ["side", "From the side"],
+                  ["angled", "Tilted"],
+                ]}
+                onPick={(v) => patch(i, (x) => ({ ...x, turn: v }))}
+              />
+              <Choice
+                label="Numbered label lines"
+                value={b.labels ? "on" : "off"}
+                options={[
+                  ["on", "Show"],
+                  ["off", "Hide"],
+                ]}
+                onPick={(v) => patch(i, (x) => ({ ...x, labels: v === "on" }))}
+              />
 
               <div className={styles.rowSplit}>
                 <button
@@ -146,11 +235,22 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
                   ⇅ Reverse the layer order
                 </button>
                 <button type="button" className={styles.pill} onClick={() => onShow(i)}>
-                  ▶ Show it in the preview
+                  ▶ Show it on the page preview
+                </button>
+                <button
+                  type="button"
+                  className={styles.pill}
+                  disabled={items.length >= 12}
+                  onClick={() => {
+                    update((c) => ({ ...c, breakdowns: [...c.breakdowns, { ...b, title: `${b.title} copy`, layers: b.layers.map((l) => ({ ...l })) }] }));
+                    choose(items.length);
+                  }}
+                >
+                  ⧉ Duplicate this breakdown
                 </button>
               </div>
               <p className={styles.hint}>
-                In the preview, put the cursor on the artwork to see it break apart. Layers must all be the same size (export them from your design file at the same
+                The preview scrolls to this breakdown and takes it apart. Layers must all be the same size (export them from your design file at the same
                 canvas size), so they line up when stacked.
               </p>
             </div>
@@ -179,5 +279,21 @@ function LayerUpload({
       hint="Select every layer file at once. They are added in file-name order, each named after its file — you can rename them and change the order below."
       onFiles={(files) => onFiles(files, (fs, each) => uploads.start(fs, each))}
     />
+  );
+}
+
+/** A small set of buttons to pick one option from. */
+function Choice<T extends string>({ label, value, options, onPick }: { label: string; value: T; options: [T, string][]; onPick: (v: T) => void }) {
+  return (
+    <div className={bd.setting} role="group" aria-label={label}>
+      <span className={bd.settingLabel}>{label}</span>
+      <div className={bd.choices}>
+        {options.map(([v, text]) => (
+          <button key={v} type="button" className={styles.pill} data-on={value === v} aria-pressed={value === v} onClick={() => onPick(v)}>
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

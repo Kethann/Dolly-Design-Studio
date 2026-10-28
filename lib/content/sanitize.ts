@@ -181,11 +181,23 @@ export function sanitizeContent(input: unknown): SiteContent {
       if (!isObj(l) || typeof l.image !== "string" || !l.image.startsWith("/images/")) return [];
       return [{ image: l.image, label: str(l.label).trim().slice(0, 60) }];
     });
-    return layers.length ? [{ title: str(raw.title).trim().slice(0, 80) || "Breakdown", note: str(raw.note).trim().slice(0, 140), layers }] : [];
+    return layers.length
+      ? [
+          {
+            title: str(raw.title).trim().slice(0, 80) || "Breakdown",
+            note: str(raw.note).trim().slice(0, 140),
+            description: str(raw.description).replace(/\r\n?/g, "\n").trim().slice(0, 1200),
+            layers,
+            spread: raw.spread === "tight" || raw.spread === "wide" ? raw.spread : "normal",
+            turn: raw.turn === "angled" ? "angled" : "side",
+            labels: raw.labels !== false,
+          },
+        ]
+      : [];
   });
 
   // Each page's own look: real fonts, a real colour, a picture from the library, a sensible dimming.
-  for (const k of ["home", "work", "project", "notFound"] as const) {
+  for (const k of ["home", "work", "breakdowns", "project", "notFound"] as const) {
     const look = merged.pages[k];
     for (const f of ["fontDisplay", "fontLabel", "fontBody"] as const) {
       if (look[f] && !fontById(look[f], merged.customFonts)) look[f] = "";

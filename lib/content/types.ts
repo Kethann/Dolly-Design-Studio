@@ -1,6 +1,6 @@
 import type { home } from "@/content/home";
 import type { site } from "@/content/site";
-import type { footer, notFoundPage, projectPage, workPage } from "@/content/pages";
+import type { breakdownsPage, footer, notFoundPage, projectPage, workPage } from "@/content/pages";
 import type { ClientEntry, CollaboratorEntry, Project, Service, Testimonial } from "@/content/types";
 
 /** `as const` content turned back into plain, editable types. */
@@ -69,10 +69,18 @@ export interface Breakdown {
   title: string;
   /** One line under the title in the viewer, e.g. what was made or how long it took. */
   note: string;
+  /** A longer description shown beside the artwork on the Breakdowns page (blank lines make paragraphs). */
+  description: string;
   layers: BreakdownLayer[];
+  /** How far apart the layers fall. */
+  spread: "tight" | "normal" | "wide";
+  /** Which way the stack is turned: edge-on from the side, or tilted so you see more of each layer. */
+  turn: "side" | "angled";
+  /** Show the numbered label lines. */
+  labels: boolean;
 }
 
-export type PageKey = "home" | "work" | "project" | "notFound";
+export type PageKey = "home" | "work" | "breakdowns" | "project" | "notFound";
 
 /**
  * How one page differs from the rest of the site. Anything left empty simply follows the site's own fonts, colours
@@ -109,6 +117,7 @@ export interface SiteContent {
   testimonials: Testimonial[];
   projects: Project[];
   work: Widen<typeof workPage>;
+  breakdownsPage: Widen<typeof breakdownsPage>;
   projectPage: Widen<typeof projectPage>;
   notFound: Widen<typeof notFoundPage>;
   footer: Widen<typeof footer>;
