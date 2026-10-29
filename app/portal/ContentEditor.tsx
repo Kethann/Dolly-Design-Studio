@@ -1374,8 +1374,8 @@ export function ThemeEditor() {
             onChange={(v) => setGlass({ shuffle: v === "random" })}
           />
           <Slider label="Tint" hint="How strong the colour is under the cursor." value={glass.tint} min={0} max={0.7} step={0.02} format={(n) => `${Math.round((n / 0.7) * 100)}%`} onChange={(tint) => setGlass({ tint })} />
-          <Slider label="Spread" hint="How wide the lit area around the cursor is." value={glass.spread} min={0} max={1} step={0.02} format={(n) => `${Math.round(n * 100)}%`} onChange={(spread) => setGlass({ spread })} />
-          <Slider label="Glow" hint="The soft light around the whole glass while it is lit." value={glass.glow} min={0} max={0.8} step={0.02} format={(n) => `${Math.round((n / 0.8) * 100)}%`} onChange={(glow) => setGlass({ glow })} />
+          <Slider label="Spread" hint="How big the point of light under the cursor is." value={glass.spread} min={0} max={1} step={0.02} format={(n) => `${Math.round(n * 100)}%`} onChange={(spread) => setGlass({ spread })} />
+          <Slider label="Glow" hint="How brightly the edge of the glass glows near the cursor." value={glass.glow} min={0} max={0.8} step={0.02} format={(n) => `${Math.round((n / 0.8) * 100)}%`} onChange={(glow) => setGlass({ glow })} />
           <Slider label="Blur" hint="How much of what is behind the glass is blurred." value={glass.blur} min={0} max={30} step={1} format={(n) => `${n} px`} onChange={(blur) => setGlass({ blur })} />
           {glassChanged && (
             <button type="button" className={styles.link} onClick={() => setGlass({ ...DEFAULT_GLASS, colors: [...DEFAULT_GLASS.colors] })}>
@@ -1386,10 +1386,10 @@ export function ThemeEditor() {
       </section>
 
       <section className={styles.section} data-open="true">
-        <div className={styles.sectionHeadStatic}>Menu lamp</div>
+        <div className={styles.sectionHeadStatic}>Menu glow</div>
         <div className={styles.sectionBody}>
           <p className={styles.hint}>
-            The menu at the top lights the page you are on with a soft lamp from above, in that item&apos;s own colour; the other items dim. Pick each
+            The menu at the top lights the page you are on with a soft glow under it, in that item&apos;s own colour; the other items dim. Pick each
             item&apos;s colour.
           </p>
           {content.nav.map((n) => (
@@ -1402,7 +1402,7 @@ export function ThemeEditor() {
           ))}
           {JSON.stringify(content.theme.menuTones) !== JSON.stringify(DEFAULT_MENU_TONES) && (
             <button type="button" className={styles.link} onClick={() => update((c) => ({ ...c, theme: { ...c.theme, menuTones: { ...DEFAULT_MENU_TONES } } }))}>
-              Back to the original lamp colours
+              Back to the original glow colours
             </button>
           )}
         </div>

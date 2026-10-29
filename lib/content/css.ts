@@ -27,12 +27,10 @@ export function glassVars(g: GlassLook): string[] {
   // mixing itself is in globals.css, because it follows the pointer with --mt).
   return [
     ...six.map((c, i) => `--glass-${i + 1}:${c}`),
-    // How strong the colour is under the cursor (Tint), how wide the lit area is (Spread), and the glow around the glass.
+    // How strong the colour is under the cursor (Tint), how big the point of light is (Spread), and how bright the edge glows (Glow).
     `--glass-alpha:${(Math.min(1, g.tint / 0.7) * (clear ? 0.45 : frosted ? 0.6 : 1)).toFixed(2)}`,
-    `--glass-radius:${(10 + g.spread * 40).toFixed(1)}%`,
-    `--glass-glow-k:${Math.round(g.glow * 100 * (clear ? 0 : frosted ? 0.5 : 1))}`,
-    `--glass-glow-r:${Math.round(14 + (g.glow / 0.8) * 36)}px`,
-    `--glass-rim-opacity:${clear ? 0.5 : frosted ? 0.75 : 0.95}`,
+    `--glass-r:${Math.round(40 + g.spread * 120)}px`,
+    `--glass-rim-opacity:${Math.min(1, (0.45 + g.glow * 0.7) * (clear ? 0.6 : frosted ? 0.8 : 1)).toFixed(2)}`,
     `--glass-blur:${g.blur}px`,
   ];
 }

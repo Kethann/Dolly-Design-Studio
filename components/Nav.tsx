@@ -102,8 +102,7 @@ export function Nav() {
       </Link>
 
       <nav ref={linksRef} className={styles.links} aria-label="Primary" data-lit={!!activeId}>
-        {/* The lamp: a soft cone of light from the top of the screen down onto the current item, in that item's own colour.
-            It glides from item to item; the other items dim. */}
+        {/* The light under the current item, in that item's own colour. It glides from item to item; the other items dim. */}
         <span
           className={styles.beam}
           data-on={!!activeId && !!beam}

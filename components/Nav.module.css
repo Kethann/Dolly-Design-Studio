@@ -45,8 +45,8 @@
   color: var(--ivory);
 }
 
-/* The menu items, on the frosted strip of the bar. While one of them is the page you are on, a lamp lights its whole
-   column and the others dim. */
+/* The menu items, on the frosted strip of the bar. While one of them is the page you are on, a light comes on under it
+   and the others dim. */
 .links {
   position: relative;
   display: none;
@@ -119,9 +119,9 @@
   filter: drop-shadow(0 0 6px var(--tone));
 }
 
-/* The lamp. One piece that glides along behind the items: a soft cone of light from the top of the screen down the
-   whole height of the bar onto the current item (narrow at the lamp, wide below), a bright glow where the lamp hangs and
-   a soft pool of light on the floor under the item. Its colour is the item's own and changes smoothly as it moves. */
+/* The light under the current item. One piece that glides along behind the items: a soft pool of light rising from
+   under the item, and a thin neon line just below its words with a soft glow of its own. Its colour is the item's own
+   and changes smoothly as it moves. */
 .beam {
   position: absolute;
   top: 0;
@@ -143,43 +143,53 @@
     --tone 0.6s ease;
 }
 
-/* The cone, from the very top of the screen to just below the bar. */
+/* The pool of light rising from under the item. */
 .beam::before {
   content: "";
   position: absolute;
-  left: -22%;
-  right: -22%;
-  top: calc(-1 * var(--lift, 0px));
-  bottom: -14px;
-  clip-path: polygon(38% 0, 62% 0, 100% 100%, 0 100%);
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--tone) 70%, transparent),
-    color-mix(in srgb, var(--tone) 30%, transparent) 45%,
-    color-mix(in srgb, var(--tone) 10%, transparent) 85%,
-    transparent
-  );
-  filter: blur(7px);
+  left: -16%;
+  right: -16%;
+  top: 22%;
+  bottom: -16px;
+  background: radial-gradient(ellipse 50% 62% at 50% 78%, color-mix(in srgb, var(--tone) 52%, transparent), color-mix(in srgb, var(--tone) 18%, transparent) 55%, transparent 80%);
+  filter: blur(6px);
+  animation: navGlow 3.2s ease-in-out infinite;
 }
 
-/* The lamp's own glow at the top, and the pool of light on the floor under the item. */
+/* The neon line under the words. */
 .beam::after {
   content: "";
   position: absolute;
-  left: -30%;
-  right: -30%;
-  top: calc(-1 * var(--lift, 0px) - 18px);
-  bottom: -22px;
-  background:
-    radial-gradient(ellipse 38% 26px at 50% 18px, color-mix(in srgb, var(--tone) 85%, #fff 15%), transparent),
-    radial-gradient(ellipse 48% 16px at 50% calc(100% - 14px), color-mix(in srgb, var(--tone) 55%, transparent), transparent);
-  filter: blur(4px);
+  left: 20%;
+  right: 20%;
+  top: calc(50% + 16px);
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--tone) 22%, color-mix(in srgb, var(--tone) 60%, #fff) 50%, var(--tone) 78%, transparent);
+  box-shadow:
+    0 0 8px 1px color-mix(in srgb, var(--tone) 80%, transparent),
+    0 0 20px 4px color-mix(in srgb, var(--tone) 40%, transparent);
+}
+
+/* The pool of light breathes gently. */
+@keyframes navGlow {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .beam[data-animate="true"],
   .icon {
     transition: none;
+  }
+
+  .beam::before {
+    animation: none;
   }
 }
 

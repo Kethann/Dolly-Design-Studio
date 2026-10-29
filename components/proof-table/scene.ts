@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { ProofItem } from "@/content/proof-table";
+import { DEFAULT_GLASS } from "@/lib/content/types";
 import { STAGES } from "./stages";
 
 /**
@@ -262,7 +263,73 @@ export interface ProofScene {
   dispose: () => void;
 }
 
+/**
+ * The colour glow on a card: the card holds a Gemini-style mesh of the site's glass colours (each card arranges them in
+ * its own places), seen only where the cursor is on it, as a soft light with a fine grain. Added to the card as light.
+ */
+const AURA_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+const AURA_FRAGMENT = /* glsl */ `
+  varying vec2 vUv;
+  uniform vec3 uColors[6];
+  uniform vec2 uPos[6];
+  uniform vec2 uPoint;
+  uniform float uOn;
+  uniform float uAspect;
+  uniform float uRadius;
+  uniform float uSeed;
+  void main() {
+    vec3 col = vec3(0.0);
+    float total = 0.0;
+    for (int i = 0; i < 6; i++) {
+      vec2 d = vUv - uPos[i];
+      d.x *= uAspect;
+      float w = 1.0 / (0.015 + dot(d, d));
+      w *= w;
+      col += uColors[i] * w;
+      total += w;
+    }
+    col /= total;
+    vec2 q = vUv - uPoint;
+    q.x *= uAspect;
+    float r = length(q * vec2(0.85, 1.15));
+    float a = smoothstep(uRadius, 0.0, r);
+    a = a * a * uOn;
+    float grain = fract(sin(dot(vUv * vec2(913.0, 677.0) + uSeed, vec2(12.9898, 78.233))) * 43758.5453);
+    gl_FragColor = vec4(col * (0.88 + 0.24 * grain), a * 0.95);
+    #include <colorspace_fragment>
+  }
+`;
+
+/** The six glass colours (the site's, from the portal), shuffled into a new order. */
+function auraColours(): THREE.Color[] {
+  const root = typeof document !== "undefined" ? getComputedStyle(document.documentElement) : null;
+  const list = DEFAULT_GLASS.colors.map((d, i) => {
+    const v = root?.getPropertyValue(`--glass-${i + 1}`).trim();
+    return new THREE.Color(v && /^#[0-9a-f]{6}$/i.test(v) ? v : d);
+  });
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
+/** Six places on a card, one in each tile of a 3 × 2 grid, nudged off centre. */
+function auraPlaces(): THREE.Vector2[] {
+  return Array.from({ length: 6 }, (_, t) => new THREE.Vector2(((t % 3) + 0.5) / 3 + (Math.random() - 0.5) * 0.2, (Math.floor(t / 3) + 0.5) / 2 + (Math.random() - 0.5) * 0.25));
+}
+
 interface Plate {
+  /** The colour glow under the cursor, its target spot (on the card, 0–1) and how lit it is. */
+  aura: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  auraTarget: THREE.Vector2;
+  auraOn: number;
   pivot: THREE.Group; // sits on the card's front edge, so it can stand up on it
   inner: THREE.Group;
   glass: THREE.Mesh<RoundedBoxGeometry, THREE.MeshPhysicalMaterial>;
@@ -619,6 +686,31 @@ export function createProofScene(
       sheen.position.y = PLATE_T / 2 + 0.005;
       sheen.renderOrder = 3;
       inner.add(sheen);
+      const aura = new THREE.Mesh(
+        mine(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2)),
+        mine(
+          new THREE.ShaderMaterial({
+            vertexShader: AURA_VERTEX,
+            fragmentShader: AURA_FRAGMENT,
+            uniforms: {
+              uColors: { value: auraColours() },
+              uPos: { value: auraPlaces() },
+              uPoint: { value: new THREE.Vector2(0.5, 0.5) },
+              uOn: { value: 0 },
+              uAspect: { value: w / d },
+              uRadius: { value: 0.55 },
+              uSeed: { value: Math.random() * 100 },
+            },
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            toneMapped: false,
+          }),
+        ),
+      );
+      aura.position.y = PLATE_T / 2 + 0.006;
+      aura.renderOrder = 4;
+      inner.add(aura);
 
       const shadow = new THREE.Mesh(
         shadowGeo,
@@ -647,6 +739,9 @@ export function createProofScene(
         ),
       );
       return {
+        aura,
+        auraTarget: new THREE.Vector2(0.5, 0.5),
+        auraOn: 0,
         pivot,
         inner,
         glass: glassMesh,
@@ -772,6 +867,14 @@ export function createProofScene(
     );
     const hit = hits.length ? plates.findIndex((pl) => pl.glass === hits[0].object) : -1;
     if (hit >= 0) {
+      const pl = plates[hit];
+      // A card arranges its colours afresh each time the cursor comes to it.
+      if (hovered !== hit) {
+        pl.aura.material.uniforms.uColors.value = auraColours();
+        pl.aura.material.uniforms.uPos.value = auraPlaces();
+      }
+      const local = pl.inner.worldToLocal(hits[0].point.clone());
+      pl.auraTarget.set(local.x / pl.w + 0.5, 0.5 - local.z / pl.d);
       hovered = hit;
       hoverLostAt = 0;
     } else if (hovered >= 0) {
@@ -878,6 +981,20 @@ export function createProofScene(
       gm.envMapIntensity = (gm.userData.env as number) * (1 - 0.95 * st);
       gm.roughness = (gm.userData.roughness as number) + st * 0.3; // any reflection left is soft, never a hot spot
       pl.sheen.material.opacity = st * 0.14;
+      // The colour glow: it fades in where the cursor is on the card, follows it smoothly, and fades out when it leaves.
+      const auraGoal = interactive && hovered === i ? 1 : 0;
+      const ae = 1 - Math.exp(-dt * 7);
+      pl.auraOn += (auraGoal - pl.auraOn) * ae;
+      if (Math.abs(auraGoal - pl.auraOn) < 0.002) pl.auraOn = auraGoal;
+      else busy = true;
+      const au = pl.aura.material.uniforms;
+      const pt = au.uPoint.value as THREE.Vector2;
+      if (pt.distanceTo(pl.auraTarget) > 0.001) {
+        pt.lerp(pl.auraTarget, 1 - Math.exp(-dt * 10));
+        busy = true;
+      }
+      au.uOn.value = pl.auraOn * fade;
+      pl.aura.visible = pl.auraOn > 0.002;
       pl.sheen.material.map!.offset.x = -(ndc.x * 0.6 + pl.sway.y);
 
       // Shadow: a soft pool when lying flat, a tight strip at its foot when standing.

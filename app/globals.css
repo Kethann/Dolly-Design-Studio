@@ -446,10 +446,10 @@ html.portal-preview a[href="/"] {
 @keyframes glassBreathe {
   0%,
   100% {
-    --pulse: 0.82;
+    --pulse: 0.9;
   }
   50% {
-    --pulse: 1.18;
+    --pulse: 1.1;
   }
 }
 
@@ -489,11 +489,7 @@ html.portal-preview a[href="/"] {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     inset 0 -1px 0 rgba(255, 255, 255, 0.06),
-    0 18px 40px rgba(0, 0, 0, 0.35),
-    /* The neon glow: a tight bright edge, then a deep thick halo, then a wide faint one, all in the colour under the cursor. */
-    0 0 calc(var(--glass-glow-r, 26px) * 0.35 * var(--pulse)) color-mix(in srgb, var(--spot-c) calc(var(--lit) * var(--glass-glow-k, 50) * 1.6%), transparent),
-    0 0 calc(var(--glass-glow-r, 26px) * 1.2 * var(--pulse)) color-mix(in srgb, var(--glow-c) calc(var(--lit) * var(--glass-glow-k, 50) * 1.4%), transparent),
-    0 0 calc(var(--glass-glow-r, 26px) * 2.6 * var(--pulse)) color-mix(in srgb, var(--glow-c) calc(var(--lit) * var(--glass-glow-k, 50) * 0.9%), transparent);
+    0 18px 40px rgba(0, 0, 0, 0.35);
   -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   overflow: hidden;
@@ -521,16 +517,17 @@ html.portal-preview a[href="/"] {
     --bloom 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* The rim, lit only near the pointer: a masked ring, so the inside stays clear. */
+/* The edge of the glass, lit only near the cursor in the colour that is there: a masked ring, so the inside stays clear. */
 .glass-panel::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 0;
   border-radius: inherit;
-  padding: 1.4px;
+  padding: 1.6px;
   pointer-events: none;
-  background: radial-gradient(circle at var(--mx) var(--my), var(--spot-c), transparent calc(var(--glass-radius, 22%) * 2.4 * var(--bloom) * var(--pulse)));
+  background: radial-gradient(circle calc(calc(var(--glass-r, 76px) * var(--bloom) * var(--pulse)) * 1.5) at var(--mx) var(--my), var(--spot-c), color-mix(in srgb, var(--spot-c) 45%, transparent) 45%, transparent);
+  filter: brightness(1.3);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
@@ -540,9 +537,8 @@ html.portal-preview a[href="/"] {
 
 /* The glass holds a mesh gradient like Gemini's: large soft fields of colour (the six glass colours and two blends of them,
    each in a place of its own on this glass) melting into each other, with a fine film grain over them. It is seen only
-   where the cursor is: a wide soft glow, an organic shape rather than a circle, that lights the colours up like the
-   logo's light does (they are added to the glass as light). It blooms out from the cursor, breathes in and out while the
-   cursor stays, and shrinks back when it leaves. Always under the card's content. */
+   where the cursor is: one small soft point of light that lights the colour there up, like the logo's light does. It grows out from the cursor, breathes a little while the cursor stays, and shrinks back
+   when it leaves. Always under the card's content. */
 .glass-panel::after {
   content: "";
   position: absolute;
@@ -551,7 +547,7 @@ html.portal-preview a[href="/"] {
   border-radius: inherit;
   pointer-events: none;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .28 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
     radial-gradient(ellipse 58% 58% at var(--bx8) var(--by8), var(--k8) 0, color-mix(in srgb, var(--k8) 55%, transparent) 38%, transparent),
     radial-gradient(ellipse 58% 58% at var(--bx7) var(--by7), var(--k7) 0, color-mix(in srgb, var(--k7) 55%, transparent) 38%, transparent),
     radial-gradient(ellipse 70% 70% at var(--bx6) var(--by6), var(--k6) 0, color-mix(in srgb, var(--k6) 55%, transparent) 38%, transparent),
@@ -560,14 +556,9 @@ html.portal-preview a[href="/"] {
     radial-gradient(ellipse 70% 70% at var(--bx3) var(--by3), var(--k3) 0, color-mix(in srgb, var(--k3) 55%, transparent) 38%, transparent),
     radial-gradient(ellipse 70% 70% at var(--bx2) var(--by2), var(--k2) 0, color-mix(in srgb, var(--k2) 55%, transparent) 38%, transparent),
     radial-gradient(ellipse 70% 70% at var(--bx1) var(--by1), var(--k1) 0, color-mix(in srgb, var(--k1) 55%, transparent) 38%, transparent);
-  mix-blend-mode: plus-lighter;
-  filter: saturate(1.7) brightness(1.12);
-  -webkit-mask-image: radial-gradient(ellipse calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 1.9) calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 1.25) at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.85) 38%, transparent 100%),
-    radial-gradient(ellipse calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 0.95) calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 2.1) at calc(var(--mx) + 5%) calc(var(--my) - 4%), rgba(0, 0, 0, 0.9) 0, transparent 100%),
-    radial-gradient(ellipse calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 1.4) calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 0.8) at calc(var(--mx) - 6%) calc(var(--my) + 5%), rgba(0, 0, 0, 0.8) 0, transparent 100%);
-  mask-image: radial-gradient(ellipse calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 1.9) calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 1.25) at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.85) 38%, transparent 100%),
-    radial-gradient(ellipse calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 0.95) calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 2.1) at calc(var(--mx) + 5%) calc(var(--my) - 4%), rgba(0, 0, 0, 0.9) 0, transparent 100%),
-    radial-gradient(ellipse calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 1.4) calc(calc(var(--glass-radius, 22%) * var(--bloom) * var(--pulse)) * 0.8) at calc(var(--mx) - 6%) calc(var(--my) + 5%), rgba(0, 0, 0, 0.8) 0, transparent 100%);
+  filter: saturate(1.6) brightness(1.18);
+  -webkit-mask-image: radial-gradient(circle calc(var(--glass-r, 76px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.8) 35%, rgba(0, 0, 0, 0.3) 70%, transparent 100%);
+  mask-image: radial-gradient(circle calc(var(--glass-r, 76px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.8) 35%, rgba(0, 0, 0, 0.3) 70%, transparent 100%);
   opacity: 0;
   transition: opacity 0.35s ease;
 }
