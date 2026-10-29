@@ -16,7 +16,7 @@ export const home = {
   manifesto: {
     label: "About Our Agency",
     /** Words wrapped in *asterisks* are set in gold italic. */
-    statement: "Let us be the cover page of your beautiful book called *‘Cinema’.*",
+    statement: "Let us be the cover page of your beautiful book called *‘Cinema’*",
     body: "Dolly Design Studio is a creative collection specializing in film publicity and title design. We blend artistry with strategy to craft unforgettable identities that elevate films and leave a lasting mark.",
   },
   // …followed by what the agency does (the services themselves are in services.ts).
@@ -73,6 +73,10 @@ export const home = {
     photoShape: "round",
     /** How big it is on the card: "small", "medium" or "large". */
     photoSize: "medium",
+    /** Zoom (1 = the whole picture fits) and where it is centred, as a percentage across and down. */
+    photoZoom: 1,
+    photoX: 50,
+    photoY: 50,
     /** A short description shown on the glass profile card, under the name and role. */
     cardNote: "Designing film posters, title logos and typography for Telugu cinema.",
     /** [CLIENT TO CONFIRM] Add a fuller bio and a photo when ready. */

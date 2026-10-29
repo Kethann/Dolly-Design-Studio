@@ -41,7 +41,8 @@
 
 .gold {
   color: var(--gold);
-  font-style: italic;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .body {
