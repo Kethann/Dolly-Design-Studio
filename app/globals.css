@@ -415,6 +415,44 @@ html.portal-preview a[href="/"] {
   initial-value: 50%;
 }
 
+/* The six colours of a glass card are registered colours, so when a card takes a new arrangement the colours fade into one
+   another instead of changing at once. */
+@property --k1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #888888;
+}
+
+@property --k2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #888888;
+}
+
+@property --k3 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #888888;
+}
+
+@property --k4 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #888888;
+}
+
+@property --k5 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #888888;
+}
+
+@property --k6 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #888888;
+}
+
 /* The colour of the glass at the cursor (set by GlassLight): the glow around the glass and the rim take it. */
 @property --spot-c {
   syntax: "<color>";
@@ -493,10 +531,24 @@ html.portal-preview a[href="/"] {
   -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   overflow: hidden;
+}
+
+/* The glass's own transitions (the pointer following, the colours fading into one another, the bloom). A card's own
+   `transition` (the Stats cards lift on hover) would replace this list, so it is set here with a little more weight, and
+   includes the lift and border colour so those still animate. */
+.glass-panel.glass-panel {
   transition:
+    transform 0.35s ease,
+    border-color 0.35s ease,
     --mx 0.22s ease-out,
     --my 0.22s ease-out,
-    --spot-c 0.25s ease-out,
+    --spot-c 0.9s ease-in-out,
+    --k1 1.6s ease-in-out,
+    --k2 1.6s ease-in-out,
+    --k3 1.6s ease-in-out,
+    --k4 1.6s ease-in-out,
+    --k5 1.6s ease-in-out,
+    --k6 1.6s ease-in-out,
     --bx1 3s ease-in-out,
     --by1 3s ease-in-out,
     --bx2 3s ease-in-out,
@@ -583,7 +635,7 @@ html.portal-preview a[href="/"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .glass-panel,
+  .glass-panel.glass-panel,
   .glass-panel::before,
   .glass-panel::after {
     transition: none;

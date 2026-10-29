@@ -1,4 +1,6 @@
-/* Above the intro's canvas, so it can fade out over the first frames of the show. */
+/* Above the intro's canvas, so it can fade out over the first frames of the show. It fades and eases in from the very
+   first paint, and fades and eases out as the intro begins: both are animations (not a switch between states), so there
+   is no jump at either end. */
 .loader {
   position: fixed;
   inset: 0;
@@ -8,22 +10,36 @@
   justify-items: center;
   gap: 22px;
   pointer-events: none;
-  opacity: 0;
-  animation: loader-in 0.5s ease 0.05s forwards;
-  transition:
-    opacity 0.7s ease,
-    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: loader-in 1s cubic-bezier(0.22, 1, 0.36, 1) 0.05s backwards;
 }
 
+/* When everything has loaded: a longer, gentler fade that starts from however visible the loader is at that moment. */
 .loader[data-done] {
-  opacity: 0 !important;
-  transform: scale(1.1);
-  animation: none;
+  animation: loader-out 1s cubic-bezier(0.45, 0, 0.2, 1) forwards;
 }
 
 @keyframes loader-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
   to {
     opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes loader-out {
+  from {
+    opacity: var(--loader-from, 1);
+    transform: scale(1);
+  }
+  60% {
+    opacity: calc(var(--loader-from, 1) * 0.35);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.08);
   }
 }
 
@@ -114,5 +130,29 @@
   .comet,
   .mark::before {
     animation: none;
+  }
+
+  /* Just a fade, no movement. */
+  .loader {
+    animation-name: loader-fade-in;
+  }
+
+  .loader[data-done] {
+    animation-name: loader-fade-out;
+  }
+
+  @keyframes loader-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes loader-fade-out {
+    from {
+      opacity: var(--loader-from, 1);
+    }
+    to {
+      opacity: 0;
+    }
   }
 }

@@ -76,8 +76,12 @@ export function IntroLoader() {
       const pct = String(Math.floor(shown * 100));
       if (rootRef.current?.getAttribute("aria-valuenow") !== pct) rootRef.current?.setAttribute("aria-valuenow", pct);
       if (shown >= 1) {
-        rootRef.current?.setAttribute("data-done", "");
-        doneTimer = window.setTimeout(() => setGone(true), 800);
+        // Fade out from however visible it is right now (it may still be fading in on a fast load), so there is no jump.
+        if (rootRef.current) {
+          rootRef.current.style.setProperty("--loader-from", getComputedStyle(rootRef.current).opacity);
+          rootRef.current.setAttribute("data-done", "");
+        }
+        doneTimer = window.setTimeout(() => setGone(true), 1050);
         return;
       }
       raf = requestAnimationFrame(tick);
