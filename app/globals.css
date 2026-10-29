@@ -491,6 +491,13 @@ html.portal-preview a[href="/"] {
   }
 }
 
+/* How much gold a "How we work" icon tile shows: 1 at rest, fading to 0 while the colour effect is on it. */
+@property --tile-gold {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
 /* How lit the glass is: 0 at rest, 1 while the cursor is on it (it fades, and the glow around the glass follows it). */
 @property --lit {
   syntax: "<number>";
@@ -576,6 +583,7 @@ html.portal-preview a[href="/"] {
     --bx8 3s ease-in-out,
     --by8 3s ease-in-out,
     --lit 0.4s ease,
+    --tile-gold 0.4s ease,
     --bloom 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
