@@ -292,6 +292,7 @@ export function PortalEditor({
   const [contentSaved, setContentSaved] = useState(initialContent);
   const [contentDraft, setContentDraft] = useState(initialContent);
   const [images, setImages] = useState<string[]>([]);
+  const [removable, setRemovable] = useState<string[]>([]);
   const contentRef = useRef(contentDraft);
   const sentContentRef = useRef<SiteContent | null>(null);
   useEffect(() => {
@@ -300,11 +301,24 @@ export function PortalEditor({
   useEffect(() => {
     fetch("/api/portal/media")
       .then((r) => (r.ok ? r.json() : { images: [] }))
-      .then((d: { images?: string[] }) => setImages(d.images ?? []))
+      .then((d: { images?: string[]; removable?: string[] }) => {
+        setImages(d.images ?? []);
+        setRemovable(d.removable ?? []);
+      })
       .catch(() => {});
   }, []);
   const media: MediaApi = {
     images,
+    removable,
+    remove: async (src) => {
+      // "/images/uploads/x.webp" is stored as uploads/images/x.webp; a slate title "/images/proof-table/x.webp" as uploads/proof/x.webp.
+      const key = src.startsWith("/images/uploads/") ? "uploads/images/" + src.slice("/images/uploads/".length) : "uploads/proof/" + src.slice("/images/proof-table/".length);
+      const res = await fetch("/api/portal/storage", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, confirmed: true }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Couldn’t delete that picture.");
+      setImages((list) => list.filter((x) => x !== src));
+      setRemovable((list) => list.filter((x) => x !== src));
+    },
     add: (src) => setImages((list) => (list.includes(src) ? list : [src, ...list])),
     upload: async (file, onProgress) => {
       const data = await postFile<{ src?: string }>("/api/portal/media", await prepareImage(file), onProgress);

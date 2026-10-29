@@ -36,9 +36,13 @@ export async function GET() {
   if (s.kind === "fs") await walk(ROOT, "/images", built);
   else for (const src of Object.keys(manifest)) if (src.startsWith("/images/") && !HIDDEN.has(src.split("/")[2]) && IMAGE.test(src)) built.push(src);
   const images = [...new Set([...built, ...uploaded])];
+  // Pictures uploaded through the portal (the library's own uploads and the slate's titles) can be deleted again; the
+  // ones that came with the site are part of its files and can't.
+  const slate = (await s.list("uploads/proof/")).map((k) => "/images/proof-table/" + k.slice("uploads/proof/".length));
+  const removable = [...uploaded, ...slate];
   // Newest uploads first, then the rest by folder.
   images.sort((a, b) => Number(b.startsWith("/images/uploads/")) - Number(a.startsWith("/images/uploads/")) || a.localeCompare(b));
-  return NextResponse.json({ images });
+  return NextResponse.json({ images, removable });
 }
 
 export async function POST(req: NextRequest) {

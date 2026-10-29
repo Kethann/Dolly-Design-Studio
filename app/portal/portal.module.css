@@ -1734,3 +1734,32 @@
   border-radius: 10px;
   user-select: all;
 }
+
+/* The slate card's picture: the picture itself is the button that opens the picture chooser. */
+.picture {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--p-line-strong, rgba(255, 255, 255, 0.2));
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picture:hover,
+.picture[aria-expanded="true"] {
+  border-color: var(--p-accent, #e8b04b);
+}
+
+.picture img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.4);
+}

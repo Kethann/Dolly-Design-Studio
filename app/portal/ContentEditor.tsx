@@ -16,6 +16,10 @@ import styles from "./content.module.css";
 
 export interface MediaApi {
   images: string[];
+  /** The pictures that were uploaded in the portal, and so can be deleted for good. */
+  removable: string[];
+  /** Deletes an uploaded picture from the storage completely (the caller has already asked "are you sure?"). */
+  remove: (src: string) => Promise<void>;
   /** Adds a picture that was uploaded somewhere else to the shared library, so it shows up everywhere. */
   add: (src: string) => void;
   upload: (file: File, onProgress?: (percent: number) => void) => Promise<string>;
@@ -307,7 +311,7 @@ export function DropZone({
 
 // ── image picking ───────────────────────────────────────────────────────────────────────────────────────────────
 
-function ImagePicker({ value, onPick, onClose }: { value: string; onPick: (src: string) => void; onClose: () => void }) {
+export function ImagePicker({ value, onPick, onClose }: { value: string; onPick: (src: string) => void; onClose: () => void }) {
   const { media } = useEditor();
   const [filter, setFilter] = useState("");
   const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
@@ -1249,10 +1253,27 @@ export function ThemeEditor() {
 // ── media window: the image library ─────────────────────────────────────────────────────────────────────────────
 
 export function MediaLibrary() {
-  const { media } = useEditor();
+  const { media, content } = useEditor();
   const [filter, setFilter] = useState("");
+  /** The picture waiting for the second click ("Delete"), and what went wrong with the last deletion. */
+  const [asking, setAsking] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
   const shown = media.images.filter((s) => s.toLowerCase().includes(filter.toLowerCase()));
+  const used = (src: string) => JSON.stringify(content).includes(src);
+  async function remove(src: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await media.remove(src);
+      setAsking(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn’t delete that picture.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className={styles.page}>
       <section className={styles.section} data-open="true">
@@ -1266,15 +1287,46 @@ export function MediaLibrary() {
             onFiles={(files) => uploads.start(files, () => {})}
           />
           <input className={styles.input} placeholder="Search by name or folder" value={filter} onChange={(e) => setFilter(e.target.value)} />
-          <p className={styles.hint}>{media.images.length} pictures{filter ? ` — ${shown.length} match` : ""}.</p>
+          <p className={styles.hint}>
+            {media.images.length} pictures{filter ? ` — ${shown.length} match` : ""}. Pictures you uploaded have a ✕ to delete them for good.
+          </p>
+          {error && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
           <div className={styles.libraryGrid}>
-            {shown.map((src) => (
-              <figure key={src} className={styles.libraryTile} title={src}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- library thumbnails */}
-                <img src={src} alt="" loading="lazy" />
-                <figcaption>{src.replace("/images/", "")}</figcaption>
-              </figure>
-            ))}
+            {shown.map((src) => {
+              const canRemove = media.removable.includes(src);
+              return (
+                <figure key={src} className={styles.libraryTile} title={src} data-asking={asking === src}>
+                  <span className={styles.libraryPic}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- library thumbnails */}
+                    <img src={src} alt="" loading="lazy" />
+                    {canRemove && asking !== src && (
+                      <button type="button" className={styles.libraryX} aria-label={`Delete ${src.replace("/images/", "")}`} title="Delete this picture" onClick={() => { setError(""); setAsking(src); }}>
+                        ✕
+                      </button>
+                    )}
+                    {asking === src && (
+                      <span className={styles.libraryAsk} role="group" aria-label="Delete this picture for good?">
+                        <strong>Delete for good?</strong>
+                        <small>{used(src) ? "It is used on the site: that spot will be left empty." : "If a card or page uses it, that spot will be left empty."}</small>
+                        <span>
+                          <button type="button" onClick={() => setAsking(null)} disabled={busy}>
+                            Cancel
+                          </button>
+                          <button type="button" data-danger="true" onClick={() => remove(src)} disabled={busy} autoFocus>
+                            {busy ? "Deleting…" : "Delete"}
+                          </button>
+                        </span>
+                      </span>
+                    )}
+                  </span>
+                  <figcaption>{src.replace("/images/", "")}</figcaption>
+                </figure>
+              );
+            })}
           </div>
         </div>
       </section>

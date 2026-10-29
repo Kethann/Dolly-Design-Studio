@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import type { ProofItem } from "@/content/proof-table";
 import { PROOF_LIMITS, type ProofTableSettings } from "@/lib/intro/settings";
 import { ColorRow, Section, Slider, Toggle, percent } from "./controls";
-import { useMedia } from "./ContentEditor";
+import { ImagePicker, useMedia } from "./ContentEditor";
 import styles from "./portal.module.css";
 
 /**
@@ -27,6 +27,8 @@ export function ProofTableEditor({
   const images = media.images; // everything uploaded anywhere in the portal
   const [upload, setUpload] = useState<{ kind: "idle" | "busy" | "error"; message?: string }>({ kind: "idle" });
   const fileRef = useRef<HTMLInputElement>(null);
+  /** The card whose picture is being chosen. */
+  const [picking, setPicking] = useState<number | null>(null);
 
   const items = value.items;
   const setItems = (next: ProofItem[]) => onChange({ items: next });
@@ -74,8 +76,6 @@ export function ProofTableEditor({
       setUpload({ kind: "error", message: err instanceof Error ? err.message : "Upload failed." });
     }
   }
-
-  const imageName = (src: string) => src.replace("/images/", "");
 
   return (
     <>
@@ -237,16 +237,15 @@ export function ProofTableEditor({
                   ))}
                 </select>
               </label>
-              <label className={styles.slotWide}>
+              <div className={styles.slotWide}>
                 <span>Image</span>
-                <select className={styles.select} value={it.src} onChange={(e) => patchItem(i, { src: e.target.value })}>
-                  {(images.includes(it.src) ? images : [it.src, ...images]).map((src) => (
-                    <option key={src} value={src}>
-                      {imageName(src)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <button type="button" className={styles.picture} onClick={() => setPicking(picking === i ? null : i)} aria-expanded={picking === i} title="Choose a different picture for this card">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- the card's current picture */}
+                  <img src={it.src} alt="" />
+                  <span>{picking === i ? "Close the pictures" : "Change the picture"}</span>
+                </button>
+                {picking === i && <ImagePicker value={it.src} onPick={(src) => patchItem(i, { src })} onClose={() => setPicking(null)} />}
+              </div>
               <div className={`${styles.slotWide} ${styles.slotTint}`}>
                 <span>Glass tint</span>
                 <span className={styles.colorField}>
