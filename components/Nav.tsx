@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useContent } from "@/lib/content/context";
 import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
 import { goToSection, isPlainClick } from "@/lib/section-nav";
+import { freezeScroll, releaseScroll } from "@/lib/smooth-scroll";
 import { DEFAULT_MENU_TONES } from "@/lib/content/types";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import { NavIcon } from "./NavIcon";
@@ -148,12 +149,32 @@ export function Nav() {
     requestAnimationFrame(() => goToSection(id));
   };
 
+  // While the mobile menu is open the page behind it must not scroll (Lenis would keep scrolling a page that only has overflow hidden).
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
+    if (!open) return;
+    freezeScroll();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKey);
+      releaseScroll();
     };
   }, [open]);
+
+  // Any change of page (a link, Back, Forward) closes the menu.
+  useEffect(() => {
+    setOpen(false); // eslint-disable-line react-hooks/set-state-in-effect -- close the menu when the page changes
+  }, [pathname]);
+
+  // A menu left open when the window grows past the phone layout would leave the page frozen with no menu visible.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 860px)");
+    const close = () => mq.matches && setOpen(false);
+    mq.addEventListener("change", close);
+    return () => mq.removeEventListener("change", close);
+  }, []);
 
   return (
     <header className={styles.nav} data-chrome>

@@ -115,7 +115,9 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
   }
 
   useEffect(() => {
-    if (window.location.pathname !== "/" || (!preview && !settings.enabled)) {
+    // A link to a section (/#contact) goes straight there: no intro in the way.
+    const deepLink = !preview && window.location.hash.length > 1;
+    if (window.location.pathname !== "/" || deepLink || (!preview && !settings.enabled)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client check gating which intro mounts
       skip();
       return;

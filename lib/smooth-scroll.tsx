@@ -38,6 +38,28 @@ export function glideTo(target: number | HTMLElement) {
   window.scrollTo({ top, behavior: reduced ? "instant" : "smooth" });
 }
 
+/** Freeze / release page scrolling (the mobile menu, dialogs). Lenis keeps scrolling a page that only has `overflow: hidden`. */
+let freezes = 0;
+export function freezeScroll() {
+  if (freezes++ === 0) {
+    active?.stop();
+    document.documentElement.style.overflow = "hidden";
+  }
+}
+export function releaseScroll() {
+  if (freezes === 0) return;
+  if (--freezes === 0) {
+    document.documentElement.style.overflow = "";
+    active?.start();
+  }
+}
+
+/** Where on the page an element sits, just below the fixed menu bar when `clearBar` is set. */
+export function topOf(el: HTMLElement, clearBar = false) {
+  const bar = clearBar ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 72 : 0;
+  return Math.max(0, Math.round(el.getBoundingClientRect().top + window.scrollY - (bar ? bar + 20 : 0)));
+}
+
 /** Mounts Lenis smooth scroll once, disabled entirely under reduced motion. */
 export function SmoothScroll() {
   const { reducedMotion } = useMotion();
@@ -51,6 +73,7 @@ export function SmoothScroll() {
       smoothWheel: true,
     });
     active = lenis;
+    if (freezes > 0) lenis.stop();
 
     // If the visitor scrolls by hand, a glide in progress is theirs to override: forget where it was heading.
     const release = () => {

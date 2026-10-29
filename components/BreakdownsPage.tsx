@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ExplodeStage } from "@/components/BreakdownStage";
 import { useContent, tx } from "@/lib/content/context";
 import { edItem, edSection } from "@/lib/content/tx";
-import { glideTo } from "@/lib/smooth-scroll";
+import { glideTo, topOf } from "@/lib/smooth-scroll";
 import styles from "./BreakdownsPage.module.css";
 
 /**
@@ -81,17 +81,10 @@ export function BreakdownsPage() {
     const el = entries.current[i];
     if (!el) return;
     // Land just below the menu bar (Lenis ignores CSS scroll-margin, so the offset is worked out here).
-    const bar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 72;
-    glideTo(Math.max(0, el.getBoundingClientRect().top + window.scrollY - bar - 20));
+    glideTo(topOf(el, true));
   }, []);
 
-  // A link such as /breakdowns#b2 lands on that breakdown.
-  useEffect(() => {
-    const m = /^#b(\d+)$/.exec(window.location.hash);
-    if (!m) return;
-    const t = setTimeout(() => goTo(Number(m[1]) - 1), 450);
-    return () => clearTimeout(t);
-  }, [goTo]);
+  // (A link such as /breakdowns#b2 lands on that breakdown: NavHistory handles every #section arrival.)
 
   // Entries fade up as they arrive.
   useEffect(() => {

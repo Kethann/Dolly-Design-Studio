@@ -114,7 +114,7 @@ const jsonLd = (site: SiteContent["site"]) => ({
 // on any page but home, when the intro is switched off, and when coming back to home within the same visit
 // (a reload still plays it). Must agree with the checks in components/Intro.tsx. The portal preview decides itself.
 const introSkipScript = (enabled: boolean) =>
-  `(function(){if(location.search.indexOf("portal-preview")>=0){document.documentElement.classList.add("portal-preview");return}var seen=false;try{var n=performance.getEntriesByType("navigation")[0];seen=sessionStorage.getItem("dolly-intro-seen")==="1"&&!(n&&n.type==="reload")}catch(e){}if(location.pathname!=="/"||${!enabled}||seen)document.documentElement.classList.add("intro-skip")})()`;
+  `(function(){if(location.search.indexOf("portal-preview")>=0){document.documentElement.classList.add("portal-preview");return}var seen=false;try{var n=performance.getEntriesByType("navigation")[0];seen=sessionStorage.getItem("dolly-intro-seen")==="1"&&!(n&&n.type==="reload")}catch(e){}if(location.pathname!=="/"||location.hash.length>1||${!enabled}||seen)document.documentElement.classList.add("intro-skip")})()`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const introSettings = await readIntroSettings();

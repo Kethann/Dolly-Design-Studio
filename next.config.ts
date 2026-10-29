@@ -21,6 +21,20 @@ const nextConfig: NextConfig = {
     minimumCacheTTL: 60 * 60 * 24 * 30,
     localPatterns: [{ pathname: "/images/**" }],
   },
+  async redirects() {
+    // Friendly old / guessed addresses all land somewhere real, in one hop (permanent), instead of a 404.
+    const home = (from: string[], to: string) => from.map((source) => ({ source, destination: to, permanent: true }));
+    return [
+      ...home(["/home", "/index", "/index.html"], "/"),
+      ...home(["/projects", "/gallery", "/works", "/portfolio"], "/work"),
+      ...home(["/breakdown"], "/breakdowns"),
+      ...home(["/about", "/agency", "/founder"], "/#about"),
+      ...home(["/clients"], "/#clients"),
+      ...home(["/process"], "/#process"),
+      ...home(["/services"], "/#services"),
+      ...home(["/contact", "/contact-us"], "/#contact"),
+    ];
+  },
   async headers() {
     // Safe defaults for every response: no MIME sniffing, no framing by other sites (the portal's own preview is the
     // same site, so it still works), a careful referrer, and no camera / microphone / location for any page.

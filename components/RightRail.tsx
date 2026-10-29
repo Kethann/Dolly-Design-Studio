@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { railSections } from "@/content/site";
 import { goToSection, isPlainClick } from "@/lib/section-nav";
 import styles from "./RightRail.module.css";
@@ -52,7 +53,7 @@ export function RightRail() {
   return (
     <nav className={styles.rail} aria-label="Section progress">
       {railSections.map((s) => (
-        <a
+        <Link
           key={s.id}
           href={`/#${s.id}`}
           data-cursor="link"
