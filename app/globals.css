@@ -526,7 +526,7 @@ html.portal-preview a[href="/"] {
   border-radius: inherit;
   padding: 1.6px;
   pointer-events: none;
-  background: radial-gradient(circle calc(calc(var(--glass-r, 91px) * var(--bloom) * var(--pulse)) * 1.5) at var(--mx) var(--my), var(--spot-c), color-mix(in srgb, var(--spot-c) 45%, transparent) 45%, transparent);
+  background: radial-gradient(circle calc(calc(var(--glass-r, 130px) * var(--bloom) * var(--pulse)) * 1.5) at var(--mx) var(--my), var(--spot-c), color-mix(in srgb, var(--spot-c) 45%, transparent) 45%, transparent);
   filter: brightness(1.7) saturate(1.4);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
@@ -556,8 +556,8 @@ html.portal-preview a[href="/"] {
     radial-gradient(ellipse 70% 70% at var(--bx2) var(--by2), var(--k2) 0, color-mix(in srgb, var(--k2) 55%, transparent) 38%, transparent),
     radial-gradient(ellipse 70% 70% at var(--bx1) var(--by1), var(--k1) 0, color-mix(in srgb, var(--k1) 55%, transparent) 38%, transparent);
   filter: saturate(2) brightness(1.5);
-  -webkit-mask-image: radial-gradient(circle calc(var(--glass-r, 91px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, #000 30%, rgba(0, 0, 0, 0.55) 68%, transparent 100%);
-  mask-image: radial-gradient(circle calc(var(--glass-r, 91px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, #000 30%, rgba(0, 0, 0, 0.55) 68%, transparent 100%);
+  -webkit-mask-image: radial-gradient(circle calc(var(--glass-r, 130px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, #000 30%, rgba(0, 0, 0, 0.55) 68%, transparent 100%);
+  mask-image: radial-gradient(circle calc(var(--glass-r, 130px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, #000 30%, rgba(0, 0, 0, 0.55) 68%, transparent 100%);
   opacity: 0;
   transition: opacity 0.35s ease;
 }
