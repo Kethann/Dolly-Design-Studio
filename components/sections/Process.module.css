@@ -132,7 +132,7 @@
     radial-gradient(ellipse 70% 70% at var(--bx1) var(--by1), var(--k1) 0, color-mix(in srgb, var(--k1) 55%, transparent) 38%, transparent);
   padding: 0;
   z-index: 1;
-  filter: blur(6px) saturate(2.4) brightness(1.25);
+  filter: blur(5px) saturate(2.6) brightness(1.5);
   -webkit-mask: none;
   mask: none;
   -webkit-mask-image: var(--logo-mask), radial-gradient(circle calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, #000 34%, rgba(0, 0, 0, 0.72) 58%, rgba(0, 0, 0, 0.24) 82%, transparent 100%);
@@ -145,7 +145,7 @@
   mask-position: center, 0 0;
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
-  opacity: calc(var(--lit) * 0.9);
+  opacity: calc(var(--lit) * 1);
 }
 
 .tile.tile::after {
@@ -166,7 +166,8 @@
 .icon {
   width: 78%;
   height: 78%;
-  filter: drop-shadow(0 0 calc(7px * var(--tile-gold, 1)) rgba(255, 220, 140, calc(0.5 * var(--tile-gold, 1))));
+  /* The gold glow at rest; on hover it hands over to a small glow in the colour under the cursor. */
+  filter: drop-shadow(0 0 calc(7px * var(--tile-gold, 1)) rgba(255, 220, 140, calc(0.5 * var(--tile-gold, 1)))) drop-shadow(0 0 5px color-mix(in srgb, var(--spot-c) calc((1 - var(--tile-gold, 1)) * 90%), transparent));
   transition: color 0.4s ease;
 }
 
