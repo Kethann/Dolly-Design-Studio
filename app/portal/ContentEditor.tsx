@@ -1284,7 +1284,7 @@ export function ThemeEditor() {
     const h = Math.random() * 360;
     const step = 35 + Math.random() * 30;
     setGlass({
-      colors: [hslHex(h, 85, 55), hslHex((h + step) % 360, 85, 64), hslHex((h + step * 2) % 360, 90, 72), "#ffffff", hslHex((h + step * 3.5) % 360, 85, 62), hslHex((h + step * 5) % 360, 80, 66)],
+      colors: [hslHex(h, 85, 55), hslHex((h + step) % 360, 85, 60), hslHex((h + step * 2) % 360, 90, 62), hslHex((h + step * 3) % 360, 85, 58), hslHex((h + step * 4) % 360, 85, 62), hslHex((h + step * 5) % 360, 80, 60)],
     });
   };
   const preview = Object.fromEntries(glassVars(glass).map((d) => [d.slice(0, d.indexOf(":")), d.slice(d.indexOf(":") + 1)])) as React.CSSProperties;
@@ -1324,7 +1324,7 @@ export function ThemeEditor() {
           </div>
           <Choice
             label="Effect"
-            hint="Neon: full colour. Frosted: milky white light. Clear: a faint hint of colour."
+            hint="Neon: full colour. Clear: a faint hint of colour."
             value={glass.effect}
             options={GLASS_EFFECTS.map((e) => ({ value: e, label: e }))}
             onChange={(effect) => setGlass({ effect })}
@@ -1360,7 +1360,7 @@ export function ThemeEditor() {
               )}
             </div>
           ))}
-          <button type="button" className={styles.add} disabled={glass.colors.length >= GLASS_COLOR_COUNT[1]} onClick={() => setGlass({ colors: [...glass.colors, "#ffffff"] })}>
+          <button type="button" className={styles.add} disabled={glass.colors.length >= GLASS_COLOR_COUNT[1]} onClick={() => setGlass({ colors: [...glass.colors, "#7b2cff"] })}>
             ＋ Add a colour ({glass.colors.length} of {GLASS_COLOR_COUNT[1]})
           </button>
           <Choice

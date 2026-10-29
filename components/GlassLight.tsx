@@ -73,7 +73,7 @@ export function GlassLight() {
       frame = 0;
       const e = latest;
       latest = null;
-      const card = e && e.target instanceof Element ? e.target.closest<HTMLElement>(".glass-panel") : null;
+      const card = e && e.target instanceof Element ? e.target.closest<HTMLElement>(".glass-panel, .glass-glow") : null;
       if (!e || !card) return;
       const r = card.getBoundingClientRect();
       if (!r.width || !r.height) return;
@@ -105,7 +105,7 @@ export function GlassLight() {
       }
     };
     const onMove = (e: PointerEvent) => {
-      if (!(e.target instanceof Element) || !e.target.closest(".glass-panel")) {
+      if (!(e.target instanceof Element) || !e.target.closest(".glass-panel, .glass-glow")) {
         if (current) {
           current = null;
           leftAt = performance.now();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { Project } from "@/content/types";
 import { useContent } from "@/lib/content/context";
 import { ProjectCard } from "./ProjectCard";
@@ -12,11 +12,8 @@ export function WorkGrid({ projects }: { projects: Project[] }) {
   const { work: workPage, galleryLayout: layout, categories } = useContent();
   const [filter, setFilter] = useState<string>("All");
 
-  // Only offer the types that exist.
-  const available = useMemo(() => {
-    const set = new Set(projects.map((p) => p.category));
-    return categories.filter((c) => set.has(c));
-  }, [projects, categories]);
+  // Every project type is offered, whether or not it has projects yet (an empty one says so).
+  const available = categories;
   const category = filter !== "All" && !available.includes(filter) ? "All" : filter;
   const filtered = category === "All" ? projects : projects.filter((p) => p.category === category);
 

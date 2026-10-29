@@ -139,23 +139,21 @@ export function Process() {
                     }
                   : {})}
               >
+                <span className={`${styles.tile} glass-glow`}>
+                  <StepIcon name={(card as { icon?: string }).icon ?? ICON_ORDER[i] ?? "star"} />
+                </span>
                 <h3 className={styles.stepTitle} {...tx("home.process.cards.title")}>
                   {card.title}
                 </h3>
-                <div className={styles.cardRow}>
-                  <div className={styles.headRow}>
-                    <span className={styles.number}>{String(i + 1).padStart(2, "0")}</span>
-                    <p className={styles.note} {...tx("home.process.cards.note")}>
-                      {card.note}
-                    </p>
-                  </div>
-                  <span className={styles.tile}>
-                    <StepIcon name={(card as { icon?: string }).icon ?? ICON_ORDER[i] ?? "star"} />
-                  </span>
-                  <p className={styles.stepBody} {...tx("home.process.cards.body")}>
-                    {card.body}
+                <div className={styles.headRow}>
+                  <span className={styles.number}>{String(i + 1).padStart(2, "0")}</span>
+                  <p className={styles.note} {...tx("home.process.cards.note")}>
+                    {card.note}
                   </p>
                 </div>
+                <p className={styles.stepBody} {...tx("home.process.cards.body")}>
+                  {card.body}
+                </p>
                 {opens && <span className={styles.cta}>See the breakdowns →</span>}
               </div>
             );

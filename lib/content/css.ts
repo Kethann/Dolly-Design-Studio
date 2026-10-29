@@ -18,19 +18,17 @@ export function fontFaceCss(custom: CustomFontLike[]): string {
 /** The CSS variables that style the glass (cards, menu strip) from the creator's glass settings. */
 export function glassVars(g: GlassLook): string[] {
   const clear = g.effect === "Clear";
-  const frosted = g.effect === "Frosted";
-  // Always six slots: a shorter list repeats round, and Frosted is all pale whites.
-  const pale = ["#ffffff", "#ece8ff", "#d9d4ff", "#f6f2ff", "#f3f0ff", "#e4deff"];
+  // Always six slots: a shorter list repeats round.
   const own = g.colors.length ? g.colors : DEFAULT_GLASS.colors;
-  const six = Array.from({ length: 6 }, (_, i) => (frosted ? pale[i] : own[i % own.length]));
+  const six = Array.from({ length: 6 }, (_, i) => own[i % own.length]);
   // The colour under the cursor goes first colour, middle colour, last colour as the cursor crosses the glass (the
   // mixing itself is in globals.css, because it follows the pointer with --mt).
   return [
     ...six.map((c, i) => `--glass-${i + 1}:${c}`),
     // How strong the colour is under the cursor (Tint), how big the point of light is (Spread), and how bright the edge glows (Glow).
-    `--glass-alpha:${(Math.min(1, g.tint / 0.7) * (clear ? 0.45 : frosted ? 0.6 : 1)).toFixed(2)}`,
+    `--glass-alpha:${(Math.min(1, g.tint / 0.7) * (clear ? 0.45 : 1)).toFixed(2)}`,
     `--glass-r:${Math.round(120 + g.spread * 370)}px`,
-    `--glass-rim-opacity:${Math.min(1, (0.6 + g.glow * 0.8) * (clear ? 0.6 : frosted ? 0.8 : 1)).toFixed(2)}`,
+    `--glass-rim-opacity:${Math.min(1, (0.6 + g.glow * 0.8) * (clear ? 0.6 : 1)).toFixed(2)}`,
     `--glass-blur:${g.blur}px`,
   ];
 }

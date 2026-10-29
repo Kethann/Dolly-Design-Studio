@@ -9,9 +9,9 @@ export type Category = string;
 /** The categories the site starts with; they become the filter buttons on the Work page, in this order (only ones that have projects are shown). */
 export const CATEGORIES: Category[] = [
   "Mainstream Films",
-  "OTT Films / Web Series",
+  "OTT Films/Webseries",
   "Music Videos",
-  "Short Films / Independent Films",
+  "Short Films/Indie Films",
 ];
 
 /** The project types earlier versions of the site used, and where each one moved to (saved content is moved over on its own). */
@@ -20,7 +20,14 @@ export const LEGACY_CATEGORIES: Record<string, Category> = {
   "re-release": "Mainstream Films",
   "campaigns": "Mainstream Films",
   "title design": "Mainstream Films",
-  "independent": "Short Films / Independent Films",
+  "independent": "Short Films/Indie Films",
+  // the four names this site used just before the final wording
+  "mainstream films": "Mainstream Films",
+  "ott films / web series": "OTT Films/Webseries",
+  "music videos": "Music Videos",
+  "short films / independent films": "Short Films/Indie Films",
+  "ott films/webseries": "OTT Films/Webseries",
+  "short films/indie films": "Short Films/Indie Films",
 };
 
 /** Languages a project's films are in — the language filter in "Our projects". */

@@ -199,6 +199,9 @@ export function sanitizeContent(input: unknown): SiteContent {
     glassColors = earlier || own.length < GLASS_COLOR_COUNT[0] ? [...dg.colors] : own;
   }
   if (glassColors.join() === OLD_SIX.join()) glassColors = [...dg.colors]; // the default just before the mesh gradient
+  // No white in the glass: pale colours (every part at least 205 of 255) are taken out; too few left means the default set.
+  const notPale = glassColors.filter((c) => Math.min(parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)) < 205);
+  glassColors = notPale.length >= GLASS_COLOR_COUNT[0] ? notPale : [...dg.colors];
   merged.theme.glass = {
     colors: glassColors,
     shuffle: typeof gIn.shuffle === "boolean" ? gIn.shuffle : dg.shuffle,

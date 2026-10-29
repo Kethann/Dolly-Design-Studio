@@ -1026,7 +1026,7 @@ export function createProofScene(
         busy = true;
       }
       au.uOn.value = pl.auraOn * fade;
-      pl.aura.visible = pl.auraOn > 0.002;
+      pl.aura.visible = false; // no colour glow on the cards themselves (the slab keeps its soft reflection)
       pl.sheen.material.map!.offset.x = -(ndc.x * 0.6 + pl.sway.y);
 
       // Shadow: a soft pool when lying flat, a tight strip at its foot when standing.

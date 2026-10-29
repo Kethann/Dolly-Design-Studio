@@ -255,7 +255,7 @@ export const projects: Project[] = [
     slug: "independent-films",
     title: "Independent Films",
     film: "Independent & short films",
-    category: "Short Films / Independent Films",
+    category: "Short Films/Indie Films",
     languages: ["Telugu"], // [CLIENT TO CONFIRM] languages of the individual films
     year: 2025,
     client: "Independent productions",

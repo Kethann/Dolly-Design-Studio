@@ -66,11 +66,11 @@ export interface GlassLook {
   spread: number;
   /** The glow around the glass while it is lit, 0–0.8. */
   glow: number;
-  /** Neon: full colour. Frosted: milky white light. Clear: a faint hint of colour. */
-  effect: "Neon" | "Frosted" | "Clear";
+  /** Neon: full colour. Clear: a faint hint of colour. */
+  effect: "Neon" | "Clear";
 }
 
-export const GLASS_EFFECTS: GlassLook["effect"][] = ["Neon", "Frosted", "Clear"];
+export const GLASS_EFFECTS: GlassLook["effect"][] = ["Neon", "Clear"];
 
 /** How the poster gallery looks: one place to change every gallery on the site. */
 export interface GalleryLayout {
@@ -187,13 +187,13 @@ export const OLD_SIX = ["#1e4fd8", "#6d5bff", "#7fd4ff", "#ffffff", "#ff6ec7", "
 /** Ready-made sets of six colours to pick from in the portal. */
 export const GLASS_PRESETS: { name: string; colors: string[] }[] = [
   { name: "Gemini", colors: ["#ff8a4c", "#ff2d8a", "#d21fd8", "#7b2cff", "#2259ff", "#19e3ff"] },
-  { name: "Nebula", colors: ["#1b2bd9", "#3a5bff", "#6a8bff", "#b44dff", "#e04dff", "#c8d8ff"] },
-  { name: "Pastel", colors: ["#ffb199", "#ff7ab6", "#c58bff", "#8fb6ff", "#7ff0ff", "#ffffff"] },
-  { name: "Neon", colors: ["#8b5cff", "#5f7dff", "#38d6ff", "#f2f7ff", "#ff4fd8", "#b04dff"] },
-  { name: "Sunset", colors: ["#ff8a3d", "#ff3d8b", "#8b3dff", "#fff0e6", "#ffcf5c", "#ff5c5c"] },
-  { name: "Aurora", colors: ["#2de2a6", "#38a8ff", "#9b5cff", "#f0fff9", "#7dffcf", "#4d6bff"] },
-  { name: "Ocean", colors: ["#00d4ff", "#3a7bff", "#7a5cff", "#eefaff", "#00a3c4", "#1b3fd1"] },
-  { name: "Gold", colors: ["#ffd36a", "#ff9a3d", "#ff5c8a", "#fffbe8", "#ffb14d", "#e84a7f"] },
+  { name: "Nebula", colors: ["#1b2bd9", "#3a5bff", "#6a8bff", "#b44dff", "#e04dff", "#5ad0ff"] },
+  { name: "Candy", colors: ["#ff7ab6", "#ff9a8b", "#c58bff", "#8fb6ff", "#6ee7ff", "#ffb86b"] },
+  { name: "Neon", colors: ["#8b5cff", "#5f7dff", "#38d6ff", "#2d6bff", "#ff4fd8", "#b04dff"] },
+  { name: "Sunset", colors: ["#ff8a3d", "#ff3d8b", "#8b3dff", "#ffb347", "#ffcf5c", "#ff5c5c"] },
+  { name: "Aurora", colors: ["#2de2a6", "#38a8ff", "#9b5cff", "#18c9a0", "#7dffcf", "#4d6bff"] },
+  { name: "Ocean", colors: ["#00d4ff", "#3a7bff", "#7a5cff", "#0099cc", "#00a3c4", "#1b3fd1"] },
+  { name: "Gold", colors: ["#ffd36a", "#ff9a3d", "#ff5c8a", "#ffcc4d", "#ffb14d", "#e84a7f"] },
 ];
 
 /** The lamp colour of each menu item, until the portal changes it. */

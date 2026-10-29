@@ -503,21 +503,31 @@ html.portal-preview a[href="/"] {
    glass has its own arrangement, and the places drift and change). At rest they stay hidden. When the cursor is on the
    glass (or it is tapped, or has focus), a small soft circle under the cursor lets whatever colour is there at that
    moment glow, and the glass glows around its edge in the same colour. */
-.glass-panel {
+.glass-panel,
+.glass-glow {
   /* The six colours in the order this glass uses them (each glass gets an order of its own from GlassLight; these are the
      default order), and where each one sits on the glass (--bx1, --by1 … set by GlassLight, a place of its own for each glass). */
   /* The glow's colour: the colour under the cursor, deepened, so the halo is rich and dark rather than pale. */
   --glow-c: color-mix(in srgb, var(--spot-c) 82%, #05010f);
-  --k1: var(--glass-1, #1e4fd8);
-  --k2: var(--glass-2, #6d5bff);
-  --k3: var(--glass-3, #7fd4ff);
-  --k4: var(--glass-4, #ffffff);
-  --k5: var(--glass-5, #ff6ec7);
-  --k6: var(--glass-6, #e8648a);
+  --k1: var(--glass-1, #ff8a4c);
+  --k2: var(--glass-2, #ff2d8a);
+  --k3: var(--glass-3, #d21fd8);
+  --k4: var(--glass-4, #7b2cff);
+  --k5: var(--glass-5, #2259ff);
+  --k6: var(--glass-6, #19e3ff);
   /* Two more shades, blended from the six, for the soft in-between colours of a mesh gradient. */
   --k7: color-mix(in srgb, var(--k1) 50%, var(--k3));
   --k8: color-mix(in srgb, var(--k4) 50%, var(--k6));
   position: relative;
+  overflow: hidden;
+}
+
+/* The logo glow: just the colour glow (no glass body), for the small icon logos. Its lit area is small. */
+.glass-glow {
+  --glass-r: 80px;
+}
+
+.glass-panel {
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background:
@@ -530,13 +540,13 @@ html.portal-preview a[href="/"] {
     0 18px 40px rgba(0, 0, 0, 0.35);
   -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
-  overflow: hidden;
 }
 
 /* The glass's own transitions (the pointer following, the colours fading into one another, the bloom). A card's own
    `transition` (the Stats cards lift on hover) would replace this list, so it is set here with a little more weight, and
    includes the lift and border colour so those still animate. */
-.glass-panel.glass-panel {
+.glass-panel.glass-panel,
+.glass-glow.glass-glow {
   transition:
     transform 0.35s ease,
     border-color 0.35s ease,
@@ -570,16 +580,17 @@ html.portal-preview a[href="/"] {
 }
 
 /* The edge of the glass, lit only near the cursor in the colour that is there: a masked ring, so the inside stays clear. */
-.glass-panel::before {
+.glass-panel::before,
+.glass-glow::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 0;
   border-radius: inherit;
-  padding: 5px;
+  padding: 1.4px;
   pointer-events: none;
   background: radial-gradient(circle calc(calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) * 1.15) at var(--mx) var(--my), var(--spot-c), color-mix(in srgb, var(--spot-c) 45%, transparent) 45%, transparent);
-  filter: blur(2.5px) brightness(1.9) saturate(1.5); /* a soft glowing edge, not a hard line */
+  filter: blur(0.6px) brightness(1.2) saturate(1.5); /* a thin glowing stroke, like the edge of a pane of glass */
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
@@ -588,10 +599,11 @@ html.portal-preview a[href="/"] {
 }
 
 /* The glass holds a mesh gradient like Gemini's: large soft fields of colour (the six glass colours and two blends of them,
-   each in a place of its own on this glass) melting into each other, It is seen only
+   each in a place of its own on this glass) melting into each other. It is seen only
    where the cursor is: one small soft point of light that lights the colour there up, like the logo's light does. It grows out from the cursor, breathes a little while the cursor stays, and shrinks back
    when it leaves. Always under the card's content. */
-.glass-panel::after {
+.glass-panel::after,
+.glass-glow::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -607,7 +619,7 @@ html.portal-preview a[href="/"] {
     radial-gradient(ellipse 70% 70% at var(--bx3) var(--by3), var(--k3) 0, color-mix(in srgb, var(--k3) 55%, transparent) 38%, transparent),
     radial-gradient(ellipse 70% 70% at var(--bx2) var(--by2), var(--k2) 0, color-mix(in srgb, var(--k2) 55%, transparent) 38%, transparent),
     radial-gradient(ellipse 70% 70% at var(--bx1) var(--by1), var(--k1) 0, color-mix(in srgb, var(--k1) 55%, transparent) 38%, transparent);
-  filter: saturate(1.6) brightness(1.3);
+  filter: saturate(1.7) brightness(1.05);
   -webkit-mask-image: radial-gradient(circle calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.92) 18%, rgba(0, 0, 0, 0.62) 42%, rgba(0, 0, 0, 0.28) 68%, rgba(0, 0, 0, 0.08) 88%, transparent 100%);
   mask-image: radial-gradient(circle calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.92) 18%, rgba(0, 0, 0, 0.62) 42%, rgba(0, 0, 0, 0.28) 68%, rgba(0, 0, 0, 0.08) 88%, transparent 100%);
   opacity: 0;
@@ -616,7 +628,10 @@ html.portal-preview a[href="/"] {
 
 .glass-panel:hover,
 .glass-panel:focus-within,
-.glass-panel[data-lit="true"] {
+.glass-panel[data-lit="true"],
+.glass-glow:hover,
+.glass-glow:focus-within,
+.glass-glow[data-lit="true"] {
   --lit: 1;
   --bloom: 1;
   animation: glassBreathe 3s ease-in-out infinite;
@@ -624,26 +639,36 @@ html.portal-preview a[href="/"] {
 
 .glass-panel:hover::before,
 .glass-panel:focus-within::before,
-.glass-panel[data-lit="true"]::before {
+.glass-panel[data-lit="true"]::before,
+.glass-glow:hover::before,
+.glass-glow:focus-within::before,
+.glass-glow[data-lit="true"]::before {
   opacity: var(--glass-rim-opacity, 0.9);
 }
 
 .glass-panel:hover::after,
 .glass-panel:focus-within::after,
-.glass-panel[data-lit="true"]::after {
+.glass-panel[data-lit="true"]::after,
+.glass-glow:hover::after,
+.glass-glow:focus-within::after,
+.glass-glow[data-lit="true"]::after {
   opacity: var(--glass-alpha, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .glass-panel.glass-panel,
   .glass-panel::before,
-  .glass-panel::after {
+  .glass-panel::after,
+  .glass-glow.glass-glow,
+  .glass-glow::before,
+  .glass-glow::after {
     transition: none;
     animation: none !important;
   }
 }
 
-.glass-panel > * {
+.glass-panel > *,
+.glass-glow > * {
   position: relative;
   z-index: 1;
 }

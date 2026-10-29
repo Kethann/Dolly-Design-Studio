@@ -35,7 +35,15 @@ export function Founder() {
               {copy.cardNote}
             </p>
           )}
-          <p className={styles.place}>{site.contact.location}</p>
+          {site.social.length > 0 && (
+            <nav className={styles.social} aria-label={`${site.founder.name} on social media`}>
+              {site.social.map((s) => (
+                <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" data-cursor="link">
+                  {s.label}
+                </a>
+              ))}
+            </nav>
+          )}
         </aside>
 
         <div className={styles.story}>

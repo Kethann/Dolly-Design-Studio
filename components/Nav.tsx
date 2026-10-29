@@ -15,6 +15,9 @@ export function Nav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("");
+  /** The corner logo: hidden on the first section of the home page (the big logo is there), then eased in. */
+  const [pastFirst, setPastFirst] = useState(false);
+  const logoShown = pathname !== "/" || pastFirst;
   const linksRef = useRef<HTMLElement>(null);
   const linkRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
   /** Where the spotlight sits (over the current item), and whether it may glide there (not on the very first placing). */
@@ -46,13 +49,37 @@ export function Nav() {
     };
     const io = new IntersectionObserver(find, { rootMargin: "-40% 0px -50% 0px", threshold: [0, 1] });
     sections.forEach((s) => io.observe(s));
+    const ro = new ResizeObserver(find); // the page's height changed (images and fonts arriving)
+    ro.observe(document.body);
     window.addEventListener("scroll", find, { passive: true });
+    window.addEventListener("resize", find);
+    window.addEventListener("pageshow", find);
     find();
     return () => {
       io.disconnect();
+      ro.disconnect();
       window.removeEventListener("scroll", find);
+      window.removeEventListener("resize", find);
+      window.removeEventListener("pageshow", find);
     };
   }, [pathname, navItems]);
+
+  useEffect(() => {
+    if (pathname !== "/") return;
+    // On the home page the logo appears once the second section is reached (the first section's bottom is above the middle
+    // of the screen), and goes again if you come back to the top.
+    const check = () => {
+      const first = document.getElementById("top");
+      setPastFirst(!first || first.getBoundingClientRect().bottom < window.innerHeight * 0.55);
+    };
+    check();
+    window.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("resize", check);
+    return () => {
+      window.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+    };
+  }, [pathname]);
 
   // Keep the spotlight over the current item, and glide it along when the item changes.
   useEffect(() => {
@@ -99,6 +126,9 @@ export function Nav() {
         className={styles.brand}
         data-cursor="link"
         data-cursor-logo
+        data-shown={logoShown}
+        tabIndex={logoShown ? undefined : -1}
+        aria-hidden={logoShown ? undefined : true}
         aria-label={`${site.name} — home`}
         onClick={glideOnHome()}
       >
@@ -110,7 +140,6 @@ export function Nav() {
         >
           <path d={LOGO_BODY_PATH} fill="var(--gold-bright)" fillRule="evenodd" />
         </svg>
-        <span className={styles.brandName}>{site.shortName}</span>
       </Link>
 
       <nav ref={linksRef} className={styles.links} aria-label="Primary" data-lit={!!activeId}>

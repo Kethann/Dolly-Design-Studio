@@ -860,7 +860,7 @@
       "slug": "independent-films",
       "title": "Independent Films",
       "film": "Independent & short films",
-      "category": "Short Films / Independent Films",
+      "category": "Short Films/Indie Films",
       "languages": [
         "Telugu"
       ],
@@ -959,9 +959,9 @@
   ],
   "categories": [
     "Mainstream Films",
-    "OTT Films / Web Series",
+    "OTT Films/Webseries",
     "Music Videos",
-    "Short Films / Independent Films"
+    "Short Films/Indie Films"
   ],
   "work": {
     "metaTitle": "Work",
