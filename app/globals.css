@@ -579,7 +579,10 @@ html.portal-preview a[href="/"] {
     --bloom 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* The edge of the glass, lit only near the cursor in the colour that is there: a masked ring, so the inside stays clear. */
+/* The edge of the glass, like liquid glass: a thin stroke (the same thin line as before) that always catches the light. Two
+   bright glints run along it, at opposite corners, fading to a faint line between; when the cursor is on the glass a
+   small white glint slides along the edge nearest to it, with the colour of the glass there glowing around it. It is a masked
+   ring, so only the thin edge is drawn and the inside stays clear. */
 .glass-panel::before,
 .glass-glow::before {
   content: "";
@@ -589,13 +592,15 @@ html.portal-preview a[href="/"] {
   border-radius: inherit;
   padding: 1.4px;
   pointer-events: none;
-  background: radial-gradient(circle calc(calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) * 1.15) at var(--mx) var(--my), var(--spot-c), color-mix(in srgb, var(--spot-c) 45%, transparent) 45%, transparent);
-  filter: blur(0.6px) brightness(1.2) saturate(1.5); /* a thin glowing stroke, like the edge of a pane of glass */
+  background:
+    radial-gradient(circle calc(calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) * 1.15) at var(--mx) var(--my), color-mix(in srgb, var(--spot-c) calc(var(--lit) * 100%), transparent), color-mix(in srgb, var(--spot-c) calc(var(--lit) * 45%), transparent) 45%, transparent),
+    radial-gradient(circle 90px at var(--mx) var(--my), rgba(255, 255, 255, calc(var(--lit) * 0.95)), transparent),
+    conic-gradient(from 150deg at 50% 50%, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.12) 13%, rgba(255, 255, 255, 0.05) 32%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0.07) 68%, rgba(255, 255, 255, 0.62));
+  filter: blur(0.4px) brightness(1.15) saturate(1.4);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  opacity: var(--glass-rim-opacity, 0.9);
 }
 
 /* The glass holds a mesh gradient like Gemini's: large soft fields of colour (the six glass colours and two blends of them,
@@ -635,15 +640,6 @@ html.portal-preview a[href="/"] {
   --lit: 1;
   --bloom: 1;
   animation: glassBreathe 3s ease-in-out infinite;
-}
-
-.glass-panel:hover::before,
-.glass-panel:focus-within::before,
-.glass-panel[data-lit="true"]::before,
-.glass-glow:hover::before,
-.glass-glow:focus-within::before,
-.glass-glow[data-lit="true"]::before {
-  opacity: var(--glass-rim-opacity, 0.9);
 }
 
 .glass-panel:hover::after,

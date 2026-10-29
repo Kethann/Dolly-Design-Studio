@@ -79,93 +79,41 @@
   opacity: 0.8;
 }
 
-/* The founder's social links, under the description: small pill links in a row. */
+/* The founder's social links, under the story on the right: the logos themselves, in a row. */
 .social {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 6px;
+  align-items: center;
+  gap: 22px;
+  margin-top: 26px;
 }
 
 .social a {
-  padding: 7px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  font-family: var(--font-label);
-  font-size: 10.5px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--ivory);
-  opacity: 0.85;
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  opacity: 0.9;
   transition:
     opacity 0.2s ease,
-    color 0.2s ease,
-    border-color 0.2s ease;
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.25s ease;
+}
+
+.social a svg {
+  display: block;
+  height: 100%;
+  width: auto;
+  aspect-ratio: 1;
+}
+
+/* The IMDb logo is a wide badge, not a square. */
+.social a svg[viewBox="0 0 48 24"] {
+  aspect-ratio: 2;
 }
 
 .social a:hover,
 .social a:focus-visible {
   opacity: 1;
-  color: var(--gold-bright);
-  border-color: var(--gold);
-}
-
-@media (max-width: 820px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-.photo {
-  position: relative;
-  width: 168px;
-  height: 168px;
-  margin: 0 auto 24px;
-  overflow: hidden;
-  border-radius: 50%;
-  border: 1px solid var(--gold);
-  box-shadow:
-    0 0 0 6px rgba(232, 176, 75, 0.1),
-    0 14px 34px rgba(0, 0, 0, 0.45);
-}
-
-.photo img {
-  object-fit: cover;
-}
-
-/* The profile picture's shape and size come from the portal (About the founder → Profile picture). */
-.photo,
-.monogram {
-  --d: 168px;
-  width: var(--d);
-  height: var(--d);
-}
-
-.photo[data-size="small"],
-.monogram[data-size="small"] {
-  --d: 120px;
-}
-
-.photo[data-size="large"],
-.monogram[data-size="large"] {
-  --d: 220px;
-}
-
-.photo[data-shape="rounded"],
-.monogram[data-shape="rounded"] {
-  border-radius: 24px;
-}
-
-.photo[data-shape="square"],
-.monogram[data-shape="square"] {
-  border-radius: 6px;
-}
-
-.monogram[data-size="large"] {
-  font-size: 66px;
-}
-
-.monogram[data-size="small"] {
-  font-size: 38px;
+  transform: translateY(-3px) scale(1.08);
+  filter: drop-shadow(0 6px 14px rgba(255, 220, 140, 0.35));
 }
