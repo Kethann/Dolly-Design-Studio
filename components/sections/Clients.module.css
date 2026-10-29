@@ -81,17 +81,23 @@
 .track {
   display: flex;
   width: max-content;
-  animation: drift 120s linear infinite;
+  will-change: transform; /* moved by useDragMarquee: it drifts on its own and can be held and dragged */
 }
 
-/* The second row runs the other way. */
-.reverse {
-  animation-direction: reverse;
-  animation-duration: 140s;
+/* Hold and drag either way; up-and-down touches still scroll the page. */
+.viewport {
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.viewport:hover .track {
-  animation-play-state: paused;
+.viewport[data-drag="true"] {
+  cursor: grabbing;
+}
+
+.viewport img {
+  -webkit-user-drag: none;
 }
 
 .half {
@@ -243,24 +249,6 @@
   text-transform: uppercase;
 }
 
-@keyframes drift {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .track {
-    animation: none;
-  }
-  .viewport {
-    overflow-x: auto;
-  }
-}
-
 /* While editing in the portal, the rows stop scrolling and lay every entry out, so each one can be seen and edited. */
 :global(html[data-dds-edit]) .viewport {
   overflow: visible;
@@ -270,8 +258,7 @@
 
 :global(html[data-dds-edit]) .track {
   width: auto;
-  animation: none;
-  transform: none;
+  transform: none !important;
 }
 
 :global(html[data-dds-edit]) .half {

@@ -3,6 +3,7 @@
 import { useContent, tx } from "@/lib/content/context";
 import { edItem } from "@/lib/content/tx";
 import { edSection } from "@/lib/content/tx";
+import { useDragMarquee } from "./useDragMarquee";
 import styles from "./Clients.module.css";
 
 interface Item {
@@ -20,14 +21,15 @@ const fill = (items: Item[]) => Array.from({ length: Math.max(2, Math.ceil(14 / 
 
 function Row({ items, label, reverse, shape, size, logoSize, list }: { items: Item[]; label: string; reverse?: boolean; shape?: string; size?: string; logoSize?: string; /** The content list this row shows (clients or collaborators), so each entry can be edited. */ list: string }) {
   const fillItems = fill(items);
+  const { viewport, track } = useDragMarquee({ seconds: reverse ? 140 : 120, reverse });
   /** What marks an entry for the portal's Edit button: only the first set of the first copy; repeats are hidden while editing. */
   const mark = (copy: number, i: number) => (copy === 0 && i < items.length ? edItem(list, i, items[i].name) : { "data-ed-dup": "" });
   const hasPictures = items.some((it) => it.logo || it.photo);
   return (
     <div className={styles.row}>
       <span className={styles.rowLabel}>{label}</span>
-      <div className={styles.viewport} data-shape={shape} data-size={size} data-logo={logoSize} aria-hidden="true">
-        <div className={`${styles.track} ${reverse ? styles.reverse : ""}`}>
+      <div ref={viewport} className={styles.viewport} data-shape={shape} data-size={size} data-logo={logoSize} aria-hidden="true">
+        <div ref={track} className={styles.track}>
           {[0, 1].map((copy) => (
             <div key={copy} className={styles.half}>
               {fillItems.map((it, i) =>
@@ -40,6 +42,7 @@ function Row({ items, label, reverse, shape, size, logoSize, list }: { items: It
                         <img
                           src={(it.logo || it.photo) as string}
                           alt={it.alt || ""}
+                          draggable={false}
                           className={it.photo ? styles.portrait : styles.logo}
                           loading="lazy"
                           decoding="async"
@@ -66,7 +69,7 @@ function Row({ items, label, reverse, shape, size, logoSize, list }: { items: It
   );
 }
 
-/** Clients & collaborations: two marquee rows drifting in opposite directions — production houses, then the people. */
+/** Clients & collaborations: two tracks drifting in opposite directions (hold and drag either one sideways) — production houses, then the people. */
 export function Clients() {
   const { home, clients, collaborators, testimonials } = useContent();
   const names = [...clients.map((c) => c.name), ...collaborators.map((c) => c.name)];
