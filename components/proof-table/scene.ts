@@ -306,6 +306,20 @@ const AURA_FRAGMENT = /* glsl */ `
   }
 `;
 
+/** A soft pool of light on the slab: it takes the colour of the glow on the card that is being looked at, as a reflection. */
+const POOL_FRAGMENT = /* glsl */ `
+  varying vec2 vUv;
+  uniform vec3 uColor;
+  uniform float uOn;
+  void main() {
+    float r = length((vUv - 0.5) * 2.0);
+    float a = smoothstep(1.0, 0.0, r);
+    a = a * a * uOn;
+    gl_FragColor = vec4(uColor, a * 0.85);
+    #include <colorspace_fragment>
+  }
+`;
+
 /** The six glass colours (the site's, from the portal), shuffled into a new order. */
 function auraColours(): THREE.Color[] {
   const root = typeof document !== "undefined" ? getComputedStyle(document.documentElement) : null;
@@ -506,6 +520,25 @@ export function createProofScene(
   const panel = new THREE.Mesh(track(new THREE.PlaneGeometry(pw, pd).rotateX(-Math.PI / 2)), panelMat);
   panel.position.y = T + 0.003;
   scene.add(panel);
+
+  // The glow of the cards reflected on the glass slab: one soft pool under the card that is lit, in that card's colour.
+  const poolMat = track(
+    new THREE.ShaderMaterial({
+      vertexShader: AURA_VERTEX,
+      fragmentShader: POOL_FRAGMENT,
+      uniforms: { uColor: { value: new THREE.Color(0xffffff) }, uOn: { value: 0 } },
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  const pool = new THREE.Mesh(track(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), poolMat);
+  pool.renderOrder = 1;
+  pool.visible = false;
+  scene.add(pool);
+  let poolOn = 0;
+  const poolAt = new THREE.Vector3();
 
   // --- Proofs ----------------------------------------------------------------------------------
   const shadowGeo = track(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2));
@@ -1018,6 +1051,38 @@ export function createProofScene(
         pl.ripple.material.opacity = (1 - u) * (1 - u) * 0.5;
       }
     });
+
+    // The slab's reflection of the glow: under the card being looked at, in the colour of the glow on it.
+    let lit = -1;
+    plates.forEach((pl, i) => {
+      if (pl.auraOn > 0.002 && (lit < 0 || pl.auraOn > plates[lit].auraOn)) lit = i;
+    });
+    if (lit >= 0) {
+      const pl = plates[lit];
+      const cols = pl.aura.material.uniforms.uColors.value as THREE.Color[];
+      const pos = pl.aura.material.uniforms.uPos.value as THREE.Vector2[];
+      let best = 0;
+      let bestD = Infinity;
+      pos.forEach((q, j) => {
+        const dx = (q.x - pl.auraTarget.x) * pl.w;
+        const dz = (q.y - pl.auraTarget.y) * pl.d;
+        const d = dx * dx + dz * dz;
+        if (d < bestD) {
+          bestD = d;
+          best = j;
+        }
+      });
+      (poolMat.uniforms.uColor.value as THREE.Color).lerp(cols[best], 1 - Math.exp(-dt * 6));
+      poolAt.set(pl.x, top + 0.012, pl.z);
+      pool.position.copy(poolAt);
+      pool.scale.set(pl.w * 2.1, 1, pl.d * 2.4);
+    }
+    const poolGoal = lit >= 0 ? plates[lit].auraOn : 0;
+    poolOn += (poolGoal - poolOn) * (1 - Math.exp(-dt * 8));
+    if (Math.abs(poolGoal - poolOn) < 0.002) poolOn = poolGoal;
+    else busy = true;
+    poolMat.uniforms.uOn.value = poolOn;
+    pool.visible = poolOn > 0.002;
 
     // Only draw when something changed: scrolling, a spring still settling, or new cards / glass.
     if (busy || dirty || p !== lastP) renderer.render(scene, camera);

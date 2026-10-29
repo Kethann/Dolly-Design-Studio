@@ -29,17 +29,29 @@ export function Nav() {
 
   useEffect(() => {
     if (pathname !== "/") return;
-    const sections = navItems.map((n) => document.getElementById(n.id)).filter(Boolean) as HTMLElement[];
+    // Every section of the home page, and the menu item each one belongs to ("" = none: the intro, and the making stills).
+    // The projects slate belongs to "Projects".
+    const ITEM_OF: Record<string, string> = { top: "", agency: "agency", clients: "clients", about: "about", collaborations: "work", work: "work", process: "process", making: "", services: "services", contact: "contact" };
+    const sections = Object.keys(ITEM_OF).map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
     if (!sections.length) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        if (visible[0]) setActiveSection(visible[0].target.id);
-      },
-      { rootMargin: "-40% 0px -50% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] },
-    );
+    // The section across the reading line (just above the middle of the screen) is the one you are in. Worked out from where
+    // the sections are, so even a very tall section (the pinned slate) is found correctly.
+    const find = () => {
+      const line = window.innerHeight * 0.45;
+      const here = sections.find((s) => {
+        const r = s.getBoundingClientRect();
+        return r.top <= line && r.bottom > line;
+      });
+      setActiveSection(here ? (ITEM_OF[here.id] ?? "") : "");
+    };
+    const io = new IntersectionObserver(find, { rootMargin: "-40% 0px -50% 0px", threshold: [0, 1] });
     sections.forEach((s) => io.observe(s));
-    return () => io.disconnect();
+    window.addEventListener("scroll", find, { passive: true });
+    find();
+    return () => {
+      io.disconnect();
+      window.removeEventListener("scroll", find);
+    };
   }, [pathname, navItems]);
 
   // Keep the spotlight over the current item, and glide it along when the item changes.

@@ -9,6 +9,9 @@
   align-items: center;
   justify-content: space-between;
   padding-inline: clamp(20px, 5vw, 48px);
+  /* The logo and the items sit a little way down from the top edge of the screen, not tight against it. */
+  padding-top: 24px;
+  box-sizing: border-box;
   background: linear-gradient(to bottom, color-mix(in srgb, var(--stage) 85%, transparent), transparent);
 }
 
