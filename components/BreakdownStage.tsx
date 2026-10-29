@@ -592,18 +592,6 @@ export const ExplodeStage = memo(function ExplodeStage({
       >
         <div className={styles.viewport}>
           <div ref={stack} className={styles.stack} style={{ transform: transformFor(open, view) }}>
-            {/* A grey board behind the artwork, so the picture reads clearly from every side while it is turned. */}
-            <div
-              className={styles.plate}
-              aria-hidden="true"
-              style={{ opacity: open ? 1 : 0, transform: `translateZ(${open ? zOf(0) - Math.max(24, gap * 0.9) : -1}px)` }}
-            />
-            {/* …and its back: seen from behind, the board is dark grey. */}
-            <div
-              className={styles.plateBack}
-              aria-hidden="true"
-              style={{ opacity: open ? 1 : 0, transform: `translateZ(${open ? zOf(0) - Math.max(24, gap * 0.9) : -1}px) rotateY(180deg)` }}
-            />
             {mounted &&
               item.layers.map((layer, i) => (
                 <Fragment key={`${layer.image}-${i}`}>
