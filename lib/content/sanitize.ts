@@ -1,5 +1,5 @@
 import { CATEGORIES, LANGUAGES, LEGACY_CATEGORIES } from "@/content/types";
-import { DEFAULT_GLASS, GLASS_EFFECTS, OLD_GLASS, type GlassLook } from "./types";
+import { DEFAULT_GLASS, GLASS_EFFECTS, OLD_GEMINI, OLD_GLASS, type GlassLook } from "./types";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "./limits";
 import { defaultContent } from "./defaults";
 import { fontById } from "./fonts";
@@ -188,18 +188,23 @@ export function sanitizeContent(input: unknown): SiteContent {
   const gIn = isObj(src.theme) && isObj(src.theme.glass) ? src.theme.glass : {};
   const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
   const dg = DEFAULT_GLASS;
-  // Glass saved before it took three colours: the original violet-and-blue becomes the new default; other two-colour looks
-  // keep their colours, with the colour between them as the middle one.
-  const twoColour = !("colorC" in gIn);
+  // Glass saved in an earlier look moves to the current one: the first violet-and-blue and the first three-colour Gemini
+  // become the new default; other looks keep their colours (a middle colour is worked out for two-colour ones) and get the
+  // light sparkle colour.
   const hexOf = (n: number) => n.toString(16).padStart(2, "0");
   const midway = (x: string, y: string) => "#" + [1, 3, 5].map((i) => hexOf(Math.round((parseInt(x.slice(i, i + 2), 16) + parseInt(y.slice(i, i + 2), 16)) / 2))).join("");
   const colA = isHex(gIn.colorA) ? gIn.colorA.toLowerCase() : dg.colorA;
   const colB = isHex(gIn.colorB) ? gIn.colorB.toLowerCase() : dg.colorB;
-  const isOld = twoColour && colA === OLD_GLASS.colorA && colB === OLD_GLASS.colorB;
+  const hexOr = (x: unknown) => (isHex(x) ? x.toLowerCase() : "");
+  const violetBlue = !("colorC" in gIn) && colA === OLD_GLASS.colorA && colB === OLD_GLASS.colorB;
+  const oldGemini = !("colorD" in gIn) && colA === OLD_GEMINI.colorA && hexOr(gIn.colorC) === OLD_GEMINI.colorC && colB === OLD_GEMINI.colorB;
+  const fresh = violetBlue || oldGemini;
   merged.theme.glass = {
-    colorA: isOld ? dg.colorA : colA,
-    colorC: isHex(gIn.colorC) ? gIn.colorC.toLowerCase() : isOld || (twoColour && !isHex(gIn.colorA)) ? dg.colorC : midway(colA, colB),
-    colorB: isOld ? dg.colorB : colB,
+    colorA: fresh ? dg.colorA : colA,
+    colorC: fresh ? dg.colorC : hexOr(gIn.colorC) || midway(colA, colB),
+    colorB: fresh ? dg.colorB : colB,
+    colorD: fresh ? dg.colorD : hexOr(gIn.colorD) || dg.colorD,
+    shuffle: typeof gIn.shuffle === "boolean" ? gIn.shuffle : dg.shuffle,
     angle: Math.round(num(gIn.angle, 0, 360, dg.angle)),
     tint: Math.round(num(gIn.tint, 0, 0.7, dg.tint) * 100) / 100,
     blur: Math.round(num(gIn.blur, 0, 30, dg.blur)),

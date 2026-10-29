@@ -56,6 +56,10 @@ export interface GlassLook {
   colorA: string;
   colorC: string;
   colorB: string;
+  /** A fourth, light colour (white by default) for the sparkle. */
+  colorD: string;
+  /** Each glass card mixes the four colours in an order of its own, and changes it each time the cursor comes back. */
+  shuffle: boolean;
   /** Direction of the gradient, 0–360 degrees. */
   angle: number;
   /** How strongly the colours tint the glass, 0–0.7. */
@@ -164,18 +168,19 @@ export interface SiteContent {
   pages: Record<PageKey, PageLook>;
 }
 
-/** The glass as the site first has it: a Gemini-style blue, violet and rose. */
-export const DEFAULT_GLASS: GlassLook = { colorA: "#4285f4", colorC: "#9b72cb", colorB: "#d96570", angle: 135, tint: 0.34, blur: 14, spread: 0.3, glow: 0.3, effect: "Neon" };
+/** The glass as the site first has it: the Google Gemini gradient (blue, violet, rose) with a white sparkle. */
+export const DEFAULT_GLASS: GlassLook = { colorA: "#4285f4", colorC: "#9b72cb", colorB: "#d96570", colorD: "#f4f0ff", shuffle: true, angle: 135, tint: 0.7, blur: 14, spread: 0.3, glow: 0.3, effect: "Neon" };
 
-/** The look glass had before it took three colours (saved settings in this look move to the new one). */
+/** Earlier looks of the glass (saved settings in one of these move to the current default). */
 export const OLD_GLASS = { colorA: "#8b5cff", colorB: "#38a8ff" };
+export const OLD_GEMINI = { colorA: "#4285f4", colorC: "#9b72cb", colorB: "#d96570" };
 
-/** Ready-made sets of three colours to pick from in the portal. */
-export const GLASS_PRESETS: { name: string; colors: [string, string, string] }[] = [
-  { name: "Gemini", colors: ["#4285f4", "#9b72cb", "#d96570"] },
-  { name: "Neon", colors: ["#8b5cff", "#5f7dff", "#38a8ff"] },
-  { name: "Sunset", colors: ["#ff6a3d", "#ff3d8b", "#8b3dff"] },
-  { name: "Aurora", colors: ["#2de2a6", "#38a8ff", "#9b5cff"] },
-  { name: "Ocean", colors: ["#00d4ff", "#3a7bff", "#7a5cff"] },
-  { name: "Gold", colors: ["#ffd36a", "#ff9a3d", "#ff5c8a"] },
+/** Ready-made sets of four colours to pick from in the portal: first, middle, last and the light sparkle. */
+export const GLASS_PRESETS: { name: string; colors: [string, string, string, string] }[] = [
+  { name: "Gemini", colors: ["#4285f4", "#9b72cb", "#d96570", "#f4f0ff"] },
+  { name: "Neon", colors: ["#8b5cff", "#5f7dff", "#38d6ff", "#f2f7ff"] },
+  { name: "Sunset", colors: ["#ff8a3d", "#ff3d8b", "#8b3dff", "#fff0e6"] },
+  { name: "Aurora", colors: ["#2de2a6", "#38a8ff", "#9b5cff", "#f0fff9"] },
+  { name: "Ocean", colors: ["#00d4ff", "#3a7bff", "#7a5cff", "#eefaff"] },
+  { name: "Gold", colors: ["#ffd36a", "#ff9a3d", "#ff5c8a", "#fffbe8"] },
 ];
