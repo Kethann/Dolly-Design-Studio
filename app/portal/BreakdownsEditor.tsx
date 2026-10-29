@@ -165,16 +165,11 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
                   </button>
                 </p>
               )}
-              {b.layers.length < MAX_BREAKDOWN_LAYERS && (
-                <PsdImport
-                  room={MAX_BREAKDOWN_LAYERS - b.layers.length}
-                  upload={media.upload}
-                  onNotice={setNotice}
-                  onLayers={(added) => patch(i, (x) => ({ ...x, layers: [...x.layers, ...added] }))}
-                />
-              )}
               <LayerUpload
                 full={b.layers.length >= MAX_BREAKDOWN_LAYERS}
+                room={MAX_BREAKDOWN_LAYERS - b.layers.length}
+                onNotice={setNotice}
+                onPsd={(added, name) => patch(i, (x) => ({ ...x, title: x.title === "New breakdown" || !x.title ? name : x.title, layers: [...x.layers, ...added] }))}
                 onFiles={async (files, start) => {
                   // In the order of the file names, each becoming the next layer up, named after its file.
                   const sorted = [...files].sort((a, b2) => a.name.localeCompare(b2.name, undefined, { numeric: true }));
@@ -354,21 +349,12 @@ function ReplaceLayer({ upload, onDone }: { upload: (file: File, onProgress?: (p
 }
 
 /**
- * A drop area for a Photoshop file: every visible pixel layer in it becomes a breakdown layer (named after the layer, in
- * Photoshop's own order, each the size of the whole canvas so they line up). Nothing to export by hand.
+ * Photoshop files: every visible pixel layer becomes a breakdown layer (named after the Photoshop layer, in Photoshop's
+ * own order, each the size of the whole canvas so they line up). The layers are taken out automatically, with nothing to
+ * export by hand.
  */
-function PsdImport({
-  room,
-  upload,
-  onNotice,
-  onLayers,
-}: {
-  room: number;
-  upload: (file: File, onProgress?: (percent: number) => void) => Promise<string>;
-  onNotice: (message: string | null) => void;
-  onLayers: (layers: BreakdownLayer[]) => void;
-}) {
-  const uploads = useUploads<{ layers: BreakdownLayer[]; message: string }>("psd", async (file, progress) => {
+function usePsdImport(room: number, upload: (file: File, onProgress?: (percent: number) => void) => Promise<string>) {
+  return useUploads<{ layers: BreakdownLayer[]; message: string }>("psd", async (file, progress) => {
     progress(1);
     const psd = await readPsdLayers(file);
     if (!psd.layers.length) throw new Error("No visible pixel layers were found in this file.");
@@ -380,25 +366,11 @@ function PsdImport({
       const src = await upload(png, (p) => progress(Math.round(((k + p / 100) / take.length) * 100)));
       out.push({ image: src, label: name.slice(0, 60) });
     }
-    const parts = [`Added ${out.length} layer${out.length === 1 ? "" : "s"} from the Photoshop file.`];
+    const parts = [`Added ${out.length} layer${out.length === 1 ? "" : "s"} from ${file.name}.`];
     if (psd.skipped) parts.push(`${psd.skipped} hidden or empty layer${psd.skipped === 1 ? " was" : "s were"} left out.`);
     if (psd.layers.length > take.length) parts.push(`A breakdown holds ${MAX_BREAKDOWN_LAYERS} layers, so the last ${psd.layers.length - take.length} were skipped.`);
     return { layers: out, message: parts.join(" ") };
   });
-  return (
-    <DropZone
-      kind="psd"
-      state={uploads.state}
-      title="Drop a Photoshop file (.psd) here to take its layers automatically"
-      hint="Every visible layer becomes a breakdown layer, named after the layer and in the same order. Hidden layers are left out, and groups are opened up."
-      onFiles={(files) =>
-        uploads.start(files, (result) => {
-          onLayers(result.layers);
-          onNotice(result.message);
-        })
-      }
-    />
-  );
 }
 
 /** A drop area that takes many PNG layers at once. */
@@ -406,21 +378,41 @@ function LayerUpload({
   onFiles,
   upload,
   full,
+  room,
+  onNotice,
+  onPsd,
 }: {
   full?: boolean;
+  room: number;
+  onNotice: (message: string | null) => void;
+  /** Layers taken from a Photoshop file, and the file's name (without .psd). */
+  onPsd: (layers: BreakdownLayer[], name: string) => void;
   onFiles: (files: File[], start: (files: File[], onEach: (src: string, file: File) => void) => Promise<void>) => Promise<void>;
   upload: (file: File, onProgress?: (percent: number) => void) => Promise<string>;
 }) {
   const uploads = useUploads<string>("image", (f, p) => upload(f, p));
+  const psdUploads = usePsdImport(room, upload);
+  const busy = uploads.state.busy || psdUploads.state.busy;
+  const state = psdUploads.state.busy || psdUploads.state.errors.length ? { ...psdUploads.state, errors: [...psdUploads.state.errors, ...uploads.state.errors] } : uploads.state;
   if (full) return null; // the drop area gives way to the "full" message above it
   return (
     <DropZone
-      kind="image"
+      kind="layers"
       multiple
-      state={uploads.state}
-      title="Drop all your layer PNGs here, or click to choose"
-      hint="Select every layer file at once. They are added in file-name order, each named after its file — you can rename them and change the order below."
-      onFiles={(files) => onFiles(files, (fs, each) => uploads.start(fs, each))}
+      state={state}
+      title="Drop a Photoshop file (.psd) or your layer PNGs here"
+      hint="A PSD gives you its layers automatically: each visible layer is named after the Photoshop layer and kept in the same order (hidden layers are left out, groups are opened up). Or select every PNG layer at once; they are added in file-name order."
+      onFiles={(files) => {
+        if (busy) return;
+        const psds = files.filter((f) => /\.psd$/i.test(f.name));
+        const rest = files.filter((f) => !/\.psd$/i.test(f.name));
+        if (psds.length) {
+          void psdUploads.start(psds.slice(0, 1), (result, file) => {
+            onPsd(result.layers, file.name.replace(/\.psd$/i, "").slice(0, 80));
+            onNotice(result.message + (psds.length > 1 ? " Only the first Photoshop file was used." : ""));
+          });
+        } else if (rest.length) void onFiles(rest, (fs, each) => uploads.start(fs, each));
+      }}
     />
   );
 }

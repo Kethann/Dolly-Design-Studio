@@ -29,6 +29,7 @@ export const UPLOAD_KINDS = {
     maxMb: 30,
     noun: "an image (PNG, JPG, WebP, AVIF, GIF, SVG, BMP, ICO, TIFF or HEIC)",
   },
+  layers: { pattern: /\.(psd|png|jpe?g|jfif|webp|avif|gif|svg|bmp|ico|tiff?|heic|heif)$/i, accept: "image/*,.psd,.png,.jpg,.jpeg,.jfif,.webp,.avif,.gif,.svg,.bmp,.ico,.tif,.tiff,.heic,.heif", maxMb: 400, noun: "a Photoshop file or an image" },
   psd: { pattern: /\.psd$/i, accept: ".psd,image/vnd.adobe.photoshop", maxMb: 400, noun: "a Photoshop file (PSD)" },
   font: { pattern: /\.(ttf|otf|woff2?)$/i, accept: ".ttf,.otf,.woff,.woff2", maxMb: 10, noun: "a font (TTF, OTF, WOFF or WOFF2)" },
 } as const;
