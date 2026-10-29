@@ -53,3 +53,14 @@
   opacity: 0.75;
   max-width: 640px;
 }
+
+/* Tablets and phones: no tall empty block around the statement; it flows straight into the numbers below. */
+@media (max-width: 1024px) {
+  .section {
+    min-height: 0;
+    padding-block: var(--section-pad) 20px;
+  }
+  .statement {
+    margin-bottom: 20px;
+  }
+}

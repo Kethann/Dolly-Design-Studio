@@ -37,6 +37,19 @@ export function NavHistory() {
     if (new URLSearchParams(window.location.search).has("portal-preview")) return;
     if ("scrollRestoration" in history) history.scrollRestoration = "manual"; // restored below, exactly
     positions.current = readPositions();
+    // An update just reloaded the page (see UpdateWatcher): put the visitor back where they were.
+    try {
+      const resume = JSON.parse(sessionStorage.getItem("dds-resume") ?? "null") as { url: string; y: number } | null;
+      sessionStorage.removeItem("dds-resume");
+      if (resume && resume.url === window.location.pathname + window.location.search && !window.location.hash) {
+        let tries = 0;
+        const put = () => {
+          jumpTo(Math.min(resume.y, Math.max(0, document.documentElement.scrollHeight - window.innerHeight)));
+          if (Math.abs(window.scrollY - resume.y) > 2 && ++tries < 40) requestAnimationFrame(put);
+        };
+        requestAnimationFrame(put);
+      }
+    } catch {}
     let raf = 0;
     const save = () => {
       raf = 0;
@@ -101,20 +114,29 @@ export function NavHistory() {
     window.addEventListener("touchstart", halt, { passive: true });
     window.addEventListener("keydown", halt);
     const started = performance.now();
+    const WINDOW_MS = 4000; // how long the landing keeps itself right while the page settles
     const attempt = () => {
+      raf = 0;
       const el = id ? document.getElementById(id) : null;
-      if (!arrivedByHistory && !el && performance.now() - started > 2500) return;
+      const age = performance.now() - started;
+      if (stop || age > WINDOW_MS) return;
+      if (!arrivedByHistory && !el && age > 2500) return;
       const target = saved ?? (el ? topOf(el, clearBar) : 0);
       const reachable = document.documentElement.scrollHeight - window.innerHeight;
       jumpTo(Math.min(target, Math.max(0, reachable)));
-      // Keep trying until the page is tall enough to reach it (images and pinned scenes settle late), then stop.
-      // Until the page has settled (images and pinned scenes arrive late) keep re-aiming, then stop. A visitor who
-      // scrolls by hand first is never fought: the loop ends at the first wheel / touch / key.
-      if (!stop && (Math.abs(window.scrollY - target) > 2 || performance.now() - started < 600) && performance.now() - started < 2500) raf = requestAnimationFrame(attempt);
+      // Until the page has settled (images and the pinned scene change its height late) keep re-aiming. A visitor who
+      // scrolls by hand first is never fought: it ends at the first wheel / touch / key.
+      if (Math.abs(window.scrollY - target) > 2 || age < 900) raf = requestAnimationFrame(attempt);
     };
+    // Whenever the page's height changes during that time, aim again (the loop above may already have rested).
+    const ro = new ResizeObserver(() => {
+      if (!raf && !stop && performance.now() - started <= WINDOW_MS) raf = requestAnimationFrame(attempt);
+    });
+    ro.observe(document.body);
     raf = requestAnimationFrame(attempt);
     return () => {
       cancelAnimationFrame(raf);
+      ro.disconnect();
       window.removeEventListener("wheel", halt);
       window.removeEventListener("touchstart", halt);
       window.removeEventListener("keydown", halt);

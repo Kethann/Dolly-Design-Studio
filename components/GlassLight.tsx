@@ -116,11 +116,27 @@ export function GlassLight() {
       latest = e;
       if (!frame) frame = requestAnimationFrame(apply);
     };
+    // A finger has no "hover": a tap lights the glass where it landed, holds a moment, then the light eases out over
+    // about two and a half seconds (the slow fade is in the stylesheet, under "hover: none").
+    const TAP_HOLD = 450;
+    const tapTimers = new WeakMap<HTMLElement, number>();
+    const onTap = (e: PointerEvent) => {
+      if (e.pointerType === "mouse" || !(e.target instanceof Element)) return;
+      const card = e.target.closest<HTMLElement>(".glass-panel, .glass-glow");
+      if (!card) return;
+      card.setAttribute("data-tap", "");
+      window.clearTimeout(tapTimers.get(card));
+      tapTimers.set(card, window.setTimeout(() => card.removeAttribute("data-tap"), TAP_HOLD));
+    };
     document.addEventListener("pointermove", onMove, { passive: true });
     document.addEventListener("pointerdown", onMove, { passive: true });
+    document.addEventListener("pointerdown", onTap, { passive: true });
+    document.addEventListener("pointermove", onTap, { passive: true });
     return () => {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerdown", onMove);
+      document.removeEventListener("pointerdown", onTap);
+      document.removeEventListener("pointermove", onTap);
       if (frame) cancelAnimationFrame(frame);
       stopDrift();
     };

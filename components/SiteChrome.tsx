@@ -19,6 +19,7 @@ import { ScrollProgress } from "@/components/ScrollProgress";
 import { Backdrop } from "@/components/Backdrop";
 import { HoverGlow } from "@/components/HoverGlow";
 import { EditBridge } from "@/components/EditBridge";
+import { UpdateWatcher } from "@/components/UpdateWatcher";
 
 /**
  * Client-side shell: motion preferences, smooth scroll, the pen cursor, the
@@ -50,6 +51,7 @@ export function SiteChrome({
         <PenCursor />
         <HoverGlow />
         <EditBridge />
+        <UpdateWatcher />
         <Backdrop />
         {/* Painted in the background colour from the very first frame so the page never flashes before the intro mounts. */}
         {!introDone && <div className="intro-curtain" aria-hidden="true" />}

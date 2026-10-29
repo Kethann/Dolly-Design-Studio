@@ -53,9 +53,14 @@ const nextConfig: NextConfig = {
       { source: "/portal", headers: [{ key: "Cache-Control", value: "no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
     ];
+    // Pages are always checked with the server first (a quick "not changed" answer when nothing is new), so a new deploy
+    // or a saved change shows on the next visit instead of waiting for a stored copy to run out. Pictures and scripts, which
+    // carry a fingerprint in their address, stay cached for a long time (below, and by Next itself).
+    const pages = { source: "/((?!_next/|images/|fonts/|api/|portal).*)", headers: [{ key: "Cache-Control", value: "public, max-age=0, must-revalidate" }] };
     if (isDev) return always; // never cache aggressively in dev — a replaced file must show up on refresh, every time
     return [
       ...always,
+      pages,
       { source: "/:path*", headers: [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }] },
       {
         // Safe to cache the raw files for a long time too: see the versionedSrc comment above.

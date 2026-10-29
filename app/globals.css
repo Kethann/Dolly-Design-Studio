@@ -682,3 +682,75 @@ html.portal-preview a[href="/"] {
   position: relative;
   z-index: 1;
 }
+
+/* Touch screens: a finger can't hover, and a tapped card would stay "hovered" until something else is tapped. Instead a tap
+   lights the glass (data-tap, set by GlassLight), holds a moment, and the light then eases out over about 2.5 seconds. */
+@media (hover: none) {
+  .glass-panel:hover:not([data-tap]),
+  .glass-glow:hover:not([data-tap]) {
+    --lit: 0;
+    --bloom: 0;
+    animation: none;
+  }
+  .glass-panel:hover:not([data-tap]):not(:focus-within)::after,
+  .glass-glow:hover:not([data-tap]):not(:focus-within)::after {
+    opacity: 0;
+  }
+  .glass-panel[data-tap],
+  .glass-glow[data-tap] {
+    --lit: 1;
+    --bloom: 1;
+    --fade: 0.25s;
+    animation: glassBreathe 3s ease-in-out infinite;
+  }
+  .glass-panel[data-tap]::after,
+  .glass-glow[data-tap]::after {
+    opacity: var(--glass-alpha, 1);
+  }
+  .glass-panel.glass-panel,
+  .glass-glow.glass-glow {
+    transition:
+      transform 0.35s ease,
+      border-color 0.35s ease,
+      --mx 0.12s ease-out,
+      --my 0.12s ease-out,
+      --spot-c 0.9s ease-in-out,
+      --k1 1.6s ease-in-out,
+      --k2 1.6s ease-in-out,
+      --k3 1.6s ease-in-out,
+      --k4 1.6s ease-in-out,
+      --k5 1.6s ease-in-out,
+      --k6 1.6s ease-in-out,
+      --bx1 3s ease-in-out,
+      --by1 3s ease-in-out,
+      --bx2 3s ease-in-out,
+      --by2 3s ease-in-out,
+      --bx3 3s ease-in-out,
+      --by3 3s ease-in-out,
+      --bx4 3s ease-in-out,
+      --by4 3s ease-in-out,
+      --bx5 3s ease-in-out,
+      --by5 3s ease-in-out,
+      --bx6 3s ease-in-out,
+      --by6 3s ease-in-out,
+      --bx7 3s ease-in-out,
+      --by7 3s ease-in-out,
+      --bx8 3s ease-in-out,
+      --by8 3s ease-in-out,
+      --lit var(--fade, 2.4s) cubic-bezier(0.25, 0.6, 0.3, 1),
+      --tile-gold 0.4s ease,
+      --bloom var(--fade, 2.4s) cubic-bezier(0.25, 0.6, 0.3, 1);
+  }
+  .glass-panel::after,
+  .glass-glow::after {
+    transition: opacity var(--fade, 2.4s) cubic-bezier(0.25, 0.6, 0.3, 1);
+  }
+}
+
+/* Phones and tablets: a lighter blur behind the glass cards keeps scrolling smooth over the moving star backdrop. */
+@media (hover: none) {
+  .glass-panel {
+    -webkit-backdrop-filter: blur(min(var(--glass-blur, 14px), 9px)) saturate(1.1);
+    backdrop-filter: blur(min(var(--glass-blur, 14px), 9px)) saturate(1.1);
+  }
+}
