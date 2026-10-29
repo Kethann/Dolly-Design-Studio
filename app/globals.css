@@ -9,6 +9,8 @@
   --stage: #410000;
   /* A slightly lifted shade of the background, for cards and fields. */
   --velvet: color-mix(in srgb, var(--stage) 88%, #ff9a7a);
+  --neon-violet: #8b5cff;
+  --neon-blue: #38a8ff;
   --gold: #e8b04b;
   --gold-bright: #fff195;
   --brass: #b9853a;
@@ -304,21 +306,39 @@ html.portal-preview a[href="/"] {
   pointer-events: none;
 }
 
-/* A pane of glass for cards that sit over the star field: a pale sheen, a bright rim, a soft blur of what is behind. */
+/* A pane of glass for cards that sit over the star field: tinted in a neon violet-to-blue gradient, with a glowing
+   gradient rim, a soft sheen and a blur of what is behind. */
 .glass-panel {
   position: relative;
   border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(165, 150, 255, 0.28);
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03) 42%, rgba(255, 255, 255, 0.07)),
-    rgba(40, 20, 34, 0.32);
+    linear-gradient(135deg, rgba(139, 92, 255, 0.34), rgba(56, 168, 255, 0.14) 55%, rgba(96, 120, 255, 0.24)),
+    rgba(16, 10, 44, 0.4);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 -1px 0 rgba(120, 170, 255, 0.18),
+    0 0 26px rgba(120, 90, 255, 0.28),
     0 18px 40px rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: blur(14px) saturate(1.1);
-  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  backdrop-filter: blur(14px) saturate(1.25);
   overflow: hidden;
+}
+
+/* The glowing rim: a violet-to-blue line around the edge, drawn as a masked gradient so the inside stays clear. */
+.glass-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  padding: 1.2px;
+  pointer-events: none;
+  background: linear-gradient(135deg, var(--neon-violet), rgba(255, 255, 255, 0.35) 38%, var(--neon-blue) 70%, var(--neon-violet));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0.85;
 }
 
 /* A soft sheen from the top-left corner: a gentle wash, never a hard band, and always under the card's content. */
@@ -330,8 +350,8 @@ html.portal-preview a[href="/"] {
   border-radius: inherit;
   pointer-events: none;
   background:
-    radial-gradient(120% 85% at 0% 0%, rgba(255, 255, 255, 0.1), transparent 62%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%);
+    radial-gradient(120% 85% at 0% 0%, rgba(190, 170, 255, 0.2), transparent 62%),
+    radial-gradient(90% 70% at 100% 100%, rgba(56, 168, 255, 0.14), transparent 70%);
 }
 
 .glass-panel > * {

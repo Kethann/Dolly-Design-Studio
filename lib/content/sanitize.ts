@@ -1,4 +1,4 @@
-import { CATEGORIES, LANGUAGES } from "@/content/types";
+import { CATEGORIES, LANGUAGES, LEGACY_CATEGORIES } from "@/content/types";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "./limits";
 import { defaultContent } from "./defaults";
 import { fontById } from "./fonts";
@@ -91,7 +91,10 @@ export function sanitizeContent(input: unknown): SiteContent {
     .flatMap((c) => (typeof c === "string" ? [c.replace(/\s+/g, " ").trim().slice(0, MAX_CATEGORY_LENGTH)] : []))
     .filter((c) => c && !catSeen.has(c.toLowerCase()) && !!catSeen.add(c.toLowerCase()))
     .slice(0, MAX_CATEGORIES);
-  merged.categories = cats.length ? cats : [...CATEGORIES];
+  // Content saved while the site still had the original project types moves to the new ones, and its projects with it.
+  const migrate = cats.length > 0 && cats.every((c) => c.toLowerCase() in LEGACY_CATEGORIES);
+  merged.categories = cats.length && !migrate ? cats : [...CATEGORIES];
+  const typeOf = (raw: string) => (migrate ? (LEGACY_CATEGORIES[raw.toLowerCase()] ?? raw) : raw);
 
   // Projects: each needs a title, an address and at least one image; the address stays unique.
   const seen = new Set<string>();
@@ -115,7 +118,7 @@ export function sanitizeContent(input: unknown): SiteContent {
         slug,
         title,
         film: str(raw.film, title),
-        category: merged.categories.includes(str(raw.category)) ? str(raw.category) : merged.categories[0],
+        category: merged.categories.includes(typeOf(str(raw.category))) ? typeOf(str(raw.category)) : merged.categories[0],
         languages: strs(raw.languages).filter((l) => (LANGUAGES as string[]).includes(l)),
         year: typeof raw.year === "number" && Number.isFinite(raw.year) ? Math.round(raw.year) : new Date().getFullYear(),
         client: str(raw.client),

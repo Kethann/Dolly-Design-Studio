@@ -5,6 +5,7 @@ import type { BreakdownLayer } from "@/lib/content/types";
 import { MAX_BREAKDOWNS, MAX_BREAKDOWN_LAYERS } from "@/lib/content/limits";
 import { DropZone, FieldView, useEditor, useUploads } from "./ContentEditor";
 import type { Field } from "./content-schema";
+import { canvasToPng, readPsdLayers } from "./psd";
 import styles from "./content.module.css";
 import bd from "./breakdowns.module.css";
 
@@ -157,12 +158,20 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
                 {b.layers.length} of {MAX_BREAKDOWN_LAYERS} layers used{b.layers.length >= MAX_BREAKDOWN_LAYERS ? " — this breakdown is full. Remove a layer to add another." : "."}
               </p>
               {notice && (
-                <p className={styles.error} role="alert">
+                <p className={/^Added/.test(notice) ? styles.hint : styles.error} role={/^Added/.test(notice) ? "status" : "alert"}>
                   {notice}{" "}
                   <button type="button" className={styles.pill} onClick={() => setNotice(null)}>
                     Dismiss
                   </button>
                 </p>
+              )}
+              {b.layers.length < MAX_BREAKDOWN_LAYERS && (
+                <PsdImport
+                  room={MAX_BREAKDOWN_LAYERS - b.layers.length}
+                  upload={media.upload}
+                  onNotice={setNotice}
+                  onLayers={(added) => patch(i, (x) => ({ ...x, layers: [...x.layers, ...added] }))}
+                />
               )}
               <LayerUpload
                 full={b.layers.length >= MAX_BREAKDOWN_LAYERS}
@@ -341,6 +350,54 @@ function ReplaceLayer({ upload, onDone }: { upload: (file: File, onProgress?: (p
         }}
       />
     </>
+  );
+}
+
+/**
+ * A drop area for a Photoshop file: every visible pixel layer in it becomes a breakdown layer (named after the layer, in
+ * Photoshop's own order, each the size of the whole canvas so they line up). Nothing to export by hand.
+ */
+function PsdImport({
+  room,
+  upload,
+  onNotice,
+  onLayers,
+}: {
+  room: number;
+  upload: (file: File, onProgress?: (percent: number) => void) => Promise<string>;
+  onNotice: (message: string | null) => void;
+  onLayers: (layers: BreakdownLayer[]) => void;
+}) {
+  const uploads = useUploads<{ layers: BreakdownLayer[]; message: string }>("psd", async (file, progress) => {
+    progress(1);
+    const psd = await readPsdLayers(file);
+    if (!psd.layers.length) throw new Error("No visible pixel layers were found in this file.");
+    const take = psd.layers.slice(0, room);
+    const out: BreakdownLayer[] = [];
+    for (let k = 0; k < take.length; k++) {
+      const name = take[k].name || `Layer ${k + 1}`;
+      const png = await canvasToPng(take[k].draw(), `${String(k + 1).padStart(2, "0")}-${name.replace(/[^\w\- ]+/g, "").trim() || "layer"}.png`);
+      const src = await upload(png, (p) => progress(Math.round(((k + p / 100) / take.length) * 100)));
+      out.push({ image: src, label: name.slice(0, 60) });
+    }
+    const parts = [`Added ${out.length} layer${out.length === 1 ? "" : "s"} from the Photoshop file.`];
+    if (psd.skipped) parts.push(`${psd.skipped} hidden or empty layer${psd.skipped === 1 ? " was" : "s were"} left out.`);
+    if (psd.layers.length > take.length) parts.push(`A breakdown holds ${MAX_BREAKDOWN_LAYERS} layers, so the last ${psd.layers.length - take.length} were skipped.`);
+    return { layers: out, message: parts.join(" ") };
+  });
+  return (
+    <DropZone
+      kind="psd"
+      state={uploads.state}
+      title="Drop a Photoshop file (.psd) here to take its layers automatically"
+      hint="Every visible layer becomes a breakdown layer, named after the layer and in the same order. Hidden layers are left out, and groups are opened up."
+      onFiles={(files) =>
+        uploads.start(files, (result) => {
+          onLayers(result.layers);
+          onNotice(result.message);
+        })
+      }
+    />
   );
 }
 

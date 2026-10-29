@@ -13,11 +13,9 @@ export const clients: ClientEntry[] = [
   { name: "People Media Factory", logo: "/images/clients/people-media-factory.webp" },
   { name: "First Frame Entertainments", logo: "/images/clients/first-frame-entertainments.webp" },
   { name: "UV Creations", logo: "/images/clients/uv-creations.webp" },
-  { name: "S.S. Creations", logo: "" },
   { name: "Abhishek Agarwal Arts", logo: "" },
   { name: "KVC Production", logo: "" },
   { name: "Navarasa Production", logo: "" },
-  { name: "Sthira Productions", logo: "" },
 ];
 
 /** Filmmakers and actors the studio has collaborated with (shown after the clients). */

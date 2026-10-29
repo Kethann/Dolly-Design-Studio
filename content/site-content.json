@@ -294,10 +294,6 @@
       "logo": "/images/clients/uv-creations.webp"
     },
     {
-      "name": "S.S. Creations",
-      "logo": ""
-    },
-    {
       "name": "Abhishek Agarwal Arts",
       "logo": ""
     },
@@ -307,10 +303,6 @@
     },
     {
       "name": "Navarasa Production",
-      "logo": ""
-    },
-    {
-      "name": "Sthira Productions",
       "logo": ""
     }
   ],
@@ -342,12 +334,12 @@
       "slug": "dacoit",
       "title": "Dacoit",
       "film": "Dacoit: A Love Story",
-      "category": "Film Publicity",
+      "category": "Mainstream Films",
       "languages": [
         "Telugu"
       ],
       "year": 2026,
-      "client": "Annapurna Studios · S.S. Creations",
+      "client": "Annapurna Studios",
       "role": "Key art, theatrical campaign",
       "deliverables": [
         "Character posters",
@@ -375,7 +367,7 @@
         },
         {
           "label": "Studios",
-          "value": "Annapurna Studios · S.S. Creations"
+          "value": "Annapurna Studios"
         },
         {
           "label": "Streaming",
@@ -407,12 +399,12 @@
       "slug": "dacoit-song-campaign",
       "title": "Dacoit — Song Campaign",
       "film": "Dacoit: A Love Story",
-      "category": "Campaigns",
+      "category": "Mainstream Films",
       "languages": [
         "Telugu"
       ],
       "year": 2026,
-      "client": "Annapurna Studios · S.S. Creations",
+      "client": "Annapurna Studios",
       "role": "Music campaign artwork",
       "deliverables": [
         "Song release posters",
@@ -444,7 +436,7 @@
       "slug": "goodachari-2",
       "title": "G2",
       "film": "Goodachari 2",
-      "category": "Film Publicity",
+      "category": "Mainstream Films",
       "languages": [
         "Telugu",
         "Kannada"
@@ -509,7 +501,7 @@
       "slug": "baahubali-the-epic",
       "title": "Baahubali: The Epic",
       "film": "Baahubali: The Epic",
-      "category": "Re-release",
+      "category": "Mainstream Films",
       "languages": [
         "Telugu",
         "Kannada"
@@ -570,7 +562,7 @@
       "slug": "premante",
       "title": "Premante",
       "film": "Premante",
-      "category": "Film Publicity",
+      "category": "Mainstream Films",
       "languages": [
         "Telugu"
       ],
@@ -634,7 +626,7 @@
       "slug": "korean-kanakaraju",
       "title": "Korean Kanakaraju",
       "film": "Korean Kanakaraju",
-      "category": "Film Publicity",
+      "category": "Mainstream Films",
       "languages": [
         "Telugu"
       ],
@@ -694,7 +686,7 @@
       "slug": "brindhavihari",
       "title": "Brindhavihari",
       "film": "Brindhavihari",
-      "category": "Film Publicity",
+      "category": "Mainstream Films",
       "languages": [
         "Kannada"
       ],
@@ -753,7 +745,7 @@
       "slug": "romeo-juliet",
       "title": "Romeo Juliet",
       "film": "Romeo Juliet",
-      "category": "Film Publicity",
+      "category": "Mainstream Films",
       "languages": [
         "Telugu"
       ],
@@ -804,7 +796,7 @@
       "slug": "oka-manchi-prema-katha",
       "title": "Oka Manchi Prema Katha",
       "film": "Oka Manchi Prema Katha",
-      "category": "Film Publicity",
+      "category": "Mainstream Films",
       "languages": [
         "Telugu"
       ],
@@ -859,7 +851,7 @@
       "slug": "independent-films",
       "title": "Independent Films",
       "film": "Independent & short films",
-      "category": "Independent",
+      "category": "Short Films / Independent Films",
       "languages": [
         "Telugu"
       ],
@@ -898,7 +890,7 @@
       "slug": "title-designs",
       "title": "Title Designs",
       "film": "Title logos for film",
-      "category": "Title Design",
+      "category": "Mainstream Films",
       "languages": [
         "Telugu",
         "Kannada"

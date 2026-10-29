@@ -8,12 +8,20 @@ export type Category = string;
 
 /** The categories the site starts with; they become the filter buttons on the Work page, in this order (only ones that have projects are shown). */
 export const CATEGORIES: Category[] = [
-  "Film Publicity",
-  "Re-release",
-  "Campaigns",
-  "Title Design",
-  "Independent",
+  "Mainstream Films",
+  "OTT Films / Web Series",
+  "Music Videos",
+  "Short Films / Independent Films",
 ];
+
+/** The project types earlier versions of the site used, and where each one moved to (saved content is moved over on its own). */
+export const LEGACY_CATEGORIES: Record<string, Category> = {
+  "film publicity": "Mainstream Films",
+  "re-release": "Mainstream Films",
+  "campaigns": "Mainstream Films",
+  "title design": "Mainstream Films",
+  "independent": "Short Films / Independent Films",
+};
 
 /** Languages a project's films are in — the language filter in "Our projects". */
 export type Language = "Telugu" | "Kannada";
