@@ -1217,8 +1217,8 @@ export function ThemeEditor() {
       <section className={styles.section} data-open="true">
         <div className={styles.sectionHeadStatic}>Glass</div>
         <div className={styles.sectionBody}>
-          <p className={styles.hint}>The glass behind the numbers, the founder card and the menu. Changes show on the page straight away.</p>
-          <div className={`glass-panel ${styles.glassPreview}`} style={preview} aria-hidden="true">
+          <p className={styles.hint}>The glass cards (the numbers and the founder) stay pale until the cursor is over them, then light up in these colours. The sample below is shown lit. Changes show on the page straight away.</p>
+          <div className={`glass-panel ${styles.glassPreview}`} style={preview} data-lit="true" aria-hidden="true">
             <strong>Glass</strong>
             <span>Colour, blur and tint</span>
           </div>

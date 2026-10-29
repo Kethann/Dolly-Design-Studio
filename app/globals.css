@@ -306,30 +306,32 @@ html.portal-preview a[href="/"] {
   pointer-events: none;
 }
 
-/* A pane of glass for cards that sit over the star field: tinted in a gradient between two colours (neon violet to blue
-   to begin with), with a glowing gradient rim, a soft sheen and a blur of what is behind. The colours, strength, blur,
-   glow and finish come from the portal's Glass settings (the --glass-* variables); the values after the commas are
-   what the glass looks like until they are changed. */
+/* A pane of glass for cards that sit over the star field: a pale sheen, a bright rim, a soft blur of what is behind.
+   When the cursor is over it (or it is tapped, or has focus), it lights up in the colours chosen in the portal's Glass
+   settings: a gradient tint, a glowing gradient rim and a glow (the --glass-* variables). The values after the commas
+   are the colours until they are changed (neon violet to blue). */
 .glass-panel {
   position: relative;
   border-radius: 22px;
-  border: 1px solid var(--glass-border, rgba(165, 150, 255, 0.28));
-  background: var(
-    --glass-fill,
-    linear-gradient(135deg, rgba(139, 92, 255, 0.34), rgba(56, 168, 255, 0.14) 55%, rgba(96, 120, 255, 0.24)),
-    rgba(16, 10, 44, 0.4)
-  );
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background:
+    radial-gradient(120% 85% at 0% 0%, rgba(255, 255, 255, 0.1), transparent 62%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03) 42%, rgba(255, 255, 255, 0.07)),
+    rgba(40, 20, 34, 0.32);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.38),
-    inset 0 -1px 0 rgba(120, 170, 255, 0.18),
-    var(--glass-glow, 0 0 26px rgba(120, 90, 255, 0.28)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 rgba(120, 90, 255, 0),
     0 18px 40px rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.25);
-  backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
+  backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   overflow: hidden;
+  transition:
+    border-color 0.35s ease,
+    box-shadow 0.35s ease;
 }
 
-/* The glowing rim: a gradient line around the edge, drawn as a masked gradient so the inside stays clear. */
+/* The glowing gradient rim, drawn as a masked gradient so the inside stays clear. Hidden until the glass is lit. */
 .glass-panel::before {
   content: "";
   position: absolute;
@@ -342,10 +344,11 @@ html.portal-preview a[href="/"] {
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  opacity: var(--glass-rim-opacity, 0.85);
+  opacity: 0;
+  transition: opacity 0.35s ease;
 }
 
-/* A soft sheen from the top-left corner: a gentle wash, never a hard band, and always under the card's content. */
+/* The coloured tint and sheen that fade in over the pale glass, always under the card's content. */
 .glass-panel::after {
   content: "";
   position: absolute;
@@ -353,7 +356,42 @@ html.portal-preview a[href="/"] {
   z-index: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: var(--glass-sheen, radial-gradient(120% 85% at 0% 0%, rgba(190, 170, 255, 0.2), transparent 62%), radial-gradient(90% 70% at 100% 100%, rgba(56, 168, 255, 0.14), transparent 70%));
+  background:
+    var(--glass-sheen, radial-gradient(120% 85% at 0% 0%, rgba(190, 170, 255, 0.2), transparent 62%), radial-gradient(90% 70% at 100% 100%, rgba(56, 168, 255, 0.14), transparent 70%)),
+    var(--glass-fill, linear-gradient(135deg, rgba(139, 92, 255, 0.34), rgba(56, 168, 255, 0.14) 55%, rgba(96, 120, 255, 0.24)), rgba(16, 10, 44, 0.4));
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.glass-panel:hover,
+.glass-panel:focus-within,
+.glass-panel[data-lit="true"] {
+  border-color: var(--glass-border, rgba(165, 150, 255, 0.28));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 -1px 0 rgba(120, 170, 255, 0.18),
+    var(--glass-glow, 0 0 26px rgba(120, 90, 255, 0.28)),
+    0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+.glass-panel:hover::before,
+.glass-panel:focus-within::before,
+.glass-panel[data-lit="true"]::before {
+  opacity: var(--glass-rim-opacity, 0.85);
+}
+
+.glass-panel:hover::after,
+.glass-panel:focus-within::after,
+.glass-panel[data-lit="true"]::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-panel,
+  .glass-panel::before,
+  .glass-panel::after {
+    transition: none;
+  }
 }
 
 .glass-panel > * {

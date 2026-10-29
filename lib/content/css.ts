@@ -34,7 +34,6 @@ export function glassVars(g: GlassLook): string[] {
     `--glass-glow:0 0 26px ${mix(g.colorA, glow * 100)}`,
     `--glass-blur:${g.blur}px`,
     `--glass-sheen:radial-gradient(120% 85% at 0% 0%,${mix(g.colorA, clear ? 12 : 38)},transparent 62%),radial-gradient(90% 70% at 100% 100%,${mix(g.colorB, clear ? 8 : 26)},transparent 70%)`,
-    `--glass-menu:linear-gradient(to bottom,${mix(g.colorA, t * 40)},${mix(g.colorB, t * 14)} 70%,transparent)`,
   ];
 }
 
