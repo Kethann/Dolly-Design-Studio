@@ -441,3 +441,13 @@
     animation: none;
   }
 }
+
+/* A finger leaves no pointer to "hover": without this a tapped card would stay lifted and make the page jump. */
+@media (hover: none) {
+  .card:hover {
+    transform: none;
+  }
+  .card:hover .media img {
+    transform: none;
+  }
+}

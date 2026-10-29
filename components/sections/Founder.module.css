@@ -181,3 +181,34 @@
 .social a:active {
   transform: translateY(-1px) scale(1.02);
 }
+
+/* Tablets and phones: one column, the card first and centred, the story under it. */
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
+  }
+  .card {
+    width: 100%;
+    max-width: 440px;
+    margin-inline: auto;
+    padding: 32px 22px;
+  }
+  .story {
+    min-width: 0;
+    text-align: left;
+  }
+  .body {
+    max-width: none;
+  }
+  .social {
+    justify-content: flex-start;
+    gap: 12px;
+  }
+  .social a {
+    min-width: 48px;
+    height: 48px;
+    padding: 0 12px;
+  }
+}

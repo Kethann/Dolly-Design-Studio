@@ -58,3 +58,9 @@
   opacity: 0.85;
   margin-top: 4px;
 }
+
+@media (hover: none) {
+  .card:hover .frame img {
+    transform: none;
+  }
+}

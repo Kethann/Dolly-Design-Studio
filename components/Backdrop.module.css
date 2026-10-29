@@ -2,9 +2,14 @@
    so the whole site shares one continuous backdrop. Painted below all content (z-index -1). */
 .backdrop {
   position: fixed;
-  inset: 0;
+  inset: 0 0 auto 0;
+  /* The tallest the screen gets (the phone's address bar hidden): the backdrop never resizes while scrolling, so the
+     stars never re-draw or jump as the bar slides in and out. */
+  height: 100vh;
+  height: 100lvh;
   z-index: -1;
   pointer-events: none;
+  contain: layout style;
 }
 
 /* A page's own picture: fills the screen between the back stars and the front stars. */

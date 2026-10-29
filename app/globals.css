@@ -36,6 +36,10 @@
 html {
   background: var(--stage);
   scroll-behavior: auto;
+  overflow-x: clip; /* nothing can ever widen the page sideways */
+  overscroll-behavior-y: none; /* no rubber-band bounce that makes fixed layers and text judder */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   /* No native scrollbar: it appearing/disappearing shifts the layout sideways (the "shake" at the end
      of the intro). Scroll position is shown by the gradient line at the top instead. */
   scrollbar-width: none;

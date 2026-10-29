@@ -15,6 +15,7 @@
 /* In full screen the whole viewer is the picture, with its controls above it. */
 .wrap[data-fullscreen="true"] {
   --maxh: calc(100vh - 150px);
+  --maxh: calc(100svh - 150px);
   justify-content: center;
   padding: 20px;
   background: radial-gradient(80% 80% at 50% 40%, #2a0d12, #12060a);

@@ -260,3 +260,9 @@
   border-bottom: 1px solid var(--gold);
   align-self: center;
 }
+
+@media (hover: none) {
+  .step:hover .tile {
+    transform: none;
+  }
+}
