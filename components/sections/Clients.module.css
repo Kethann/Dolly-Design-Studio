@@ -249,22 +249,15 @@
   text-transform: uppercase;
 }
 
-/* While editing in the portal, the rows stop scrolling and lay every entry out, so each one can be seen and edited. */
+/* While editing in the portal, a row shows only its real entries, still, in one line: it can still be held and dragged
+   sideways (see useDragMarquee) to reach every entry, and each entry keeps its Edit button. */
 :global(html[data-dds-edit]) .viewport {
-  overflow: visible;
   -webkit-mask-image: none;
   mask-image: none;
 }
 
 :global(html[data-dds-edit]) .track {
-  width: auto;
-  transform: none !important;
-}
-
-:global(html[data-dds-edit]) .half {
-  flex-wrap: wrap;
-  justify-content: center;
-  row-gap: 24px;
+  width: max-content;
 }
 
 :global(html[data-dds-edit]) .half + .half,

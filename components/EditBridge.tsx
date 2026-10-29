@@ -97,6 +97,7 @@ export function EditBridge() {
       if (t?.closest("[data-ed-ui]")) return;
       e.preventDefault();
       e.stopPropagation();
+      if (root.dataset.ddsDragged) return; // the end of a drag along a track is not a click
       const item = t?.closest<HTMLElement>("[data-ed-item]");
       if (item?.dataset.edItem) post({ source: "dds-site", type: "edit-open", item: item.dataset.edItem });
     };
@@ -105,6 +106,7 @@ export function EditBridge() {
     schedule();
     window.addEventListener("resize", schedule);
     window.addEventListener("load", schedule);
+    window.addEventListener("dds-track-moved", schedule); // a track was dragged: the Edit buttons follow it
     window.addEventListener("pointermove", onMove, { passive: true });
     document.addEventListener("click", onClick, true);
     document.addEventListener("submit", onSubmit, true);
@@ -122,6 +124,7 @@ export function EditBridge() {
       mo.disconnect();
       window.removeEventListener("resize", schedule);
       window.removeEventListener("load", schedule);
+      window.removeEventListener("dds-track-moved", schedule);
       window.removeEventListener("pointermove", onMove);
       document.removeEventListener("click", onClick, true);
       document.removeEventListener("submit", onSubmit, true);

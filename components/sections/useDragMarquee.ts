@@ -7,6 +7,9 @@ import { useEffect, useRef } from "react";
  * with the speed you gave it, then settles back into its slow drift. It loops without a seam (the track holds two
  * equal copies and wraps by one), pauses while the pointer rests on it, and a trackpad's sideways swipe moves it too.
  * Up-and-down touches still scroll the page. `seconds` is how long one full copy takes to drift past.
+ *
+ * While the portal is editing the page, the row holds only the real entries (no repeats): it doesn't drift or loop, but it can
+ * still be held and dragged (from edge to edge of the entries) to bring any entry into view, and the Edit buttons follow it.
  */
 export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?: boolean }) {
   const viewport = useRef<HTMLDivElement>(null);
@@ -32,6 +35,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
     let lastX = 0;
     let lastT = 0;
     let flick = 0;
+    let travelled = 0; // how far the current drag has moved, to tell a drag from a click
 
     const measure = () => {
       half = tr.scrollWidth / 2;
@@ -46,7 +50,19 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
       const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
       last = now;
       if (editing()) {
-        tr.style.transform = ""; // the portal lays every entry out while editing
+        // Only the real entries, held still: dragging moves along them from the first to the last, never past either end.
+        const all = tr.scrollWidth;
+        const room = vp.clientWidth;
+        const lo = Math.min(0, room - all);
+        if (!dragging) {
+          x += vel * dt;
+          vel *= Math.exp(-dt * 3.2);
+          if (Math.abs(vel) < 1) vel = 0;
+        }
+        x = all <= room ? (room - all) / 2 : Math.max(lo, Math.min(0, x));
+        const before = tr.style.transform;
+        tr.style.transform = `translate3d(${x.toFixed(2)}px,0,0)`;
+        if (before !== tr.style.transform) window.dispatchEvent(new Event("dds-track-moved")); // the Edit buttons follow
       } else {
         factor += ((dragging || hover ? 0 : 1) - factor) * Math.min(1, dt * 6);
         if (!dragging) {
@@ -70,6 +86,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
       if (e.pointerType === "mouse" && e.button !== 0) return;
       dragging = true;
       startX = lastX = e.clientX;
+      travelled = 0;
       startPos = x;
       lastT = performance.now();
       flick = 0;
@@ -82,6 +99,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
     const move = (e: PointerEvent) => {
       if (!dragging) return;
       x = startPos + (e.clientX - startX);
+      travelled = Math.max(travelled, Math.abs(e.clientX - startX));
       const now = performance.now();
       const dt = (now - lastT) / 1000;
       if (dt > 0) flick = flick * 0.6 + ((e.clientX - lastX) / dt) * 0.4; // a smoothed speed, so one jittery sample doesn't throw it
@@ -92,6 +110,11 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
       if (!dragging) return;
       dragging = false;
       delete vp.dataset.drag;
+      // A drag must not count as a click on the entry under the pointer (the editing page opens an entry on a click).
+      if (travelled > 4) {
+        document.documentElement.dataset.ddsDragged = "1";
+        window.setTimeout(() => delete document.documentElement.dataset.ddsDragged, 80);
+      }
       // Let go while still moving and it glides on; let go while holding still and it simply stays.
       vel = performance.now() - lastT < 90 ? Math.max(-3500, Math.min(3500, flick)) : 0;
     };
@@ -102,7 +125,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
       if (e.pointerType === "mouse") hover = false;
     };
     const wheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || editing()) return; // up and down belongs to the page
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // up and down belongs to the page
       e.preventDefault();
       x -= e.deltaX;
       vel = 0;
