@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useContent, tx } from "@/lib/content/context";
-import { edItem, edSection } from "@/lib/content/tx";
+import { edItem, edList, edSection } from "@/lib/content/tx";
 import { useMotion } from "@/lib/motion";
 import styles from "./Process.module.css";
 
@@ -126,7 +126,7 @@ export function Process() {
           <p className={styles.body} {...tx("home.process.intro")}>{copy.intro}</p>
         </div>
 
-        <div className={styles.steps} ref={ref}>
+        <div className={styles.steps} ref={ref} {...edList("home.process.cards", "card", 8)}>
           {copy.cards.map((card, i) => {
             // A card can open the Breakdowns page (once there is something to show on it).
             const opens = (card as { opensBreakdowns?: boolean }).opensBreakdowns === true && breakdowns.length > 0;

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useContent, tx } from "@/lib/content/context";
-import { edItem, edSection } from "@/lib/content/tx";
+import { edItem, edSection, edList } from "@/lib/content/tx";
 import { placeholderProps, versionedSrc } from "@/lib/images";
 import styles from "./Services.module.css";
 
@@ -67,7 +67,7 @@ export function Services() {
           {home.services.title}
         </h2>
 
-        <div className={styles.cards}>
+        <div className={styles.cards} {...edList("services", "service", 10)}>
           {services.map((s, i) => (
             <article key={s.number} className={styles.card} tabIndex={0} {...edItem("services", i, "Service")}>
               <div className={styles.media} data-fit={s.sample.includes("/proof-table/") || s.sample.includes("/title-designs/") ? "contain" : "cover"}>

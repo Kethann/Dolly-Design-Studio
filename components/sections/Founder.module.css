@@ -79,7 +79,8 @@
   opacity: 0.8;
 }
 
-/* The founder's social links, under the story on the right: each logo on its own small pane of clear glass (no colour). On hover
+/* The founder's social links, under the story on the right: each logo on its own small pane of clear glass (no colour): a
+   rounded square for Instagram and X, a rounded rectangle for the wider IMDb. On hover
    it lifts, its edge and logo brighten, and it gets a soft glow and a deeper shadow. */
 .social {
   display: flex;
@@ -93,10 +94,10 @@
   position: relative;
   display: inline-grid;
   place-items: center;
-  min-width: 52px;
-  height: 52px;
-  padding: 0 14px;
-  border-radius: 999px;
+  min-width: 54px;
+  height: 54px;
+  padding: 0 16px;
+  border-radius: 18px; /* curved corners, like the other glass cards */
   color: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(255, 255, 255, 0.24);
   background:
@@ -120,6 +121,12 @@
   display: block;
   height: 24px;
   width: auto;
+}
+
+/* The two square logos get a square pane (the same width as height); IMDb's pane is as wide as its name needs. */
+.social a:has(svg[viewBox="0 0 24 24"]) {
+  width: 54px;
+  padding: 0;
 }
 
 .social a:hover,

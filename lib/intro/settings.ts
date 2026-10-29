@@ -327,8 +327,8 @@ export interface IntroSettings {
   stream: StreamSettings;
   /** The glow that follows the cursor, in each place ticked. */
   logoGlow: { enabled: boolean; intensity: number; spread: number; color: string; places: Record<GlowPlace, boolean> };
-  /** The pen cursor: its colour, size, glow, and the colour it turns over a logo. */
-  cursor: { color: string; size: number; glow: number; logoColor: string };
+  /** The cursor: normal (the usual arrow) or the pen, and the pen's colour, size, glow and the colour it turns over a logo. */
+  cursor: { style: "pen" | "normal"; color: string; size: number; glow: number; logoColor: string };
   /** The Proof Table (collaborations section): its title cards and their glass. */
   proofTable: ProofTableSettings;
   /** A soft pool of dark glass behind the logo that the stars stream out of. */
@@ -406,7 +406,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
     color: "#ffe7a0",
     places: { heroLogo: true, navLogo: true, titles: false, links: false, posters: false },
   },
-  cursor: { color: "#fff195", size: 1, glow: 0.3, logoColor: "#ffffff" },
+  cursor: { style: "normal", color: "#fff195", size: 1, glow: 0.3, logoColor: "#ffffff" },
   proofTable: {
     enabled: true,
     length: 1.3,
@@ -562,6 +562,7 @@ export function sanitizeIntroSettings(input: unknown): IntroSettings {
     },
     proofTable: sanitizeProofTable(src.proofTable, d.proofTable),
     cursor: {
+      style: cursor.style === "pen" ? "pen" : "normal",
       color: hex(cursor.color, d.cursor.color),
       size: num(cursor.size, [0.6, 2], d.cursor.size),
       glow: num(cursor.glow, [0, 1], d.cursor.glow),

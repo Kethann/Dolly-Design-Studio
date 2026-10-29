@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Project } from "@/content/types";
 import { useContent } from "@/lib/content/context";
+import { edList } from "@/lib/content/tx";
 import { ProjectCard } from "./ProjectCard";
 import styles from "./WorkGrid.module.css";
 
@@ -50,6 +51,7 @@ export function WorkGrid({ projects }: { projects: Project[] }) {
       {filtered.length ? (
         <div
           className={styles.grid}
+          {...edList("projects", "project", 100)}
           style={
             {
               // "Auto" fits as many as there is room for; a number fixes the posters per row (fewer on small screens).

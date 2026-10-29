@@ -9,3 +9,7 @@ export const edSection = (page: string, id: string, label: string) => ({ "data-e
 
 /** Marks one item of a list (a poster, a service, a card…): `edItem("projects", 3, "Poster")`. The preview shows an Edit button on it. */
 export const edItem = (list: string, index: number, label = "item") => ({ "data-ed-item": `${list}.${index}`, "data-ed-label": label }) as const;
+
+/** Marks the container of a list (the process cards, the numbers, the services, the projects): in editing mode the preview shows a "＋ Add" button under it. `max` is the most the list may hold. */
+export const edList = (list: string, label: string, max?: number) =>
+  ({ "data-ed-list": list, "data-ed-list-label": label, ...(max ? { "data-ed-list-max": String(max) } : {}) }) as const;

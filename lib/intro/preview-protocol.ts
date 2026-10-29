@@ -32,4 +32,6 @@ export type SiteToPortal =
   | { source: "dds-site"; type: "time"; t: number }
   /** An Edit button was pressed: on a whole section ("home:founder"), or on one item of a list ("projects.3"). */
   | { source: "dds-site"; type: "edit-open"; section: string }
-  | { source: "dds-site"; type: "edit-open"; item: string };
+  | { source: "dds-site"; type: "edit-open"; item: string }
+  /** The "＋ Add" button under a list was pressed: add a new item to that list ("home.process.cards") and open it. */
+  | { source: "dds-site"; type: "edit-add"; list: string };

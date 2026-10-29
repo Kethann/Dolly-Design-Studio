@@ -69,6 +69,16 @@
   --glass-r: 92px;
 }
 
+/* The glow from the logo: while the colour mix is on it, the letters throw a glow in the colours around them (it needs room, so
+   this pane does not clip it). */
+.brandGlow.brandGlow {
+  overflow: visible;
+}
+
+.brandGlow .monogram {
+  filter: drop-shadow(0 0 calc(var(--lit) * 4px) color-mix(in srgb, var(--spot-c) calc(var(--lit) * 100%), transparent)) drop-shadow(0 0 calc(var(--lit) * 10px) color-mix(in srgb, var(--k2) calc(var(--lit) * 75%), transparent)) drop-shadow(0 0 calc(var(--lit) * 18px) color-mix(in srgb, var(--k5) calc(var(--lit) * 60%), transparent));
+}
+
 .brandGlow.brandGlow::before {
   display: none;
 }

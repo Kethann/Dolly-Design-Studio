@@ -3,6 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { PREVIEW_PARAM, type PortalToSite, type SiteToPortal } from "@/lib/intro/preview-protocol";
 
+/** A list's container, and where its "＋ Add" button goes (below it, centred). */
+interface ListBox {
+  list: string;
+  label: string;
+  top: number;
+  left: number;
+  count: number;
+  max: number;
+}
+
 interface Box {
   /** The marker on the element: "home:founder" (a section) or "projects.3" (an item). */
   key: string;
@@ -47,6 +57,7 @@ const post = (m: SiteToPortal) => window.parent.postMessage(m, window.location.o
 export function EditBridge() {
   const [on, setOn] = useState(false);
   const [boxes, setBoxes] = useState<Box[]>([]);
+  const [lists, setLists] = useState<ListBox[]>([]);
   const [hover, setHover] = useState<string | null>(null);
   const frame = useRef(0);
 
@@ -80,6 +91,21 @@ export function EditBridge() {
         const section = el.dataset.edSection;
         next.push({ key: section ?? el.dataset.edItem!, kind: section ? "section" : "item", label: el.dataset.edLabel ?? "", top: r.top + sy, left: r.left + sx, width: r.width, height: r.height });
       });
+      const nextLists: ListBox[] = [];
+      document.querySelectorAll<HTMLElement>("[data-ed-list]").forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width < 24 || r.height < 24) return;
+        const list = el.dataset.edList!;
+        nextLists.push({
+          list,
+          label: el.dataset.edListLabel ?? "item",
+          top: r.bottom + sy + 12,
+          left: r.left + sx + r.width / 2,
+          count: el.querySelectorAll(`[data-ed-item^="${list}."]:not([data-ed-dup])`).length,
+          max: Number(el.dataset.edListMax) || 0,
+        });
+      });
+      setLists((old) => (old.length === nextLists.length && old.every((o, i) => o.list === nextLists[i].list && o.count === nextLists[i].count && Math.abs(o.top - nextLists[i].top) < 1 && Math.abs(o.left - nextLists[i].left) < 1) ? old : nextLists));
       // Only when something moved or resized: an unchanged page needs no redraw.
       setBoxes((old) => (old.length === next.length && old.every((o, i) => o.key === next[i].key && Math.abs(o.top - next[i].top) < 1 && Math.abs(o.left - next[i].left) < 1 && Math.abs(o.width - next[i].width) < 1 && Math.abs(o.height - next[i].height) < 1) ? old : next));
     };
@@ -186,6 +212,44 @@ export function EditBridge() {
               ✎ Edit{isSection && b.label ? ` ${b.label}` : ""}
             </button>
           </div>
+        );
+      })}
+      {lists.map((l) => {
+        const full = l.max > 0 && l.count >= l.max;
+        return (
+          <button
+            key={l.list}
+            type="button"
+            data-ed-ui
+            disabled={full}
+            aria-label={`Add a ${l.label}`}
+            title={full ? `The most is ${l.max}` : `Add a new ${l.label}`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              post({ source: "dds-site", type: "edit-add", list: l.list });
+            }}
+            style={{
+              position: "absolute",
+              left: l.left,
+              top: l.top,
+              transform: "translateX(-50%)",
+              pointerEvents: "auto",
+              padding: "9px 16px",
+              borderRadius: 999,
+              border: "1.5px solid #ffd36a",
+              background: "rgba(34,20,10,0.92)",
+              color: "#ffe9a6",
+              font: "700 12px/1 system-ui, sans-serif",
+              letterSpacing: "0.02em",
+              boxShadow: "0 6px 20px rgba(0,0,0,0.45)",
+              cursor: full ? "not-allowed" : "pointer",
+              opacity: full ? 0.5 : 1,
+              whiteSpace: "nowrap",
+            }}
+          >
+            ＋ Add a {l.label}
+          </button>
         );
       })}
     </div>

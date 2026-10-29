@@ -15,7 +15,7 @@ import styles from "./PenCursor.module.css";
  */
 export function PenCursor() {
   const { reducedMotion, isTouch } = useMotion();
-  const { color, size, glow, logoColor } = useIntroSettings().settings.cursor;
+  const { style, color, size, glow, logoColor } = useIntroSettings().settings.cursor;
 
   const penRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -26,7 +26,8 @@ export function PenCursor() {
   /** Over the portal's Edit buttons and editable parts: the pen turns white, so it never disappears into their gold. */
   const [onEdit, setOnEdit] = useState(false);
 
-  const enabled = !isTouch && !reducedMotion;
+  // Only when the cursor style is the pen: with the normal style the usual arrow is left alone.
+  const enabled = !isTouch && !reducedMotion && style === "pen";
 
   // Hide the native cursor only while the pen is active. In full screen the browser shows the full-screen element above
   // everything else (the pen's layer included), so there the normal cursor comes back until full screen ends.

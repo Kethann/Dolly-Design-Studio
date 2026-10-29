@@ -18,7 +18,7 @@ import {
 import { PREVIEW_PARAM, type PortalToSite, type PreviewRun, type SiteToPortal } from "@/lib/intro/preview-protocol";
 import { T } from "@/lib/intro/timeline";
 import { Choice, ColorRow, Dial, HexInput, Section, Slider, Toggle, percent } from "./controls";
-import { ContentEditor, EditorProvider, ListModeProvider, getAt, MediaLibrary, ThemeEditor, TypographyEditor, type MediaApi } from "./ContentEditor";
+import { ContentEditor, EditorProvider, ListModeProvider, getAt, setAt, MediaLibrary, ThemeEditor, TypographyEditor, type MediaApi } from "./ContentEditor";
 import { CONTENT_PAGES, findList, findSection, type Field } from "./content-schema";
 import { Spotlight, type SpotEntry } from "./Spotlight";
 import { postFile, prepareImage } from "./upload";
@@ -373,6 +373,19 @@ export function PortalEditor({
     setModal(m);
   };
 
+  /** The "＋ Add" button under a list on the page: adds a new, blank item to that list and opens it to fill in (Cancel takes it away again). */
+  const addItemRef = useRef<(list: string) => void>(() => {});
+  useEffect(() => {
+    addItemRef.current = (list) => {
+      const def = findList(list);
+      const items = getAt(contentRef.current, list) as unknown[] | undefined;
+      if (!def || !Array.isArray(items) || (def.max && items.length >= def.max)) return;
+      const index = items.length;
+      openModal({ kind: "item", list, index });
+      updateContent((c) => setAt(c, list, [...((getAt(c, list) as unknown[]) ?? []), def.blank()]));
+    };
+  });
+
   /** How many enquiries nobody has read yet: shown on the Enquiries icon. */
   const [unread, setUnread] = useState(0);
   useEffect(() => {
@@ -508,6 +521,7 @@ export function PortalEditor({
         playheadRef.current = msg.t;
         setPlayhead(msg.t);
       }
+      if (msg.type === "edit-add") addItemRef.current(msg.list);
       if (msg.type === "edit-open") {
         // An Edit button on the preview: "home:founder" is a section, "projects.3" is one item.
         if ("section" in msg) {
@@ -1676,7 +1690,16 @@ export function PortalEditor({
 
           {tab === "cursor" && (
             <>
-              <Section title="Cursor" scope="Page" hint="The pen that follows the mouse.">
+              <Section title="Cursor" scope="Page" hint="The normal arrow, or the pen that follows the mouse.">
+                <Choice
+                  label="Cursor style"
+                  value={draft.cursor.style}
+                  options={[
+                    { value: "normal", label: "Normal" },
+                    { value: "pen", label: "Pen" },
+                  ]}
+                  onChange={(style) => updateCursor({ style })}
+                />
                 <ColorRow label="Pen colour" value={draft.cursor.color} onChange={(color) => updateCursor({ color })} />
                 <ColorRow
                   label="Colour over the logo"
