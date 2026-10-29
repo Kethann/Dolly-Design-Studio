@@ -536,7 +536,7 @@ html.portal-preview a[href="/"] {
 }
 
 /* The glass holds a mesh gradient like Gemini's: large soft fields of colour (the six glass colours and two blends of them,
-   each in a place of its own on this glass) melting into each other, with a fine film grain over them. It is seen only
+   each in a place of its own on this glass) melting into each other, It is seen only
    where the cursor is: one small soft point of light that lights the colour there up, like the logo's light does. It grows out from the cursor, breathes a little while the cursor stays, and shrinks back
    when it leaves. Always under the card's content. */
 .glass-panel::after {
@@ -547,7 +547,6 @@ html.portal-preview a[href="/"] {
   border-radius: inherit;
   pointer-events: none;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .28 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
     radial-gradient(ellipse 58% 58% at var(--bx8) var(--by8), var(--k8) 0, color-mix(in srgb, var(--k8) 55%, transparent) 38%, transparent),
     radial-gradient(ellipse 58% 58% at var(--bx7) var(--by7), var(--k7) 0, color-mix(in srgb, var(--k7) 55%, transparent) 38%, transparent),
     radial-gradient(ellipse 70% 70% at var(--bx6) var(--by6), var(--k6) 0, color-mix(in srgb, var(--k6) 55%, transparent) 38%, transparent),

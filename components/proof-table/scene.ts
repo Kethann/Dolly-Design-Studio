@@ -265,7 +265,7 @@ export interface ProofScene {
 
 /**
  * The colour glow on a card: the card holds a Gemini-style mesh of the site's glass colours (each card arranges them in
- * its own places), seen only where the cursor is on it, as a soft light with a fine grain. Added to the card as light.
+ * its own places), seen only where the cursor is on it, as a soft light. Added to the card as light.
  */
 const AURA_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -300,8 +300,7 @@ const AURA_FRAGMENT = /* glsl */ `
     float r = length(q * vec2(0.85, 1.15));
     float a = smoothstep(uRadius, 0.0, r);
     a = a * a * uOn;
-    float grain = fract(sin(dot(vUv * vec2(913.0, 677.0) + uSeed, vec2(12.9898, 78.233))) * 43758.5453);
-    gl_FragColor = vec4(col * (0.88 + 0.24 * grain), a * 0.95);
+    gl_FragColor = vec4(col, a * 0.95);
     #include <colorspace_fragment>
   }
 `;
