@@ -226,7 +226,7 @@
         ],
         "errors": {
           "generic": "Something went wrong.",
-          "missingFields": "Please fill in your name, a valid email, project type and message.",
+          "missingFields": "Please fill in your name, email, phone number, project type and a short message (the fields marked below).",
           "tooManyRequests": "Too many requests. Please try again later.",
           "sendFailed": "Could not send your message right now. Please email us directly.",
           "badRequest": "Invalid request body."

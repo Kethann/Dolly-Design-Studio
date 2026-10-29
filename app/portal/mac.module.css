@@ -862,3 +862,27 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Phones: the bar has room for the essentials only. Save & publish must always be on screen and reachable. */
+@media (max-width: 700px) {
+  .menuSearch kbd,
+  .menuPill,
+  .menuTitle:not([data-first="true"]) {
+    display: none;
+  }
+  .menuSearchText {
+    display: none;
+  }
+  .menuBtn {
+    padding: 5px 8px;
+  }
+  .menuPublish {
+    flex: none;
+    padding: 5px 10px;
+    margin-left: 0;
+  }
+  .menubar {
+    gap: 4px;
+    padding-inline: 8px;
+  }
+}

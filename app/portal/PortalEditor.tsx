@@ -2017,7 +2017,7 @@ export function PortalEditor({
               <circle cx="9" cy="9" r="5.5" />
               <path d="m13.5 13.5 4 4" />
             </svg>
-            Search settings <kbd>Ctrl K</kbd>
+            <span className={mac.menuSearchText}>Search settings</span> <kbd>Ctrl K</kbd>
           </button>
           <span className={mac.menuStatus} data-kind={dirty ? "dirty" : save.kind} role="status">
             {save.kind === "saving"

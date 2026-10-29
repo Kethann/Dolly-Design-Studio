@@ -629,43 +629,6 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
 
 // ── fields ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
-function StyleToggle({ path }: { path: string }) {
-  const { content, update } = useEditor();
-  const [open, setOpen] = useState(false);
-  const key = styleKey(path);
-  const style = content.type[key] ?? {};
-  const customised = Object.keys(style).length > 0;
-  return (
-    <>
-      <button
-        type="button"
-        className={styles.aa}
-        data-on={customised}
-        aria-expanded={open}
-        title="Font, size and look of this text"
-        onClick={() => setOpen((o) => !o)}
-      >
-        Aa
-      </button>
-      {open && (
-        <div className={styles.styleWrap}>
-          <StyleControls
-            value={style}
-            onChange={(next) =>
-              update((c) => {
-                const type = { ...c.type };
-                if (next) type[key] = next;
-                else delete type[key];
-                return { ...c, type };
-              })
-            }
-          />
-        </div>
-      )}
-    </>
-  );
-}
-
 function TextInput({ field, path }: { field: Extract<Field, { kind: "text" | "area" }>; path: string }) {
   const { content, update } = useEditor();
   const value = (getAt(content, path) as string | undefined) ?? "";

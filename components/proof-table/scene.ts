@@ -399,7 +399,6 @@ export function createProofScene(
 
   const disposables: { dispose: () => void }[] = [envRT];
   const track = <X extends { dispose: () => void }>(x: X) => (disposables.push(x), x);
-  const stageColor = new THREE.Color(opts.stage);
 
   // --- Floor -------------------------------------------------------------------------------------
   const floorTex = track(floorTexture());

@@ -195,7 +195,7 @@ function MyAccount({ me, run }: { me: PortalUser; run: Run }) {
         </form>
       </section>
 
-      <UsernameCard me={me} run={run} />
+      <UsernameCard run={run} />
       <EmailCard me={me} run={run} />
       <TwoStepCard me={me} run={run} />
       <PasswordCard me={me} run={run} />
@@ -204,7 +204,7 @@ function MyAccount({ me, run }: { me: PortalUser; run: Run }) {
   );
 }
 
-function UsernameCard({ me, run }: { me: PortalUser; run: Run }) {
+function UsernameCard({ run }: { run: Run }) {
   const [form, setForm] = useState({ username: "", current: "" });
   return (
     <section className={styles.card}>

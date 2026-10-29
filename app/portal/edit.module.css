@@ -242,6 +242,7 @@
   .dialog {
     width: 100%;
     max-height: 94vh;
+    max-height: 94dvh;
     border-radius: 18px 18px 0 0;
   }
 
