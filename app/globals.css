@@ -306,10 +306,24 @@ html.portal-preview a[href="/"] {
   pointer-events: none;
 }
 
+/* Where the pointer is on a glass card (set by GlassLight); the colour on the glass follows it. */
+@property --mx {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --my {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
 /* A pane of glass for cards that sit over the star field: a pale sheen, a bright rim, a soft blur of what is behind.
    When the cursor is over it (or it is tapped, or has focus), it lights up in the colours chosen in the portal's Glass
-   settings: a gradient tint, a glowing gradient rim and a glow (the --glass-* variables). The values after the commas
-   are the colours until they are changed (neon violet to blue). */
+   settings, already mixed: one colour on one side, the other on the far side, and a spot of colour under the pointer.
+   All of it moves with the pointer (--mx and --my), so the mix changes with where the cursor is. The values after the
+   commas are the colours until they are changed (neon violet to blue). */
 .glass-panel {
   position: relative;
   border-radius: 22px;
@@ -328,7 +342,9 @@ html.portal-preview a[href="/"] {
   overflow: hidden;
   transition:
     border-color 0.35s ease,
-    box-shadow 0.35s ease;
+    box-shadow 0.35s ease,
+    --mx 0.3s ease-out,
+    --my 0.3s ease-out;
 }
 
 /* The glowing gradient rim, drawn as a masked gradient so the inside stays clear. Hidden until the glass is lit. */
@@ -340,7 +356,12 @@ html.portal-preview a[href="/"] {
   border-radius: inherit;
   padding: 1.2px;
   pointer-events: none;
-  background: var(--glass-rim, linear-gradient(135deg, var(--neon-violet), rgba(255, 255, 255, 0.35) 38%, var(--neon-blue) 70%, var(--neon-violet)));
+  background: linear-gradient(
+    var(--glass-angle, 135deg),
+    var(--glass-rima, var(--neon-violet)) calc(var(--mx) - 55%),
+    rgba(255, 255, 255, 0.4) var(--mx),
+    var(--glass-rimb, var(--neon-blue)) calc(var(--mx) + 55%)
+  );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
@@ -357,8 +378,13 @@ html.portal-preview a[href="/"] {
   border-radius: inherit;
   pointer-events: none;
   background:
-    var(--glass-sheen, radial-gradient(120% 85% at 0% 0%, rgba(190, 170, 255, 0.2), transparent 62%), radial-gradient(90% 70% at 100% 100%, rgba(56, 168, 255, 0.14), transparent 70%)),
-    var(--glass-fill, linear-gradient(135deg, rgba(139, 92, 255, 0.34), rgba(56, 168, 255, 0.14) 55%, rgba(96, 120, 255, 0.24)), rgba(16, 10, 44, 0.4));
+    radial-gradient(circle at var(--mx) var(--my), var(--glass-sb, rgba(56, 168, 255, 0.55)), var(--glass-sa, rgba(139, 92, 255, 0.4)) 38%, transparent 78%),
+    linear-gradient(
+      var(--glass-angle, 135deg),
+      var(--glass-ca, rgba(139, 92, 255, 0.34)) calc(var(--mx) - 70%),
+      var(--glass-cb, rgba(56, 168, 255, 0.27)) calc(var(--mx) + 70%)
+    ),
+    var(--glass-base, rgba(16, 10, 44, 0.4));
   opacity: 0;
   transition: opacity 0.35s ease;
 }

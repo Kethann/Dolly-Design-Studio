@@ -11,6 +11,7 @@ import {
 } from "next/font/google";
 import localFont from "next/font/local";
 import { jsonLdText } from "@/lib/json-ld";
+import { GlassLight } from "@/components/GlassLight";
 import { getContent } from "@/lib/content/store";
 import { SiteChrome } from "@/components/SiteChrome";
 import { Footer } from "@/components/Footer";
@@ -135,6 +136,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <SiteChrome introSettings={introSettings} content={content} footer={<Footer />}>
           {children}
         </SiteChrome>
+        <GlassLight />
       </body>
     </html>
   );

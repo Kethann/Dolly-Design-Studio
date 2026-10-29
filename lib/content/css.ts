@@ -20,20 +20,23 @@ export function glassVars(g: GlassLook): string[] {
   const mix = (hex: string, pct: number) => `color-mix(in srgb,${hex} ${Math.round(Math.min(100, Math.max(0, pct)))}%,transparent)`;
   const clear = g.effect === "Clear";
   const frosted = g.effect === "Frosted";
-  const t = g.tint * (clear ? 0.35 : 1);
-  const deg = `${g.angle}deg`;
-  const rimA = frosted ? "rgba(255,255,255,0.55)" : g.colorA;
-  const rimB = frosted ? "rgba(255,255,255,0.18)" : g.colorB;
+  const t = g.tint * (clear ? 0.35 : 1) * 100;
   const glow = frosted || clear ? 0 : g.glow;
+  // The gradients themselves are built in globals.css (they follow the pointer with --mx / --my); these are their parts.
   return [
     `--glass-a:${g.colorA}`,
-    `--glass-fill:linear-gradient(${deg},${mix(g.colorA, t * 100)},${mix(g.colorB, t * 100 * 0.42)} 55%,${mix(g.colorA, t * 100 * 0.7)}),${frosted ? "rgba(236,232,255,0.1)" : "rgba(16,10,44,0.4)"}`,
+    `--glass-angle:${g.angle}deg`,
+    `--glass-ca:${frosted ? "rgba(255,255,255,0.14)" : mix(g.colorA, t)}`,
+    `--glass-cb:${frosted ? "rgba(255,255,255,0.05)" : mix(g.colorB, t * 0.8)}`,
+    `--glass-sa:${frosted ? "rgba(255,255,255,0.12)" : mix(g.colorA, clear ? 22 : 55)}`,
+    `--glass-sb:${frosted ? "rgba(255,255,255,0.3)" : mix(g.colorB, clear ? 30 : 75)}`,
+    `--glass-base:${frosted ? "rgba(236,232,255,0.1)" : "rgba(16,10,44,0.4)"}`,
     `--glass-border:${frosted ? "rgba(255,255,255,0.3)" : mix(g.colorA, clear ? 20 : 40)}`,
-    `--glass-rim:linear-gradient(${deg},${rimA},rgba(255,255,255,0.35) 38%,${rimB} 70%,${rimA})`,
+    `--glass-rima:${frosted ? "rgba(255,255,255,0.55)" : g.colorA}`,
+    `--glass-rimb:${frosted ? "rgba(255,255,255,0.18)" : g.colorB}`,
     `--glass-rim-opacity:${clear ? 0.4 : frosted ? 0.7 : 0.85}`,
     `--glass-glow:0 0 26px ${mix(g.colorA, glow * 100)}`,
     `--glass-blur:${g.blur}px`,
-    `--glass-sheen:radial-gradient(120% 85% at 0% 0%,${mix(g.colorA, clear ? 12 : 38)},transparent 62%),radial-gradient(90% 70% at 100% 100%,${mix(g.colorB, clear ? 8 : 26)},transparent 70%)`,
   ];
 }
 
