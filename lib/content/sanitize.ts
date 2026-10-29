@@ -212,6 +212,18 @@ export function sanitizeContent(input: unknown): SiteContent {
     effect: (GLASS_EFFECTS as unknown[]).includes(gIn.effect) ? (gIn.effect as GlassLook["effect"]) : dg.effect,
   };
 
+  // Social links: a name and a real web address (https:// or http://), at most eight. Anything else is left out, so a
+  // link on the site can never be something that runs code.
+  const socialIn = isObj(src.site) && Array.isArray((src.site as Record<string, unknown>).social) ? ((src.site as Record<string, unknown>).social as unknown[]) : null;
+  if (socialIn) {
+    merged.site.social = socialIn.flatMap((it) => {
+      if (!isObj(it)) return [];
+      const label = str(it.label).trim().slice(0, 30);
+      const href = str(it.href).trim().slice(0, 300);
+      return label && /^https?:\/\/[^\s]+$/i.test(href) ? [{ label, href }] : [];
+    }).slice(0, 8) as typeof merged.site.social;
+  }
+
   // The menu's lamp colours: one real colour for each menu item.
   const tonesIn = isObj(src.theme) && isObj(src.theme.menuTones) ? src.theme.menuTones : {};
   merged.theme.menuTones = Object.fromEntries(Object.entries(DEFAULT_MENU_TONES).map(([id, d]) => [id, isHex(tonesIn[id]) ? (tonesIn[id] as string).toLowerCase() : d]));

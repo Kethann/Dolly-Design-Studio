@@ -76,6 +76,21 @@ const pageLook = (key: PageKey, name: string): SchemaSection => ({
   ],
 });
 
+/** The social links (Instagram, X, IMDb…): shown in the studio details, and in the founder's form (they sit under the founder's story). */
+const SOCIAL_LINKS: Field = {
+  kind: "list",
+  path: "site.social",
+  label: "Social links (Instagram, X, IMDb…)",
+  add: "Add a link",
+  max: 8,
+  title: (it) => str(it.label, "New link"),
+  blank: () => ({ label: "Instagram", href: "https://" }),
+  fields: [
+    { kind: "text", path: "label", label: "Name (Instagram, X or IMDb show their logo)" },
+    { kind: "text", path: "href", label: "Address (https://…)" },
+  ],
+};
+
 const home: SchemaPage = {
   id: "home",
   name: "Home page",
@@ -188,6 +203,7 @@ const home: SchemaPage = {
         { kind: "image", path: "home.founder.photo", label: "Profile picture", hint: "Shown on the glass card. Without one, the initials are shown.", alt: "photoAlt", shape: "photoShape", size: "photoSize" },
         { kind: "area", path: "home.founder.cardNote", label: "Short description on the card", style: true },
         { kind: "strings", path: "home.founder.paragraphs", label: "Bio paragraphs", add: "Add a paragraph", area: true, style: true },
+        SOCIAL_LINKS,
       ],
     },
     {
@@ -377,18 +393,7 @@ const studio: SchemaPage = {
         { kind: "text", path: "site.contact.phone", label: "Phone (as shown)" },
         { kind: "text", path: "site.contact.phoneHref", label: "Phone link (tel:+91…)" },
         { kind: "text", path: "site.contact.whatsapp", label: "WhatsApp link" },
-        {
-          kind: "list",
-          path: "site.social",
-          label: "Social links",
-          add: "Add a link",
-          title: (it) => str(it.label, "New link"),
-          blank: () => ({ label: "New link", href: "https://" }),
-          fields: [
-            { kind: "text", path: "label", label: "Name" },
-            { kind: "text", path: "href", label: "Address" },
-          ],
-        },
+        SOCIAL_LINKS,
       ],
     },
     {

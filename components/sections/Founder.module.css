@@ -79,41 +79,64 @@
   opacity: 0.8;
 }
 
-/* The founder's social links, under the story on the right: the logos themselves, in a row. */
+/* The founder's social links, under the story on the right: each logo on its own small pane of clear glass (no colour). On hover
+   it lifts, its edge and logo brighten, and it gets a soft glow and a deeper shadow. */
 .social {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 22px;
-  margin-top: 26px;
+  gap: 16px;
+  margin-top: 28px;
 }
 
 .social a {
-  display: inline-flex;
-  align-items: center;
-  height: 34px;
-  opacity: 0.9;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 52px;
+  height: 52px;
+  padding: 0 14px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background:
+    radial-gradient(120% 90% at 20% 0%, rgba(255, 255, 255, 0.22), transparent 55%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.03) 50%, rgba(255, 255, 255, 0.08));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 18px -8px rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  backdrop-filter: blur(10px) saturate(1.2);
   transition:
-    opacity 0.2s ease,
-    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    filter 0.25s ease;
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease,
+    background 0.3s ease;
 }
 
 .social a svg {
   display: block;
-  height: 100%;
+  height: 24px;
   width: auto;
-  aspect-ratio: 1;
-}
-
-/* The IMDb logo is a wide badge, not a square. */
-.social a svg[viewBox="0 0 48 24"] {
-  aspect-ratio: 2;
 }
 
 .social a:hover,
 .social a:focus-visible {
-  opacity: 1;
-  transform: translateY(-3px) scale(1.08);
-  filter: drop-shadow(0 6px 14px rgba(255, 220, 140, 0.35));
+  transform: translateY(-4px) scale(1.07);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.6);
+  background:
+    radial-gradient(120% 90% at 20% 0%, rgba(255, 255, 255, 0.34), transparent 55%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05) 50%, rgba(255, 255, 255, 0.12));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.16),
+    0 0 26px rgba(255, 255, 255, 0.3),
+    0 18px 28px -10px rgba(0, 0, 0, 0.7);
+}
+
+.social a:active {
+  transform: translateY(-1px) scale(1.02);
 }

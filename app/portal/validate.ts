@@ -44,6 +44,11 @@ export function contentProblems(c: SiteContent): Problem[] {
     if (blank(b.title)) out.push({ path: `breakdowns.${i}.title`, message: "Give this breakdown a title." });
   });
 
+  c.site.social.forEach((l, i) => {
+    if (blank(l.label)) out.push({ path: `site.social.${i}.label`, message: "Give this link a name." });
+    if (blank(l.href) || !/^https?:\/\/[^\s]+$/i.test(l.href.trim())) out.push({ path: `site.social.${i}.href`, message: "Use a full web address that starts with https://" });
+  });
+
   const seen = new Map<string, number>();
   c.categories.forEach((name, i) => {
     const key = name.trim().toLowerCase();
