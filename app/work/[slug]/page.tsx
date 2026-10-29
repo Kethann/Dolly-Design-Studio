@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getContent } from "@/lib/content/store";
 import { versionedSrc } from "@/lib/images";
 import { ProjectView } from "@/components/ProjectView";
+import { jsonLdText } from "@/lib/json-ld";
 
 export async function generateStaticParams() {
   const { projects } = await getContent();
@@ -39,7 +40,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(jsonLd) }} />
       <ProjectView slug={slug} />
     </>
   );

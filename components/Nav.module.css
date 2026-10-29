@@ -10,7 +10,21 @@
   justify-content: space-between;
   padding-inline: clamp(20px, 5vw, 48px);
   background: linear-gradient(to bottom, color-mix(in srgb, var(--stage) 85%, transparent), transparent);
-  backdrop-filter: blur(2px);
+}
+
+/* A strip of frosted glass behind the menu, so the moving stars never compete with the words. It fades out towards the
+   bottom edge, so there is no hard line where the glass ends. (On the ::before, because a backdrop filter on the bar
+   itself would stop its own children from blurring what is behind them.) */
+.nav::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  backdrop-filter: blur(12px) saturate(1.15);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
 }
 
 .brand {

@@ -4,6 +4,7 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import manifest from "@/content/generated/image-manifest.json";
 import { getPortalUser } from "@/lib/portal/auth";
+import { tooLarge } from "@/lib/portal/body-limit";
 import { logActivity } from "@/lib/portal/activity";
 import { processImage } from "@/lib/portal/image";
 import { store } from "@/lib/storage";
@@ -45,6 +46,9 @@ export async function POST(req: NextRequest) {
   if (!me) return NextResponse.json({ error: "Your session has ended. Sign in again." }, { status: 401 });
   const origin = req.headers.get("origin");
   if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+
+  const big = tooLarge(req, MAX_BYTES);
+  if (big) return big;
 
   let file: File | null = null;
   try {

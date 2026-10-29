@@ -150,18 +150,6 @@ export function BreakdownsPage() {
     return () => window.removeEventListener("dds-breakdown", on);
   }, [goTo]);
 
-  /** Which breakdown's link was just copied (the button says so for a moment). */
-  const [copied, setCopied] = useState<number | null>(null);
-  const copyLink = useCallback((i: number) => {
-    const url = `${window.location.origin}/breakdowns#b${i + 1}`;
-    const done = () => {
-      setCopied(i);
-      setTimeout(() => setCopied((c) => (c === i ? null : c)), 1800);
-    };
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done, () => window.prompt("Copy this link:", url));
-    else window.prompt("Copy this link:", url);
-  }, []);
-
   const setOpen = useCallback((i: number, open: boolean) => setOpenSet((s) => (s[i] === open ? s : { ...s, [i]: open })), []);
 
   return (
@@ -214,7 +202,7 @@ export function BreakdownsPage() {
               {String(i + 1).padStart(2, "0")}
             </span>
             <div className={styles.glow} aria-hidden="true" />
-            <div className={`container ${styles.row}`}>
+            <div className={`container ${styles.row}`} data-text={item.textPosition}>
               <div className={styles.meta}>
                 <span className={styles.step}>
                   {String(i + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}
@@ -230,9 +218,6 @@ export function BreakdownsPage() {
                   </div>
                 )}
                 <span className={styles.layerCount}>{item.layers.length} {item.layers.length === 1 ? "layer" : "layers"}</span>
-                <button type="button" className={styles.copyLink} onClick={() => copyLink(i)} data-cursor="link">
-                  {copied === i ? "✓ Link copied" : "Copy link"}
-                </button>
               </div>
               <div className={styles.visual}>
                 <ExplodeStage item={item} index={i} openSignal={signals[i] ?? 0} onOpenChange={setOpen} />

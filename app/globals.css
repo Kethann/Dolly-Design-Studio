@@ -316,17 +316,25 @@ html.portal-preview a[href="/"] {
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     inset 0 -1px 0 rgba(255, 255, 255, 0.06),
     0 18px 40px rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: blur(10px) saturate(1.2);
-  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  backdrop-filter: blur(14px) saturate(1.1);
   overflow: hidden;
 }
 
-/* A diagonal glint across the glass. */
+/* A soft sheen from the top-left corner: a gentle wash, never a hard band, and always under the card's content. */
 .glass-panel::after {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.12) 46%, transparent 60%);
+  background:
+    radial-gradient(120% 85% at 0% 0%, rgba(255, 255, 255, 0.1), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%);
+}
+
+.glass-panel > * {
+  position: relative;
+  z-index: 1;
 }

@@ -73,7 +73,7 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
             type="button"
             className={styles.add}
             onClick={() => {
-              update((c) => ({ ...c, breakdowns: [...c.breakdowns, { title: "New breakdown", note: "", description: "", layers: [], spread: "normal", turn: "side", labels: true }] }));
+              update((c) => ({ ...c, breakdowns: [...c.breakdowns, { title: "New breakdown", note: "", description: "", layers: [], spread: "normal", turn: "side", labels: true, textPosition: "left" }] }));
               choose(items.length);
             }}
             disabled={items.length >= MAX_BREAKDOWNS}
@@ -246,6 +246,17 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
                   ["angled", "Tilted"],
                 ]}
                 onPick={(v) => patch(i, (x) => ({ ...x, turn: v }))}
+              />
+              <Choice
+                label="Where the title and text go"
+                value={b.textPosition}
+                options={[
+                  ["left", "Left of the picture"],
+                  ["right", "Right"],
+                  ["top", "Above"],
+                  ["bottom", "Below"],
+                ]}
+                onPick={(v) => patch(i, (x) => ({ ...x, textPosition: v }))}
               />
               <Choice
                 label="Numbered label lines"

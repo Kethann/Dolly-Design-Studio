@@ -10,6 +10,7 @@ import {
   DM_Sans,
 } from "next/font/google";
 import localFont from "next/font/local";
+import { jsonLdText } from "@/lib/json-ld";
 import { getContent } from "@/lib/content/store";
 import { SiteChrome } from "@/components/SiteChrome";
 import { Footer } from "@/components/Footer";
@@ -130,7 +131,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <noscript>
           <style>{".intro-curtain,.intro-loader{display:none}.site-main{opacity:1}"}</style>
         </noscript>
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(content.site)) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(jsonLd(content.site)) }} />
         <SiteChrome introSettings={introSettings} content={content} footer={<Footer />}>
           {children}
         </SiteChrome>

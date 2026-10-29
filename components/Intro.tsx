@@ -17,7 +17,12 @@ const loadStarIntro = () =>
 const StarIntro = dynamic(loadStarIntro, { ssr: false });
 
 // …and for them, start downloading it the moment this module runs, in parallel with hydration.
-if (typeof window !== "undefined" && window.location.pathname === "/" && !window.matchMedia("(pointer: coarse)").matches) {
+if (
+  typeof window !== "undefined" &&
+  window.location.pathname === "/" &&
+  !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+  (!window.matchMedia("(pointer: coarse)").matches || canRun3D()) // a weak phone never downloads what it will not run
+) {
   void loadStarIntro();
 }
 
@@ -28,6 +33,23 @@ if (typeof window !== "undefined" && window.location.pathname === "/" && !window
 const LOAD_FAILSAFE_MS = 5000;
 /** Hard stop for the whole intro, in case a show that did start then hangs (the show itself is ~8s). */
 const FAILSAFE_MS = 14000;
+
+/**
+ * Whether this device can run the 3D star intro smoothly. Phones and tablets get it too (the same intro as a desktop),
+ * as long as they have WebGL 2, at least 4 processor cores and (where the browser says) 4 GB of memory, and the visitor
+ * has not asked to save data. Weaker devices get the light version, so nothing stutters.
+ */
+function canRun3D(): boolean {
+  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
+  if (nav.connection?.saveData) return false;
+  if ((nav.hardwareConcurrency || 4) < 4) return false;
+  if (nav.deviceMemory !== undefined && nav.deviceMemory < 4) return false;
+  try {
+    return !!document.createElement("canvas").getContext("webgl2");
+  } catch {
+    return false;
+  }
+}
 
 function supportsWebGL(): boolean {
   try {
@@ -62,8 +84,8 @@ const noop = () => {};
 
 /**
  * Plays the intro on every full load of the home page (not on deep links or
- * in-site navigation): the 3D star intro on capable non-touch desktops, the
- * lightweight rolling-star version elsewhere (touch, reduced motion, no WebGL).
+ * in-site navigation): the 3D star intro wherever the device can run it (desktops, and
+ * capable phones and tablets), the lightweight rolling-star version elsewhere (reduced motion, no WebGL, weak devices).
  * The creator can switch it off from the portal.
  *
  * Inside the portal's preview frame it waits for the portal, then replays
@@ -117,7 +139,8 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
     // so the context values aren't populated yet at this point.
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const isTouch = window.matchMedia("(pointer: coarse)").matches;
-    const next = !reducedMotion && !isTouch && supportsWebGL() ? "stars" : "fallback";
+    // Desktops with WebGL, and phones and tablets that can run it smoothly, all get the same 3D intro.
+    const next = !reducedMotion && supportsWebGL() && (!isTouch || canRun3D()) ? "stars" : "fallback";
     if (next === "fallback") reportIntroProgress(1); // the light version needs no loading
     setMode(next);
     // Decide once on mount; onReveal is a stable setter from the parent.

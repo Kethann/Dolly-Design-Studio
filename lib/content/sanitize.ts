@@ -213,6 +213,7 @@ export function sanitizeContent(input: unknown): SiteContent {
             spread: raw.spread === "tight" || raw.spread === "wide" ? raw.spread : "normal",
             turn: raw.turn === "angled" ? "angled" : "side",
             labels: raw.labels !== false,
+            textPosition: raw.textPosition === "right" || raw.textPosition === "top" || raw.textPosition === "bottom" ? raw.textPosition : "left",
           },
         ];
   });

@@ -78,6 +78,8 @@ export interface Breakdown {
   turn: "side" | "angled";
   /** Show the numbered label lines. */
   labels: boolean;
+  /** Where the title and text sit next to the picture on the Breakdowns page. */
+  textPosition: "left" | "right" | "top" | "bottom";
 }
 
 export type PageKey = "home" | "work" | "breakdowns" | "project" | "notFound";

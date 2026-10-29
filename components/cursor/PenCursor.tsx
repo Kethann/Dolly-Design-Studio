@@ -28,11 +28,22 @@ export function PenCursor() {
 
   const enabled = !isTouch && !reducedMotion;
 
-  // Hide the native cursor only while the pen is active.
+  // Hide the native cursor only while the pen is active. In full screen the browser shows the full-screen element above
+  // everything else (the pen's layer included), so there the normal cursor comes back until full screen ends.
   useEffect(() => {
     if (!enabled) return;
-    document.documentElement.classList.add("has-follow-spot");
-    return () => document.documentElement.classList.remove("has-follow-spot");
+    const root = document.documentElement;
+    const sync = () => {
+      const full = !!document.fullscreenElement;
+      root.classList.toggle("has-follow-spot", !full);
+      if (full) setVisible(false);
+    };
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      root.classList.remove("has-follow-spot");
+    };
   }, [enabled]);
 
   // Pin the pen to the raw pointer position every move — no easing, so it never trails or drifts.

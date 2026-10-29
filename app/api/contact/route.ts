@@ -16,6 +16,9 @@ const MAX_BODY = 20_000;
  * then emailed to the studio. Saving comes first, so a message is never lost even if the email can't be sent.
  */
 export async function POST(req: NextRequest) {
+  // Only from this site's own contact form (a browser always says where a post comes from).
+  const origin = req.headers.get("origin");
+  if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: errors.badRequest }, { status: 403 });
   let body: Record<string, unknown>;
   try {
     const raw = await req.text();

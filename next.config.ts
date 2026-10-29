@@ -22,8 +22,25 @@ const nextConfig: NextConfig = {
     localPatterns: [{ pathname: "/images/**" }],
   },
   async headers() {
-    if (isDev) return []; // never cache aggressively in dev — a replaced file must show up on refresh, every time
+    // Safe defaults for every response: no MIME sniffing, no framing by other sites (the portal's own preview is the
+    // same site, so it still works), a careful referrer, and no camera / microphone / location for any page.
+    const security = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
+      { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+    ];
+    const always = [
+      { source: "/:path*", headers: security },
+      // The portal and its API are private and always fresh: never stored by a browser or a shared cache.
+      { source: "/portal", headers: [{ key: "Cache-Control", value: "no-store" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
+    ];
+    if (isDev) return always; // never cache aggressively in dev — a replaced file must show up on refresh, every time
     return [
+      ...always,
+      { source: "/:path*", headers: [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }] },
       {
         // Safe to cache the raw files for a long time too: see the versionedSrc comment above.
         source: "/images/:path*",

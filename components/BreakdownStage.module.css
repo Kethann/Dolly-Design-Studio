@@ -4,6 +4,7 @@
 
 .wrap {
   --maxh: 80vh;
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -24,14 +25,25 @@
   /* As wide as the column allows, but never taller than the screen: the shape follows the artwork's own proportions. */
   width: min(100%, 1200px, calc(var(--maxh) * var(--aspect, 1.33)));
   aspect-ratio: var(--aspect, 1.33);
-  margin: 0 auto 20px; /* the labels make room below themselves when the layers open */
+  margin: 0 auto 20px; /* the labels make room ABOVE (set in the component) when the layers open */
   cursor: grab;
   outline: none;
   user-select: none;
   -webkit-user-select: none;
   /* Sideways drags turn the design; up and down still scroll the page. */
   touch-action: pan-y;
-  transition: margin-bottom 0.3s ease; /* the labels' rows make room as they appear */
+  transition: margin-top 0.3s ease; /* the labels' rows make room as they appear */
+}
+
+/* Apart, the stack may reach over the text beside it (nothing clips it), so it sits above that text. */
+.stage[data-open="true"] {
+  z-index: 3;
+}
+
+/* "Move" mode: a drag slides the picture instead of turning it, so the browser must not take the gesture for scrolling. */
+.stage[data-mode="move"] {
+  touch-action: none;
+  cursor: move;
 }
 
 .stage[data-open="false"] {
@@ -55,10 +67,7 @@
   perspective-origin: 50% 40%;
 }
 
-/* Zoomed in, the design stays inside its stage instead of covering the page around it. */
-.stage[data-zoomed="true"] .viewport {
-  overflow: clip;
-}
+/* Nothing clips the picture at the edge of its frame: it may be zoomed, spread and slid as far as you like. */
 
 .stack {
   position: absolute;
@@ -96,6 +105,28 @@
    stacks and while the design is being turned. */
 .stage[data-open="true"][data-heavy="false"]:not([data-live="true"]) .layer {
   filter: drop-shadow(0 20px 22px rgba(0, 0, 0, 0.5));
+}
+
+/* Both rows of controls travel together and stay at the top of the screen while the breakdown is in view, so Zoom, Move
+   and Reset are always in reach, however tall the picture is. */
+.controls {
+  position: sticky;
+  top: calc(var(--nav-h, 72px) + 10px);
+  z-index: 6;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none; /* only the buttons themselves catch the pointer, so the picture beside them stays usable */
+}
+
+.controls > * {
+  pointer-events: auto;
+}
+
+.wrap[data-fullscreen="true"] .controls {
+  top: 0;
 }
 
 /* ── the control bar ───────────────────────────────────────────────────────── */
@@ -185,38 +216,59 @@
 
 .labels {
   position: absolute;
-  inset: 0 0 auto 0;
-  height: 100%;
+  inset: 0;
   pointer-events: none;
 }
 
-/* Each label (and its line) arrives on its own, one after the next: the delay per label is set in the component. */
-.lines g {
+/* A callout is one piece: the label above, a dotted line down, a dot on the layer. It glides with the layers. */
+.callout {
+  position: absolute;
+  width: 0;
   opacity: 0;
-  transition: opacity 0.22s ease;
+  pointer-events: none;
 }
 
+.labels[data-on="true"] .callout {
+  opacity: 1;
+}
+
+.calloutLine {
+  position: absolute;
+  top: 0;
+  width: 0;
+  margin-left: -0.6px;
+  border-left: 1.2px dashed var(--gold);
+  transform-origin: top center;
+  opacity: 0.85;
+}
+
+.calloutDot {
+  position: absolute;
+  left: -4px;
+  bottom: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold-bright);
+  box-shadow: 0 0 8px rgba(255, 220, 140, 0.9);
+}
+
+/* The label sits centred over its line (it only slides sideways, by --shift, when that would take it off the screen). */
 .tag {
-  opacity: 0;
-  translate: 0 8px;
-  transition:
-    opacity 0.22s ease,
-    translate 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.labels[data-on="true"] .lines g {
-  opacity: 1;
-}
-
-.labels[data-on="true"] .tag {
-  opacity: 1;
-  translate: 0 0;
-  pointer-events: auto;
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  transform: translateX(calc(-50% + var(--shift, 0px)));
+  pointer-events: none;
   cursor: pointer;
 }
 
+.labels[data-on="true"] .tag {
+  pointer-events: auto;
+}
+
 .tag[data-off="true"] {
-  opacity: 0.45 !important;
+  opacity: 0.45;
 }
 
 .tag[data-off="true"] span {
@@ -231,6 +283,7 @@
 
 /* The second row of controls, shown while the layers are apart: ready-made angles, spread, and the layer switches. */
 .bar2 {
+  min-height: 40px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -243,6 +296,15 @@
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+.bar2[data-on="false"] {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.bar2[data-on="true"] {
+  transition: opacity 0.2s ease;
 }
 
 .bar2 button {
@@ -303,28 +365,7 @@
   }
 }
 
-.lines {
-  position: absolute;
-  left: 0;
-  top: 0;
-  overflow: visible;
-}
-
-.lines line {
-  stroke: var(--gold);
-  stroke-width: 1.2;
-  stroke-dasharray: 3 4;
-  opacity: 0.85;
-}
-
-.lines circle {
-  fill: var(--gold-bright);
-  filter: drop-shadow(0 0 5px rgba(255, 220, 140, 0.9));
-}
-
 .tag {
-  position: absolute;
-  transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -387,5 +428,18 @@
   .tag {
     font-size: 9.5px;
     letter-spacing: 0.1em;
+  }
+}
+
+/* A very long layer name is cut short with an ellipsis (the whole name shows when the pointer is on it). */
+.tag span {
+  max-width: 270px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .tag span {
+    max-width: 170px;
   }
 }
