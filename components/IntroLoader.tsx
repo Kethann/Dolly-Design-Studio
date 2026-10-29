@@ -54,6 +54,10 @@ const TAIL = Array.from({ length: TAIL_SEGMENTS }, (_, j) => {
  * stars appear. Rendered on the server, so it's there from the very first paint; both spins are pure CSS, so they keep
  * turning smoothly even while the scene is being built.
  */
+/** The loading step after which the loader fades away (the 3D intro's shaders are compiled), and how long the fade takes (matches the CSS). */
+const READY = 0.92;
+const FADE_MS = 700;
+
 export function IntroLoader() {
   const [gone, setGone] = useState(false);
   const { preview, settings } = useIntroSettings();
@@ -72,16 +76,18 @@ export function IntroLoader() {
       const creep = target < 0.6 ? 0.58 * (1 - Math.exp(-(now - started) / 1600)) : target;
       const goal = Math.max(target, creep);
       shown += (goal - shown) * 0.12;
-      if (goal >= 1 && 1 - shown < 0.004) shown = 1;
-      const pct = String(Math.floor(shown * 100));
+      const pct = String(Math.floor((target >= READY ? 1 : shown) * 100));
       if (rootRef.current?.getAttribute("aria-valuenow") !== pct) rootRef.current?.setAttribute("aria-valuenow", pct);
-      if (shown >= 1) {
+      // The loader goes as soon as the last loading step is done (the shaders are compiled: the first frame is a moment away),
+      // not after the reading has crept up to 100% and the first frame is on screen. It is then gone before the intro's stars
+      // and their glow appear, so the two never overlap.
+      if (target >= READY) {
         // Fade out from however visible it is right now (it may still be fading in on a fast load), so there is no jump.
         if (rootRef.current) {
           rootRef.current.style.setProperty("--loader-from", getComputedStyle(rootRef.current).opacity);
           rootRef.current.setAttribute("data-done", "");
         }
-        doneTimer = window.setTimeout(() => setGone(true), 1050);
+        doneTimer = window.setTimeout(() => setGone(true), FADE_MS + 50);
         return;
       }
       raf = requestAnimationFrame(tick);

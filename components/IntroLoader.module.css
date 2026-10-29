@@ -13,9 +13,9 @@
   animation: loader-in 1s cubic-bezier(0.22, 1, 0.36, 1) 0.05s backwards;
 }
 
-/* When everything has loaded: a longer, gentler fade that starts from however visible the loader is at that moment. */
+/* When everything has loaded: a short, gentle fade that starts from however visible the loader is at that moment (it must be gone before the intro's stars glow). */
 .loader[data-done] {
-  animation: loader-out 1s cubic-bezier(0.45, 0, 0.2, 1) forwards;
+  animation: loader-out 0.7s cubic-bezier(0.45, 0, 0.2, 1) forwards;
 }
 
 @keyframes loader-in {
