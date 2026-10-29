@@ -601,10 +601,12 @@ html.portal-preview a[href="/"] {
   padding: 1.4px;
   pointer-events: none;
   background:
-    radial-gradient(circle calc(calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) * 1.15) at var(--mx) var(--my), color-mix(in srgb, var(--spot-c) calc(var(--lit) * 100%), transparent), color-mix(in srgb, var(--spot-c) calc(var(--lit) * 45%), transparent) 45%, transparent),
-    radial-gradient(circle 90px at var(--mx) var(--my), rgba(255, 255, 255, calc(var(--lit) * 0.95)), transparent),
+    radial-gradient(circle calc(calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) * 1.15) at var(--mx) var(--my), color-mix(in srgb, var(--spot-c) calc(var(--lit) * 100%), transparent), color-mix(in srgb, var(--spot-c) calc(var(--lit) * 72%), transparent) 55%, transparent),
+    radial-gradient(circle 110px at var(--mx) var(--my), rgba(255, 255, 255, calc(var(--lit) * 1)), transparent),
     conic-gradient(from 150deg at 50% 50%, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.12) 13%, rgba(255, 255, 255, 0.05) 32%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0.07) 68%, rgba(255, 255, 255, 0.62));
-  filter: blur(0.4px) brightness(1.15) saturate(1.4);
+  /* Where the colour is on the glass, the edge there shines brighter and more saturated, and bleeds a thin glow of that colour
+     just inside the edge, like the edge of iOS liquid glass catching the colour beside it. */
+  filter: blur(0.4px) brightness(calc(1.15 + var(--lit) * 0.6)) saturate(calc(1.4 + var(--lit) * 0.8)) drop-shadow(0 0 3px color-mix(in srgb, var(--spot-c) calc(var(--lit) * 90%), transparent));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
