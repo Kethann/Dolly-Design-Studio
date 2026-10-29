@@ -566,3 +566,176 @@
   background: linear-gradient(90deg, var(--p-gold), var(--p-gold-bright));
   transition: width 0.12s linear;
 }
+
+/* ── page screens: the parts of a page as tabs ─────────────────────────────────────────────────────────── */
+
+.sectionTabs {
+  position: sticky;
+  top: -14px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -14px -16px 12px;
+  padding: 12px 16px;
+  background: rgba(20, 14, 18, 0.96);
+  border-bottom: 1px solid var(--p-line);
+}
+
+.sectionTabs button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--p-muted);
+  border: 1px solid var(--p-line-strong);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.sectionTabs button:hover {
+  color: var(--p-text);
+}
+
+.sectionTabs button[data-on="true"] {
+  color: #2b1503;
+  font-weight: 700;
+  border-color: transparent;
+  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
+}
+
+/* ── a picture field ───────────────────────────────────────────────────────────────────────────────────── */
+
+.imageBox {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.imageDrop {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  text-align: center;
+  font-size: 12px;
+  color: var(--p-muted);
+  border-radius: 12px;
+  border: 1px dashed var(--p-line-strong);
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.05) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.imageDrop[data-over="true"] {
+  border-color: #e8b04b;
+  background-color: rgba(232, 176, 75, 0.12);
+}
+
+.imageDrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.imageDrop[data-shape="round"] {
+  border-radius: 50%;
+}
+
+.imageDrop[data-shape="rounded"] {
+  border-radius: 28px;
+}
+
+.imageDrop[data-shape="square"] {
+  border-radius: 6px;
+}
+
+.imageBusy {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 6px;
+  font-size: 11px;
+  color: #2b1503;
+  background: #e8b04b;
+}
+
+.imageSide {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.imageButtons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.imageName {
+  margin: 0;
+  font-size: 12px;
+  color: var(--p-muted);
+  overflow-wrap: anywhere;
+}
+
+.imageName em {
+  font-style: normal;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  color: var(--p-text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.primary {
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #2b1503;
+  border: 0;
+  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
+  cursor: pointer;
+}
+
+.primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.imageOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+@media (max-width: 520px) {
+  .imageBox {
+    grid-template-columns: 1fr;
+  }
+
+  .imageDrop {
+    width: 100%;
+    height: 180px;
+  }
+}
+
+.cardThumb {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--p-line-strong);
+}

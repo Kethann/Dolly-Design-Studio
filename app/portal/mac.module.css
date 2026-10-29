@@ -27,10 +27,10 @@
   background: transparent;
 }
 
-/* A large window is open: the preview becomes a framed live view beside it (520px panel + margins). */
+/* The preview is the editor: a framed live page under the menu bar and the page controller, above the dock. */
 .wallpaper[data-framed="true"] {
-  inset: 46px 12px 104px 546px;
-  border-radius: 20px;
+  inset: 92px 12px 126px 12px;
+  border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(8, 5, 8, 0.6);
   box-shadow:
@@ -39,9 +39,7 @@
 }
 
 .wallpaper[data-framed="true"] iframe {
-  inset: 40px 0 0 0;
-  height: calc(100% - 40px);
-  border-radius: 0 0 19px 19px;
+  border-radius: 17px;
 }
 
 /* Tablet and phone: the page at that width, centred in the frame. */
@@ -62,37 +60,87 @@
   width: min(390px, 100%);
 }
 
-.previewBar {
+@media (max-width: 899px) {
+  .wallpaper[data-framed="true"] {
+    inset: 90px 6px 118px 6px;
+  }
+
+  .pageBar {
+    left: 6px;
+    right: 6px;
+  }
+}
+
+/* ── the page controller along the top ───────────────────────────────────────────────────────────────── */
+
+.pageBar {
   position: absolute;
-  inset: 0 0 auto 0;
-  height: 40px;
-  z-index: 2;
+  z-index: 20;
+  top: 40px;
+  left: 12px;
+  right: 12px;
+  height: 44px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 14px;
-  font-size: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-  border-radius: 19px 19px 0 0;
+  gap: 10px;
+  padding: 0 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(180deg, rgba(34, 24, 29, 0.92), rgba(18, 12, 16, 0.94));
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
 
-.previewLive {
+.pageBar::-webkit-scrollbar {
+  display: none;
+}
+
+.pageBar button,
+.pageBar select {
+  flex: none;
+  font-size: 12.5px;
+  color: var(--p-text);
+}
+
+.pageTabs {
+  flex: none;
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.previewLive i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #35d07f;
-  box-shadow: 0 0 8px #35d07f;
+.pageTabs button {
+  padding: 6px 13px;
+  border-radius: 8px;
+  color: var(--p-muted);
+  white-space: nowrap;
 }
 
-.previewDevices {
+.pageTabs button:hover {
+  color: var(--p-text);
+}
+
+.pageTabs button[data-on="true"] {
+  color: #2b1503;
+  font-weight: 700;
+  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
+}
+
+.pageJump {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.pageGroup {
+  flex: none;
   display: inline-flex;
   padding: 2px;
   border-radius: 9px;
@@ -100,33 +148,43 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.previewDevices button {
-  padding: 3px 11px;
+.pageGroup button {
+  padding: 5px 11px;
   border-radius: 7px;
   color: var(--p-muted);
 }
 
-.previewDevices button[data-on="true"] {
+.pageGroup button[data-on="true"] {
   color: #2b1503;
-  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
   font-weight: 700;
+  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
 }
 
-.previewBtn {
-  padding: 3px 10px;
-  border-radius: 7px;
+.pageGroup button:hover:not(:disabled):not([data-on="true"]) {
   color: var(--p-text);
+}
+
+.pageGroup button:disabled {
+  opacity: 0.35;
+}
+
+.pageIcon {
+  padding: 5px 10px;
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
-.previewBtn:hover {
-  background: rgba(255, 255, 255, 0.12);
+.pageEdit {
+  padding: 7px 15px;
+  border-radius: 999px;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-@media (max-width: 899px) {
-  .wallpaper[data-framed="true"] {
-    inset: 0;
-  }
+.pageEdit[data-on="true"] {
+  color: #2b1503 !important;
+  border-color: transparent;
+  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
 }
 
 .loading {
@@ -147,7 +205,7 @@
   z-index: 10000;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
   padding: 0 14px;
   font-size: 13px;
   background: linear-gradient(180deg, rgba(34, 22, 26, 0.72), rgba(16, 11, 14, 0.62));
@@ -250,7 +308,7 @@
 }
 
 .menuStatus {
-  margin-right: 8px;
+  margin: 0 6px;
   font-size: 12px;
   color: var(--p-muted);
   white-space: nowrap;
@@ -313,13 +371,6 @@
   filter: grayscale(0.5);
 }
 
-.clock {
-  margin-inline: 10px 8px;
-  font-size: 12.5px;
-  color: var(--p-text);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
 
 .avatar {
   width: 22px;
@@ -332,165 +383,6 @@
   color: #fff;
   background: linear-gradient(180deg, #ee5470, #c2304e);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-/* ── windows: liquid glass ──────────────────────────────────────────────── */
-
-.win {
-  position: absolute;
-  min-width: 300px;
-  min-height: 38px;
-  max-width: calc(100vw - 16px);
-  max-height: calc(100vh - 130px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  resize: both;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background:
-    radial-gradient(120% 60% at 0% 0%, rgba(255, 255, 255, 0.1), transparent 55%),
-    linear-gradient(180deg, rgba(40, 28, 33, 0.7), rgba(18, 12, 16, 0.78));
-  -webkit-backdrop-filter: blur(34px) saturate(1.9) brightness(1.05);
-  backdrop-filter: blur(34px) saturate(1.9) brightness(1.05);
-  box-shadow:
-    0 34px 90px rgba(0, 0, 0, 0.6),
-    0 0 0 0.5px rgba(0, 0, 0, 0.7),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
-  animation: win-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.win[data-min="true"] {
-  resize: none;
-}
-
-/* The large window: docked down the left side, from the menu bar to the dock. */
-.win[data-max="true"] {
-  --panel-w: 520px;
-  left: 12px;
-  top: 46px;
-  bottom: 104px;
-  width: min(var(--panel-w), calc(100vw - 24px));
-  height: auto;
-  resize: none;
-  max-width: none;
-  max-height: none;
-}
-
-/* A small screen has no room beside it: the large window takes the whole width. */
-@media (max-width: 899px) {
-  .win[data-max="true"] {
-    width: calc(100vw - 24px);
-  }
-}
-
-@keyframes win-in {
-  from {
-    opacity: 0;
-    transform: scale(0.93) translateY(14px);
-  }
-}
-
-.bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 40px;
-  flex: none;
-  padding: 0 14px;
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.015));
-}
-
-.bar:active {
-  cursor: grabbing;
-}
-
-.lights {
-  display: flex;
-  gap: 8px;
-}
-
-.light {
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  border: 0.5px solid rgba(0, 0, 0, 0.35);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-.light[data-c="close"] {
-  background: #ff5f57;
-}
-
-.light[data-c="min"] {
-  background: #febc2e;
-}
-
-.light[data-c="max"] {
-  background: #28c840;
-}
-
-.lights:hover .light::after {
-  content: "";
-  display: block;
-  margin: auto;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-}
-
-.barTitle {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12.5px;
-  font-weight: 600;
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-/* The title-bar icon: the same dark glass tile and neon line as in the dock, only smaller. */
-.barIcon {
-  --accent: #fff;
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-  color: var(--accent);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: linear-gradient(180deg, #3a2e33, #1a1316);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
-}
-
-.barIcon svg {
-  width: 13px;
-  height: 13px;
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 70%, transparent));
-}
-
-.winBody {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 14px 14px 22px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-}
-
-.winHint {
-  margin: 0 0 12px;
-  font-size: 12px;
-  color: var(--p-muted);
 }
 
 /* ── dock ───────────────────────────────────────────────────────────────── */
@@ -536,16 +428,79 @@
   display: none;
 }
 
+.dockSection {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.dockBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The name of each group, above its icons. */
+.groupName {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--p-muted);
+  opacity: 0.8;
+}
+
 .dockGroup {
   display: flex;
   align-items: flex-end;
-  gap: 6px;
+  gap: 4px;
+}
+
+/* The short name under each icon. */
+.badge {
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: #e5484d;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  z-index: 2;
+}
+
+.itemLabel {
+  max-width: 84px;
+  margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--p-muted);
+  transition: color 0.2s ease;
+}
+
+.dockItem:hover .itemLabel,
+.dockItem[data-open="true"] .itemLabel {
+  color: var(--p-text);
+}
+
+.dockItem[data-open="true"] .itemLabel {
+  font-weight: 700;
+  color: var(--accent);
 }
 
 .divider {
   align-self: stretch;
   width: 1px;
-  margin: 8px 6px 14px;
+  margin: 14px 4px 8px;
   background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.28), transparent);
 }
 
@@ -558,14 +513,14 @@
   flex-direction: column;
   align-items: center;
   flex: none;
-  padding: 0 1px 10px;
+  padding: 0 1px 2px;
 }
 
 /* A tile: dark glass, a neon line icon, a light that follows the pointer. It lifts and swells when approached. */
 .tile {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 46px;
+  height: 46px;
   display: grid;
   place-items: center;
   border-radius: 16px;
@@ -616,8 +571,8 @@
 .tile svg {
   position: relative;
   z-index: 1;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   stroke-width: 1.7;
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 55%, transparent));
   transition: filter 0.25s ease, transform 0.25s ease;
@@ -709,6 +664,14 @@
   opacity: 1;
 }
 
+.dockItem[data-open="true"]:not(:disabled) .tile {
+  border-color: color-mix(in srgb, var(--accent) 70%, white 10%);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 0 22px -2px color-mix(in srgb, var(--accent) 55%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
 .dockItem[data-min="true"] .dot {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.9);
@@ -730,24 +693,17 @@
   }
 }
 
-/* ── small screens: windows fill the width, the dock scrolls ────────────── */
+/* ── small screens ─────────────────────────────────────────────────────── */
 
 @media (max-width: 760px) {
   .menuStatus,
   .clock {
     display: none;
   }
-
-  .win:not([data-max="true"]) {
-    left: 8px !important;
-    width: calc(100vw - 16px) !important;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .win,
-  .menuPanel,
-  .dockItem[data-open="true"] .tile {
+  .menuPanel {
     animation: none;
   }
 

@@ -167,6 +167,8 @@ const CONTENT_TYPES: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   avif: "image/avif",
+  gif: "image/gif",
+  svg: "image/svg+xml",
   ttf: "font/ttf",
   otf: "font/otf",
   woff: "font/woff",
@@ -177,7 +179,7 @@ export const contentTypeOf = (name: string) => CONTENT_TYPES[name.split(".").pop
 
 /** Serves one stored upload with long-lived caching (every upload's name carries a fingerprint of its bytes). */
 export async function serveUpload(prefix: string, name: string): Promise<Response> {
-  if (!/^[\w.-]{1,120}\.(webp|png|jpe?g|avif|ttf|otf|woff2?)$/i.test(name) || name.includes("..")) return new Response("Not found", { status: 404 });
+  if (!/^[\w.-]{1,120}\.(webp|png|jpe?g|avif|gif|svg|ttf|otf|woff2?)$/i.test(name) || name.includes("..")) return new Response("Not found", { status: 404 });
   const found = await (await store()).getBytes(prefix + name);
   if (!found) return new Response("Not found", { status: 404 });
   return new Response(found.bytes as BodyInit, {
@@ -185,6 +187,8 @@ export async function serveUpload(prefix: string, name: string): Promise<Respons
       "Content-Type": found.contentType ?? contentTypeOf(name),
       "Cache-Control": "public, max-age=31536000, immutable",
       "X-Content-Type-Options": "nosniff",
+      // An SVG opened by itself may not run anything, whatever it contains.
+      ...(name.toLowerCase().endsWith(".svg") ? { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox" } : {}),
     },
   });
 }

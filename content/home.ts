@@ -67,6 +67,12 @@ export const home = {
     label: "About the Founder",
     /** A photo of the founder (empty = a monogram). */
     photo: "",
+    /** What the photo shows, for screen readers and search engines. */
+    photoAlt: "",
+    /** The photo's shape: "round", "rounded" or "square". */
+    photoShape: "round",
+    /** How big it is on the card: "small", "medium" or "large". */
+    photoSize: "medium",
     /** A short description shown on the glass profile card, under the name and role. */
     cardNote: "Designing film posters, title logos and typography for Telugu cinema.",
     /** [CLIENT TO CONFIRM] Add a fuller bio and a photo when ready. */
@@ -81,6 +87,12 @@ export const home = {
     label: "Our Clients",
     title: "Clients & collaborations",
     rowLabels: { clients: "Production houses", collaborators: "Filmmakers & actors" },
+    /** The shape of the round portraits in the Filmmakers & actors row: "round", "rounded" or "square". */
+    portraitShape: "round",
+    /** How big the portraits are: "small", "medium" or "large". */
+    portraitSize: "large",
+    /** How big the production-house logos are: "small", "medium" or "large". */
+    logoSize: "large",
     /** Read out by screen readers before the list of names. */
     screenReaderIntro: "Clients and collaborators:",
   },

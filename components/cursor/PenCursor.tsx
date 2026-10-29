@@ -23,6 +23,8 @@ export function PenCursor() {
   const [state, setState] = useState<"idle" | "link" | "poster">("idle");
   const [visible, setVisible] = useState(false);
   const [onLogo, setOnLogo] = useState(false);
+  /** Over the portal's Edit buttons and editable parts: the pen turns white, so it never disappears into their gold. */
+  const [onEdit, setOnEdit] = useState(false);
 
   const enabled = !isTouch && !reducedMotion;
 
@@ -63,6 +65,7 @@ export function PenCursor() {
     function onOver(e: PointerEvent) {
       // Over a logo the pen turns its own colour, so it never disappears into the gold.
       setOnLogo(e.target instanceof Element && !!e.target.closest("[data-cursor-logo]"));
+      setOnEdit(e.target instanceof Element && !!document.documentElement.dataset.ddsEdit && !!e.target.closest("[data-ed-ui], [data-ed-item]"));
       const target = resolve(e.target);
       if (!target) return;
       const kind = target.dataset.cursor === "poster" ? "poster" : "link";
@@ -116,12 +119,12 @@ export function PenCursor() {
           {
             opacity: visible ? 1 : 0,
             "--pen-size": size,
-            "--pen-color": onLogo ? logoColor : color,
+            "--pen-color": onEdit ? "#ffffff" : onLogo ? logoColor : color,
             "--pen-glow": glow,
           } as React.CSSProperties
         }
       >
-        <div className={`${styles.nib} ${state !== "idle" ? styles.nibActive : ""}`}>
+        <div className={`${styles.nib} ${state !== "idle" ? styles.nibActive : ""} ${onEdit ? styles.nibEdit : ""}`}>
           <svg viewBox={NIB_VIEWBOX} width="30">
             <path d={NIB_PATH} />
           </svg>

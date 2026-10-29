@@ -3,6 +3,7 @@ import { site, navItems } from "@/content/site";
 import { services } from "@/content/services";
 import { clients, collaborators, testimonials } from "@/content/clients";
 import { projects } from "@/content/projects";
+import { CATEGORIES } from "@/content/types";
 import { breakdownsPage, footer, notFoundPage, projectPage, workPage } from "@/content/pages";
 import { proofTable } from "@/content/proof-table";
 import { DEFAULT_FONT_ROLES } from "./fonts";
@@ -21,6 +22,7 @@ export function defaultContent(): SiteContent {
     collaborators,
     testimonials,
     projects,
+    categories: [...CATEGORIES],
     work: workPage,
     breakdownsPage,
     projectPage,

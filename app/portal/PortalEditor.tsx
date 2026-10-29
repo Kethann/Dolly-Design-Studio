@@ -18,11 +18,15 @@ import {
 import { PREVIEW_PARAM, type PortalToSite, type PreviewRun, type SiteToPortal } from "@/lib/intro/preview-protocol";
 import { T } from "@/lib/intro/timeline";
 import { Choice, ColorRow, Dial, HexInput, Section, Slider, Toggle, percent } from "./controls";
-import { ContentEditor, EditorProvider, MediaLibrary, ThemeEditor, TypographyEditor, type MediaApi } from "./ContentEditor";
-import { CONTENT_PAGES, type Field } from "./content-schema";
+import { ContentEditor, EditorProvider, ListModeProvider, getAt, MediaLibrary, ThemeEditor, TypographyEditor, type MediaApi } from "./ContentEditor";
+import { CONTENT_PAGES, findList, findSection, type Field } from "./content-schema";
 import { Spotlight, type SpotEntry } from "./Spotlight";
-import { postFile } from "./upload";
-import { Dock, MenuBar, Win, MENUBAR_H, type DockGroup, type MenuDef, type WinState } from "./mac";
+import { postFile, prepareImage } from "./upload";
+import { Dock, MenuBar, type DockGroup, type MenuDef } from "./mac";
+import { PageBar } from "./PageBar";
+import { EditModal, ItemEditor, ItemTools, SectionEditor, sectionPaths } from "./EditModal";
+import { contentProblems, problemsUnder } from "./validate";
+import edit from "./edit.module.css";
 import type { PageKey, SiteContent } from "@/lib/content/types";
 import { sanitizeContent } from "@/lib/content/sanitize";
 import mac from "./mac.module.css";
@@ -126,8 +130,8 @@ interface WinDef {
 
 /** Every window of the portal: its name, what it is for, icon colour and the size it takes when made smaller. */
 const WINDOWS: Record<Tab, WinDef> = {
-  home: { title: "Home page text", hint: "Every word, number and picture on the home page, section by section.", glyph: "home", tint: ["#ffb347", "#e8742a"], w: 460, h: 700 },
-  work: { title: "Gallery & project pages", hint: "The wording on the full gallery, on each project page and on “page not found”.", glyph: "work", tint: ["#ffcf5c", "#e8a31a"], w: 440, h: 620 },
+  home: { title: "Home page", hint: "Edit the home page: press Edit on any section in the preview.", glyph: "home", tint: ["#ffb347", "#e8742a"], w: 460, h: 700 },
+  work: { title: "Work & projects", hint: "The gallery and every project: press Edit on the page, or on a single poster.", glyph: "work", tint: ["#ffcf5c", "#e8a31a"], w: 440, h: 620 },
   site: { title: "Studio details & menu", hint: "Studio name, phone, email, social links, menu words, footer and the text Google shows.", glyph: "site", tint: ["#ff9aa2", "#e0556a"], w: 440, h: 640 },
   projects: { title: "Projects", hint: "Add, remove and edit your projects — posters, credits and descriptions.", glyph: "projects", tint: ["#c9a0ff", "#7b4be0"], w: 480, h: 720 },
   breakdowns: { title: "Breakdowns", hint: "Layered artworks that fall apart into labelled layers when someone hovers them.", glyph: "breakdowns", tint: ["#ffa56b", "#e0562a"], w: 480, h: 720 },
@@ -146,16 +150,27 @@ const WINDOWS: Record<Tab, WinDef> = {
   playback: { title: "Preview controls", hint: "Replay the opening animation, or pause it on any moment to adjust.", glyph: "playback", tint: ["#d0d0d8", "#6a6a78"], w: 560, h: 250, small: true },
   account: { title: "People & passwords", hint: "Your username, email and password; who can sign in, their roles, and the email codes.", glyph: "account", tint: ["#9bb4c9", "#4a6075"], w: 560, h: 680 },
   inbox: { title: "Enquiries", hint: "Messages sent through the contact form on your site: read, reply, archive or delete them.", glyph: "inbox", tint: ["#ffd36a", "#e8742a"], w: 520, h: 680 },
-  activity: { title: "Activity log", hint: "Who signed in, and what each person published, uploaded or changed.", glyph: "activity", tint: ["#b5e0a8", "#4f9a56"], w: 520, h: 680 },
+  activity: { title: "Activity log", hint: "Who signed in, and what each person published, uploaded or changed.", glyph: "activity", tint: ["#9bc4ff", "#4a6075"], w: 520, h: 680 },
 };
 
-const dockItem = (id: Tab, label?: string) => ({ id, label: label ?? WINDOWS[id].title, glyph: WINDOWS[id].glyph, tint: WINDOWS[id].tint });
+/** One taskbar item: its short name under the icon, and its colour (each group has its own). */
+const dockItem = (id: Tab, short: string, tint: string, glyph?: string) => ({ id, label: WINDOWS[id].title, short, glyph: glyph ?? WINDOWS[id].glyph, tint: [tint, tint] as [string, string] });
 const DOCK: DockGroup[] = [
-  { name: "Pages & text", items: [dockItem("home"), dockItem("work"), dockItem("site"), dockItem("projects"), dockItem("breakdowns"), dockItem("slate"), dockItem("media"), dockItem("type")] },
-  { name: "Page look", items: [dockItem("background"), dockItem("theme"), dockItem("glass")] },
-  { name: "Stars", items: [dockItem("colours"), dockItem("finish"), dockItem("layers"), dockItem("motion")] },
-  { name: "Animation", items: [dockItem("intro"), dockItem("cursor"), dockItem("playback")] },
-  { name: "Account", items: [dockItem("inbox"), dockItem("account"), dockItem("activity")] },
+  {
+    name: "Pages",
+    items: [
+      dockItem("home", "Home", "#ffc566"),
+      dockItem("work", "Work", "#ffc566"),
+      dockItem("breakdowns", "Breakdowns", "#ffc566"),
+      dockItem("slate", "Slate", "#ffc566"),
+      dockItem("site", "Studio", "#ffc566"),
+    ],
+  },
+  { name: "Library", items: [dockItem("media", "Images", "#7fe3c0"), dockItem("type", "Fonts", "#7fe3c0")] },
+  { name: "Page look", items: [dockItem("background", "Backdrop", "#ff8fc0"), dockItem("theme", "Brand", "#ff8fc0", "drop"), dockItem("glass", "Glass", "#ff8fc0")] },
+  { name: "Stars", items: [dockItem("colours", "Palette", "#ffe27a"), dockItem("finish", "Shine", "#ffe27a"), dockItem("layers", "Groups", "#ffe27a"), dockItem("motion", "Motion", "#ffe27a")] },
+  { name: "Animation", items: [dockItem("intro", "Opening", "#ff9a8a"), dockItem("cursor", "Cursor", "#ff9a8a"), dockItem("playback", "Preview", "#ff9a8a")] },
+  { name: "Studio", items: [dockItem("inbox", "Enquiries", "#9bc4ff"), dockItem("account", "People", "#9bc4ff"), dockItem("activity", "Activity", "#9bc4ff")] },
 ];
 
 const DESIGN_WORDS: Partial<Record<Tab, string>> = {
@@ -214,6 +229,14 @@ const JUMP_TO: { label: string; to: string; at?: "start" | "end" }[] = [
   { label: "Our services", to: "services" },
   { label: "Contact us", to: "contact" },
 ];
+
+/** Which editing window is open: a section of a page, one item of a list, or a whole page's settings. */
+type ModalState = { kind: "section"; page: string; id: string; index?: number } | { kind: "item"; list: string; index: number } | { kind: "page"; page: string };
+
+/** Lists whose items have their own Edit button on the page: the section window only manages them (add, reorder, delete). */
+const ITEM_LISTS: ReadonlySet<string> = new Set(["projects", "services", "home.stats", "home.process.cards"]);
+
+const HOME_ONLY = ["slate", "glass", "intro", "playback", "background"] as const;
 
 type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
 
@@ -284,56 +307,110 @@ export function PortalEditor({
     images,
     add: (src) => setImages((list) => (list.includes(src) ? list : [src, ...list])),
     upload: async (file, onProgress) => {
-      const data = await postFile<{ src?: string }>("/api/portal/media", file, onProgress);
+      const data = await postFile<{ src?: string }>("/api/portal/media", await prepareImage(file), onProgress);
       if (!data.src) throw new Error("Upload failed.");
       setImages((list) => (list.includes(data.src!) ? list : [data.src!, ...list]));
       return data.src;
     },
   };
+  // Undo and redo for content edits. A burst of typing is one step; the state before the burst is what Undo returns to.
+  const [history, setHistory] = useState({ past: [] as SiteContent[], future: [] as SiteContent[] });
+  const historyAt = useRef(0);
   const updateContent = (fn: (c: SiteContent) => SiteContent) => {
+    const before = contentRef.current;
+    const now = Date.now();
+    const newStep = now - historyAt.current > 600;
+    historyAt.current = now;
+    if (newStep) setHistory((h) => ({ past: [...h.past.slice(-99), before], future: [] }));
+    else setHistory((h) => (h.future.length ? { ...h, future: [] } : h));
     setContentDraft((c) => fn(c));
     setSave({ kind: "idle" });
   };
+  function undo() {
+    const prev = history.past[history.past.length - 1];
+    if (!prev) return;
+    setHistory({ past: history.past.slice(0, -1), future: [...history.future, contentRef.current] });
+    historyAt.current = 0;
+    setContentDraft(prev);
+    setSave({ kind: "idle" });
+  }
+  function redo() {
+    const next = history.future[history.future.length - 1];
+    if (!next) return;
+    setHistory({ past: [...history.past, contentRef.current], future: history.future.slice(0, -1) });
+    historyAt.current = 0;
+    setContentDraft(next);
+    setSave({ kind: "idle" });
+  }
 
-  // Windows: which are open, where, and which is in front.
-  // A first-run sign-in opens straight onto creating the owner account.
-  const [wins, setWins] = useState<Partial<Record<Tab, WinState>>>(() =>
-    user.setup ? { account: { x: 220, y: MENUBAR_H + 20, w: 560, h: 600, z: 11, min: false, max: true } } : {},
-  );
-  const zRef = useRef(10);
-  const topId = (Object.entries(wins) as [Tab, WinState][])
-    .filter(([, w]) => !w.min)
-    .sort((a, b) => b[1].z - a[1].z)[0]?.[0];
-  const tab: Tab = topId ?? "background";
+  // The taskbar chooses what you work on. Pages (Home, Work, Breakdowns…) switch the page in the preview, where every
+  // section and item has an Edit button; everything else (stars, colours, fonts, account…) opens as a sheet over the
+  // bottom of the preview, so the effect of a change is always in view. A first-run sign-in opens on the account.
+  const [tab, setTab] = useState<Tab>(user.setup ? "account" : "home");
+  const [sheetOpen, setSheetOpen] = useState(!!user.setup);
+  /** Whether the preview shows its Edit buttons. */
+  const [editMode, setEditMode] = useState(true);
+  const editRef = useRef(true);
+  /** The editing window that is open, and the content as it was when it opened (Cancel returns to it). */
+  const [modal, setModal] = useState<ModalState | null>(null);
+  const [modalSnap, setModalSnap] = useState<SiteContent | null>(null);
+  const openModal = (m: ModalState) => {
+    setModalSnap(contentRef.current);
+    setModal(m);
+  };
 
+  /** How many enquiries nobody has read yet: shown on the Enquiries icon. */
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (user.setup) return;
+    let alive = true;
+    const load = () =>
+      fetch("/api/portal/inbox", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { enquiries?: { status: string }[] } | null) => alive && d?.enquiries && setUnread(d.enquiries.filter((e) => e.status === "new").length))
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [user.setup]);
 
   const [spotlight, setSpotlight] = useState(false);
   const [device, setDevice] = useState<"desktop" | "tablet" | "phone">("desktop");
   /** Which page the live preview shows: it follows the page whose settings are open. */
   const [previewRoute, setPreviewRoute] = useState<PageKey>("home");
+  /** The project whose own page the preview shows when you go inside one. */
+  const [previewProject, setPreviewProject] = useState("");
+  const projectSlug = contentSaved.projects.some((p) => p.slug === previewProject) ? previewProject : (contentSaved.projects[0]?.slug ?? "");
   const previewPath =
-    previewRoute === "work" ? "/work" : previewRoute === "breakdowns" ? "/breakdowns" : previewRoute === "project" ? `/work/${contentSaved.projects[0]?.slug ?? ""}` : previewRoute === "notFound" ? "/page-not-found-preview" : "/";
-  const [wide, setWide] = useState(true);
+    previewRoute === "work" ? "/work" : previewRoute === "breakdowns" ? "/breakdowns" : previewRoute === "project" ? `/work/${projectSlug}` : previewRoute === "notFound" ? "/page-not-found-preview" : "/";
+  const breakdownsOpen = previewRoute === "breakdowns";
+  const undoRef = useRef(() => {});
+  const redoRef = useRef(() => {});
   useEffect(() => {
-    const on = () => setWide(window.innerWidth >= 900);
-    on();
-    window.addEventListener("resize", on);
-    return () => window.removeEventListener("resize", on);
-  }, []);
-  /** A large window is in front: the live preview sits framed beside it, so you always see what you change. */
-  const docked = !!topId && !!wins[topId]?.max && wide;
-  const breakdownsOpen = !!wins.breakdowns;
-  useEffect(() => {
-    // Only the content windows for the gallery and project pages show another page; everything else shows the home page.
-    if (tab === "breakdowns") setPreviewRoute("breakdowns"); // eslint-disable-line react-hooks/set-state-in-effect -- follows which window is in front
-    else if (tab !== "work" && tab !== "home") setPreviewRoute("home"); // eslint-disable-line react-hooks/set-state-in-effect -- follows which window is in front
-  }, [tab]);
-  const [goto, setGoto] = useState<{ tab: Tab; section: string; n: number } | null>(null);
+    undoRef.current = undo;
+    redoRef.current = redo;
+  });
+  const [goto] = useState<{ tab: Tab; section: string; n: number } | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setSpotlight((v) => !v);
+        return;
+      }
+      // Undo / redo of content edits (inside a text box the browser's own undo is used).
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redoRef.current();
+        else undoRef.current();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redoRef.current();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -410,11 +487,23 @@ export function PortalEditor({
         sentContentRef.current = contentRef.current;
         send({ source: "dds-portal", type: "content", content: contentRef.current });
         startRun(T.end, false); // the preview opens on the page itself: the logo and the stars, no opening animation
+        send({ source: "dds-portal", type: "edit-mode", on: editRef.current });
         setReady(true);
       }
       if (msg.type === "time") {
         playheadRef.current = msg.t;
         setPlayhead(msg.t);
+      }
+      if (msg.type === "edit-open") {
+        // An Edit button on the preview: "home:founder" is a section, "projects.3" is one item.
+        if ("section" in msg) {
+          const [page, id] = msg.section.split(":");
+          openModal({ kind: "section", page, id });
+        } else {
+          const m = /^(.+)\.(\d+)$/.exec(msg.item);
+          if (m && m[1] === "breakdowns") openModal({ kind: "section", page: "breakdowns", id: "all", index: Number(m[2]) });
+          else if (m) openModal({ kind: "item", list: m[1], index: Number(m[2]) });
+        }
       }
     }
     window.addEventListener("message", onMessage);
@@ -422,7 +511,12 @@ export function PortalEditor({
   }, [send, startRun]);
 
   useEffect(() => {
-    // Closing the Breakdowns window also closes the viewer inside the preview.
+    editRef.current = editMode;
+    if (ready) send({ source: "dds-portal", type: "edit-mode", on: editMode });
+  }, [editMode, ready, send]);
+
+  useEffect(() => {
+    // Leaving the Breakdowns screen also closes the viewer inside the preview.
     if (!breakdownsOpen && ready) send({ source: "dds-portal", type: "breakdown", index: null });
   }, [breakdownsOpen, ready, send]);
 
@@ -484,40 +578,32 @@ export function PortalEditor({
       onPage ? 0 : 700,
     );
   }
-  const frontOf = () => ++zRef.current;
-  function focusWin(id: Tab) {
-    setWins((w) => (w[id] && w[id]!.z !== zRef.current ? { ...w, [id]: { ...w[id]!, z: frontOf() } } : w));
-  }
-  function closeWin(id: Tab) {
-    setWins((w) => {
-      const next = { ...w };
-      delete next[id];
-      return next;
-    });
-  }
-  /** Bring a window to the front (restoring it if it was minimised). */
-  function toggleWinOpen(id: Tab) {
-    setWins((w) => (w[id] ? { ...w, [id]: { ...w[id]!, min: false, z: frontOf() } } : w));
-  }
-  function toggleWin(id: Tab) {
-    const current = wins[id];
-    if (current && !current.min && id === topId) {
-      closeWin(id);
+  /** The pages the taskbar switches between; every other item opens as a sheet. */
+  const PAGE_TABS: Partial<Record<Tab, PageKey>> = { home: "home", work: "work", projects: "work", breakdowns: "breakdowns" };
+  /** Choose a taskbar item. */
+  function selectTab(id: Tab) {
+    const page = PAGE_TABS[id];
+    if (page) {
+      setPreviewRoute(page);
+      setTab(id);
+      setSheetOpen(false);
+      setEditMode(true);
       return;
     }
-    if (current) {
-      setWins((w) => ({ ...w, [id]: { ...w[id]!, min: false, z: frontOf() } }));
-    } else {
-      const def = WINDOWS[id];
-      const n = Object.keys(wins).length;
-      const w = Math.min(def.w, window.innerWidth - 24);
-      const h = Math.min(def.h, window.innerHeight - 150);
-      setWins((all) => ({
-        ...all,
-        [id]: { x: Math.max(12, window.innerWidth - w - 24 - (n % 5) * 30), y: MENUBAR_H + 16 + (n % 5) * 28, w, h, z: frontOf(), min: false, max: !def.small },
-      }));
+    if (id === "site") {
+      setSheetOpen(false);
+      openModal({ kind: "page", page: "site" });
+      return;
     }
-    if (id !== tab || !current) showInPreview(previewFocus(id, dotsPage));
+    if (id === tab && sheetOpen) {
+      setSheetOpen(false); // the same item again folds its sheet away
+      return;
+    }
+    // These belong to the home page (its logo, slate, opening and per-part colours): show it.
+    if ((HOME_ONLY as readonly string[]).includes(id) && previewRoute !== "home") setPreviewRoute("home");
+    setTab(id);
+    setSheetOpen(true);
+    showInPreview(previewFocus(id, dotsPage));
   }
   // Don't lose unsaved work by accident.
   useEffect(() => {
@@ -624,6 +710,15 @@ export function PortalEditor({
   }
 
   const fractions = colorFractions(draft.colors);
+
+  /** The two background colours of a part of the page, shown at the foot of that part's editing window. */
+  const artExtra = (s: { art?: ColourTarget }) =>
+    s.art ? (
+      <Section title="Background colours" scope="Page" hint="The two colours the dots and bubbles take in this part of the page.">
+        <ColorRow label="Colour A" value={colourPair(draft, s.art).a} onChange={(hex) => updateDots(s.art!, "a", hex)} />
+        <ColorRow label="Colour B" value={colourPair(draft, s.art).b} onChange={(hex) => updateDots(s.art!, "b", hex)} />
+      </Section>
+    ) : null;
 
   const renderPanel = (tab: Tab) => (
     <>
@@ -1241,7 +1336,7 @@ export function PortalEditor({
                         href={`#${l.id}`}
                         className={styles.layerLink}
                         onClick={() =>
-                          toggleWin(l.id === "layer-glass" ? "glass" : l.id === "layer-background" ? "background" : "layers")
+                          selectTab(l.id === "layer-glass" ? "glass" : l.id === "layer-background" ? "background" : "layers")
                         }
                       >
                         <span className={styles.layerNum}>{i + 1}</span>
@@ -1658,41 +1753,6 @@ export function PortalEditor({
             </>
           )}
 
-          {tab === "home" && (
-            <ContentEditor
-              page={CONTENT_PAGES.home}
-              goto={goto?.tab === "home" ? goto : undefined}
-              onPage={setPreviewRoute}
-              onFocus={(to) => showInPreview({ to, at: "start", label: "Home page" })}
-              extra={(s) =>
-                s.art ? (
-                  <Section title="Background colours" scope="Page" hint="The two colours the dots and bubbles take in this part of the page.">
-                    <ColorRow label="Colour A" value={colourPair(draft, s.art).a} onChange={(hex) => updateDots(s.art!, "a", hex)} />
-                    <ColorRow label="Colour B" value={colourPair(draft, s.art).b} onChange={(hex) => updateDots(s.art!, "b", hex)} />
-                  </Section>
-                ) : null
-              }
-            />
-          )}
-          {tab === "work" && <ContentEditor page={CONTENT_PAGES.work} goto={goto?.tab === "work" ? goto : undefined} onFocus={() => {}} onPage={setPreviewRoute} />}
-          {tab === "site" && <ContentEditor page={CONTENT_PAGES.site} goto={goto?.tab === "site" ? goto : undefined} onFocus={() => {}} />}
-          {tab === "projects" && (
-            <ContentEditor
-              page={CONTENT_PAGES.projects}
-              goto={goto?.tab === "projects" ? goto : undefined}
-              firstOpen
-              onFocus={(to) => showInPreview({ to, at: "start", label: "Project gallery" })}
-              extra={(s) =>
-                s.art ? (
-                  <Section title="Background colours" scope="Page" hint="Colours behind the gallery.">
-                    <ColorRow label="Colour A" value={colourPair(draft, s.art).a} onChange={(hex) => updateDots(s.art!, "a", hex)} />
-                    <ColorRow label="Colour B" value={colourPair(draft, s.art).b} onChange={(hex) => updateDots(s.art!, "b", hex)} />
-                  </Section>
-                ) : null
-              }
-            />
-          )}
-          {tab === "breakdowns" && <BreakdownsEditor onShow={(index) => send({ source: "dds-portal", type: "breakdown", index })} />}
           {tab === "media" && <MediaLibrary />}
           {tab === "type" && <TypographyEditor />}
           {tab === "theme" && <ThemeEditor />}
@@ -1782,22 +1842,25 @@ export function PortalEditor({
           )}
           {tab === "account" && <AccountPanel me={user} />}
           {tab === "activity" && <ActivityPanel me={user} />}
-          {tab === "inbox" && <InboxPanel />}
+          {tab === "inbox" && <InboxPanel onCount={setUnread} />}
     </>
   );
 
   function pickSearch(e: SpotEntry) {
     setSpotlight(false);
     const id = e.tab as Tab;
-    if (e.section) setGoto((g) => ({ tab: id, section: e.section!, n: (g?.n ?? 0) + 1 }));
-    if (wins[id]) toggleWinOpen(id);
-    else toggleWin(id);
+    if (e.section && ["home", "work", "site", "slate", "projects"].includes(id)) {
+      // A section found by search: its editing window opens straight away (on the right page).
+      if (id === "home" || id === "work" || id === "projects") setPreviewRoute(id === "home" ? "home" : "work");
+      openModal({ kind: "section", page: id, id: e.section });
+      return;
+    }
+    selectTab(id);
   }
 
-  const openIds = (Object.keys(wins) as Tab[]).sort((a, b) => wins[a]!.z - wins[b]!.z);
   const menus: MenuDef[] = [
     {
-      label: "Desktop",
+      label: "Portal",
       items: [
         { label: "Randomize the look", disabled: !!user.setup, onClick: () => update(randomLook(draft)) },
         {
@@ -1812,58 +1875,102 @@ export function PortalEditor({
         { label: "Sign out", divider: true, onClick: signOut },
       ],
     },
-    {
-      label: "View",
-      items: [
-        { label: "Open the site in a new tab", onClick: () => window.open("/", "_blank") },
-        ...JUMP_TO.map((j, i) => ({
-          label: `Show: ${j.label}`,
-          divider: i === 0,
-          onClick: () => showInPreview({ to: j.to, at: j.at ?? "start", label: j.label }),
-        })),
-        { label: "Show all windows", divider: true, disabled: !openIds.length, onClick: () => setWins((w) => Object.fromEntries(Object.entries(w).map(([k, v]) => [k, { ...v!, min: false }]))) },
-        { label: "Close all windows", disabled: !openIds.length, onClick: () => setWins({}) },
-      ],
-    },
-    {
-      label: "Window",
-      items: [
-        ...(openIds.length
-          ? openIds.map((id) => ({ label: WINDOWS[id].title, hint: wins[id]!.min ? "minimised" : id === topId ? "front" : "", onClick: () => toggleWinOpen(id) }))
-          : [{ label: "No windows open", disabled: true }]),
-        { label: "Minimise all", divider: true, disabled: !openIds.length, onClick: () => setWins((w) => Object.fromEntries(Object.entries(w).map(([k, v]) => [k, { ...v!, min: true }]))) },
-      ],
-    },
   ];
 
-  const open = new Set(Object.keys(wins));
-  const minimized = new Set((Object.entries(wins) as [Tab, WinState][]).filter(([, w]) => w.min).map(([id]) => id));
+  const routeTab: Tab = previewRoute === "work" ? "work" : previewRoute === "breakdowns" ? "breakdowns" : "home";
+  const open = new Set<string>([sheetOpen ? tab : routeTab]);
+  const noneMinimised = new Set<string>();
   const onPage = playhead >= T.fadeStart;
+
+  // ── the editing window ────────────────────────────────────────────────────────────────────────────────────────
+  let modalEl: React.ReactNode = null;
+  if (modal) {
+    const snap = modalSnap;
+    const changed = !same(snap, contentDraft);
+    const closeModal = () => setModal(null);
+    const cancelModal = () => {
+      if (snap) setContentDraft(snap); // the preview follows, back to how it was
+      setSave({ kind: "idle" });
+      setModal(null);
+    };
+    const all = contentProblems(contentDraft);
+    if (modal.kind === "section") {
+      const hit = findSection(modal.page, modal.id);
+      const isBreakdowns = modal.page === "breakdowns";
+      if (hit || isBreakdowns) {
+        modalEl = (
+          <EditModal
+            title={isBreakdowns ? "Breakdowns" : hit!.section.title}
+            hint={isBreakdowns ? "Add, edit, reorder and remove the layered designs on the Breakdowns page." : hit!.page.name}
+            problems={problemsUnder(all, isBreakdowns ? ["breakdowns"] : sectionPaths(modal.page, modal.id))}
+            changed={changed}
+            onCancel={cancelModal}
+            onSave={closeModal}
+          >
+            {isBreakdowns ? (
+              <BreakdownsEditor initialOpen={modal.index} onShow={(index) => send({ source: "dds-portal", type: "breakdown", index })} />
+            ) : (
+              <ListModeProvider value={{ compact: ITEM_LISTS, openItem: (list, index) => setModal({ kind: "item", list, index }) }}>
+                <SectionEditor pageKey={modal.page} sectionId={modal.id} extra={artExtra} />
+              </ListModeProvider>
+            )}
+          </EditModal>
+        );
+      }
+    } else if (modal.kind === "item") {
+      const def = findList(modal.list);
+      const items = getAt(contentDraft, modal.list) as Record<string, unknown>[] | undefined;
+      const item = items?.[modal.index];
+      if (def && item) {
+        modalEl = (
+          <EditModal
+            title={def.title(item, modal.index)}
+            hint={`${def.label.split(" — ")[0]} · ${modal.index + 1} of ${items!.length}`}
+            headerExtra={
+              <>
+                {modal.list === "projects" && contentSaved.projects.some((p) => p.slug === (item as { slug?: string }).slug) && (
+                  <button
+                    type="button"
+                    className={edit.cancel}
+                    title="Go inside this project: its own page, with Edit buttons on its cover and pictures"
+                    onClick={() => {
+                      setPreviewProject((item as { slug: string }).slug);
+                      setPreviewRoute("project");
+                      setEditMode(true);
+                      closeModal();
+                    }}
+                  >
+                    Open its page ›
+                  </button>
+                )}
+                <ItemTools list={modal.list} index={modal.index} onIndex={(i) => setModal({ kind: "item", list: modal.list, index: i })} onDeleted={closeModal} />
+              </>
+            }
+            problems={problemsUnder(all, [`${modal.list}.${modal.index}`])}
+            changed={changed}
+            onCancel={cancelModal}
+            onSave={closeModal}
+          >
+            <ItemEditor list={modal.list} index={modal.index} />
+          </EditModal>
+        );
+      }
+    } else {
+      const page = CONTENT_PAGES[modal.page as keyof typeof CONTENT_PAGES];
+      modalEl = (
+        <EditModal title={page.name} hint={page.hint} problems={[]} changed={changed} onCancel={cancelModal} onSave={closeModal}>
+          <ContentEditor page={page} extra={artExtra} />
+        </EditModal>
+      );
+    }
+  }
   const holdTime = (a: number) => a;
   void holdTime;
 
   return (
     <EditorProvider value={{ content: contentDraft, update: updateContent, media }}>
-      <div className={`${styles.shell} ${mac.desktop}`}>
-        <div ref={stageRef} className={mac.wallpaper} data-framed={docked} data-device={device}>
-          {docked && (
-            <div className={mac.previewBar}>
-              <span className={mac.previewLive}>
-                <i aria-hidden="true" /> Live preview
-              </span>
-              <span className={mac.previewDevices} role="group" aria-label="Preview size">
-                {(["desktop", "tablet", "phone"] as const).map((d) => (
-                  <button key={d} type="button" data-on={device === d} onClick={() => setDevice(d)}>
-                    {d === "desktop" ? "Desktop" : d === "tablet" ? "Tablet" : "Phone"}
-                  </button>
-                ))}
-              </span>
-              <span className={mac.menuSpacer} />
-              <button type="button" className={mac.previewBtn} onClick={() => frameRef.current?.contentWindow?.location.reload()}>
-                ↻ Reload
-              </button>
-            </div>
-          )}
+      <div className={`${styles.shell} ${mac.desktop}`} data-editing={editMode}>
+        <div ref={stageRef} className={mac.wallpaper} data-framed="true" data-device={device}>
           <iframe ref={frameRef} title="Live preview of the site" src={`${previewPath}?${PREVIEW_PARAM}`} />
         </div>
 
@@ -1911,27 +2018,56 @@ export function PortalEditor({
           </span>
         </MenuBar>
 
-        {(Object.entries(wins) as [Tab, WinState][]).map(([id, state]) => (
-          <Win
-            key={id}
-            title={WINDOWS[id].title}
-            glyph={WINDOWS[id].glyph}
-            tint={WINDOWS[id].tint}
-            state={state}
-            onFocus={() => focusWin(id)}
-            onClose={() => closeWin(id)}
-            onChange={(patch) => setWins((w) => (w[id] ? { ...w, [id]: { ...w[id]!, ...patch } } : w))}
-          >
-            {id !== "playback" && id !== "account" && id !== "activity" && id !== "inbox" && (
-              <p className={mac.winHint}>{WINDOWS[id].hint}</p>
-            )}
-            {renderPanel(id)}
-          </Win>
-        ))}
+        {/* The screen: one at a time, a normal pane down the left with its own heading, hint and scrolling. */}
+        <PageBar
+          route={previewRoute}
+          onRoute={(k) => {
+            setPreviewRoute(k);
+            setSheetOpen(false);
+            setEditMode(true);
+          }}
+          editing={editMode}
+          onEditing={setEditMode}
+          device={device}
+          onDevice={setDevice}
+          jumps={JUMP_TO}
+          onJump={(i) => showInPreview({ to: JUMP_TO[i].to, at: JUMP_TO[i].at ?? "start", label: JUMP_TO[i].label })}
+          canUndo={history.past.length > 0}
+          canRedo={history.future.length > 0}
+          onUndo={undo}
+          onRedo={redo}
+          onReload={() => frameRef.current?.contentWindow?.location.reload()}
+          projects={contentSaved.projects.map((p) => ({ slug: p.slug, title: p.title }))}
+          projectSlug={projectSlug}
+          onProject={setPreviewProject}
+          onPageLook={() => openModal({ kind: "section", page: previewRoute === "breakdowns" ? "work" : previewRoute === "work" ? "work" : "home", id: `look-${previewRoute === "work" || previewRoute === "breakdowns" ? previewRoute : "home"}` })}
+        />
+
+        {/* The sheet: stars, colours, fonts, account… shown over the bottom of the preview, so what changes stays in view. */}
+        {sheetOpen && !modal && (
+          <section className={edit.sheet} aria-labelledby="sheet-title">
+            <header className={edit.head}>
+              <div className={edit.headText}>
+                <h2 id="sheet-title" className={edit.title}>
+                  {WINDOWS[tab].title}
+                </h2>
+                {tab !== "playback" && tab !== "account" && tab !== "activity" && tab !== "inbox" && <p className={edit.hint}>{WINDOWS[tab].hint}</p>}
+              </div>
+              <button type="button" className={edit.close} aria-label="Close" onClick={() => setSheetOpen(false)}>
+                ×
+              </button>
+            </header>
+            <div className={edit.sheetBody} key={tab}>
+              {renderPanel(tab)}
+            </div>
+          </section>
+        )}
+
+        {modalEl}
 
         {spotlight && <Spotlight entries={user.setup ? SEARCH_ENTRIES.filter((e) => e.tab === "account") : SEARCH_ENTRIES} onPick={pickSearch} onClose={() => setSpotlight(false)} />}
 
-        <Dock groups={DOCK} open={open} minimized={minimized} disabled={(id) => !!user.setup && id !== "account"} onToggle={(id) => toggleWin(id as Tab)} />
+        <Dock groups={DOCK} badges={{ inbox: unread }} open={open} minimized={noneMinimised} disabled={(id) => !!user.setup && id !== "account"} onToggle={(id) => selectTab(id as Tab)} />
       </div>
     </EditorProvider>
   );

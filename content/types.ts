@@ -3,14 +3,10 @@
 // The category names below are also the filter buttons on the Work page.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type Category =
-  | "Film Publicity"
-  | "Re-release"
-  | "Campaigns"
-  | "Title Design"
-  | "Independent";
+/** A project's type, one of the site's categories (the creator can add, rename, reorder and remove them in the portal). */
+export type Category = string;
 
-/** Filter buttons on the Work page, in this order (only categories that have projects are shown). */
+/** The categories the site starts with; they become the filter buttons on the Work page, in this order (only ones that have projects are shown). */
 export const CATEGORIES: Category[] = [
   "Film Publicity",
   "Re-release",
@@ -74,10 +70,14 @@ export interface Testimonial {
 export interface ClientEntry {
   name: string;
   logo: string;
+  /** What the logo shows (optional; the name is used when empty). */
+  alt?: string;
 }
 
 /** A person the studio has worked with: their photo (a round portrait) and their name. */
 export interface CollaboratorEntry {
   name: string;
   photo: string;
+  /** What the photo shows (optional). */
+  alt?: string;
 }

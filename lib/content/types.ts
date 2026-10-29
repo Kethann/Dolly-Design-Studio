@@ -116,6 +116,8 @@ export interface SiteContent {
   collaborators: CollaboratorEntry[];
   testimonials: Testimonial[];
   projects: Project[];
+  /** The project types, in the order of the filter buttons on the gallery. */
+  categories: string[];
   work: Widen<typeof workPage>;
   breakdownsPage: Widen<typeof breakdownsPage>;
   projectPage: Widen<typeof projectPage>;

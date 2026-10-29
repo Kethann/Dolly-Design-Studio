@@ -23,6 +23,13 @@ export type PortalToSite =
   | { source: "dds-portal"; type: "breakdown"; index: number | null }
   | { source: "dds-portal"; type: "run"; run: PreviewRun }
   /** Glide the preview to a section ("top" = the very top): its start, or its end (e.g. the Proof Table's final view). */
-  | { source: "dds-portal"; type: "scroll"; to: string; at?: "start" | "end" };
+  | { source: "dds-portal"; type: "scroll"; to: string; at?: "start" | "end" }
+  /** Turn the Edit buttons on the sections and items of the preview on or off. */
+  | { source: "dds-portal"; type: "edit-mode"; on: boolean };
 
-export type SiteToPortal = { source: "dds-site"; type: "ready" } | { source: "dds-site"; type: "time"; t: number };
+export type SiteToPortal =
+  | { source: "dds-site"; type: "ready" }
+  | { source: "dds-site"; type: "time"; t: number }
+  /** An Edit button was pressed: on a whole section ("home:founder"), or on one item of a list ("projects.3"). */
+  | { source: "dds-site"; type: "edit-open"; section: string }
+  | { source: "dds-site"; type: "edit-open"; item: string };

@@ -11,7 +11,7 @@ import { store } from "@/lib/storage";
 /** The image library: every picture the site has, plus uploads (creator portal only). */
 const ROOT = path.join(process.cwd(), "public", "images");
 const MAX_BYTES = 30 * 1024 * 1024;
-const IMAGE = /\.(webp|png|jpe?g|avif)$/i;
+const IMAGE = /\.(webp|png|jpe?g|avif|gif|svg)$/i;
 /** Folders that are the studio's own artwork, not for picking. */
 const HIDDEN = new Set(["brand", "textures", "star-textures"]);
 
@@ -52,9 +52,8 @@ export async function POST(req: NextRequest) {
     const f = form.get("file");
     file = f instanceof File ? f : null;
   } catch {}
-  if (!file || !/^image\/(png|webp|jpeg|avif)$/.test(file.type)) {
-    return NextResponse.json({ error: "Choose a PNG, WebP, JPG or AVIF image." }, { status: 400 });
-  }
+  // The kind of picture is decided from its bytes (below), not from what the browser says it is.
+  if (!file) return NextResponse.json({ error: "Choose a picture to upload." }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "That image is over 30 MB." }, { status: 400 });
 
   try {
@@ -73,7 +72,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ src: `/images/uploads/${name}` });
   } catch (err) {
     console.error("[portal] image upload failed", err);
-    const known = err instanceof Error && /isn.t a PNG/.test(err.message);
+    const known = err instanceof Error && /isn.t a picture|SVG|TIFF/.test(err.message);
     return NextResponse.json({ error: known ? (err as Error).message : "Couldn’t save the image on this server." }, { status: known ? 400 : 500 });
   }
 }

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useContent, tx } from "@/lib/content/context";
+import { edItem, edSection } from "@/lib/content/tx";
 import { placeholderProps, versionedSrc } from "@/lib/images";
 import styles from "./Services.module.css";
 
@@ -57,7 +58,7 @@ function Icon({ name }: { name: string }) {
 export function Services() {
   const { home, services } = useContent();
   return (
-    <section id="services" className={styles.section}>
+    <section id="services" className={styles.section} {...edSection("home", "services", "Our services")}>
       <div className="container">
         <span className={styles.label} {...tx("home.services.label")}>
           {home.services.label}
@@ -67,8 +68,8 @@ export function Services() {
         </h2>
 
         <div className={styles.cards}>
-          {services.map((s) => (
-            <article key={s.number} className={styles.card} tabIndex={0}>
+          {services.map((s, i) => (
+            <article key={s.number} className={styles.card} tabIndex={0} {...edItem("services", i, "Service")}>
               <div className={styles.media} data-fit={s.sample.includes("/proof-table/") || s.sample.includes("/title-designs/") ? "contain" : "cover"}>
                 <Image
                   src={versionedSrc(s.sample)}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ExplodeStage } from "@/components/BreakdownStage";
 import { useContent, tx } from "@/lib/content/context";
+import { edItem, edSection } from "@/lib/content/tx";
 import { glideTo } from "@/lib/smooth-scroll";
 import styles from "./BreakdownsPage.module.css";
 
@@ -149,10 +150,22 @@ export function BreakdownsPage() {
     return () => window.removeEventListener("dds-breakdown", on);
   }, [goTo]);
 
+  /** Which breakdown's link was just copied (the button says so for a moment). */
+  const [copied, setCopied] = useState<number | null>(null);
+  const copyLink = useCallback((i: number) => {
+    const url = `${window.location.origin}/breakdowns#b${i + 1}`;
+    const done = () => {
+      setCopied(i);
+      setTimeout(() => setCopied((c) => (c === i ? null : c)), 1800);
+    };
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done, () => window.prompt("Copy this link:", url));
+    else window.prompt("Copy this link:", url);
+  }, []);
+
   const setOpen = useCallback((i: number, open: boolean) => setOpenSet((s) => (s[i] === open ? s : { ...s, [i]: open })), []);
 
   return (
-    <section className={styles.page}>
+    <section className={styles.page} {...edSection("breakdowns", "all", "Breakdowns")}>
       <div className={styles.glowTop} aria-hidden="true" />
       <div className="container">
         <Link href="/#process" className={styles.back} data-cursor="link" {...tx("breakdownsPage.backLink")}>
@@ -194,6 +207,7 @@ export function BreakdownsPage() {
             }}
             className={styles.entry}
             data-open={!!openSet[i]}
+            {...edItem("breakdowns", i, item.title)}
             aria-label={`Breakdown ${i + 1}: ${item.title}`}
           >
             <span className={styles.ghost} aria-hidden="true">
@@ -216,6 +230,9 @@ export function BreakdownsPage() {
                   </div>
                 )}
                 <span className={styles.layerCount}>{item.layers.length} {item.layers.length === 1 ? "layer" : "layers"}</span>
+                <button type="button" className={styles.copyLink} onClick={() => copyLink(i)} data-cursor="link">
+                  {copied === i ? "✓ Link copied" : "Copy link"}
+                </button>
               </div>
               <div className={styles.visual}>
                 <ExplodeStage item={item} index={i} openSignal={signals[i] ?? 0} onOpenChange={setOpen} />

@@ -1,13 +1,14 @@
 "use client";
 
 import { useContent, tx } from "@/lib/content/context";
+import { edSection } from "@/lib/content/tx";
 import { HERO_LOGO_ID } from "@/lib/dom-ids";
 import styles from "./Hero.module.css";
 
 export function Hero() {
   const { site, home } = useContent();
   return (
-    <section id="top" className={styles.hero}>
+    <section id="top" className={styles.hero} {...edSection("home", "intro", "Under the logo")}>
       <div className={styles.logoBlock}>
         <h1 className="sr-only">
           {site.name} — {home.hero.screenReaderHeading}

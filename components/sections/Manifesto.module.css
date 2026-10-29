@@ -1,8 +1,8 @@
 .section {
-  min-height: 90vh;
+  min-height: min(64vh, 560px);
   display: flex;
   align-items: center;
-  padding-block: 120px;
+  padding-block: var(--section-pad);
 }
 
 .inner {

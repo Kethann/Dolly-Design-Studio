@@ -6,54 +6,75 @@ import styles from "./mac.module.css";
 // ── icons ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const PATHS: Record<string, ReactNode> = {
-  home: <path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1z" />,
+  // pages
+  home: (
+    <>
+      <path d="M4 11 12 4l8 7" />
+      <path d="M6 9.6V19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.6" />
+      <path d="M10 20v-5.2a2 2 0 0 1 4 0V20" />
+    </>
+  ),
   work: (
     <>
-      <rect x="4" y="5" width="7" height="7" rx="1.2" />
-      <rect x="13" y="5" width="7" height="7" rx="1.2" />
-      <rect x="4" y="14" width="7" height="5" rx="1.2" />
-      <rect x="13" y="14" width="7" height="5" rx="1.2" />
+      <rect x="3.5" y="4.5" width="7" height="10" rx="1.4" />
+      <rect x="13.5" y="4.5" width="7" height="6" rx="1.4" />
+      <rect x="13.5" y="13.5" width="7" height="6" rx="1.4" opacity="0.6" />
+      <rect x="3.5" y="17.5" width="7" height="2" rx="1" opacity="0.6" />
+    </>
+  ),
+  breakdowns: (
+    <>
+      <path d="m12 3.5 8 3.6-8 3.6-8-3.6z" />
+      <path d="m4 11.6 8 3.6 8-3.6" opacity="0.7" />
+      <path d="m4 16.1 8 3.6 8-3.6" opacity="0.4" />
     </>
   ),
   site: (
     <>
-      <circle cx="12" cy="12" r="8" />
-      <path d="M4 12h16M12 4c2.6 2.4 2.6 13.6 0 16M12 4c-2.6 2.4-2.6 13.6 0 16" />
-    </>
-  ),
-  projects: (
-    <>
-      <path d="M4 9h16v10H4zM4 9l2.5-4.5 3 .8L7 9.5M10 5.3l3-.5L11 9M14 4.8l3-.4L15 9" />
-      <path d="M8 13h8" />
+      <rect x="3.5" y="5" width="17" height="14" rx="2.2" />
+      <path d="M3.5 9.5h17" />
+      <path d="M7 14h6M7 16.6h4" opacity="0.7" />
+      <circle cx="6.8" cy="7.3" r="0.5" />
+      <circle cx="9" cy="7.3" r="0.5" />
     </>
   ),
   slate: (
     <>
-      <path d="M4 8l16-3v5H4z" />
-      <rect x="4" y="10" width="16" height="9" rx="1.5" />
-      <path d="M8 14h8" />
+      <path d="M4 10h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" />
+      <path d="m4 10 1.6-4.4 3.6.9L7.8 10M9.4 6.6l3.6.9-1.4 2.5M13.2 7.5l3.6.9-1.4 1.6" />
     </>
   ),
+  // library
   media: (
     <>
-      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <rect x="3.5" y="5" width="17" height="14" rx="2.2" />
       <circle cx="9" cy="10" r="1.6" />
-      <path d="m5 17 5-4.5 3.5 3L16 13l4 4" />
+      <path d="m4.5 17 4.8-4.4 3.4 3 2.6-2.4 4.2 3.8" />
     </>
   ),
   type: (
     <>
-      <path d="M4 18 9 6l5 12M5.8 14h6.4" />
+      <path d="M3.5 18 8.5 6l5 12M5.3 14h6.4" />
       <path d="M15 18c0-3 1.5-4 3-4s2 .9 2 2.2V18M20 16.2c-3 0-5 .6-5 1.9 0 1 .9 1.4 2 1.4 1.5 0 3-.9 3-2.3" />
     </>
   ),
+  // page look
   background: (
     <>
-      <rect x="4" y="5" width="16" height="14" rx="2.5" />
-      <path d="M4 15c4-5 7 1 10-3s4-1 6-2" />
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.4" />
+      <path d="M3.5 15c4-5 7 1 10-3s4-1 7-2.5" />
+      <circle cx="16.5" cy="8.5" r="1.3" opacity="0.7" />
     </>
   ),
-  glass: <path d="M12 4l7 5v6l-7 5-7-5V9zM12 4v16M5 9l14 6M19 9 5 15" />,
+  drop: <path d="M12 3.8c3.2 4.2 6 6.7 6 10.2a6 6 0 0 1-12 0c0-3.5 2.8-6 6-10.2zM9.5 14.5a2.6 2.6 0 0 0 2.2 2.4" />,
+  glass: (
+    <>
+      <rect x="4.5" y="4" width="15" height="16" rx="2.6" />
+      <path d="m9 17 7-9M7.5 12.5 12 7" opacity="0.7" />
+      <path d="M15.5 16.5 17 15" opacity="0.5" />
+    </>
+  ),
+  // stars
   colours: (
     <>
       <path d="M12 4a8 8 0 1 0 0 16c1.3 0 2-.8 2-1.7 0-1.4-1-1.5-1-2.6 0-1 .8-1.7 1.9-1.7H17a3 3 0 0 0 3-3C20 6.5 16.4 4 12 4z" />
@@ -62,51 +83,63 @@ const PATHS: Record<string, ReactNode> = {
       <circle cx="15" cy="8.5" r="1.1" />
     </>
   ),
-  finish: <path d="M12 4l1.8 5.2L19 11l-5.2 1.8L12 18l-1.8-5.2L5 11l5.2-1.8zM18 4v3M16.5 5.5h3M6 17v3M4.5 18.5h3" />,
+  finish: (
+    <>
+      <path d="M10 4.5 11.7 9l4.5 1.7-4.5 1.7L10 17l-1.7-4.6L3.8 10.7 8.3 9z" />
+      <path d="M18 3.5v3M16.5 5h3M17.5 14v3.5M15.8 15.8h3.4" opacity="0.7" />
+    </>
+  ),
   layers: (
     <>
-      <path d="m12 4 8 4-8 4-8-4z" />
-      <path d="m4 12 8 4 8-4M4 16l8 4 8-4" />
+      <path d="m9 4 1.5 4L14.5 9.5 10.5 11 9 15 7.5 11 3.5 9.5 7.5 8z" />
+      <path d="m17.5 11 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z" opacity="0.7" />
+      <path d="m16 4 .6 1.4L18 6l-1.4.6L16 8l-.6-1.4L14 6l1.4-.6z" opacity="0.5" />
     </>
   ),
-  motion: <path d="M4 9c3-3 5 3 8 0s5-3 8 0M4 14c3-3 5 3 8 0s5-3 8 0M4 19c3-3 5 3 8 0s5-3 8 0" />,
+  motion: (
+    <>
+      <path d="M3.5 8c2.2-2.4 4.3 2.4 6.5 0s4.3-2.4 6.5 0 3 .4 4-.5" />
+      <path d="M3.5 13c2.2-2.4 4.3 2.4 6.5 0s4.3-2.4 6.5 0 3 .4 4-.5" opacity="0.7" />
+      <path d="M3.5 18c2.2-2.4 4.3 2.4 6.5 0s4.3-2.4 6.5 0 3 .4 4-.5" opacity="0.4" />
+    </>
+  ),
+  // animation
   intro: (
     <>
-      <circle cx="12" cy="12" r="8" />
-      <path d="m10 8.5 5 3.5-5 3.5z" />
+      <rect x="3.5" y="5" width="17" height="14" rx="2.4" />
+      <path d="m10.3 9.2 4.6 2.8-4.6 2.8z" />
     </>
   ),
-  cursor: <path d="M6 4l12 7-5.2 1.4L10.6 18z" />,
+  cursor: (
+    <>
+      <path d="M6 4.5 18 11l-5.4 1.5L10.2 18z" />
+      <path d="m13 13.5 3.5 3.5" opacity="0.7" />
+    </>
+  ),
   playback: (
     <>
-      <path d="M4 17h16" />
-      <circle cx="9" cy="17" r="2" />
-      <path d="M7 8l7 4-7 4z" />
+      <path d="M4 17.5h16" />
+      <circle cx="10" cy="17.5" r="2" />
+      <path d="M7.5 7.5v6l5-3z" />
     </>
   ),
-  breakdowns: (
-    <>
-      <rect x="3.5" y="9" width="8" height="8" rx="1.2" />
-      <rect x="8.5" y="5" width="8" height="8" rx="1.2" />
-      <rect x="13.5" y="11" width="7" height="8" rx="1.2" />
-    </>
-  ),
+  // studio
   inbox: (
     <>
-      <path d="M4 13l2.4-7h11.2L20 13v5H4z" />
-      <path d="M4 13h4.5l1 2.5h5l1-2.5H20" />
-    </>
-  ),
-  activity: (
-    <>
-      <path d="M4 6h16M4 12h10M4 18h13" />
-      <circle cx="19" cy="12" r="1.6" />
+      <path d="M4 13.5 6.5 6h11l2.5 7.5V18a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" />
+      <path d="M4 13.5h4.6l1 2.4h4.8l1-2.4H20" opacity="0.7" />
     </>
   ),
   account: (
     <>
-      <circle cx="12" cy="9" r="3.4" />
-      <path d="M5 19c.8-3.4 3.6-5 7-5s6.2 1.6 7 5" />
+      <circle cx="12" cy="8.5" r="3.4" />
+      <path d="M5 19.5c.9-3.6 3.7-5.3 7-5.3s6.1 1.7 7 5.3" />
+    </>
+  ),
+  activity: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 7.5V12l3 2" />
     </>
   ),
 };
@@ -124,6 +157,8 @@ export function Glyph({ name }: { name: string }) {
 export interface DockItem {
   id: string;
   label: string;
+  /** A short name shown under the icon. */
+  short: string;
   glyph: string;
   /** The icon's neon colour is the first of these. */
   tint: [string, string];
@@ -142,12 +177,15 @@ export interface DockGroup {
  */
 export function Dock({
   groups,
+  badges,
   open,
   minimized,
   disabled,
   onToggle,
 }: {
   groups: DockGroup[];
+  /** A small number on an icon (e.g. unread enquiries). */
+  badges?: Record<string, number>;
   open: Set<string>;
   minimized: Set<string>;
   disabled?: (id: string) => boolean;
@@ -161,36 +199,46 @@ export function Dock({
   }
 
   return (
-    <nav className={styles.dockWrap} aria-label="Portal apps">
+    <nav className={styles.dockWrap} aria-label="Portal tools">
       <div className={styles.dock}>
         {groups.map((g, gi) => (
-          <div key={g.name} className={styles.dockGroup}>
+          <div key={g.name} className={styles.dockSection}>
             {gi > 0 && <span className={styles.divider} aria-hidden="true" />}
-            {g.items.map((it) => {
-              const isOpen = open.has(it.id);
-              return (
-                <button
-                  key={it.id}
-                  type="button"
-                  data-dock-item
-                  className={styles.dockItem}
-                  data-open={isOpen}
-                  data-min={minimized.has(it.id)}
-                  disabled={disabled?.(it.id)}
-                  aria-label={it.label}
-                  aria-pressed={isOpen}
-                  style={{ "--accent": it.tint[0] } as React.CSSProperties}
-                  onPointerMove={shine}
-                  onClick={() => onToggle(it.id)}
-                >
-                  <span className={styles.tile}>
-                    <Glyph name={it.glyph} />
-                  </span>
-                  <span className={styles.tip}>{it.label}</span>
-                  <span className={styles.dot} aria-hidden="true" />
-                </button>
-              );
-            })}
+            <div className={styles.dockBlock} role="group" aria-label={g.name}>
+              <span className={styles.groupName}>{g.name}</span>
+              <div className={styles.dockGroup}>
+                {g.items.map((it) => {
+                  const isOpen = open.has(it.id);
+                  return (
+                    <button
+                      key={it.id}
+                      type="button"
+                      data-dock-item
+                      className={styles.dockItem}
+                      data-open={isOpen}
+                      data-min={minimized.has(it.id)}
+                      disabled={disabled?.(it.id)}
+                      aria-label={it.label}
+                      aria-pressed={isOpen}
+                      style={{ "--accent": it.tint[0] } as React.CSSProperties}
+                      onPointerMove={shine}
+                      onClick={() => onToggle(it.id)}
+                    >
+                      <span className={styles.tile}>
+                        <Glyph name={it.glyph} />
+                      </span>
+                      {!!badges?.[it.id] && (
+                        <span className={styles.badge} aria-label={`${badges[it.id]} new`}>
+                          {badges[it.id] > 9 ? "9+" : badges[it.id]}
+                        </span>
+                      )}
+                      <span className={styles.itemLabel}>{it.short}</span>
+                      <span className={styles.tip}>{it.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -215,24 +263,10 @@ export interface MenuDef {
   items: MenuItem[];
 }
 
-const clockText = (d: Date) => {
-  const day = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true }).toLowerCase();
-  return `${day.replace(/^(\w+) /, "$1, ")}, ${time}`;
-};
-
-/** Menu bar: logo, pull-down menus (Desktop · View · Window), then whatever goes on the right. */
+/** Menu bar: logo, pull-down menus (Desktop · View · Window), then whatever goes on the right (search, status, publish). */
 export function MenuBar({ menus, children }: { menus: MenuDef[]; children: ReactNode }) {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
-  const [now, setNow] = useState<Date | null>(null);
   const barRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- the clock only exists in the browser
-    setNow(new Date());
-    const t = setInterval(() => setNow(new Date()), 15000);
-    return () => clearInterval(t);
-  }, []);
 
   useEffect(() => {
     if (openMenu === null) return;
@@ -293,104 +327,6 @@ export function MenuBar({ menus, children }: { menus: MenuDef[]; children: React
       ))}
       <span className={styles.menuSpacer} />
       {children}
-      <time className={styles.clock}>{now ? clockText(now) : ""}</time>
     </header>
-  );
-}
-
-// ── a window ────────────────────────────────────────────────────────────────────────────────────────────────────
-
-export interface WinState {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  z: number;
-  min: boolean;
-  max: boolean;
-}
-
-export const MENUBAR_H = 36;
-
-/** A draggable, resizable liquid-glass window with the red / yellow / green buttons. */
-export function Win({
-  title,
-  glyph,
-  tint,
-  state,
-  onFocus,
-  onClose,
-  onChange,
-  children,
-}: {
-  title: string;
-  glyph: string;
-  tint: [string, string];
-  state: WinState;
-  onFocus: () => void;
-  onClose: () => void;
-  onChange: (patch: Partial<WinState>) => void;
-  children: ReactNode;
-}) {
-  const drag = useRef<{ dx: number; dy: number } | null>(null);
-  // "Large" docks the window down the left side, full height; the live preview is framed beside it. A minimised
-  // window drops back to its small floating place as a title bar.
-  const large = state.max && !state.min;
-  const style: React.CSSProperties = large
-    ? { zIndex: state.z }
-    : {
-        left: state.x,
-        top: state.y,
-        width: state.w,
-        height: state.min ? undefined : state.h,
-        zIndex: state.z,
-      };
-  return (
-    <section className={styles.win} data-min={state.min} data-max={large} style={style} aria-label={title} onPointerDown={onFocus}>
-      <header
-        className={styles.bar}
-        onPointerDown={(e) => {
-          if ((e.target as HTMLElement).closest("button") || large) return;
-          drag.current = { dx: e.clientX - state.x, dy: e.clientY - state.y };
-          e.currentTarget.setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          if (!drag.current) return;
-          const x = Math.min(window.innerWidth - 90, Math.max(90 - state.w, e.clientX - drag.current.dx));
-          const y = Math.min(window.innerHeight - 60, Math.max(MENUBAR_H, e.clientY - drag.current.dy));
-          onChange({ x, y });
-        }}
-        onPointerUp={() => (drag.current = null)}
-        onDoubleClick={() => onChange({ max: !large, min: false })}
-      >
-        <span className={styles.lights}>
-          <button type="button" className={styles.light} data-c="close" aria-label={`Close ${title}`} onClick={onClose} />
-          {/* Yellow: large → small floating window → just a title bar → small again. Green: large ⇄ small. */}
-          <button
-            type="button"
-            className={styles.light}
-            data-c="min"
-            aria-label={large ? "Make smaller" : state.min ? "Restore" : "Fold up"}
-            title={large ? "Make smaller" : state.min ? "Restore" : "Fold up"}
-            onClick={() => onChange(large ? { max: false, min: false } : { min: !state.min })}
-          />
-          <button
-            type="button"
-            className={styles.light}
-            data-c="max"
-            aria-label={large ? "Make smaller" : "Make large"}
-            title={large ? "Make smaller" : "Make large"}
-            onClick={() => onChange({ max: !large, min: false })}
-          />
-        </span>
-        <span className={styles.barTitle}>
-          <span className={styles.barIcon} style={{ "--accent": tint[0] } as React.CSSProperties}>
-            <Glyph name={glyph} />
-          </span>
-          {title}
-        </span>
-      </header>
-      {(large || !state.min) && <div className={styles.winBody}>{children}</div>}
-    </section>
   );
 }

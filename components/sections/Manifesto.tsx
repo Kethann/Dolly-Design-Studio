@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useContent, tx } from "@/lib/content/context";
+import { edSection } from "@/lib/content/tx";
 import { useMotion } from "@/lib/motion";
 import styles from "./Manifesto.module.css";
 
@@ -71,7 +72,7 @@ export function Manifesto() {
   }, [reducedMotion, home.manifesto.statement]);
 
   return (
-    <section id="agency" className={styles.section}>
+    <section id="agency" className={styles.section} {...edSection("home", "agency", "About the agency")}>
       <div className={`container ${styles.inner}`}>
         <span className={styles.label} {...tx("home.manifesto.label")}>{home.manifesto.label}</span>
         <p ref={ref} className={styles.statement} {...tx("home.manifesto.statement")}>

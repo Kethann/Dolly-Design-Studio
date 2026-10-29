@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useContent, tx } from "@/lib/content/context";
+import { edSection } from "@/lib/content/tx";
 import { Magnetic } from "@/components/Magnetic";
 import { CONTACT_LIMITS, validateContact, type ContactErrors, type ContactField } from "@/lib/contact/validate";
 import styles from "./Contact.module.css";
@@ -103,7 +104,7 @@ export function Contact() {
     ) : null;
 
   return (
-    <section id="contact" className={styles.section}>
+    <section id="contact" className={styles.section} {...edSection("home", "contact", "Contact us")}>
       <div className={styles.glow} aria-hidden="true" />
       {flakes.length > 0 && (
         <div className={styles.flakes} aria-hidden="true">

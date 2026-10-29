@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useContent, tx } from "@/lib/content/context";
+import { edSection } from "@/lib/content/tx";
 import { WorkGrid } from "@/components/WorkGrid";
 import { Magnetic } from "@/components/Magnetic";
 import styles from "./Gallery.module.css";
@@ -11,7 +12,7 @@ export function Gallery() {
   const all = [...projects].sort((a, b) => a.order - b.order);
 
   return (
-    <section id="work" className={styles.section}>
+    <section id="work" className={styles.section} {...edSection("home", "gallery", "Project gallery")}>
       <div className="container">
         <div className={styles.head}>
           <div>

@@ -1,6 +1,6 @@
 .section {
   position: relative;
-  padding-block: 140px;
+  padding-block: calc(var(--section-pad) * 1.2);
   overflow: hidden;
 }
 

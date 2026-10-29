@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { BreakdownLayer } from "@/lib/content/types";
 import { MAX_BREAKDOWNS, MAX_BREAKDOWN_LAYERS } from "@/lib/content/limits";
 import { DropZone, FieldView, useEditor, useUploads } from "./ContentEditor";
@@ -29,10 +29,10 @@ const PAGE_FIELDS: Field[] = [
  * Breakdowns: layered artworks that fall apart into their layers when someone hovers them on the site. Each breakdown
  * is one finished image made of as many transparent PNG layers as the design file has, each with its own label.
  */
-export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) => void }) {
+export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: number | null) => void; /** Open this breakdown first (the Edit button on one of the page's entries). */ initialOpen?: number }) {
   const { content, update, media } = useEditor();
   const items = content.breakdowns;
-  const [open, setOpen] = useState<number | null>(items.length ? 0 : null);
+  const [open, setOpen] = useState<number | null>(initialOpen !== undefined && initialOpen < items.length ? initialOpen : items.length ? 0 : null);
   /** Why the last layer upload added fewer files than were chosen. */
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -208,6 +208,10 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
                         aria-label={`Label for layer ${k + 1}`}
                         onChange={(e) => patch(i, (x) => ({ ...x, layers: x.layers.map((y, j) => (j === k ? { ...y, label: e.target.value } : y)) }))}
                       />
+                      <ReplaceLayer
+                        upload={media.upload}
+                        onDone={(src) => patch(i, (x) => ({ ...x, layers: x.layers.map((y, j) => (j === k ? { ...y, image: src } : y)) }))}
+                      />
                       <span className={styles.mini}>
                         <button type="button" aria-label="Move this layer down (towards the bottom)" disabled={k === 0} onClick={() => moveLayer(i, k, -1)}>
                           ↑
@@ -288,6 +292,44 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
         </section>
       ))}
     </div>
+  );
+}
+
+/** A small button that swaps a layer's picture for a new upload, keeping its name and its place in the stack. */
+function ReplaceLayer({ upload, onDone }: { upload: (file: File, onProgress?: (percent: number) => void) => Promise<string>; onDone: (src: string) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [state, setState] = useState<{ busy: boolean; error: string }>({ busy: false, error: "" });
+  return (
+    <>
+      <button
+        type="button"
+        className={styles.pill}
+        disabled={state.busy}
+        title={state.error || "Replace this layer's picture (its name and place stay)"}
+        aria-label="Replace this layer's picture"
+        onClick={() => input.current?.click()}
+      >
+        {state.busy ? "…" : state.error ? "⚠" : "⇄"}
+      </button>
+      <input
+        ref={input}
+        type="file"
+        hidden
+        accept="image/*,.png,.jpg,.jpeg,.webp,.avif,.gif,.svg,.bmp,.ico,.tif,.tiff"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          setState({ busy: true, error: "" });
+          try {
+            onDone(await upload(file));
+            setState({ busy: false, error: "" });
+          } catch (err) {
+            setState({ busy: false, error: err instanceof Error ? err.message : "Upload failed." });
+          }
+        }}
+      />
+    </>
   );
 }
 

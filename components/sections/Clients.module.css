@@ -1,5 +1,5 @@
 .section {
-  padding-block: 120px;
+  padding-block: var(--section-pad);
   border-top: 1px solid var(--smoke);
   border-bottom: 1px solid var(--smoke);
   overflow: hidden;
@@ -51,6 +51,31 @@
   background: linear-gradient(180deg, rgba(255, 241, 149, 0.035), transparent 60%);
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+/* Sizes and the portrait shape come from the portal (Home page → Clients & collaborators). */
+.viewport[data-size="small"] {
+  --media-h: clamp(80px, 8.5vw, 120px);
+}
+
+.viewport[data-size="medium"] {
+  --media-h: clamp(96px, 10vw, 150px);
+}
+
+.viewport[data-logo="small"] {
+  --logo-scale: 0.62;
+}
+
+.viewport[data-logo="medium"] {
+  --logo-scale: 0.82;
+}
+
+.viewport[data-shape="rounded"] .portrait {
+  border-radius: 22%;
+}
+
+.viewport[data-shape="square"] .portrait {
+  border-radius: 6px;
 }
 
 .track {
@@ -133,9 +158,9 @@
 
 .logo {
   display: block;
-  height: clamp(84px, 9vw, 132px);
+  height: calc(clamp(84px, 9vw, 132px) * var(--logo-scale, 1));
   width: auto;
-  max-width: clamp(190px, 22vw, 320px);
+  max-width: calc(clamp(190px, 22vw, 320px) * var(--logo-scale, 1));
   object-fit: contain;
   transition: transform 0.35s ease, filter 0.35s ease;
 }
@@ -234,4 +259,28 @@
   .viewport {
     overflow-x: auto;
   }
+}
+
+/* While editing in the portal, the rows stop scrolling and lay every entry out, so each one can be seen and edited. */
+:global(html[data-dds-edit]) .viewport {
+  overflow: visible;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+:global(html[data-dds-edit]) .track {
+  width: auto;
+  animation: none;
+  transform: none;
+}
+
+:global(html[data-dds-edit]) .half {
+  flex-wrap: wrap;
+  justify-content: center;
+  row-gap: 24px;
+}
+
+:global(html[data-dds-edit]) .half + .half,
+:global(html[data-dds-edit]) [data-ed-dup] {
+  display: none;
 }

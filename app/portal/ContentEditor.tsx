@@ -6,7 +6,10 @@ import { fontFaceCss } from "@/lib/content/css";
 import type { PageKey, SiteContent, TextStyle } from "@/lib/content/types";
 import { Choice, ColorRow, Slider } from "./controls";
 import { styledTexts, type Field, type SchemaPage, type SchemaSection } from "./content-schema";
+import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "@/lib/content/limits";
+import type { Problem } from "./validate";
 import { checkFile, postFile, UPLOAD_KINDS, type UploadKind } from "./upload";
+import { fileSizeLabel } from "./image-info";
 import styles from "./content.module.css";
 
 // ── shared state: the draft content, and the image library ───────────────────────────────────────────────────────
@@ -39,6 +42,18 @@ export const useEditor = () => {
   return v;
 };
 
+/**
+ * Inside a section's editing window, a list whose items have their own Edit button on the page (projects, services,
+ * numbers, cards) is shown as a compact manager (add, reorder, delete, and an Edit shortcut) instead of repeating every
+ * field of every item. Each item's fields are edited in its own window, so nothing is offered twice.
+ */
+const ListModeCtx = createContext<{ compact: ReadonlySet<string>; openItem: (list: string, index: number) => void } | null>(null);
+export const ListModeProvider = ListModeCtx.Provider;
+
+/** What is wrong, by field path: fields show their message right under themselves. */
+const ProblemsCtx = createContext<Problem[]>([]);
+export const ProblemsProvider = ProblemsCtx.Provider;
+
 // ── path helpers: "home.process.cards.2.title" ──────────────────────────────────────────────────────────────────
 
 const keys = (path: string) => path.split(".").filter(Boolean);
@@ -47,7 +62,7 @@ export function getAt(obj: unknown, path: string): unknown {
   return keys(path).reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), obj);
 }
 
-function setAt<T>(obj: T, path: string, value: unknown): T {
+export function setAt<T>(obj: T, path: string, value: unknown): T {
   const [head, ...rest] = keys(path);
   if (head === undefined) return value as T;
   const copy = (Array.isArray(obj) ? [...obj] : { ...(obj as object) }) as Record<string, unknown>;
@@ -58,7 +73,7 @@ function setAt<T>(obj: T, path: string, value: unknown): T {
 /** "home.process.cards.2.title" → "home.process.cards.title": the key a text's style is stored under. */
 const styleKey = (path: string) => path.replace(/\.\d+(?=\.|$)/g, "");
 
-const moveItem = <T,>(list: T[], i: number, by: number) => {
+export const moveItem = <T,>(list: T[], i: number, by: number) => {
   const j = i + by;
   if (j < 0 || j >= list.length) return list;
   const next = [...list];
@@ -340,33 +355,148 @@ function ImagePicker({ value, onPick, onClose }: { value: string; onPick: (src: 
   );
 }
 
+const SHAPE_CHOICES = [
+  ["round", "Round"],
+  ["rounded", "Rounded"],
+  ["square", "Square"],
+] as const;
+const SIZE_CHOICES = [
+  ["small", "Small"],
+  ["medium", "Medium"],
+  ["large", "Large"],
+] as const;
+
+/**
+ * One picture, all in one place: a preview, Upload (or drop a file on it), pick from the library, Remove, a
+ * description, and (where the page has them) its shape and size.
+ */
 function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>; path: string }) {
-  const { content, update } = useEditor();
+  const { content, update, media } = useEditor();
   const value = (getAt(content, path) as string) || "";
+  const sibling = (name: string) => path.replace(/[^.]+$/, name);
+  const altPath = field.alt ? sibling(field.alt) : null;
+  const shapePath = field.shape ? sibling(field.shape) : null;
+  const sizePath = field.size ? sibling(field.size) : null;
+  const alt = altPath ? ((getAt(content, altPath) as string) ?? "") : "";
+  const shape = shapePath ? ((getAt(content, shapePath) as string) ?? "round") : "round";
+  const size = sizePath ? ((getAt(content, sizePath) as string) ?? "medium") : "medium";
   const [open, setOpen] = useState(false);
+  const [over, setOver] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
   const set = (src: string) => update((c) => setAt(c, path, src));
+  const setSibling = (p: string, v: string) => update((c) => setAt(c, p, v));
+  const take = (list: FileList | File[] | null) => {
+    const f = Array.from(list ?? [])[0];
+    if (f && !uploads.state.busy) void uploads.start([f], (src) => set(src)); // the new picture is used straight away
+  };
+  const name = value ? decodeURIComponent(value.split("/").pop() ?? "") : "";
+  const busy = uploads.state.busy;
+
   return (
     <div className={styles.field}>
       <span className={styles.label}>{field.label}</span>
-      <div className={styles.imageRow}>
-        <div className={styles.thumb}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- a small preview of the chosen image */}
-          {value ? <img src={value} alt="" /> : <span>none</span>}
+      <div className={styles.imageBox}>
+        <div
+          className={styles.imageDrop}
+          data-over={over}
+          data-shape={shapePath ? shape : undefined}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setOver(true);
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            take(e.dataTransfer.files);
+          }}
+        >
+          {value ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a preview of the chosen picture
+            <img src={value} alt={alt || ""} />
+          ) : (
+            <span>{over ? "Drop it here" : "No picture yet"}</span>
+          )}
+          {busy && (
+            <span className={styles.imageBusy} role="status">
+              Uploading… {uploads.state.percent}%
+            </span>
+          )}
         </div>
-        <div className={styles.imageActions}>
-          <span className={styles.imageName}>{value ? value.split("/").pop() : "No image"}</span>
-          <span>
-            <button type="button" className={styles.pill} onClick={() => setOpen((o) => !o)}>
-              {value ? "Change" : "Choose"}
+        <div className={styles.imageSide}>
+          <div className={styles.imageButtons}>
+            <button type="button" className={styles.primary} disabled={busy} onClick={() => input.current?.click()}>
+              ⬆ {value ? "Upload a new picture" : "Upload a picture"}
             </button>
-            {value && (path.endsWith("photo") || path.endsWith("logo") || path.endsWith("backdrop")) && (
+            <button type="button" className={styles.pill} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+              From the library
+            </button>
+            {value && (
               <button type="button" className={styles.link} onClick={() => set("")}>
                 Remove
               </button>
             )}
-          </span>
+          </div>
+          <p className={styles.imageName}>
+            {value ? name : "Drop a file on the preview, or press Upload."} <em>{value ? fileSizeLabel(value) : ""}</em>
+          </p>
+          {field.hint && <p className={styles.hint}>{field.hint}</p>}
         </div>
+        <input
+          ref={input}
+          type="file"
+          hidden
+          accept={UPLOAD_KINDS.image.accept}
+          onChange={(e) => {
+            take(e.target.files);
+            e.target.value = "";
+          }}
+        />
       </div>
+
+      {uploads.state.errors.map((m, i) => (
+        <p key={i} className={styles.error} role="alert">
+          {m}
+        </p>
+      ))}
+
+      {altPath && (
+        <label className={styles.field}>
+          <span className={styles.label}>
+            Description <em>what the picture shows, for screen readers and search engines</em>
+          </span>
+          <input className={styles.input} value={alt} maxLength={200} placeholder="e.g. Sasank Muppalla at his desk" onChange={(e) => setSibling(altPath, e.target.value)} />
+        </label>
+      )}
+      {(shapePath || sizePath) && (
+        <div className={styles.imageOptions}>
+          {shapePath && (
+            <div role="group" aria-label="Shape">
+              <span className={styles.label}>Shape</span>
+              <div className={styles.choices}>
+                {SHAPE_CHOICES.map(([v, text]) => (
+                  <button key={v} type="button" className={styles.pill} data-on={shape === v} aria-pressed={shape === v} onClick={() => setSibling(shapePath, v)}>
+                    {text}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {sizePath && (
+            <div role="group" aria-label="Size">
+              <span className={styles.label}>Size</span>
+              <div className={styles.choices}>
+                {SIZE_CHOICES.map(([v, text]) => (
+                  <button key={v} type="button" className={styles.pill} data-on={size === v} aria-pressed={size === v} onClick={() => setSibling(sizePath, v)}>
+                    {text}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {open && <ImagePicker value={value} onPick={set} onClose={() => setOpen(false)} />}
     </div>
   );
@@ -519,10 +649,86 @@ function Stringlist({ field, path }: { field: Extract<Field, { kind: "strings" }
   );
 }
 
+/** The project types: add, rename, reorder and remove them. Projects follow a rename; a removed type's projects move to the first one left. */
+function CategoriesField({ field }: { field: Extract<Field, { kind: "categories" }> }) {
+  const { content, update } = useEditor();
+  const cats = content.categories;
+  const count = (name: string) => content.projects.filter((p) => p.category === name).length;
+  const set = (next: string[], projects = content.projects) => update((c) => ({ ...c, categories: next, projects }));
+
+  function rename(i: number, name: string) {
+    const old = cats[i];
+    set(
+      cats.map((c, j) => (j === i ? name : c)),
+      content.projects.map((p) => (p.category === old ? { ...p, category: name } : p)),
+    );
+  }
+  function add() {
+    let n = cats.length + 1;
+    while (cats.some((c) => c.toLowerCase() === `new type ${n}`)) n++;
+    set([...cats, `New type ${n}`]);
+  }
+  function remove(i: number) {
+    if (cats.length <= 1) return;
+    const name = cats[i];
+    const used = count(name);
+    const rest = cats.filter((_, j) => j !== i);
+    const msg = used
+      ? `Remove “${name}”? Its ${used} project${used === 1 ? "" : "s"} will move to “${rest[0]}”. (It only changes on the site when you publish.)`
+      : `Remove “${name}”?`;
+    if (window.confirm(msg)) set(rest, content.projects.map((p) => (p.category === name ? { ...p, category: rest[0] } : p)));
+  }
+
+  return (
+    <div className={styles.field}>
+      <div className={styles.labelRow}>
+        <span className={styles.label}>
+          {field.label} <em>{cats.length} of {MAX_CATEGORIES}</em>
+        </span>
+      </div>
+      <div className={styles.stack}>
+        {cats.map((name, i) => (
+          <div key={i} className={styles.stringRow}>
+            <input className={styles.input} value={name} maxLength={MAX_CATEGORY_LENGTH} aria-label={`Project type ${i + 1}`} onChange={(e) => rename(i, e.target.value)} />
+            <span className={styles.badge} title="Projects of this type">
+              {count(name)}
+            </span>
+            <span className={styles.mini}>
+              <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => set(moveItem(cats, i, -1))}>
+                ↑
+              </button>
+              <button type="button" aria-label="Move down" disabled={i === cats.length - 1} onClick={() => set(moveItem(cats, i, 1))}>
+                ↓
+              </button>
+              <button type="button" aria-label={`Remove ${name}`} disabled={cats.length <= 1} onClick={() => remove(i)}>
+                ×
+              </button>
+            </span>
+          </div>
+        ))}
+      </div>
+      <button type="button" className={styles.add} disabled={cats.length >= MAX_CATEGORIES} onClick={add}>
+        ＋ Add a project type
+      </button>
+      <p className={styles.hint}>These are the filter buttons above the gallery, in this order. Renaming one renames it on every project that uses it.</p>
+    </div>
+  );
+}
+
+/** The first picture an item has (its own image field, or the first of an "images" list), for a small preview. */
+function thumbOf(item: Record<string, unknown>, field: Extract<Field, { kind: "list" }>): string {
+  const imageField = field.fields.find((f) => f.kind === "image");
+  if (imageField && typeof item[imageField.path] === "string") return item[imageField.path] as string;
+  const first = Array.isArray(item.images) ? (item.images[0] as { src?: string } | undefined) : undefined;
+  return typeof first?.src === "string" ? first.src : "";
+}
+
 function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; path: string }) {
   const { content, update } = useEditor();
   const list = (getAt(content, path) as Record<string, unknown>[] | undefined) ?? [];
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const mode = useContext(ListModeCtx);
+  const compact = !!mode?.compact.has(path);
   const set = (next: unknown[]) => update((c) => setAt(c, path, next));
   const atMax = field.max !== undefined && list.length >= field.max;
   return (
@@ -538,15 +744,24 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
           return (
             <div key={i} className={styles.card} data-open={open}>
               <div className={styles.cardHead}>
-                <button type="button" className={styles.cardTitle} aria-expanded={open} onClick={() => setOpenIndex(open ? null : i)}>
+                <button type="button" className={styles.cardTitle} aria-expanded={compact ? undefined : open} onClick={() => (compact ? mode!.openItem(path, i) : setOpenIndex(open ? null : i))}>
                   <span className={styles.chev} aria-hidden="true">
                     ›
                   </span>
                   <span className={styles.cardIndex}>{String(i + 1).padStart(2, "0")}</span>
+                  {thumbOf(item, field) && (
+                    // eslint-disable-next-line @next/next/no-img-element -- a small preview of the item's picture
+                    <img className={styles.cardThumb} src={thumbOf(item, field)} alt="" />
+                  )}
                   <span className={styles.cardName}>{field.title(item, i)}</span>
                 </button>
                 {!field.fixed && (
                   <span className={styles.mini}>
+                    {compact && (
+                      <button type="button" aria-label="Edit this item" title="Edit this item" onClick={() => mode!.openItem(path, i)}>
+                        ✎
+                      </button>
+                    )}
                     <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => set(moveItem(list, i, -1))}>
                       ↑
                     </button>
@@ -569,7 +784,7 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
                   </span>
                 )}
               </div>
-              {open && (
+              {open && !compact && (
                 <div className={styles.cardBody}>
                   {field.fields.map((f) => (
                     <FieldView key={f.path} field={f} base={`${path}.${i}.`} />
@@ -587,7 +802,8 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
           disabled={atMax}
           onClick={() => {
             set([...list, field.blank()]);
-            setOpenIndex(list.length);
+            if (compact) mode!.openItem(path, list.length);
+            else setOpenIndex(list.length);
           }}
         >
           ＋ {field.add}
@@ -597,7 +813,24 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
   );
 }
 
+/** One setting, with the message under it when something about it needs fixing. */
 export function FieldView({ field, base = "" }: { field: Field; base?: string }) {
+  const problems = useContext(ProblemsCtx);
+  const path = base + field.path;
+  const mine = problems.filter((p) => p.path === path);
+  return (
+    <>
+      <FieldInner field={field} base={base} />
+      {mine.map((p, i) => (
+        <p key={i} className={styles.error} role="alert">
+          {p.message}
+        </p>
+      ))}
+    </>
+  );
+}
+
+function FieldInner({ field, base = "" }: { field: Field; base?: string }) {
   const { content, update } = useEditor();
   const path = base + field.path;
   switch (field.kind) {
@@ -631,12 +864,13 @@ export function FieldView({ field, base = "" }: { field: Field; base?: string })
           <span>{field.label}</span>
         </label>
       );
-    case "select":
+    case "select": {
+      const options = field.optionsFrom ? ((getAt(content, field.optionsFrom) as string[] | undefined) ?? []) : field.options;
       return (
         <label className={styles.field}>
           <span className={styles.label}>{field.label}</span>
           <select className={styles.input} value={(getAt(content, path) as string) ?? ""} onChange={(e) => update((c) => setAt(c, path, e.target.value))}>
-            {field.options.map((o) => (
+            {options.map((o) => (
               <option key={o} value={o}>
                 {o}
               </option>
@@ -644,6 +878,7 @@ export function FieldView({ field, base = "" }: { field: Field; base?: string })
           </select>
         </label>
       );
+    }
     case "checks": {
       const current = (getAt(content, path) as string[] | undefined) ?? [];
       return (
@@ -717,6 +952,8 @@ export function FieldView({ field, base = "" }: { field: Field; base?: string })
         />
       );
     }
+    case "categories":
+      return <CategoriesField field={field} />;
     case "strings":
       return <Stringlist field={field} path={path} />;
     case "list":
@@ -731,7 +968,6 @@ export function ContentEditor({
   extra,
   onFocus,
   onPage,
-  firstOpen = true,
   goto,
 }: {
   page: SchemaPage;
@@ -741,42 +977,42 @@ export function ContentEditor({
   onFocus?: (target: string) => void;
   /** A section opened: show this page in the preview (the gallery, a project, “not found”…). */
   onPage?: (page: PageKey) => void;
-  firstOpen?: boolean;
   /** Open this section (a search result): `n` changes every time so the same section can be asked for again. */
   goto?: { section: string; n: number };
 }) {
-  const [open, setOpen] = useState<string | null>(goto?.section ?? (firstOpen ? page.sections[0].id : null));
+  const [open, setOpen] = useState<string>(goto?.section ?? page.sections[0].id);
   const [lastGoto, setLastGoto] = useState(goto?.n);
   if (goto && goto.n !== lastGoto) {
     setLastGoto(goto.n);
     setOpen(goto.section);
   }
+  const section = page.sections.find((x) => x.id === open) ?? page.sections[0];
   useEffect(() => {
-    const s = page.sections.find((x) => x.id === open);
-    if (s?.route) onPage?.(s.route);
-    if (s?.target) onFocus?.(s.target);
+    if (section.route) onPage?.(section.route);
+    if (section.target) onFocus?.(section.target);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when a different section opens
-  }, [open]);
+  }, [section.id]);
   return (
     <div className={styles.page}>
-      {page.sections.map((s) => (
-        <section key={s.id} className={styles.section} data-open={open === s.id}>
-          <button type="button" className={styles.sectionHead} aria-expanded={open === s.id} onClick={() => setOpen(open === s.id ? null : s.id)}>
-            <span className={styles.chev} aria-hidden="true">
-              ›
-            </span>
-            {s.title}
-          </button>
-          {open === s.id && (
-            <div className={styles.sectionBody}>
-              {s.fields.map((f) => (
-                <FieldView key={f.path} field={f} />
-              ))}
-              {extra?.(s)}
-            </div>
-          )}
-        </section>
-      ))}
+      {/* The parts of this page, one tap each: the section you pick is shown below, and the preview scrolls to it. */}
+      {page.sections.length > 1 && (
+        <div className={styles.sectionTabs} role="tablist" aria-label={`Parts of ${page.name}`}>
+          {page.sections.map((s) => (
+            <button key={s.id} type="button" role="tab" aria-selected={s.id === section.id} data-on={s.id === section.id} onClick={() => setOpen(s.id)}>
+              {s.title}
+            </button>
+          ))}
+        </div>
+      )}
+      <section className={styles.section} data-open="true" key={section.id}>
+        <div className={styles.sectionHeadStatic}>{section.title}</div>
+        <div className={styles.sectionBody}>
+          {section.fields.map((f) => (
+            <FieldView key={f.path} field={f} />
+          ))}
+          {extra?.(section)}
+        </div>
+      </section>
     </div>
   );
 }
@@ -993,7 +1229,7 @@ export function MediaLibrary() {
             multiple
             state={uploads.state}
             title="Drop pictures here, or click to choose"
-            hint="PNG, JPG, WebP or AVIF, up to 30 MB each. They are kept at up to 3200 px, as high-quality WebP, ready to pick in any picture field."
+            hint="PNG, JPG, WebP, AVIF, GIF, SVG, TIFF, BMP or ICO, up to 30 MB each. Photos are kept at up to 3200 px as high-quality WebP (GIFs stay animated, SVGs stay sharp), ready to pick in any picture field."
             onFiles={(files) => uploads.start(files, () => {})}
           />
           <input className={styles.input} placeholder="Search by name or folder" value={filter} onChange={(e) => setFilter(e.target.value)} />

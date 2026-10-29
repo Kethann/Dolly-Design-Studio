@@ -18,6 +18,7 @@ import { RightRail } from "@/components/RightRail";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { Backdrop } from "@/components/Backdrop";
 import { HoverGlow } from "@/components/HoverGlow";
+import { EditBridge } from "@/components/EditBridge";
 
 /**
  * Client-side shell: motion preferences, smooth scroll, the pen cursor, the
@@ -48,6 +49,7 @@ export function SiteChrome({
         <NavHistory />
         <PenCursor />
         <HoverGlow />
+        <EditBridge />
         <Backdrop />
         {/* Painted in the background colour from the very first frame so the page never flashes before the intro mounts. */}
         {!introDone && <div className="intro-curtain" aria-hidden="true" />}

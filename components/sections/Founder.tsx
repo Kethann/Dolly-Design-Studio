@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useContent, tx } from "@/lib/content/context";
+import { edSection } from "@/lib/content/tx";
 import { placeholderProps, versionedSrc } from "@/lib/images";
 import styles from "./Founder.module.css";
 
@@ -15,15 +16,15 @@ export function Founder() {
     .join("")
     .slice(0, 2);
   return (
-    <section id="about" className={styles.section}>
+    <section id="about" className={styles.section} {...edSection("home", "founder", "About the founder")}>
       <div className={`container ${styles.layout}`}>
         <aside className={`glass-panel ${styles.card}`} aria-label={copy.label}>
           {copy.photo ? (
-            <div className={styles.photo}>
-              <Image src={versionedSrc(copy.photo)} alt={site.founder.name} fill sizes="200px" {...placeholderProps(copy.photo)} />
+            <div className={styles.photo} data-shape={copy.photoShape} data-size={copy.photoSize}>
+              <Image src={versionedSrc(copy.photo)} alt={copy.photoAlt || site.founder.name} fill sizes="260px" {...placeholderProps(copy.photo)} />
             </div>
           ) : (
-            <div className={styles.monogram} aria-hidden="true">
+            <div className={styles.monogram} data-shape={copy.photoShape} data-size={copy.photoSize} aria-hidden="true">
               {initials}
             </div>
           )}

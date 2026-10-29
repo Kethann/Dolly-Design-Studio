@@ -1,5 +1,5 @@
 .section {
-  padding-block: 120px;
+  padding-block: var(--section-pad);
 }
 
 .layout {
@@ -109,4 +109,40 @@
 
 .photo img {
   object-fit: cover;
+}
+
+/* The profile picture's shape and size come from the portal (About the founder → Profile picture). */
+.photo,
+.monogram {
+  --d: 168px;
+  width: var(--d);
+  height: var(--d);
+}
+
+.photo[data-size="small"],
+.monogram[data-size="small"] {
+  --d: 120px;
+}
+
+.photo[data-size="large"],
+.monogram[data-size="large"] {
+  --d: 220px;
+}
+
+.photo[data-shape="rounded"],
+.monogram[data-shape="rounded"] {
+  border-radius: 24px;
+}
+
+.photo[data-shape="square"],
+.monogram[data-shape="square"] {
+  border-radius: 6px;
+}
+
+.monogram[data-size="large"] {
+  font-size: 66px;
+}
+
+.monogram[data-size="small"] {
+  font-size: 38px;
 }

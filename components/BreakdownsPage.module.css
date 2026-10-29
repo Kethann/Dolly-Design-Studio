@@ -425,3 +425,28 @@
     transition: none;
   }
 }
+
+.copyLink {
+  display: inline-block;
+  margin: 10px 0 0 14px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-family: var(--font-label);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ivory);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.copyLink:hover,
+.copyLink:focus-visible {
+  color: var(--gold-bright);
+  border-color: var(--gold);
+  outline: none;
+}

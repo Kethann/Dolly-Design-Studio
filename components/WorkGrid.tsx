@@ -1,22 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Category, Project } from "@/content/types";
-import { CATEGORIES } from "@/content/types";
+import type { Project } from "@/content/types";
 import { useContent } from "@/lib/content/context";
 import { ProjectCard } from "./ProjectCard";
 import styles from "./WorkGrid.module.css";
 
 /** Projects with a type filter (Film Publicity, Re-release…). */
 export function WorkGrid({ projects }: { projects: Project[] }) {
-  const { work: workPage, galleryLayout: layout } = useContent();
-  const [filter, setFilter] = useState<Category | "All">("All");
+  const allProjects = useContent().projects;
+  const { work: workPage, galleryLayout: layout, categories } = useContent();
+  const [filter, setFilter] = useState<string>("All");
 
   // Only offer the types that exist.
   const available = useMemo(() => {
     const set = new Set(projects.map((p) => p.category));
-    return CATEGORIES.filter((c) => set.has(c));
-  }, [projects]);
+    return categories.filter((c) => set.has(c));
+  }, [projects, categories]);
   const category = filter !== "All" && !available.includes(filter) ? "All" : filter;
   const filtered = category === "All" ? projects : projects.filter((p) => p.category === category);
 
@@ -62,7 +62,7 @@ export function WorkGrid({ projects }: { projects: Project[] }) {
           }
         >
           {filtered.map((project, i) => (
-            <ProjectCard key={project.slug} project={project} priority={i < 3} showDetails={layout.showDetails} />
+            <ProjectCard key={project.slug} project={project} index={allProjects.findIndex((p) => p.slug === project.slug)} priority={i < 3} showDetails={layout.showDetails} />
           ))}
         </div>
       ) : (

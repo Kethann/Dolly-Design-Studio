@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { goToSection, isPlainClick } from "@/lib/section-nav";
 import { useContent } from "@/lib/content/context";
+import { edSection } from "@/lib/content/tx";
 import styles from "./Footer.module.css";
 
 export function Footer() {
@@ -11,7 +12,7 @@ export function Footer() {
   const pathname = usePathname();
   const year = new Date().getFullYear();
   return (
-    <footer className={styles.footer}>
+    <footer className={styles.footer} {...edSection("site", "menu", "Menu & footer")}>
       <div className={`container ${styles.row}`}>
         <span className={styles.label}>
           © {year} {site.name}. {footer.rights}

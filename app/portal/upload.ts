@@ -23,7 +23,12 @@ export function postFile<T>(url: string, file: File, onProgress?: (percent: numb
 
 /** What each kind of upload accepts, checked in the browser first so mistakes are caught before sending. */
 export const UPLOAD_KINDS = {
-  image: { pattern: /\.(png|jpe?g|webp|avif)$/i, accept: "image/png,image/webp,image/jpeg,image/avif", maxMb: 30, noun: "an image (PNG, JPG, WebP or AVIF)" },
+  image: {
+    pattern: /\.(png|jpe?g|jfif|webp|avif|gif|svg|bmp|ico|tiff?|heic|heif)$/i,
+    accept: "image/*,.png,.jpg,.jpeg,.jfif,.webp,.avif,.gif,.svg,.bmp,.ico,.tif,.tiff,.heic,.heif",
+    maxMb: 30,
+    noun: "an image (PNG, JPG, WebP, AVIF, GIF, SVG, BMP, ICO, TIFF or HEIC)",
+  },
   font: { pattern: /\.(ttf|otf|woff2?)$/i, accept: ".ttf,.otf,.woff,.woff2", maxMb: 10, noun: "a font (TTF, OTF, WOFF or WOFF2)" },
 } as const;
 
@@ -35,4 +40,34 @@ export function checkFile(file: File, kind: UploadKind): string | null {
   if (!k.pattern.test(file.name)) return `“${file.name}” isn’t ${k.noun}.`;
   if (file.size > k.maxMb * 1024 * 1024) return `“${file.name}” is over ${k.maxMb} MB.`;
   return null;
+}
+
+/** Formats the server reads itself; anything else a browser can show is turned into a PNG here first. */
+const SERVER_READS = /\.(png|jpe?g|jfif|webp|avif|gif|svg|tiff?)$/i;
+
+/**
+ * Gets a picture ready to send. PNG, JPG, WebP, AVIF, GIF, SVG and TIFF go as they are; BMP, ICO and the like are
+ * drawn onto a canvas and sent as PNG (the browser does the decoding). A format this browser can't open (HEIC in most
+ * browsers) is refused with a plain message about what to do instead.
+ */
+export async function prepareImage(file: File): Promise<File> {
+  if (SERVER_READS.test(file.name)) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+    bitmap.close?.();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("no blob");
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".png", { type: "image/png" });
+  } catch {
+    const heic = /\.(heic|heif)$/i.test(file.name);
+    throw new Error(
+      heic
+        ? "This browser can’t open HEIC photos. Export it as JPG first (on an iPhone: Settings → Camera → Formats → Most Compatible, or share it as JPG), then upload that."
+        : "This browser can’t open that picture. Save it as PNG or JPG and upload that.",
+    );
+  }
 }

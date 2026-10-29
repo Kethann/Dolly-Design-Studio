@@ -1,7 +1,8 @@
 .layer {
   position: fixed;
   inset: 0;
-  z-index: 200; /* above nav, menus and the intro, so the pen is never hidden */
+  /* Above everything, including the portal's Edit buttons (z-index 2147483000), so the pen is never hidden. */
+  z-index: 2147483647;
   pointer-events: none;
 }
 
@@ -81,4 +82,9 @@
   box-shadow: 0 0 24px rgba(255, 241, 149, 0.25);
   border-radius: 2px;
   opacity: 0;
+}
+
+/* Over the portal's Edit buttons: a white pen with a dark outline, clearly different from their gold. */
+.nibEdit {
+  filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1.5px #000) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.55));
 }

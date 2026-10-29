@@ -3,9 +3,10 @@ import Image from "next/image";
 import type { Project } from "@/content/types";
 import { sharedLabels } from "@/content/pages";
 import { placeholderProps, versionedSrc } from "@/lib/images";
+import { edItem } from "@/lib/content/tx";
 import styles from "./ProjectCard.module.css";
 
-export function ProjectCard({ project, priority = false, showDetails = true }: { project: Project; priority?: boolean; showDetails?: boolean }) {
+export function ProjectCard({ project, index, priority = false, showDetails = true }: { project: Project; /** Its place in the content's project list (the Edit button needs it). */ index?: number; priority?: boolean; showDetails?: boolean }) {
   const cover = project.images[0];
 
   return (
@@ -14,6 +15,7 @@ export function ProjectCard({ project, priority = false, showDetails = true }: {
       className={styles.card}
       data-cursor="poster"
       data-cursor-label={sharedLabels.posterHover}
+      {...(index === undefined ? {} : edItem("projects", index, project.title))}
     >
       <div className={styles.frame} data-glow="poster">
         <Image

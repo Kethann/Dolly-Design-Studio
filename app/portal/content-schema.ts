@@ -1,4 +1,3 @@
-import { CATEGORIES } from "@/content/types";
 import type { ArtSection } from "@/lib/intro/settings";
 import type { PageKey } from "@/lib/content/types";
 
@@ -11,9 +10,15 @@ export type Field =
   | { kind: "text" | "area"; path: string; label: string; style?: boolean; hint?: string }
   | { kind: "number"; path: string; label: string; min: number; max: number }
   | { kind: "bool"; path: string; label: string }
-  | { kind: "select"; path: string; label: string; options: readonly string[] }
+  | { kind: "select"; path: string; label: string; options: readonly string[]; /** Take the choices from a list in the content instead (e.g. "categories"). */ optionsFrom?: string }
+  /** The project types: add, rename, reorder and remove them (projects follow a rename). */
+  | { kind: "categories"; path: string; label: string }
   | { kind: "checks"; path: string; label: string; options: readonly string[] }
-  | { kind: "image"; path: string; label: string }
+  /**
+   * A picture. `alt`, `shape` and `size` name sibling settings kept beside it (e.g. "photoAlt"): a description for
+   * screen readers and search engines, how the picture is cropped, and how big it is shown.
+   */
+  | { kind: "image"; path: string; label: string; hint?: string; alt?: string; shape?: string; size?: string }
   /** A font from the built-in list or the uploaded ones ("" = the site's own). */
   | { kind: "font"; path: string; label: string; hint?: string }
   /** An optional colour ("" = the site's own). */
@@ -129,6 +134,9 @@ const home: SchemaPage = {
         { kind: "text", path: "home.clients.title", label: "Heading", style: true },
         { kind: "text", path: "home.clients.rowLabels.clients", label: "First row caption" },
         { kind: "text", path: "home.clients.rowLabels.collaborators", label: "Second row caption" },
+        { kind: "select", path: "home.clients.logoSize", label: "Logo size (small, medium or large)", options: ["small", "medium", "large"] },
+        { kind: "select", path: "home.clients.portraitSize", label: "Portrait size (small, medium or large)", options: ["small", "medium", "large"] },
+        { kind: "select", path: "home.clients.portraitShape", label: "Portrait shape (round, rounded or square)", options: ["round", "rounded", "square"] },
         {
           kind: "list",
           path: "clients",
@@ -138,7 +146,7 @@ const home: SchemaPage = {
           blank: () => ({ name: "New client", logo: "" }),
           fields: [
             { kind: "text", path: "name", label: "Name" },
-            { kind: "image", path: "logo", label: "Logo (transparent PNG works best)" },
+            { kind: "image", path: "logo", label: "Logo", hint: "A transparent PNG or an SVG works best.", alt: "alt" },
           ],
         },
         {
@@ -150,7 +158,7 @@ const home: SchemaPage = {
           blank: () => ({ name: "New person", photo: "" }),
           fields: [
             { kind: "text", path: "name", label: "Name" },
-            { kind: "image", path: "photo", label: "Photo (a square portrait works best)" },
+            { kind: "image", path: "photo", label: "Photo", hint: "A square portrait works best; any picture format is fine.", alt: "alt" },
           ],
         },
         {
@@ -177,7 +185,7 @@ const home: SchemaPage = {
         { kind: "text", path: "home.founder.label", label: "Small heading", style: true },
         { kind: "text", path: "site.founder.name", label: "Name", style: true },
         { kind: "text", path: "site.founder.role", label: "Role", style: true },
-        { kind: "image", path: "home.founder.photo", label: "Profile picture (blank = initials)" },
+        { kind: "image", path: "home.founder.photo", label: "Profile picture", hint: "Shown on the glass card. Without one, the initials are shown.", alt: "photoAlt", shape: "photoShape", size: "photoSize" },
         { kind: "area", path: "home.founder.cardNote", label: "Short description on the card", style: true },
         { kind: "strings", path: "home.founder.paragraphs", label: "Bio paragraphs", add: "Add a paragraph", area: true, style: true },
       ],
@@ -192,6 +200,7 @@ const home: SchemaPage = {
         { kind: "text", path: "home.gallery.title", label: "Heading", style: true },
         { kind: "area", path: "home.gallery.intro", label: "Intro", style: true },
         { kind: "text", path: "home.gallery.viewAllLink", label: "“Open the full gallery” link" },
+        { kind: "categories", path: "categories", label: "Project types (the filter buttons)" },
         { kind: "select", path: "galleryLayout.columns", label: "Posters per row", options: ["Auto", "2", "3", "4"] },
         { kind: "select", path: "galleryLayout.shape", label: "Poster shape", options: ["Poster (tall)", "Square", "Landscape"] },
         { kind: "bool", path: "galleryLayout.showDetails", label: "Show the title and type under each poster" },
@@ -452,7 +461,7 @@ const projects: SchemaPage = {
           blank: () => ({
             title: "New project",
             film: "",
-            category: CATEGORIES[0],
+            category: "",
             languages: ["Telugu"],
             year: new Date().getFullYear(),
             client: "",
@@ -464,7 +473,7 @@ const projects: SchemaPage = {
           fields: [
             { kind: "text", path: "title", label: "Title" },
             { kind: "text", path: "film", label: "Film or campaign name" },
-            { kind: "select", path: "category", label: "Type", options: CATEGORIES },
+            { kind: "select", path: "category", label: "Type", options: [], optionsFrom: "categories" },
             { kind: "number", path: "year", label: "Year", min: 1950, max: 2100 },
             { kind: "text", path: "client", label: "Client" },
             { kind: "text", path: "role", label: "Our role" },
@@ -503,6 +512,25 @@ const projects: SchemaPage = {
   ],
 };
 
+// The gallery's own Edit window (on the home page and on /work) holds everything about the gallery in one place: its
+// project types, its layout, and the projects themselves (add, edit, reorder, delete).
+{
+  const projectsList = projects.sections[0].fields.find((x) => x.kind === "list")!;
+  const gallery = home.sections.find((x) => x.id === "gallery")!;
+  const layout = gallery.fields.filter((x) => x.path === "categories" || x.path.startsWith("galleryLayout."));
+  gallery.fields.push(projectsList);
+  work.sections.find((x) => x.id === "work-page")!.fields.push(...layout, projectsList);
+}
+
+// The project page and the "page not found" page are templates, not pages you browse to: their wording is edited in the
+// Studio window, next to the rest of the site-wide settings.
+{
+  const moved = ["project-page", "look-project", "not-found", "look-notFound"];
+  const taken = work.sections.filter((x) => moved.includes(x.id));
+  work.sections = work.sections.filter((x) => !moved.includes(x.id));
+  studio.sections.push(...taken);
+}
+
 export const CONTENT_PAGES: Record<"home" | "work" | "site" | "slate" | "projects", SchemaPage> = {
   home,
   work,
@@ -512,6 +540,38 @@ export const CONTENT_PAGES: Record<"home" | "work" | "site" | "slate" | "project
 };
 
 /** Every text that can be restyled, with its readable name, for the Typography window. */
+/**
+ * The list field at this path, for editing one item of it. The path may carry item numbers ("home.stats",
+ * "projects.3.images"): they are ignored when looking the list up.
+ */
+export function findList(path: string): Extract<Field, { kind: "list" }> | null {
+  const wanted = path.replace(/\.\d+(?=\.|$)/g, "");
+  const walk = (fields: Field[], prefix: string): Extract<Field, { kind: "list" }> | null => {
+    for (const f of fields) {
+      if (f.kind !== "list") continue;
+      const full = prefix ? `${prefix}.${f.path}` : f.path;
+      if (full === wanted) return f;
+      if (wanted.startsWith(full + ".")) {
+        const inner = walk(f.fields, full);
+        if (inner) return inner;
+      }
+    }
+    return null;
+  };
+  for (const p of Object.values(CONTENT_PAGES)) for (const s of p.sections) {
+    const hit = walk(s.fields, "");
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** One section of one page ("home", "founder"). */
+export function findSection(page: string, id: string): { page: SchemaPage; section: SchemaSection } | null {
+  const p = (CONTENT_PAGES as Record<string, SchemaPage>)[page];
+  const section = p?.sections.find((x) => x.id === id);
+  return p && section ? { page: p, section } : null;
+}
+
 export function styledTexts(): { key: string; label: string; page: string }[] {
   const out: { key: string; label: string; page: string }[] = [];
   const seen = new Set<string>();

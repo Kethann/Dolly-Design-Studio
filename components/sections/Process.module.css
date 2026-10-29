@@ -1,5 +1,5 @@
 .section {
-  padding-block: 120px;
+  padding-block: var(--section-pad);
   background: linear-gradient(180deg, transparent, rgba(26, 15, 20, 0.35), transparent);
 }
 

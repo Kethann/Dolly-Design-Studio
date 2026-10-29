@@ -1,3 +1,9 @@
+/* The space above and below a section of the home page: one value for all of them, so the gap between two sections is
+   even and comfortable (it was 120-140px each side, about 250px between sections). */
+:root {
+  --section-pad: clamp(40px, 5.5vw, 72px);
+}
+
 :root {
   /* --stage is set on <html> from content/intro-settings.json (editable in the portal). */
   --stage: #410000;

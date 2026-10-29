@@ -1,4 +1,5 @@
 import { CATEGORIES, LANGUAGES } from "@/content/types";
+import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "./limits";
 import { defaultContent } from "./defaults";
 import { fontById } from "./fonts";
 import { MAX_BREAKDOWNS, MAX_BREAKDOWN_LAYERS } from "./limits";
@@ -84,6 +85,14 @@ export function sanitizeContent(input: unknown): SiteContent {
     return { id: n.id, label: label ? label.slice(0, 40) : n.label };
   });
 
+  // Categories: short unique names; at least one (the defaults come back if the list is emptied).
+  const catSeen = new Set<string>();
+  const cats = (Array.isArray(src.categories) ? src.categories : [])
+    .flatMap((c) => (typeof c === "string" ? [c.replace(/\s+/g, " ").trim().slice(0, MAX_CATEGORY_LENGTH)] : []))
+    .filter((c) => c && !catSeen.has(c.toLowerCase()) && !!catSeen.add(c.toLowerCase()))
+    .slice(0, MAX_CATEGORIES);
+  merged.categories = cats.length ? cats : [...CATEGORIES];
+
   // Projects: each needs a title, an address and at least one image; the address stays unique.
   const seen = new Set<string>();
   merged.projects = (merged.projects as unknown[]).flatMap((raw, i) => {
@@ -106,7 +115,7 @@ export function sanitizeContent(input: unknown): SiteContent {
         slug,
         title,
         film: str(raw.film, title),
-        category: (CATEGORIES as string[]).includes(str(raw.category)) ? raw.category : "Film Publicity",
+        category: merged.categories.includes(str(raw.category)) ? str(raw.category) : merged.categories[0],
         languages: strs(raw.languages).filter((l) => (LANGUAGES as string[]).includes(l)),
         year: typeof raw.year === "number" && Number.isFinite(raw.year) ? Math.round(raw.year) : new Date().getFullYear(),
         client: str(raw.client),
@@ -141,14 +150,16 @@ export function sanitizeContent(input: unknown): SiteContent {
     if (!isObj(raw)) return [];
     const name = str(raw.name).trim();
     const logo = str(raw.logo);
-    return name ? [{ name, logo: logo.startsWith("/images/") ? logo : "" }] : [];
+    const alt = str(raw.alt).trim().slice(0, 200);
+    return name ? [{ name, logo: logo.startsWith("/images/") ? logo : "", ...(alt ? { alt } : {}) }] : [];
   });
   merged.collaborators = (merged.collaborators as unknown[]).flatMap((raw) => {
     if (typeof raw === "string") return raw.trim() ? [{ name: raw.trim(), photo: "" }] : [];
     if (!isObj(raw)) return [];
     const name = str(raw.name).trim();
     const photo = str(raw.photo);
-    return name ? [{ name, photo: photo.startsWith("/images/") ? photo : "" }] : [];
+    const alt = str(raw.alt).trim().slice(0, 200);
+    return name ? [{ name, photo: photo.startsWith("/images/") ? photo : "", ...(alt ? { alt } : {}) }] : [];
   });
 
   // Uploaded fonts: only files this portal stored, with safe ids.
@@ -174,6 +185,17 @@ export function sanitizeContent(input: unknown): SiteContent {
     ...c,
     opensBreakdowns: typeof (c as { opensBreakdowns?: unknown }).opensBreakdowns === "boolean" ? (c as { opensBreakdowns: boolean }).opensBreakdowns : c.icon === "layers",
   }));
+
+  // Picture shapes and sizes: only the known words, so a stale or odd value can never reach the page.
+  const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(v as T) ? (v as T) : fallback);
+  const SHAPES = ["round", "rounded", "square"] as const;
+  const SIZES = ["small", "medium", "large"] as const;
+  merged.home.founder.photoShape = oneOf(merged.home.founder.photoShape, SHAPES, "round");
+  merged.home.founder.photoSize = oneOf(merged.home.founder.photoSize, SIZES, "medium");
+  merged.home.clients.portraitShape = oneOf(merged.home.clients.portraitShape, SHAPES, "round");
+  merged.home.clients.portraitSize = oneOf(merged.home.clients.portraitSize, SIZES, "large");
+  merged.home.clients.logoSize = oneOf(merged.home.clients.logoSize, SIZES, "large");
+  if (merged.home.founder.photo && !merged.home.founder.photo.startsWith("/images/")) merged.home.founder.photo = "";
 
   // Breakdowns: a title, and layers that are pictures from the library (a layer without one is left out).
   merged.breakdowns = (Array.isArray(src.breakdowns) ? src.breakdowns : []).slice(0, MAX_BREAKDOWNS).flatMap((raw): Breakdown[] => {

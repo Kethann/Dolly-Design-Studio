@@ -1,0 +1,269 @@
+/* The editing window that opens from an Edit button on the preview, and the sheet that holds the design settings. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  /* Above the menu bar and the taskbar (z-index 10000), so Cancel and Save are never covered. */
+  z-index: 20000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  /* Light enough that the preview behind still shows the changes as they are made. */
+  background: rgba(8, 5, 8, 0.38);
+  animation: fade-in 0.15s ease;
+}
+
+.dialog {
+  width: min(660px, 100%);
+  max-height: min(88vh, 900px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  outline: none;
+  border-radius: 18px;
+  color: var(--p-text);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background:
+    radial-gradient(120% 50% at 0% 0%, rgba(255, 255, 255, 0.07), transparent 55%),
+    linear-gradient(180deg, rgba(34, 24, 29, 0.98), rgba(16, 11, 14, 0.99));
+  box-shadow:
+    0 40px 120px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: pop-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--p-line);
+}
+
+.headText {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hint {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--p-muted);
+}
+
+.close {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--p-muted);
+  border: 1px solid var(--p-line-strong);
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--p-text);
+}
+
+.problems {
+  flex: none;
+  margin: 12px 18px 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #ffd9c8;
+  border: 1px solid rgba(255, 130, 110, 0.4);
+  background: rgba(255, 110, 90, 0.1);
+}
+
+.problems ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 18px 20px;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--p-line);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.footNote {
+  flex: 1;
+  font-size: 12px;
+  color: var(--p-muted);
+}
+
+.cancel,
+.save {
+  padding: 9px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cancel {
+  color: var(--p-text);
+  border: 1px solid var(--p-line-strong);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.save {
+  color: #2b1503;
+  border: 0;
+  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
+}
+
+.save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tools {
+  flex: none;
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--p-line-strong);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tools button {
+  min-width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--p-text);
+  cursor: pointer;
+}
+
+.tools button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.tools button[data-danger]:hover:not(:disabled) {
+  background: rgba(255, 110, 90, 0.25);
+}
+
+.tools button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ── the sheet: design settings, shown over the bottom of the preview so the effect is always visible ───────── */
+
+.sheet {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: 132px;
+  width: min(760px, calc(100vw - 24px));
+  max-height: min(52vh, 560px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  translate: -50% 0;
+  border-radius: 18px;
+  color: var(--p-text);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(180deg, rgba(34, 24, 29, 0.97), rgba(16, 11, 14, 0.98));
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+  animation: sheet-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.sheetBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 18px 20px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@media (max-width: 700px) {
+  .backdrop {
+    padding: 0;
+    align-items: end;
+  }
+
+  .dialog {
+    width: 100%;
+    max-height: 94vh;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .sheet {
+    bottom: 124px;
+    max-height: 56vh;
+  }
+
+  .footNote {
+    display: none;
+  }
+
+  .cancel,
+  .save {
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .dialog,
+  .sheet {
+    animation: none;
+  }
+}

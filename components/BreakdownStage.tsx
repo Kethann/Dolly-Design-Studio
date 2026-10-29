@@ -9,6 +9,16 @@ import styles from "./BreakdownStage.module.css";
 const TURNS = { side: { pitch: 8, yaw: -58 }, angled: { pitch: 20, yaw: -36 } } as const;
 const SPREADS = { tight: 0.65, normal: 1, wide: 1.4 } as const;
 
+/** Ready-made angles to look at the stack from. */
+const VIEWS = [
+  ["front", "Front", { yaw: 0, pitch: 0 }],
+  ["side", "Side", { yaw: -58, pitch: 8 }],
+  ["angled", "Angled", { yaw: -36, pitch: 20 }],
+  ["top", "Top", { yaw: -24, pitch: 68 }],
+] as const;
+const SPREAD_MIN = 0.4;
+const SPREAD_MAX = 2;
+
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3;
 const PITCH_LIMIT = 80;
@@ -69,6 +79,10 @@ export const ExplodeStage = memo(function ExplodeStage({
   const [spinning, setSpinning] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  /** Layers switched off (click a numbered label), the layer being pointed at (the others dim), and how far apart they fall. */
+  const [hidden, setHidden] = useState<number[]>([]);
+  const [focusLayer, setFocusLayer] = useState<number | null>(null);
+  const [spreadK, setSpreadK] = useState(1);
   const [canFullscreen, setCanFullscreen] = useState(false);
   const [aspect, setAspect] = useState(() => shapes.get(item.layers[0]?.image ?? "") ?? 4 / 3);
   /** Whether this breakdown is on or near the screen: only then are its pictures in the page. */
@@ -141,7 +155,7 @@ export const ExplodeStage = memo(function ExplodeStage({
   // The layers fan out sideways (the stack is turned nearly edge-on), and the whole stack shrinks to leave room: the
   // more layers, the smaller each one and the tighter the spacing, so everything stays inside the viewer.
   const w = size.w || 800;
-  const gap = Math.max(40, Math.min(320, (w * 0.84) / (Math.max(1, n - 1) * 0.85))) * SPREADS[item.spread];
+  const gap = Math.max(40, Math.min(320, (w * 0.84) / (Math.max(1, n - 1) * 0.85))) * SPREADS[item.spread] * spreadK;
   const baseScale = n <= 2 ? 0.74 : n <= 3 ? 0.66 : n <= 5 ? 0.58 : n <= 9 ? 0.5 : n <= 16 ? 0.42 : 0.35;
   const zOf = (i: number) => (open ? (i - (n - 1) / 2) * gap : i * 0.4);
 
@@ -168,8 +182,22 @@ export const ExplodeStage = memo(function ExplodeStage({
   );
   const reset = useCallback(() => {
     setSpinning(false);
+    setHidden([]);
+    setFocusLayer(null);
+    setSpreadK(1);
     setView({ yaw: TURNS[item.turn].yaw, pitch: TURNS[item.turn].pitch, zoom: 1 });
   }, [item.turn]);
+  /** Jump to one of the ready-made angles. */
+  const goView = useCallback(
+    (yaw: number, pitch: number) => {
+      setSpinning(false);
+      setOpen(true);
+      touched();
+      setView((v) => ({ ...v, yaw, pitch }));
+    },
+    [touched],
+  );
+  const toggleLayer = useCallback((i: number) => setHidden((h) => (h.includes(i) ? h.filter((x) => x !== i) : [...h, i])), []);
   const collapse = useCallback(() => {
     reset();
     setPinned(false);
@@ -191,6 +219,9 @@ export const ExplodeStage = memo(function ExplodeStage({
   // Closing for any reason (including the pointer leaving) puts the view back the way it was.
   useEffect(() => {
     if (!open) {
+      setHidden([]);
+      setFocusLayer(null);
+      setSpreadK(1);
       setSpinning(false);
       setView({ yaw: TURNS[item.turn].yaw, pitch: TURNS[item.turn].pitch, zoom: 1 });
     }
@@ -339,7 +370,7 @@ export const ExplodeStage = memo(function ExplodeStage({
     if (!sw || !sh) return { points: pts, rowOf: [] as number[] };
     const p = (TURNS[item.turn].pitch * Math.PI) / 180;
     const y = (TURNS[item.turn].yaw * Math.PI) / 180;
-    const g = Math.max(40, Math.min(320, (sw * 0.84) / (Math.max(1, n - 1) * 0.85))) * SPREADS[item.spread];
+    const g = Math.max(40, Math.min(320, (sw * 0.84) / (Math.max(1, n - 1) * 0.85))) * SPREADS[item.spread] * spreadK;
     for (let i = 0; i < n; i++) {
       const z0 = (i - (n - 1) / 2) * g;
       const ly = -sh * 0.3; // a point a fifth of the way down the layer
@@ -368,7 +399,7 @@ export const ExplodeStage = memo(function ExplodeStage({
         rows[i] = row;
       });
     return { points: pts, rowOf: rows };
-  }, [size, n, item.turn, item.spread, item.layers, baseScale]);
+  }, [size, n, item.turn, item.spread, item.layers, baseScale, spreadK]);
 
   // The numbered lines only make sense from the starting angle: turning or zooming hides them, Reset brings them back.
   const labelsOn = open && atHome && !dragging && !spinning && item.labels && points.length === n;
@@ -405,7 +436,7 @@ export const ExplodeStage = memo(function ExplodeStage({
               +
             </button>
           </span>
-          <button type="button" onClick={reset} disabled={atHome && !spinning} title="Back to the starting view (0)">
+          <button type="button" onClick={reset} disabled={atHome && !spinning && spreadK === 1 && hidden.length === 0} title="Back to the starting view (0)">
             Reset
           </button>
           {canFullscreen && (
@@ -413,6 +444,25 @@ export const ExplodeStage = memo(function ExplodeStage({
               {fullscreen ? "Exit full screen" : "Full screen"}
             </button>
           )}
+        </div>
+      )}
+      {n > 1 && open && (
+        <div className={styles.bar2} role="toolbar" aria-label={`More controls for ${item.title}`} data-stage-ui>
+          <span className={styles.group} role="group" aria-label="Look from">
+            {VIEWS.map(([key, name, v]) => (
+              <button key={key} type="button" onClick={() => goView(v.yaw, v.pitch)} aria-pressed={Math.abs(view.yaw - v.yaw) < 0.5 && Math.abs(view.pitch - v.pitch) < 0.5} title={`Look from the ${name.toLowerCase()}`}>
+                {name}
+              </button>
+            ))}
+          </span>
+          <label className={styles.spread}>
+            <span>Spread</span>
+            <input type="range" min={SPREAD_MIN} max={SPREAD_MAX} step={0.05} value={spreadK} onChange={(e) => setSpreadK(Number(e.target.value))} aria-label="How far apart the layers are" />
+          </label>
+          <button type="button" onClick={() => setHidden([])} disabled={hidden.length === 0} title="Switch every layer back on">
+            {hidden.length ? `Show all layers (${hidden.length} off)` : "All layers on"}
+          </button>
+          <span className={styles.tipText}>Click a numbered label to switch that layer off or on</span>
         </div>
       )}
 
@@ -458,6 +508,7 @@ export const ExplodeStage = memo(function ExplodeStage({
                 loading="lazy"
                 className={styles.layer}
                 style={{
+                  opacity: hidden.includes(i) ? 0.06 : focusLayer !== null && focusLayer !== i ? 0.3 : 1,
                   transform: `translateZ(${zOf(i)}px)`,
                   transitionDelay: open && !live3d ? `${Math.min(i * 22, 360)}ms` : `${Math.min((n - 1 - i) * 14, 240)}ms`,
                 }}
@@ -484,10 +535,24 @@ export const ExplodeStage = memo(function ExplodeStage({
             const row = rowOf[i] ?? 0;
             const x = Math.min(Math.max(pt.x, 64), Math.max(64, size.w - 64));
             return (
-              <span key={i} className={styles.tag} style={{ left: x, top: -(14 + row * TAG_ROW + TAG_H), transitionDelay: linesShown ? `${i * LABEL_STAGGER}ms` : "0ms" }}>
+              <button
+                key={i}
+                type="button"
+                data-stage-ui
+                className={styles.tag}
+                data-off={hidden.includes(i)}
+                aria-pressed={!hidden.includes(i)}
+                title={hidden.includes(i) ? "Switch this layer back on" : "Switch this layer off"}
+                style={{ left: x, top: -(14 + row * TAG_ROW + TAG_H), transitionDelay: linesShown ? `${i * LABEL_STAGGER}ms` : "0ms" }}
+                onPointerEnter={() => setFocusLayer(i)}
+                onPointerLeave={() => setFocusLayer(null)}
+                onFocus={() => setFocusLayer(i)}
+                onBlur={() => setFocusLayer(null)}
+                onClick={() => toggleLayer(i)}
+              >
                 <b>{i + 1}</b>
                 <span>{item.layers[i]?.label || `Layer ${i + 1}`}</span>
-              </span>
+              </button>
             );
           })}
         </div>

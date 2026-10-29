@@ -38,41 +38,9 @@ export function glideTo(target: number | HTMLElement) {
   window.scrollTo({ top, behavior: reduced ? "instant" : "smooth" });
 }
 
-/** True when this page is the live preview inside the creator portal. */
-const inPortalPreview = () =>
-  typeof window !== "undefined" && window.parent !== window && new URLSearchParams(window.location.search).has("portal-preview");
-
-/**
- * The portal's preview stays where the portal puts it: wheel, touch and keys do nothing, so the site can't be
- * scrolled away by accident behind the windows. The portal still moves it (jumps to a section) from outside.
- */
-function usePreviewScrollLock() {
-  useEffect(() => {
-    if (!inPortalPreview()) return;
-    const stop = (e: Event) => {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-    };
-    const keys = new Set([" ", "PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown"]);
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (keys.has(e.key) && !(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))) stop(e);
-    };
-    window.addEventListener("wheel", stop, { capture: true, passive: false });
-    window.addEventListener("touchmove", stop, { capture: true, passive: false });
-    window.addEventListener("keydown", onKey, { capture: true });
-    return () => {
-      window.removeEventListener("wheel", stop, { capture: true });
-      window.removeEventListener("touchmove", stop, { capture: true });
-      window.removeEventListener("keydown", onKey, { capture: true });
-    };
-  }, []);
-}
-
 /** Mounts Lenis smooth scroll once, disabled entirely under reduced motion. */
 export function SmoothScroll() {
   const { reducedMotion } = useMotion();
-  usePreviewScrollLock();
 
   useEffect(() => {
     if (reducedMotion) return;

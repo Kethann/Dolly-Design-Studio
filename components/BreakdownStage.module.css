@@ -88,7 +88,8 @@
   backface-visibility: visible;
   transition:
     transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
-    filter 0.4s ease;
+    filter 0.4s ease,
+    opacity 0.25s ease;
 }
 
 /* The soft shadow under each layer is costly on a 3D stack: kept for small stacks and while still, dropped for big
@@ -210,6 +211,96 @@
 .labels[data-on="true"] .tag {
   opacity: 1;
   translate: 0 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.tag[data-off="true"] {
+  opacity: 0.45 !important;
+}
+
+.tag[data-off="true"] span {
+  text-decoration: line-through;
+}
+
+.tag:hover,
+.tag:focus-visible {
+  border-color: var(--gold);
+  outline: none;
+}
+
+/* The second row of controls, shown while the layers are apart: ready-made angles, spread, and the layer switches. */
+.bar2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 14px;
+  max-width: 100%;
+  margin-top: -4px;
+  padding: 4px 6px;
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.bar2 button {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ivory);
+  font: inherit;
+  cursor: pointer;
+}
+
+.bar2 button:hover:not(:disabled),
+.bar2 button:focus-visible {
+  border-color: var(--gold);
+  background: rgba(232, 176, 75, 0.16);
+  outline: none;
+}
+
+.bar2 button[aria-pressed="true"] {
+  color: #2b1503;
+  border-color: transparent;
+  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
+}
+
+.bar2 button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.bar2 .group button {
+  min-height: 30px;
+}
+
+.spread {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ivory);
+  opacity: 0.85;
+}
+
+.spread input {
+  width: 120px;
+  accent-color: var(--gold);
+}
+
+.tipText {
+  opacity: 0.55;
+  letter-spacing: 0.08em;
+  text-transform: none;
+}
+
+@media (max-width: 640px) {
+  .tipText {
+    display: none;
+  }
 }
 
 .lines {

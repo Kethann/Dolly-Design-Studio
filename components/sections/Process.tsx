@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useContent, tx } from "@/lib/content/context";
+import { edItem, edSection } from "@/lib/content/tx";
 import { useMotion } from "@/lib/motion";
 import styles from "./Process.module.css";
 
@@ -103,7 +104,7 @@ export function Process() {
   }, [reducedMotion, copy.cards.length]);
 
   return (
-    <section id="process" className={styles.section}>
+    <section id="process" className={styles.section} {...edSection("home", "process", "How we work")}>
       <div className="container">
         <div className={styles.head}>
           <span className={styles.label} {...tx("home.process.label")}>{copy.label}</span>
@@ -118,6 +119,7 @@ export function Process() {
             return (
               <div
                 key={i}
+                {...edItem("home.process.cards", i, "Card")}
                 className={styles.step}
                 data-step
                 data-opens={opens}
