@@ -132,12 +132,12 @@
   /* The neon spill: a bright pool of the colours, behind the lines and following the cursor, plus a wide soft one centred on
      the icon, so the colour visibly spreads across the tile. */
   background:
-    radial-gradient(circle calc(var(--glass-r, 72px) * 1.1) at var(--mx) var(--my), color-mix(in srgb, var(--spot-c) 60%, transparent), color-mix(in srgb, var(--spot-c) 20%, transparent) 50%, transparent 78%),
-    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--k2) 24%, transparent), color-mix(in srgb, var(--k5) 12%, transparent) 55%, transparent 80%);
+    radial-gradient(circle calc(var(--glass-r, 72px) * 1.1) at var(--mx) var(--my), color-mix(in srgb, var(--spot-c) 42%, transparent), color-mix(in srgb, var(--spot-c) 14%, transparent) 50%, transparent 78%),
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--k2) 17%, transparent), color-mix(in srgb, var(--k5) 8%, transparent) 55%, transparent 80%);
   filter: blur(7px) saturate(1.9) brightness(1.2);
   -webkit-mask: none;
   mask: none;
-  opacity: calc(var(--lit) * 0.7);
+  opacity: calc(var(--lit) * 0.5);
   border-radius: inherit;
 }
 
@@ -149,7 +149,7 @@
   width: 78%;
   height: 78%;
   /* The gold glow at rest; on hover it hands over to a small glow in the colour under the cursor. */
-  filter: drop-shadow(0 0 calc(7px * var(--tile-gold, 1)) rgba(255, 255, 255, calc(0.45 * var(--tile-gold, 1)))) drop-shadow(0 0 2px rgba(255, 255, 255, calc((1 - var(--tile-gold, 1)) * 1))) drop-shadow(0 0 7px color-mix(in srgb, var(--spot-c) calc((1 - var(--tile-gold, 1)) * 100%), transparent)) drop-shadow(0 0 7px color-mix(in srgb, var(--spot-c) calc((1 - var(--tile-gold, 1)) * 100%), transparent)) drop-shadow(0 0 15px color-mix(in srgb, var(--k2) calc((1 - var(--tile-gold, 1)) * 100%), transparent)) drop-shadow(0 0 26px color-mix(in srgb, var(--k5) calc((1 - var(--tile-gold, 1)) * 90%), transparent));
+  filter: drop-shadow(0 0 calc(7px * var(--tile-gold, 1)) rgba(255, 255, 255, calc(0.45 * var(--tile-gold, 1)))) drop-shadow(0 0 1.4px rgba(255, 255, 255, calc((1 - var(--tile-gold, 1)) * 0.7))) drop-shadow(0 0 5px color-mix(in srgb, var(--spot-c) calc((1 - var(--tile-gold, 1)) * 70%), transparent)) drop-shadow(0 0 5px color-mix(in srgb, var(--spot-c) calc((1 - var(--tile-gold, 1)) * 70%), transparent)) drop-shadow(0 0 10.5px color-mix(in srgb, var(--k2) calc((1 - var(--tile-gold, 1)) * 70%), transparent)) drop-shadow(0 0 18px color-mix(in srgb, var(--k5) calc((1 - var(--tile-gold, 1)) * 63%), transparent));
   transition: color 0.4s ease;
 }
 
