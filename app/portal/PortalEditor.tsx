@@ -34,6 +34,7 @@ import { ProofTableEditor } from "./ProofTableEditor";
 import { AccountPanel } from "./AccountPanel";
 import { ActivityPanel } from "./ActivityPanel";
 import { InboxPanel } from "./InboxPanel";
+import { StorageWatch } from "./StorageWatch";
 import { BreakdownsEditor } from "./BreakdownsEditor";
 import { SweepEditor } from "./SweepEditor";
 import type { PortalUser } from "@/lib/portal/users";
@@ -2064,6 +2065,8 @@ export function PortalEditor({
         )}
 
         {modalEl}
+
+        {!user.setup && <StorageWatch />}
 
         {spotlight && <Spotlight entries={user.setup ? SEARCH_ENTRIES.filter((e) => e.tab === "account") : SEARCH_ENTRIES} onPick={pickSearch} onClose={() => setSpotlight(false)} />}
 

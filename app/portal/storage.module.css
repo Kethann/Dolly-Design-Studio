@@ -1,0 +1,80 @@
+/* Storage usage: the bar in Users & security, and the banner shown when the storage is nearly full. */
+.meter {
+  display: grid;
+  gap: 8px;
+}
+
+.bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8b5cff, #38a8ff);
+  transition: width 0.6s ease;
+}
+
+.meter[data-level="warn"] .bar i {
+  background: linear-gradient(90deg, #f2b84b, #ff9a3d);
+}
+
+.meter[data-level="urgent"] .bar i {
+  background: linear-gradient(90deg, #ff6a4d, #e02a3a);
+}
+
+.note {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.banner {
+  position: fixed;
+  top: 52px;
+  left: 50%;
+  z-index: 20001;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: min(640px, calc(100vw - 24px));
+  padding: 12px 16px;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.45;
+  background: rgba(40, 28, 8, 0.94);
+  border: 1px solid #f2b84b;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.banner[data-level="urgent"] {
+  background: rgba(52, 10, 14, 0.96);
+  border-color: #ff5a5a;
+}
+
+.banner > div {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+}
+
+.banner span {
+  opacity: 0.85;
+}
+
+.banner button {
+  flex: none;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

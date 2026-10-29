@@ -8,7 +8,7 @@
 //     no disk to write to.
 //
 // Everything is addressed by a "key" like "data/portal-users.json" or "uploads/images/logo-3fa2c1.webp".
-import { mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export interface Store {
@@ -20,6 +20,8 @@ export interface Store {
   /** Every key that starts with the prefix, in alphabetical order. */
   list(prefix: string): Promise<string[]>;
   remove(key: string): Promise<void>;
+  /** Total bytes of everything the portal has saved (content, accounts, enquiries, uploaded pictures and fonts). */
+  usedBytes(): Promise<number>;
 }
 
 // ── plain files ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -87,6 +89,20 @@ const files: Store = {
   async remove(key) {
     await unlink(diskPath(key)).catch(() => {});
   },
+  async usedBytes() {
+    const total = async (dir: string): Promise<number> => {
+      let sum = 0;
+      for (const e of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) sum += await total(full);
+        else if (e.isFile()) sum += (await stat(full).catch(() => null))?.size ?? 0;
+      }
+      return sum;
+    };
+    let sum = 0;
+    for (const [, dir] of DISK_FOLDERS) sum += await total(path.join(/*turbopackIgnore: true*/ process.cwd(), ...dir));
+    return sum;
+  },
 };
 
 // ── Cloudflare R2 ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -96,7 +112,7 @@ interface R2Bucket {
   get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer>; text(): Promise<string>; httpMetadata?: { contentType?: string } } | null>;
   put(key: string, value: ArrayBuffer | Uint8Array | string, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
   delete(key: string): Promise<void>;
-  list(options: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
+  list(options: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string; size?: number }[]; truncated: boolean; cursor?: string }>;
 }
 
 function r2(bucket: R2Bucket): Store {
@@ -127,6 +143,16 @@ function r2(bucket: R2Bucket): Store {
     },
     async remove(key) {
       await bucket.delete(key);
+    },
+    async usedBytes() {
+      let sum = 0;
+      let cursor: string | undefined;
+      do {
+        const page = await bucket.list({ cursor, limit: 1000 });
+        for (const o of page.objects) sum += o.size ?? 0;
+        cursor = page.truncated ? page.cursor : undefined;
+      } while (cursor);
+      return sum;
     },
   };
 }

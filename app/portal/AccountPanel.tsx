@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PortalUser, Role } from "@/lib/portal/users";
+import { StorageMeter } from "./StorageWatch";
 import styles from "./portal.module.css";
 
 const PASSWORD_MIN = 10;
@@ -65,6 +66,12 @@ export function AccountPanel({ me }: { me: PortalUser }) {
         <h2>People &amp; passwords</h2>
         <p>Your sign-in details, and (for owners) everyone who can open this portal.</p>
       </header>
+
+      <section className={styles.card}>
+        <h3>Storage</h3>
+        <p className={styles.controlHint}>How much of the site&apos;s storage your pictures, fonts and enquiries use. You&apos;ll be told when it passes 80%, and on every visit once it passes 85%.</p>
+        <StorageMeter />
+      </section>
 
       {status.kind === "ok" && (
         <p className={styles.notice} data-kind="ok" role="status">
