@@ -1,0 +1,7 @@
+{
+  // The pages.dev front (see DEPLOY.md): a Pages project that forwards to the "dolly-design-studio" Worker.
+  "name": "dollydesignstudio",
+  "pages_build_output_dir": "./public",
+  "compatibility_date": "2025-09-01",
+  "services": [{ "binding": "WEB", "service": "dolly-design-studio" }]
+}
