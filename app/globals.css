@@ -391,6 +391,126 @@ html.portal-preview a[href="/"] {
   initial-value: 50%;
 }
 
+@property --bx7 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by7 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx8 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by8 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx9 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by9 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx10 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by10 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx11 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by11 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx12 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by12 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx13 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by13 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx14 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by14 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx15 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by15 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx16 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by16 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
 /* The colour of the glass at the cursor (set by GlassLight): the glow around the glass and the rim take it. */
 @property --spot-c {
   syntax: "<color>";
@@ -452,6 +572,11 @@ html.portal-preview a[href="/"] {
   --k4: var(--glass-4, #ffffff);
   --k5: var(--glass-5, #ff6ec7);
   --k6: var(--glass-6, #e8648a);
+  /* Four more shades, blended from the six, so the glow has many more colours than the six alone. */
+  --k7: color-mix(in srgb, var(--k1) 50%, var(--k3));
+  --k8: color-mix(in srgb, color-mix(in srgb, var(--k2) 50%, var(--k5)), #ffffff 22%);
+  --k9: color-mix(in srgb, var(--k4) 45%, var(--k6));
+  --k10: color-mix(in srgb, var(--k3) 55%, var(--k5));
   position: relative;
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -486,6 +611,26 @@ html.portal-preview a[href="/"] {
     --by5 3s ease-in-out,
     --bx6 3s ease-in-out,
     --by6 3s ease-in-out,
+    --bx7 3s ease-in-out,
+    --by7 3s ease-in-out,
+    --bx8 3s ease-in-out,
+    --by8 3s ease-in-out,
+    --bx9 3s ease-in-out,
+    --by9 3s ease-in-out,
+    --bx10 3s ease-in-out,
+    --by10 3s ease-in-out,
+    --bx11 3s ease-in-out,
+    --by11 3s ease-in-out,
+    --bx12 3s ease-in-out,
+    --by12 3s ease-in-out,
+    --bx13 3s ease-in-out,
+    --by13 3s ease-in-out,
+    --bx14 3s ease-in-out,
+    --by14 3s ease-in-out,
+    --bx15 3s ease-in-out,
+    --by15 3s ease-in-out,
+    --bx16 3s ease-in-out,
+    --by16 3s ease-in-out,
     --lit 0.4s ease,
     --bloom 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -507,7 +652,8 @@ html.portal-preview a[href="/"] {
   transition: opacity 0.3s ease;
 }
 
-/* The colours spread over the glass (six soft patches, each in its own place, each strong), seen through a wide soft
+/* The colours spread over the glass (sixteen soft patches: the six colours and four blends of them, with the colours repeating
+   across the glass, each patch in its own place and each strong), seen through a wide soft
    glow around the pointer: three overlapping ovals rather than one circle, so the lit area is an organic shape and shows
    several colours at once. It blooms out from the cursor when it arrives, breathes in and out while the cursor stays, and
    shrinks back when it leaves. Always under the card's content. */
@@ -519,6 +665,16 @@ html.portal-preview a[href="/"] {
   border-radius: inherit;
   pointer-events: none;
   background:
+    radial-gradient(ellipse 30% 30% at var(--bx16) var(--by16), var(--k6) 0, var(--k6) 10%, transparent),
+    radial-gradient(ellipse 30% 30% at var(--bx15) var(--by15), var(--k5) 0, var(--k5) 10%, transparent),
+    radial-gradient(ellipse 30% 30% at var(--bx14) var(--by14), var(--k4) 0, var(--k4) 10%, transparent),
+    radial-gradient(ellipse 30% 30% at var(--bx13) var(--by13), var(--k3) 0, var(--k3) 10%, transparent),
+    radial-gradient(ellipse 30% 30% at var(--bx12) var(--by12), var(--k2) 0, var(--k2) 10%, transparent),
+    radial-gradient(ellipse 30% 30% at var(--bx11) var(--by11), var(--k1) 0, var(--k1) 10%, transparent),
+    radial-gradient(ellipse 34% 34% at var(--bx10) var(--by10), var(--k10) 0, var(--k10) 12%, transparent),
+    radial-gradient(ellipse 34% 34% at var(--bx9) var(--by9), var(--k9) 0, var(--k9) 12%, transparent),
+    radial-gradient(ellipse 34% 34% at var(--bx8) var(--by8), var(--k8) 0, var(--k8) 12%, transparent),
+    radial-gradient(ellipse 34% 34% at var(--bx7) var(--by7), var(--k7) 0, var(--k7) 12%, transparent),
     radial-gradient(ellipse var(--bs, 54%) var(--bs, 54%) at var(--bx6) var(--by6), var(--k6) 0, var(--k6) 18%, transparent),
     radial-gradient(ellipse var(--bs, 54%) var(--bs, 54%) at var(--bx5) var(--by5), var(--k5) 0, var(--k5) 18%, transparent),
     radial-gradient(ellipse var(--bs, 54%) var(--bs, 54%) at var(--bx4) var(--by4), var(--k4) 0, var(--k4) 18%, transparent),
