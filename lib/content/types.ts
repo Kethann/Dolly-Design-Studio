@@ -52,16 +52,10 @@ export interface Theme {
 
 /** The glass: a gradient between two colours, how strong it is, how blurred, and what kind of finish it has. */
 export interface GlassLook {
-  /** The glass takes three colours across it: this one on one side, the middle colour, then the last on the far side. */
-  colorA: string;
-  colorC: string;
-  colorB: string;
-  /** A fourth, light colour (white by default) for the sparkle. */
-  colorD: string;
-  /** Each glass card mixes the four colours in an order of its own, and changes it each time the cursor comes back. */
+  /** From two to six colours. Each glass card mixes all of them, in an order of its own. */
+  colors: string[];
+  /** Each glass card mixes the colours in an order of its own, and changes it each time the cursor comes back. */
   shuffle: boolean;
-  /** Direction of the gradient, 0–360 degrees. */
-  angle: number;
   /** How strongly the colours tint the glass, 0–0.7. */
   tint: number;
   /** How much of what is behind the glass is blurred, 0–30 px. */
@@ -70,7 +64,7 @@ export interface GlassLook {
   spread: number;
   /** The glow around the glass while it is lit, 0–0.8. */
   glow: number;
-  /** Neon: glowing gradient rim. Frosted: milky white rim, no glow. Clear: almost see-through. */
+  /** Neon: full colour. Frosted: milky white light. Clear: a faint hint of colour. */
   effect: "Neon" | "Frosted" | "Clear";
 }
 
@@ -168,19 +162,30 @@ export interface SiteContent {
   pages: Record<PageKey, PageLook>;
 }
 
-/** The glass as the site first has it: the Google Gemini gradient (blue, violet, rose) with a white sparkle. */
-export const DEFAULT_GLASS: GlassLook = { colorA: "#4285f4", colorC: "#9b72cb", colorB: "#d96570", colorD: "#f4f0ff", shuffle: true, angle: 135, tint: 0.7, blur: 14, spread: 0.3, glow: 0.3, effect: "Neon" };
+/** How many colours the glass can mix. */
+export const GLASS_COLOR_COUNT = [2, 6] as const;
+
+/** The glass as the site first has it: pink, light blue, dark blue, purple-blue, white and rose, like the Gemini gradient. */
+export const DEFAULT_GLASS: GlassLook = {
+  colors: ["#1e4fd8", "#6d5bff", "#7fd4ff", "#ffffff", "#ff6ec7", "#e8648a"],
+  shuffle: true,
+  tint: 0.7,
+  blur: 14,
+  spread: 0.3,
+  glow: 0.5,
+  effect: "Neon",
+};
 
 /** Earlier looks of the glass (saved settings in one of these move to the current default). */
 export const OLD_GLASS = { colorA: "#8b5cff", colorB: "#38a8ff" };
-export const OLD_GEMINI = { colorA: "#4285f4", colorC: "#9b72cb", colorB: "#d96570" };
+export const OLD_GEMINI = { colorA: "#4285f4", colorC: "#9b72cb" };
 
-/** Ready-made sets of four colours to pick from in the portal: first, middle, last and the light sparkle. */
-export const GLASS_PRESETS: { name: string; colors: [string, string, string, string] }[] = [
-  { name: "Gemini", colors: ["#4285f4", "#9b72cb", "#d96570", "#f4f0ff"] },
-  { name: "Neon", colors: ["#8b5cff", "#5f7dff", "#38d6ff", "#f2f7ff"] },
-  { name: "Sunset", colors: ["#ff8a3d", "#ff3d8b", "#8b3dff", "#fff0e6"] },
-  { name: "Aurora", colors: ["#2de2a6", "#38a8ff", "#9b5cff", "#f0fff9"] },
-  { name: "Ocean", colors: ["#00d4ff", "#3a7bff", "#7a5cff", "#eefaff"] },
-  { name: "Gold", colors: ["#ffd36a", "#ff9a3d", "#ff5c8a", "#fffbe8"] },
+/** Ready-made sets of six colours to pick from in the portal. */
+export const GLASS_PRESETS: { name: string; colors: string[] }[] = [
+  { name: "Gemini", colors: ["#1e4fd8", "#6d5bff", "#7fd4ff", "#ffffff", "#ff6ec7", "#e8648a"] },
+  { name: "Neon", colors: ["#8b5cff", "#5f7dff", "#38d6ff", "#f2f7ff", "#ff4fd8", "#b04dff"] },
+  { name: "Sunset", colors: ["#ff8a3d", "#ff3d8b", "#8b3dff", "#fff0e6", "#ffcf5c", "#ff5c5c"] },
+  { name: "Aurora", colors: ["#2de2a6", "#38a8ff", "#9b5cff", "#f0fff9", "#7dffcf", "#4d6bff"] },
+  { name: "Ocean", colors: ["#00d4ff", "#3a7bff", "#7a5cff", "#eefaff", "#00a3c4", "#1b3fd1"] },
+  { name: "Gold", colors: ["#ffd36a", "#ff9a3d", "#ff5c8a", "#fffbe8", "#ffb14d", "#e84a7f"] },
 ];

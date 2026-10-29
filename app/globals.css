@@ -306,8 +306,7 @@ html.portal-preview a[href="/"] {
   pointer-events: none;
 }
 
-/* Where the pointer is on a glass card (--mx, --my, set by GlassLight), and how far along the gradient between the two
-   glass colours that spot is (--mt): the colour under the cursor changes with where the cursor is. */
+/* Where the pointer is on a glass card (--mx, --my, set by GlassLight). */
 @property --mx {
   syntax: "<percentage>";
   inherits: true;
@@ -320,20 +319,86 @@ html.portal-preview a[href="/"] {
   initial-value: 50%;
 }
 
-@property --mt {
+@property --bx1 {
   syntax: "<percentage>";
   inherits: true;
   initial-value: 50%;
 }
 
-/* How lit the glass is: 0 at rest, 1 while the cursor is on it (it fades, and the glow around the glass follows it). */
-/* The turn of the colour sweep inside the circle (set by GlassLight from where the pointer is). */
-@property --ma {
-  syntax: "<angle>";
+@property --by1 {
+  syntax: "<percentage>";
   inherits: true;
-  initial-value: 0deg;
+  initial-value: 50%;
 }
 
+@property --bx2 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by2 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx3 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by3 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx4 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by4 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx5 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by5 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --bx6 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --by6 {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+/* The colour of the glass at the cursor (set by GlassLight): the glow around the glass and the rim take it. */
+@property --spot-c {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #7fd4ff;
+}
+
+/* How lit the glass is: 0 at rest, 1 while the cursor is on it (it fades, and the glow around the glass follows it). */
 @property --lit {
   syntax: "<number>";
   inherits: true;
@@ -341,19 +406,21 @@ html.portal-preview a[href="/"] {
 }
 
 /* A pane of glass for cards that sit over the star field: a pale sheen, a bright rim, a soft blur of what is behind.
-   Only the spot under the cursor (or a tap, or focus) takes colour: a soft pool of light, in a mix of the two colours
-   chosen in the portal's Glass settings that depends on where on the glass the cursor is, with the rim glowing in
-   the same place. The rest of the glass stays pale. The values after the commas are the colours until they are
-   changed (neon violet and blue). */
+   The glass always holds the colours chosen in the portal's Glass settings, spread over it in places of its own (each
+   glass has its own arrangement, and the places drift and change). At rest they stay hidden. When the cursor is on the
+   glass (or it is tapped, or has focus), a small soft circle under the cursor lets whatever colour is there at that
+   moment glow, and the glass glows around its edge in the same colour. */
 .glass-panel {
-  /* The four colours in the order this glass uses them (each glass gets an order of its own from GlassLight; these are the
-     default order). The colour at a place on the glass runs through all four as the place moves across it, so the lit area
-     is pink, violet, blue and white by turns; two more shades a little further along either way make it several colours at once. */
-  --k1: var(--glass-a, #4285f4);
-  --k2: var(--glass-c, #9b72cb);
-  --k3: var(--glass-b, #d96570);
-  --k4: var(--glass-d, #f4f0ff);
-  --spot-c: color-mix(in srgb, var(--k4) clamp(0%, calc(((var(--mt)) - 66.666%) * 3), 100%), color-mix(in srgb, var(--k3) clamp(0%, calc(((var(--mt)) - 33.333%) * 3), 100%), color-mix(in srgb, var(--k2) clamp(0%, calc((var(--mt)) * 3), 100%), var(--k1))));
+  /* The six colours in the order this glass uses them (each glass gets an order of its own from GlassLight; these are the
+     default order), and where each one sits on the glass (--bx1, --by1 … set by GlassLight, a place of its own for each glass). */
+  /* The glow's colour: the colour under the cursor, deepened, so the halo is rich and dark rather than pale. */
+  --glow-c: color-mix(in srgb, var(--spot-c) 82%, #05010f);
+  --k1: var(--glass-1, #1e4fd8);
+  --k2: var(--glass-2, #6d5bff);
+  --k3: var(--glass-3, #7fd4ff);
+  --k4: var(--glass-4, #ffffff);
+  --k5: var(--glass-5, #ff6ec7);
+  --k6: var(--glass-6, #e8648a);
   position: relative;
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -365,15 +432,29 @@ html.portal-preview a[href="/"] {
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     inset 0 -1px 0 rgba(255, 255, 255, 0.06),
     0 18px 40px rgba(0, 0, 0, 0.35),
-    0 0 var(--glass-glow-r, 26px) color-mix(in srgb, var(--spot-c) calc(var(--lit) * var(--glass-glow-k, 30) * 1%), transparent);
+    /* The neon glow: a tight bright edge, then a deep thick halo, then a wide faint one, all in the colour under the cursor. */
+    0 0 calc(var(--glass-glow-r, 26px) * 0.3) color-mix(in srgb, var(--spot-c) calc(var(--lit) * var(--glass-glow-k, 50) * 1.4%), transparent),
+    0 0 var(--glass-glow-r, 26px) color-mix(in srgb, var(--glow-c) calc(var(--lit) * var(--glass-glow-k, 50) * 1.1%), transparent),
+    0 0 calc(var(--glass-glow-r, 26px) * 2.2) color-mix(in srgb, var(--glow-c) calc(var(--lit) * var(--glass-glow-k, 50) * 0.7%), transparent);
   -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   overflow: hidden;
   transition:
     --mx 0.22s ease-out,
     --my 0.22s ease-out,
-    --mt 0.22s ease-out,
-    --ma 0.22s ease-out,
+    --spot-c 0.25s ease-out,
+    --bx1 3s ease-in-out,
+    --by1 3s ease-in-out,
+    --bx2 3s ease-in-out,
+    --by2 3s ease-in-out,
+    --bx3 3s ease-in-out,
+    --by3 3s ease-in-out,
+    --bx4 3s ease-in-out,
+    --by4 3s ease-in-out,
+    --bx5 3s ease-in-out,
+    --by5 3s ease-in-out,
+    --bx6 3s ease-in-out,
+    --by6 3s ease-in-out,
     --lit 0.4s ease;
 }
 
@@ -394,9 +475,9 @@ html.portal-preview a[href="/"] {
   transition: opacity 0.3s ease;
 }
 
-/* One small soft circle of light under the pointer. Inside it the four glass colours sweep round like the Gemini
-   gradient (the sweep turns as the pointer moves across the glass, so the colours shift); a mask fades the circle
-   to nothing at its edge. Always under the card's content. */
+/* The colours spread over the glass (six soft patches, each in its own place), seen only through one small soft circle
+   under the pointer: the circle shows whatever colour is on the glass right there. A mask fades the circle to nothing
+   at its edge. Always under the card's content. */
 .glass-panel::after {
   content: "";
   position: absolute;
@@ -404,10 +485,16 @@ html.portal-preview a[href="/"] {
   z-index: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: conic-gradient(from var(--ma) at var(--mx) var(--my), var(--k1), var(--k2), var(--k3), var(--k4), var(--k1));
-  filter: blur(7px); /* melts the point where the colours meet, so the circle is one soft glow */
-  -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.6) calc(var(--glass-radius, 9%) * 0.9), transparent calc(var(--glass-radius, 9%) * 2));
-  mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.6) calc(var(--glass-radius, 9%) * 0.9), transparent calc(var(--glass-radius, 9%) * 2));
+  background:
+    radial-gradient(ellipse var(--bs, 46%) var(--bs, 46%) at var(--bx6) var(--by6), var(--k6) 0, transparent),
+    radial-gradient(ellipse var(--bs, 46%) var(--bs, 46%) at var(--bx5) var(--by5), var(--k5) 0, transparent),
+    radial-gradient(ellipse var(--bs, 46%) var(--bs, 46%) at var(--bx4) var(--by4), var(--k4) 0, transparent),
+    radial-gradient(ellipse var(--bs, 46%) var(--bs, 46%) at var(--bx3) var(--by3), var(--k3) 0, transparent),
+    radial-gradient(ellipse var(--bs, 46%) var(--bs, 46%) at var(--bx2) var(--by2), var(--k2) 0, transparent),
+    radial-gradient(ellipse var(--bs, 46%) var(--bs, 46%) at var(--bx1) var(--by1), var(--k1) 0, transparent);
+  filter: blur(6px) saturate(1.7); /* rich neon colour, with soft meeting edges */
+  -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.8) calc(var(--glass-radius, 9%) * 1.1), transparent calc(var(--glass-radius, 9%) * 2.3));
+  mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0, rgba(0, 0, 0, 0.8) calc(var(--glass-radius, 9%) * 1.1), transparent calc(var(--glass-radius, 9%) * 2.3));
   opacity: 0;
   transition: opacity 0.3s ease;
 }

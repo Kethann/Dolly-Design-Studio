@@ -19,15 +19,14 @@ export function fontFaceCss(custom: CustomFontLike[]): string {
 export function glassVars(g: GlassLook): string[] {
   const clear = g.effect === "Clear";
   const frosted = g.effect === "Frosted";
+  // Always six slots: a shorter list repeats round, and Frosted is all pale whites.
+  const pale = ["#ffffff", "#ece8ff", "#d9d4ff", "#ffffff", "#f3f0ff", "#e4deff"];
+  const own = g.colors.length ? g.colors : DEFAULT_GLASS.colors;
+  const six = Array.from({ length: 6 }, (_, i) => (frosted ? pale[i] : own[i % own.length]));
   // The colour under the cursor goes first colour, middle colour, last colour as the cursor crosses the glass (the
   // mixing itself is in globals.css, because it follows the pointer with --mt).
   return [
-    `--glass-a:${frosted ? "#ffffff" : g.colorA}`,
-    `--glass-c:${frosted ? "#ece8ff" : g.colorC}`,
-    `--glass-b:${frosted ? "#d9d4ff" : g.colorB}`,
-    `--glass-d:${frosted ? "#ffffff" : g.colorD}`,
-    `--glass-shuffle:${g.shuffle ? 1 : 0}`,
-    `--glass-angle:${g.angle}deg`,
+    ...six.map((c, i) => `--glass-${i + 1}:${c}`),
     // How strong the colour is under the cursor (Tint), how wide the lit area is (Spread), and the glow around the glass.
     `--glass-alpha:${(Math.min(1, g.tint / 0.7) * (clear ? 0.45 : frosted ? 0.6 : 1)).toFixed(2)}`,
     `--glass-radius:${(5 + g.spread * 13).toFixed(1)}%`,

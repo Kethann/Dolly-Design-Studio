@@ -13,7 +13,6 @@ import { jumpTo } from "@/lib/smooth-scroll";
 import styles from "./ProofTable.module.css";
 
 type Mode = "pinned" | "static" | "fallback";
-const FRAMES = 240;
 const MOBILE_ITEMS = 6;
 
 function hasWebGL() {
@@ -40,7 +39,6 @@ export function ProofTable() {
   const sectionRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const counterRef = useRef<HTMLSpanElement>(null);
   const sceneRef = useRef<ProofScene | null>(null);
   const items = mobile ? pt.items.slice(0, MOBILE_ITEMS) : pt.items;
   const itemsRef = useRef(items);
@@ -97,16 +95,12 @@ export function ProofTable() {
     function setVars(p: number) {
       if (p === lastVars) return;
       lastVars = p;
-      const insp = Math.min(1, Math.max(0, (p - STAGES.inspect[0]) / (STAGES.inspect[1] - STAGES.inspect[0])));
-      stage.style.setProperty("--hud", (1 - insp * 0.7).toFixed(3));
       // Headline lines appear one after another as the camera settles.
       const from = STAGES.inspect[0] + (STAGES.inspect[1] - STAGES.inspect[0]) * 0.55;
       for (let i = 0; i < 5; i++) {
         const r = Math.min(1, Math.max(0, (p - (from + i * 0.03)) / 0.08));
         stage.style.setProperty(`--r${i}`, (r * r * (3 - 2 * r)).toFixed(3));
       }
-      if (counterRef.current)
-        counterRef.current.textContent = `${String(1 + Math.round(p * (FRAMES - 1))).padStart(3, "0")} / ${FRAMES}`;
     }
 
     function frame(now: number) {
@@ -260,10 +254,6 @@ export function ProofTable() {
     >
       <div ref={stageRef} className={`${styles.stage} ${mode === "static" ? styles.revealed : ""}`}>
         <canvas ref={canvasRef} className={styles.canvas} aria-hidden="true" />
-        <div className={styles.hud} aria-hidden="true">
-          <span>{proofTable.labels.proof}</span>
-          <span ref={counterRef}>001 / {FRAMES}</span>
-        </div>
         {copy}
         <ul className="sr-only">
           {items.map((it, i) => (

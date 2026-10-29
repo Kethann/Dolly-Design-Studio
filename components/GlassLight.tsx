@@ -3,20 +3,28 @@
 import { useEffect } from "react";
 import { DEFAULT_GLASS } from "@/lib/content/types";
 
-/** The four glass colours, as the variables that hold them and what each is until the portal changes it. */
-const SLOTS = [
-  ["a", DEFAULT_GLASS.colorA],
-  ["c", DEFAULT_GLASS.colorC],
-  ["b", DEFAULT_GLASS.colorB],
-  ["d", DEFAULT_GLASS.colorD],
-] as const;
+/** The glass colours, as the variables that hold them and what each is until the portal changes them. */
+const SLOTS = DEFAULT_GLASS.colors.map((color, i) => [i + 1, color] as const);
+
+/** Where each colour sits on a card: a tile of a 3 × 2 grid for each, shuffled, and nudged a little off its centre. */
+function scatter(): { x: number; y: number }[] {
+  const tiles = SLOTS.map((_, i) => i);
+  for (let i = tiles.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+  }
+  return tiles.map((t) => ({
+    x: ((t % 3) + 0.5) * (100 / 3) + (Math.random() - 0.5) * 26,
+    y: (Math.floor(t / 3) + 0.5) * 50 + (Math.random() - 0.5) * 30,
+  }));
+}
 
 /**
- * Tells every glass card where the pointer is on it (as --mx and --my, in percent), so the pool of colour under the
- * cursor follows it, and (as --mt) which mix of the glass colours belongs to that spot. Each card also gets an order of
- * its own for the four colours (and a small turn of the direction), and a new one each time the cursor comes back to it,
- * so no two glass cards look alike and none repeats itself. One listener for the whole page; nothing at all happens
- * until a pointer moves over glass.
+ * The colours of the glass cards. Each card holds all the glass colours, spread over it in places (and an order) of its
+ * own that change from time to time; this puts them there (as --k1…--k6 and --bx1/--by1…), tells the card where the
+ * pointer is (--mx, --my) and which colour is on the glass right there (--spot-c), so the small circle under the cursor,
+ * and the glow around the glass, are in that colour. One listener for the whole page; nothing at all happens until a
+ * pointer moves over glass.
  */
 export function GlassLight() {
   useEffect(() => {
@@ -24,23 +32,38 @@ export function GlassLight() {
     let latest: PointerEvent | null = null;
     let current: HTMLElement | null = null;
     let leftAt = 0;
-    const turn = new WeakMap<HTMLElement, number>(); // each card's own small turn of the direction, in degrees
-    const seen = new WeakSet<HTMLElement>();
+    let drift = 0;
+    const places = new WeakMap<HTMLElement, { x: number; y: number }[]>();
+    const orders = new WeakMap<HTMLElement, number[]>();
 
-    const reshuffle = (card: HTMLElement) => {
-      const root = getComputedStyle(document.documentElement).getPropertyValue("--glass-shuffle").trim();
-      if (root === "0") {
-        for (let i = 1; i <= 4; i++) card.style.removeProperty(`--k${i}`);
-        turn.set(card, 0);
-        return;
+    /** Gives the card a new arrangement: the order of the colours, or only where they sit. */
+    const arrange = (card: HTMLElement, newOrder: boolean) => {
+      const fixed = getComputedStyle(document.documentElement).getPropertyValue("--glass-shuffle").trim() === "0";
+      let order = orders.get(card);
+      if (!order || newOrder) {
+        order = SLOTS.map((_, i) => i);
+        if (!fixed) {
+          for (let i = order.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [order[i], order[j]] = [order[j], order[i]];
+          }
+        }
+        orders.set(card, order);
+        order.forEach((slot, i) => card.style.setProperty(`--k${i + 1}`, `var(--glass-${SLOTS[slot][0]}, ${SLOTS[slot][1]})`));
       }
-      const order = [0, 1, 2, 3];
-      for (let i = order.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [order[i], order[j]] = [order[j], order[i]];
-      }
-      order.forEach((slot, i) => card.style.setProperty(`--k${i + 1}`, `var(--glass-${SLOTS[slot][0]}, ${SLOTS[slot][1]})`));
-      turn.set(card, (Math.random() - 0.5) * 140);
+      const spots = fixed
+        ? SLOTS.map((_, i) => ({ x: ((i % 3) + 0.5) * (100 / 3), y: (Math.floor(i / 3) + 0.5) * 50 }))
+        : scatter();
+      places.set(card, spots);
+      spots.forEach((p, i) => {
+        card.style.setProperty(`--bx${i + 1}`, `${p.x.toFixed(1)}%`);
+        card.style.setProperty(`--by${i + 1}`, `${p.y.toFixed(1)}%`);
+      });
+    };
+
+    const stopDrift = () => {
+      if (drift) window.clearInterval(drift);
+      drift = 0;
     };
 
     const apply = () => {
@@ -51,27 +74,39 @@ export function GlassLight() {
       if (!e || !card) return;
       const r = card.getBoundingClientRect();
       if (!r.width || !r.height) return;
-      // A card is mixed afresh when the cursor first comes to it, and again when it comes back after a moment away.
+      // A card gets a fresh arrangement when the cursor first comes to it, and again when it comes back after a moment
+      // away; while the cursor stays, the colours slowly move about.
       if (card !== current) {
-        if (!seen.has(card) || performance.now() - leftAt > 500) reshuffle(card);
-        seen.add(card);
+        stopDrift();
+        if (!places.has(card) || performance.now() - leftAt > 500) arrange(card, true);
         current = card;
+        drift = window.setInterval(() => arrange(card, false), 3500);
       }
-      // How far along the colours this spot is (0 = the first colour, 100 = the last).
-      const a = (((parseFloat(getComputedStyle(card).getPropertyValue("--glass-angle")) || 135) + (turn.get(card) ?? 0)) * Math.PI) / 180;
-      const fx = (e.clientX - r.left) / r.width - 0.5;
-      const fy = (e.clientY - r.top) / r.height - 0.5;
-      const along = (fx * Math.sin(a) - fy * Math.cos(a)) / (Math.abs(Math.sin(a)) + Math.abs(Math.cos(a)));
-      card.style.setProperty("--ma", `${Math.round(((0.5 + along) * 360 + (turn.get(card) ?? 0) * 2) % 360)}deg`); // turns the colour sweep inside the circle
-      card.style.setProperty("--mt", `${Math.min(100, Math.max(0, (0.5 + along) * 100)).toFixed(1)}%`);
-      card.style.setProperty("--mx", `${Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100)).toFixed(1)}%`);
-      card.style.setProperty("--my", `${Math.min(100, Math.max(0, ((e.clientY - r.top) / r.height) * 100)).toFixed(1)}%`);
+      const px = ((e.clientX - r.left) / r.width) * 100;
+      const py = ((e.clientY - r.top) / r.height) * 100;
+      card.style.setProperty("--mx", `${Math.min(100, Math.max(0, px)).toFixed(1)}%`);
+      card.style.setProperty("--my", `${Math.min(100, Math.max(0, py)).toFixed(1)}%`);
+      // The colour on the glass right here: the nearest of the colours' places (in pixels, so a wide card isn't skewed).
+      const spots = places.get(card);
+      if (spots) {
+        let best = 0;
+        let bestD = Infinity;
+        spots.forEach((p, i) => {
+          const d = Math.hypot(((px - p.x) / 100) * r.width, ((py - p.y) / 100) * r.height);
+          if (d < bestD) {
+            bestD = d;
+            best = i;
+          }
+        });
+        card.style.setProperty("--spot-c", `var(--k${best + 1})`);
+      }
     };
     const onMove = (e: PointerEvent) => {
       if (!(e.target instanceof Element) || !e.target.closest(".glass-panel")) {
         if (current) {
           current = null;
           leftAt = performance.now();
+          stopDrift();
         }
         return;
       }
@@ -84,6 +119,7 @@ export function GlassLight() {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerdown", onMove);
       if (frame) cancelAnimationFrame(frame);
+      stopDrift();
     };
   }, []);
   return null;

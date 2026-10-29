@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { allFonts } from "@/lib/content/fonts";
 import { fontFaceCss, glassVars } from "@/lib/content/css";
-import { DEFAULT_GLASS, GLASS_EFFECTS, GLASS_PRESETS, type GlassLook, type PageKey, type SiteContent, type TextStyle } from "@/lib/content/types";
+import { DEFAULT_GLASS, GLASS_COLOR_COUNT, GLASS_EFFECTS, GLASS_PRESETS, type GlassLook, type PageKey, type SiteContent, type TextStyle } from "@/lib/content/types";
 import { Choice, ColorRow, Slider } from "./controls";
 import { styledTexts, type Field, type SchemaPage, type SchemaSection } from "./content-schema";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "@/lib/content/limits";
@@ -1282,13 +1282,9 @@ export function ThemeEditor() {
   /** Three bright colours that belong together: a random starting hue, and two more a good way round the colour wheel. */
   const randomGlass = () => {
     const h = Math.random() * 360;
-    const step = 40 + Math.random() * 50;
+    const step = 35 + Math.random() * 30;
     setGlass({
-      colorA: hslHex(h, 85, 62),
-      colorC: hslHex((h + step) % 360, 85, 62),
-      colorB: hslHex((h + step * 2 + Math.random() * 40) % 360, 85, 62),
-      colorD: hslHex((h + step * 3) % 360, 90, 95),
-      angle: Math.round(Math.random() * 72) * 5,
+      colors: [hslHex(h, 85, 55), hslHex((h + step) % 360, 85, 64), hslHex((h + step * 2) % 360, 90, 72), "#ffffff", hslHex((h + step * 3.5) % 360, 85, 62), hslHex((h + step * 5) % 360, 80, 66)],
     });
   };
   const preview = Object.fromEntries(glassVars(glass).map((d) => [d.slice(0, d.indexOf(":")), d.slice(d.indexOf(":") + 1)])) as React.CSSProperties;
@@ -1321,7 +1317,7 @@ export function ThemeEditor() {
       <section className={styles.section} data-open="true">
         <div className={styles.sectionHeadStatic}>Glass</div>
         <div className={styles.sectionBody}>
-          <p className={styles.hint}>The glass cards (the numbers and the founder) stay pale. Only the spot under the cursor takes colour, a mix of the two colours below that changes with where on the glass the cursor is. The sample is shown lit, and follows your cursor. Changes show on the page straight away.</p>
+          <p className={styles.hint}>The glass cards (the numbers and the founder) hold these colours, spread over them in places that change, but keep them hidden. Where the cursor is, a small soft circle lets the colour that is there glow. The sample is shown lit, and follows your cursor. Changes show on the page straight away.</p>
           <div className={`glass-panel ${styles.glassPreview}`} style={preview} data-lit="true" aria-hidden="true">
             <strong>Glass</strong>
             <span>Colour, blur and tint</span>
@@ -1339,25 +1335,34 @@ export function ThemeEditor() {
                 key={p.name}
                 type="button"
                 className={styles.glassPreset}
-                data-on={glass.colorA === p.colors[0] && glass.colorC === p.colors[1] && glass.colorB === p.colors[2] && glass.colorD === p.colors[3]}
-                onClick={() => setGlass({ colorA: p.colors[0], colorC: p.colors[1], colorB: p.colors[2], colorD: p.colors[3] })}
+                data-on={glass.colors.join() === p.colors.join()}
+                onClick={() => setGlass({ colors: [...p.colors] })}
                 title={`${p.name} colours`}
               >
                 <i style={{ background: `linear-gradient(90deg, ${p.colors.join(", ")})` }} />
                 <span>{p.name}</span>
               </button>
             ))}
-            <button type="button" className={styles.glassPreset} onClick={randomGlass} title="Pick four new colours that go well together">
+            <button type="button" className={styles.glassPreset} onClick={randomGlass} title="Pick six new colours that go well together">
               <i className={styles.glassDice} aria-hidden="true">
                 ⚄
               </i>
               <span>Randomise</span>
             </button>
           </div>
-          <ColorRow label="First colour" hint="The colour on one side of the glass." value={glass.colorA} onChange={(colorA) => setGlass({ colorA })} />
-          <ColorRow label="Second colour" hint="The next colour along." value={glass.colorC} onChange={(colorC) => setGlass({ colorC })} />
-          <ColorRow label="Third colour" hint="The colour after that." value={glass.colorB} onChange={(colorB) => setGlass({ colorB })} />
-          <ColorRow label="Light colour" hint="A pale sparkle, white by default." value={glass.colorD} onChange={(colorD) => setGlass({ colorD })} />
+          {glass.colors.map((c, i) => (
+            <div key={i}>
+              <ColorRow label={`Colour ${i + 1}`} value={c} onChange={(hex) => setGlass({ colors: glass.colors.map((x, j) => (j === i ? hex : x)) })} />
+              {glass.colors.length > GLASS_COLOR_COUNT[0] && (
+                <button type="button" className={styles.link} onClick={() => setGlass({ colors: glass.colors.filter((_, j) => j !== i) })}>
+                  Remove colour {i + 1}
+                </button>
+              )}
+            </div>
+          ))}
+          <button type="button" className={styles.add} disabled={glass.colors.length >= GLASS_COLOR_COUNT[1]} onClick={() => setGlass({ colors: [...glass.colors, "#ffffff"] })}>
+            ＋ Add a colour ({glass.colors.length} of {GLASS_COLOR_COUNT[1]})
+          </button>
           <Choice
             label="Colour order"
             hint="Random: every glass card mixes the colours in an order of its own, and a new one each time the cursor comes back. Fixed: the order above, on every card."
@@ -1368,13 +1373,12 @@ export function ThemeEditor() {
             ]}
             onChange={(v) => setGlass({ shuffle: v === "random" })}
           />
-          <Slider label="Colour direction" hint="Which way the colour changes across the glass." value={glass.angle} min={0} max={360} step={5} format={(n) => `${n}°`} onChange={(angle) => setGlass({ angle })} />
           <Slider label="Tint" hint="How strong the colour is under the cursor." value={glass.tint} min={0} max={0.7} step={0.02} format={(n) => `${Math.round((n / 0.7) * 100)}%`} onChange={(tint) => setGlass({ tint })} />
           <Slider label="Spread" hint="How wide the lit area around the cursor is." value={glass.spread} min={0} max={1} step={0.02} format={(n) => `${Math.round(n * 100)}%`} onChange={(spread) => setGlass({ spread })} />
           <Slider label="Glow" hint="The soft light around the whole glass while it is lit." value={glass.glow} min={0} max={0.8} step={0.02} format={(n) => `${Math.round((n / 0.8) * 100)}%`} onChange={(glow) => setGlass({ glow })} />
           <Slider label="Blur" hint="How much of what is behind the glass is blurred." value={glass.blur} min={0} max={30} step={1} format={(n) => `${n} px`} onChange={(blur) => setGlass({ blur })} />
           {glassChanged && (
-            <button type="button" className={styles.link} onClick={() => setGlass({ ...DEFAULT_GLASS })}>
+            <button type="button" className={styles.link} onClick={() => setGlass({ ...DEFAULT_GLASS, colors: [...DEFAULT_GLASS.colors] })}>
               Back to the original glass
             </button>
           )}

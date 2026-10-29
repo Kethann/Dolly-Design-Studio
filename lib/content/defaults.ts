@@ -37,7 +37,7 @@ export function defaultContent(): SiteContent {
     type: {},
     fonts: { ...DEFAULT_FONT_ROLES },
     customFonts: [],
-    theme: { accent: "#e8b04b", accentBright: "#fff195", text: "#f4ede1", glass: { ...DEFAULT_GLASS } },
+    theme: { accent: "#e8b04b", accentBright: "#fff195", text: "#f4ede1", glass: { ...DEFAULT_GLASS, colors: [...DEFAULT_GLASS.colors] } },
     galleryLayout: { columns: "Auto", shape: "Poster (tall)", showDetails: true, showFilters: true },
     breakdowns: [],
     pages: Object.fromEntries(
