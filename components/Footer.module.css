@@ -3,10 +3,10 @@
   padding-block: 32px;
 }
 
-/* Three parts on one line: the copyright on the left, the social links in the middle, the place on the right. */
+/* Two parts on one line: the copyright on the left, the place on the right. */
 .row {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 16px 24px;
 }
@@ -35,27 +35,4 @@
   text-transform: uppercase;
   color: var(--ivory);
   opacity: 0.55;
-}
-
-.links {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.links a {
-  font-family: var(--font-label);
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--ivory);
-  opacity: 0.75;
-  transition: opacity 0.2s ease, color 0.2s ease;
-}
-
-.links a:hover,
-.links a:focus-visible {
-  opacity: 1;
-  color: var(--gold-bright);
 }
