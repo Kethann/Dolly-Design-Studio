@@ -1217,24 +1217,24 @@ export function ThemeEditor() {
       <section className={styles.section} data-open="true">
         <div className={styles.sectionHeadStatic}>Glass</div>
         <div className={styles.sectionBody}>
-          <p className={styles.hint}>The glass cards (the numbers and the founder) stay pale until the cursor is over them, then light up in these colours. The sample below is shown lit. Changes show on the page straight away.</p>
+          <p className={styles.hint}>The glass cards (the numbers and the founder) stay pale. Only the spot under the cursor takes colour, a mix of the two colours below that changes with where on the glass the cursor is. The sample is shown lit, and follows your cursor. Changes show on the page straight away.</p>
           <div className={`glass-panel ${styles.glassPreview}`} style={preview} data-lit="true" aria-hidden="true">
             <strong>Glass</strong>
             <span>Colour, blur and tint</span>
           </div>
           <Choice
             label="Effect"
-            hint="Neon: a glowing coloured rim. Frosted: milky white, no glow. Clear: almost see-through."
+            hint="Neon: full colour. Frosted: milky white light. Clear: a faint hint of colour."
             value={glass.effect}
             options={GLASS_EFFECTS.map((e) => ({ value: e, label: e }))}
             onChange={(effect) => setGlass({ effect })}
           />
-          <ColorRow label="First colour" hint="One end of the gradient." value={glass.colorA} onChange={(colorA) => setGlass({ colorA })} />
-          <ColorRow label="Second colour" hint="The other end of the gradient." value={glass.colorB} onChange={(colorB) => setGlass({ colorB })} />
-          <Slider label="Gradient direction" value={glass.angle} min={0} max={360} step={5} format={(n) => `${n}°`} onChange={(angle) => setGlass({ angle })} />
-          <Slider label="Tint" hint="How strongly the two colours colour the glass." value={glass.tint} min={0} max={0.7} step={0.02} format={(n) => `${Math.round((n / 0.7) * 100)}%`} onChange={(tint) => setGlass({ tint })} />
+          <ColorRow label="First colour" hint="The colour on one side of the glass." value={glass.colorA} onChange={(colorA) => setGlass({ colorA })} />
+          <ColorRow label="Second colour" hint="The colour on the other side of the glass." value={glass.colorB} onChange={(colorB) => setGlass({ colorB })} />
+          <Slider label="Colour direction" hint="Which way the colour changes across the glass." value={glass.angle} min={0} max={360} step={5} format={(n) => `${n}°`} onChange={(angle) => setGlass({ angle })} />
+          <Slider label="Tint" hint="How strong the colour is under the cursor." value={glass.tint} min={0} max={0.7} step={0.02} format={(n) => `${Math.round((n / 0.7) * 100)}%`} onChange={(tint) => setGlass({ tint })} />
           <Slider label="Blur" hint="How much of what is behind the glass is blurred." value={glass.blur} min={0} max={30} step={1} format={(n) => `${n} px`} onChange={(blur) => setGlass({ blur })} />
-          <Slider label="Glow" hint="The soft light around the glass (Neon only)." value={glass.glow} min={0} max={0.8} step={0.02} format={(n) => `${Math.round((n / 0.8) * 100)}%`} onChange={(glow) => setGlass({ glow })} />
+          <Slider label="Spread" hint="How wide the lit area around the cursor is." value={glass.glow} min={0} max={0.8} step={0.02} format={(n) => `${Math.round((n / 0.8) * 100)}%`} onChange={(glow) => setGlass({ glow })} />
           {glassChanged && (
             <button type="button" className={styles.link} onClick={() => setGlass({ ...DEFAULT_GLASS })}>
               Back to the original glass

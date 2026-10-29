@@ -17,25 +17,17 @@ export function fontFaceCss(custom: CustomFontLike[]): string {
 
 /** The CSS variables that style the glass (cards, menu strip) from the creator's glass settings. */
 export function glassVars(g: GlassLook): string[] {
-  const mix = (hex: string, pct: number) => `color-mix(in srgb,${hex} ${Math.round(Math.min(100, Math.max(0, pct)))}%,transparent)`;
   const clear = g.effect === "Clear";
   const frosted = g.effect === "Frosted";
-  const t = g.tint * (clear ? 0.35 : 1) * 100;
-  const glow = frosted || clear ? 0 : g.glow;
-  // The gradients themselves are built in globals.css (they follow the pointer with --mx / --my); these are their parts.
+  // The colour under the cursor is a mix of these two, depending on where the cursor is (the gradient between them).
   return [
-    `--glass-a:${g.colorA}`,
+    `--glass-a:${frosted ? "#ffffff" : g.colorA}`,
+    `--glass-b:${frosted ? "#d9d4ff" : g.colorB}`,
     `--glass-angle:${g.angle}deg`,
-    `--glass-ca:${frosted ? "rgba(255,255,255,0.14)" : mix(g.colorA, t)}`,
-    `--glass-cb:${frosted ? "rgba(255,255,255,0.05)" : mix(g.colorB, t * 0.8)}`,
-    `--glass-sa:${frosted ? "rgba(255,255,255,0.12)" : mix(g.colorA, clear ? 22 : 55)}`,
-    `--glass-sb:${frosted ? "rgba(255,255,255,0.3)" : mix(g.colorB, clear ? 30 : 75)}`,
-    `--glass-base:${frosted ? "rgba(236,232,255,0.1)" : "rgba(16,10,44,0.4)"}`,
-    `--glass-border:${frosted ? "rgba(255,255,255,0.3)" : mix(g.colorA, clear ? 20 : 40)}`,
-    `--glass-rima:${frosted ? "rgba(255,255,255,0.55)" : g.colorA}`,
-    `--glass-rimb:${frosted ? "rgba(255,255,255,0.18)" : g.colorB}`,
-    `--glass-rim-opacity:${clear ? 0.4 : frosted ? 0.7 : 0.85}`,
-    `--glass-glow:0 0 26px ${mix(g.colorA, glow * 100)}`,
+    // How strong the colour is under the cursor (from the Tint setting), and how wide the lit area is (the Spread setting).
+    `--glass-spot:${Math.round((g.tint / 0.7) * 85 * (clear ? 0.45 : frosted ? 0.6 : 1))}%`,
+    `--glass-radius:${Math.round(35 + (g.glow / 0.8) * 60)}%`,
+    `--glass-rim-opacity:${clear ? 0.5 : frosted ? 0.75 : 0.95}`,
     `--glass-blur:${g.blur}px`,
   ];
 }

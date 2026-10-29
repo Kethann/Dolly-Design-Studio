@@ -18,6 +18,12 @@ export function GlassLight() {
       if (!e || !card) return;
       const r = card.getBoundingClientRect();
       if (!r.width || !r.height) return;
+      // How far along the gradient between the two glass colours this spot is (0 = first colour, 100 = second).
+      const a = ((parseFloat(getComputedStyle(card).getPropertyValue("--glass-angle")) || 135) * Math.PI) / 180;
+      const fx = (e.clientX - r.left) / r.width - 0.5;
+      const fy = (e.clientY - r.top) / r.height - 0.5;
+      const along = (fx * Math.sin(a) - fy * Math.cos(a)) / (Math.abs(Math.sin(a)) + Math.abs(Math.cos(a)));
+      card.style.setProperty("--mt", `${Math.min(100, Math.max(0, (0.5 + along) * 100)).toFixed(1)}%`);
       card.style.setProperty("--mx", `${Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100)).toFixed(1)}%`);
       card.style.setProperty("--my", `${Math.min(100, Math.max(0, ((e.clientY - r.top) / r.height) * 100)).toFixed(1)}%`);
     };

@@ -592,6 +592,12 @@ export const ExplodeStage = memo(function ExplodeStage({
       >
         <div className={styles.viewport}>
           <div ref={stack} className={styles.stack} style={{ transform: transformFor(open, view) }}>
+            {/* A grey board behind the artwork, so the picture reads clearly from every side while it is turned. */}
+            <div
+              className={styles.plate}
+              aria-hidden="true"
+              style={{ opacity: open ? 1 : 0, transform: `translateZ(${open ? zOf(0) - Math.max(24, gap * 0.9) : -1}px)` }}
+            />
             {mounted &&
               item.layers.map((layer, i) => (
                 // eslint-disable-next-line @next/next/no-img-element -- transparent layer PNGs stacked in 3D

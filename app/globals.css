@@ -306,7 +306,8 @@ html.portal-preview a[href="/"] {
   pointer-events: none;
 }
 
-/* Where the pointer is on a glass card (set by GlassLight); the colour on the glass follows it. */
+/* Where the pointer is on a glass card (--mx, --my, set by GlassLight), and how far along the gradient between the two
+   glass colours that spot is (--mt): the colour under the cursor changes with where the cursor is. */
 @property --mx {
   syntax: "<percentage>";
   inherits: true;
@@ -319,12 +320,19 @@ html.portal-preview a[href="/"] {
   initial-value: 50%;
 }
 
+@property --mt {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
 /* A pane of glass for cards that sit over the star field: a pale sheen, a bright rim, a soft blur of what is behind.
-   When the cursor is over it (or it is tapped, or has focus), it lights up in the colours chosen in the portal's Glass
-   settings, already mixed: one colour on one side, the other on the far side, and a spot of colour under the pointer.
-   All of it moves with the pointer (--mx and --my), so the mix changes with where the cursor is. The values after the
-   commas are the colours until they are changed (neon violet to blue). */
+   Only the spot under the cursor (or a tap, or focus) takes colour: a soft pool of light, in a mix of the two colours
+   chosen in the portal's Glass settings that depends on where on the glass the cursor is, with the rim glowing in
+   the same place. The rest of the glass stays pale. The values after the commas are the colours until they are
+   changed (neon violet and blue). */
 .glass-panel {
+  --spot-c: color-mix(in srgb, var(--glass-b, #38a8ff) var(--mt), var(--glass-a, #8b5cff));
   position: relative;
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -335,41 +343,34 @@ html.portal-preview a[href="/"] {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     inset 0 -1px 0 rgba(255, 255, 255, 0.06),
-    0 0 0 rgba(120, 90, 255, 0),
     0 18px 40px rgba(0, 0, 0, 0.35);
   -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   overflow: hidden;
   transition:
-    border-color 0.35s ease,
-    box-shadow 0.35s ease,
-    --mx 0.3s ease-out,
-    --my 0.3s ease-out;
+    --mx 0.25s ease-out,
+    --my 0.25s ease-out,
+    --mt 0.25s ease-out;
 }
 
-/* The glowing gradient rim, drawn as a masked gradient so the inside stays clear. Hidden until the glass is lit. */
+/* The rim, lit only near the pointer: a masked ring, so the inside stays clear. */
 .glass-panel::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 0;
   border-radius: inherit;
-  padding: 1.2px;
+  padding: 1.4px;
   pointer-events: none;
-  background: linear-gradient(
-    var(--glass-angle, 135deg),
-    var(--glass-rima, var(--neon-violet)) calc(var(--mx) - 55%),
-    rgba(255, 255, 255, 0.4) var(--mx),
-    var(--glass-rimb, var(--neon-blue)) calc(var(--mx) + 55%)
-  );
+  background: radial-gradient(circle at var(--mx) var(--my), var(--spot-c), transparent calc(var(--glass-radius, 60%) * 0.85));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   opacity: 0;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.3s ease;
 }
 
-/* The coloured tint and sheen that fade in over the pale glass, always under the card's content. */
+/* The pool of colour under the pointer, always under the card's content. */
 .glass-panel::after {
   content: "";
   position: absolute;
@@ -377,33 +378,20 @@ html.portal-preview a[href="/"] {
   z-index: 0;
   border-radius: inherit;
   pointer-events: none;
-  background:
-    radial-gradient(circle at var(--mx) var(--my), var(--glass-sb, rgba(56, 168, 255, 0.55)), var(--glass-sa, rgba(139, 92, 255, 0.4)) 38%, transparent 78%),
-    linear-gradient(
-      var(--glass-angle, 135deg),
-      var(--glass-ca, rgba(139, 92, 255, 0.34)) calc(var(--mx) - 70%),
-      var(--glass-cb, rgba(56, 168, 255, 0.27)) calc(var(--mx) + 70%)
-    ),
-    var(--glass-base, rgba(16, 10, 44, 0.4));
+  background: radial-gradient(
+    circle at var(--mx) var(--my),
+    color-mix(in srgb, var(--spot-c) var(--glass-spot, 60%), transparent) 0,
+    color-mix(in srgb, var(--spot-c) calc(var(--glass-spot, 60%) * 0.45), transparent) calc(var(--glass-radius, 60%) * 0.45),
+    transparent var(--glass-radius, 60%)
+  );
   opacity: 0;
-  transition: opacity 0.35s ease;
-}
-
-.glass-panel:hover,
-.glass-panel:focus-within,
-.glass-panel[data-lit="true"] {
-  border-color: var(--glass-border, rgba(165, 150, 255, 0.28));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.38),
-    inset 0 -1px 0 rgba(120, 170, 255, 0.18),
-    var(--glass-glow, 0 0 26px rgba(120, 90, 255, 0.28)),
-    0 18px 40px rgba(0, 0, 0, 0.35);
+  transition: opacity 0.3s ease;
 }
 
 .glass-panel:hover::before,
 .glass-panel:focus-within::before,
 .glass-panel[data-lit="true"]::before {
-  opacity: var(--glass-rim-opacity, 0.85);
+  opacity: var(--glass-rim-opacity, 0.9);
 }
 
 .glass-panel:hover::after,

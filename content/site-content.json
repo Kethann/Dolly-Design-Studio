@@ -159,6 +159,10 @@
     "founder": {
       "label": "About the Founder",
       "photo": "",
+      "photoAlt": "",
+      "photoShape": "round",
+      "photoSize": "medium",
+      "cardNote": "Designing film posters, title logos and typography for Telugu cinema.",
       "paragraphs": [
         "Sasank Muppalla is the founder and creative director of Dolly Design Studio, designing film posters, title logos and typography from Bangalore.",
         "His work has taken him across production houses such as Annapurna Studios, Arka Media Works and People Media Factory, and filmmakers and actors including Adivi Sesh and Varun Tej."
@@ -171,6 +175,9 @@
         "clients": "Production houses",
         "collaborators": "Filmmakers & actors"
       },
+      "portraitShape": "round",
+      "portraitSize": "large",
+      "logoSize": "large",
       "screenReaderIntro": "Clients and collaborators:"
     },
     "contact": {
@@ -181,11 +188,13 @@
       "form": {
         "nameLabel": "Name",
         "emailLabel": "Email",
+        "phoneLabel": "Phone number",
         "companyLabel": "Company / Production",
         "projectTypeLabel": "Project type",
         "budgetLabel": "Budget range",
         "timelineLabel": "Timeline",
         "messageLabel": "Message",
+        "messagePlaceholder": "What are you making, who is it for, and when do you need it?",
         "selectPlaceholder": "Select one",
         "submitButton": "Send message",
         "sendingButton": "Sending…",
@@ -948,6 +957,12 @@
       "order": 11
     }
   ],
+  "categories": [
+    "Mainstream Films",
+    "OTT Films / Web Series",
+    "Music Videos",
+    "Short Films / Independent Films"
+  ],
   "work": {
     "metaTitle": "Work",
     "metaDescription": "Film publicity posters, title design and campaign art from Dolly Design Studio.",
@@ -955,6 +970,17 @@
     "title": "All work",
     "allFilter": "All",
     "emptyCategory": "No projects in this category yet."
+  },
+  "breakdownsPage": {
+    "metaTitle": "Breakdowns",
+    "metaDescription": "See how Dolly Design Studio’s designs are built, layer by layer.",
+    "label": "How it’s made",
+    "title": "Breakdowns",
+    "intro": "Every finished design, taken apart layer by layer. Open one up to see how it was built.",
+    "backLink": "← Back to how we work",
+    "hintMouse": "Move your cursor over the image to break it into layers",
+    "hintTouch": "Tap the image to break it into layers",
+    "empty": "The first breakdowns are on their way."
   },
   "projectPage": {
     "backLink": "← Back to work",
@@ -989,7 +1015,16 @@
   "theme": {
     "accent": "#e8b04b",
     "accentBright": "#fff195",
-    "text": "#f4ede1"
+    "text": "#f4ede1",
+    "glass": {
+      "colorA": "#8b5cff",
+      "colorB": "#38a8ff",
+      "angle": 135,
+      "tint": 0.34,
+      "blur": 14,
+      "glow": 0.28,
+      "effect": "Neon"
+    }
   },
   "galleryLayout": {
     "columns": "Auto",
@@ -1001,6 +1036,7 @@
     {
       "title": "New breakdown",
       "note": "",
+      "description": "",
       "layers": [
         {
           "image": "/images/uploads/fire-flame-with-sparkle-black-background-c337fa2c.webp",
@@ -1014,7 +1050,66 @@
           "image": "/images/uploads/xsmbmxbjqlgyljzgwxaye28ywu5-91b9f639.webp",
           "label": "XsmBMxBjQLgYLJZGWxAyE28YWU5"
         }
-      ]
+      ],
+      "spread": "normal",
+      "turn": "side",
+      "labels": true,
+      "textPosition": "left"
+    },
+    {
+      "title": "layered rudravanam",
+      "note": "",
+      "description": "",
+      "layers": [
+        {
+          "image": "/images/uploads/01-grain-4-f8333b4b.webp",
+          "label": "Grain 4"
+        },
+        {
+          "image": "/images/uploads/02-constable-right-b315ec2d.webp",
+          "label": "CONSTABLE RIGHT"
+        },
+        {
+          "image": "/images/uploads/03-constable-left-36053e99.webp",
+          "label": "CONSTABLE LEFT"
+        },
+        {
+          "image": "/images/uploads/04-right-38af4a71.webp",
+          "label": "RIGHT"
+        },
+        {
+          "image": "/images/uploads/05-left-70dc4921.webp",
+          "label": "LEFT"
+        },
+        {
+          "image": "/images/uploads/06-hero-d88f08f5.webp",
+          "label": "HERO"
+        },
+        {
+          "image": "/images/uploads/07-table-52291b18.webp",
+          "label": "TABLE"
+        },
+        {
+          "image": "/images/uploads/08-head-6028b91d.webp",
+          "label": "HEAD"
+        },
+        {
+          "image": "/images/uploads/09-rudravanam-2c884979.webp",
+          "label": "RUDRAVANAM"
+        },
+        {
+          "image": "/images/uploads/10-group-16-424507da.webp",
+          "label": "Group 16"
+        },
+        {
+          "image": "/images/uploads/11-telugu-zee-5-original-9f8449e0.webp",
+          "label": "TELUGU ZEE 5 ORIGINAL"
+        }
+      ],
+      "spread": "normal",
+      "turn": "side",
+      "labels": true,
+      "textPosition": "left"
     }
   ],
   "pages": {
@@ -1027,6 +1122,14 @@
       "backdropDim": 0.55
     },
     "work": {
+      "fontDisplay": "",
+      "fontLabel": "",
+      "fontBody": "",
+      "accent": "",
+      "backdrop": "",
+      "backdropDim": 0.55
+    },
+    "breakdowns": {
       "fontDisplay": "",
       "fontLabel": "",
       "fontBody": "",
