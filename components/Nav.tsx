@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useContent } from "@/lib/content/context";
 import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
 import { goToSection, isPlainClick } from "@/lib/section-nav";
+import { NAV_TONES, NavIcon } from "./NavIcon";
 import styles from "./Nav.module.css";
 
 export function Nav() {
@@ -13,6 +14,15 @@ export function Nav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("");
+  const linksRef = useRef<HTMLElement>(null);
+  const linkRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
+  /** Where the spotlight sits (over the current item), and whether it may glide there (not on the very first placing). */
+  const [beam, setBeam] = useState<{ left: number; width: number; animate: boolean } | null>(null);
+
+  // The item for the place you are: the full gallery (and a project on the home page), the Breakdowns page (it belongs to
+  // "How we work"), or the home-page section in view.
+  const activeId =
+    pathname.startsWith("/work") ? "work" : pathname.startsWith("/breakdowns") ? "process" : pathname === "/" ? activeSection || null : null;
 
   useEffect(() => {
     if (pathname !== "/") return;
@@ -28,6 +38,24 @@ export function Nav() {
     sections.forEach((s) => io.observe(s));
     return () => io.disconnect();
   }, [pathname, navItems]);
+
+  // Keep the spotlight over the current item, and glide it along when the item changes.
+  useEffect(() => {
+    const place = (animate: boolean) => {
+      const el = activeId ? linkRefs.current[activeId] : null;
+      if (el) setBeam({ left: el.offsetLeft, width: el.offsetWidth, animate });
+    };
+    place(false);
+    const raf = requestAnimationFrame(() => place(true));
+    const box = linksRef.current;
+    const ro = box ? new ResizeObserver(() => place(false)) : null;
+    if (box) ro?.observe(box);
+    void document.fonts?.ready.then(() => place(false));
+    return () => {
+      cancelAnimationFrame(raf);
+      ro?.disconnect();
+    };
+  }, [activeId, navItems]);
 
   /**
    * Already on the home page, a link to it (the logo, or a section) glides there and adds a step to the browser's
@@ -69,20 +97,34 @@ export function Nav() {
         <span className={styles.brandName}>{site.shortName}</span>
       </Link>
 
-      <nav className={styles.links} aria-label="Primary">
+      <nav ref={linksRef} className={styles.links} aria-label="Primary">
+        {/* The spotlight: a beam of light from above the screen onto the current item, in that item's own glow colour. It
+            glides from item to item. Items that are not the current one stay on the plain glass. */}
+        <span
+          className={styles.beam}
+          data-on={!!activeId && !!beam}
+          data-animate={beam?.animate}
+          aria-hidden="true"
+          style={{ left: beam?.left, width: beam?.width, ["--tone" as string]: NAV_TONES[activeId ?? ""] ?? "#ffc857" }}
+        />
         {navItems.map((item) => {
           const href = item.id === "work" ? "/work" : `/#${item.id}`;
-          const isActive = item.id === "work" ? pathname.startsWith("/work") : pathname === "/" && activeSection === item.id;
+          const isActive = item.id === activeId;
           return (
             <Link
               key={item.id}
+              ref={(el) => {
+                linkRefs.current[item.id] = el;
+              }}
               href={href}
               data-cursor="link"
+              aria-current={isActive ? "page" : undefined}
               className={`${styles.link} ${isActive ? styles.linkActive : ""}`}
+              style={{ ["--tone" as string]: NAV_TONES[item.id] }}
               onClick={item.id === "work" ? undefined : glideOnHome(item.id)}
             >
-              {item.label}
-              <span className={styles.dot} />
+              <NavIcon id={item.id} className={styles.icon} />
+              <span>{item.label}</span>
             </Link>
           );
         })}
@@ -109,9 +151,11 @@ export function Nav() {
             <Link
               key={item.id}
               href={item.id === "work" ? "/work" : `/#${item.id}`}
-              className={styles.mobileLink}
+              className={`${styles.mobileLink} ${item.id === activeId ? styles.mobileActive : ""}`}
+              style={{ ["--tone" as string]: NAV_TONES[item.id] }}
               onClick={item.id === "work" ? () => setOpen(false) : glideOnHome(item.id)}
             >
+              <NavIcon id={item.id} className={styles.mobileIcon} />
               {item.label}
             </Link>
           ))}

@@ -398,6 +398,13 @@ html.portal-preview a[href="/"] {
   initial-value: #7fd4ff;
 }
 
+/* The glow colour of the menu's spotlight, so it can change smoothly from one item's colour to the next. */
+@property --tone {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffc857;
+}
+
 /* How lit the glass is: 0 at rest, 1 while the cursor is on it (it fades, and the glow around the glass follows it). */
 @property --lit {
   syntax: "<number>";

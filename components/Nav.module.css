@@ -45,10 +45,24 @@
   color: var(--ivory);
 }
 
+/* The menu: one pane of glass holding the items. They sit on the plain glass until one is the current page, which the
+   spotlight finds. */
 .links {
+  position: relative;
   display: none;
   align-items: center;
-  gap: 36px;
+  gap: 2px;
+  padding: 5px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 45%, rgba(255, 255, 255, 0.05)),
+    rgba(40, 20, 34, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 10px 30px rgba(0, 0, 0, 0.3);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.2);
+  backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.2);
 }
 
 @media (min-width: 860px) {
@@ -59,39 +73,112 @@
 
 .link {
   position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 999px;
   font-family: var(--font-label);
-  font-size: 12px;
-  letter-spacing: 0.25em;
+  font-size: 11.5px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
+  white-space: nowrap;
   color: var(--ivory);
-  opacity: 0.75;
-  padding: 6px 2px;
-  transition: opacity 0.2s ease;
+  opacity: 0.72;
+  transition:
+    opacity 0.25s ease,
+    background 0.25s ease,
+    color 0.25s ease;
+}
+
+.icon {
+  flex: none;
+  transition:
+    color 0.4s ease,
+    filter 0.4s ease,
+    transform 0.3s ease;
 }
 
 .link:hover,
 .link:focus-visible {
   opacity: 1;
+  background: rgba(255, 255, 255, 0.07);
 }
 
-.linkActive {
+.link:hover .icon {
+  transform: translateY(-1px) scale(1.08);
+}
+
+/* The current page: full brightness, its icon in its own glow colour. */
+.linkActive,
+.linkActive:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--tone) 13%, transparent);
+}
+
+.linkActive .icon {
+  color: var(--tone);
+  filter: drop-shadow(0 0 6px var(--tone));
+}
+
+/* The spotlight. It is one piece that slides along behind and above the items: a light-coloured triangle falling from
+   the top of the screen onto the current item (wide where it lands, narrow at the top), a glowing line under the item
+   and a soft pool of light around it. Its colour is the item's own and changes smoothly as it moves. */
+.beam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  --beam-glow: color-mix(in srgb, var(--tone) 70%, transparent);
+}
+
+.beam[data-on="true"] {
   opacity: 1;
 }
 
-.dot {
-  position: absolute;
-  left: 50%;
-  bottom: -6px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--gold-bright);
-  transform: translateX(-50%) scale(0);
-  transition: transform 0.25s ease;
+.beam[data-animate="true"] {
+  transition:
+    left 0.55s cubic-bezier(0.22, 0.9, 0.25, 1),
+    width 0.55s cubic-bezier(0.22, 0.9, 0.25, 1),
+    opacity 0.35s ease,
+    --tone 0.55s ease;
 }
 
-.linkActive .dot {
-  transform: translateX(-50%) scale(1);
+/* The triangle of light. */
+.beam::before {
+  content: "";
+  position: absolute;
+  left: -26%;
+  right: -26%;
+  bottom: calc(100% - 10px);
+  height: 74px;
+  clip-path: polygon(calc(50% - 3px) 0, calc(50% + 3px) 0, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--tone) 22%, transparent) 40%, color-mix(in srgb, var(--tone) 62%, transparent));
+  filter: blur(1.5px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 55%);
+  mask-image: linear-gradient(to bottom, transparent, #000 55%);
+}
+
+/* The glowing line and pool under the item. */
+.beam::after {
+  content: "";
+  position: absolute;
+  inset: 4px 0;
+  border-radius: 999px;
+  box-shadow:
+    0 0 20px 1px var(--beam-glow),
+    0 0 46px 4px color-mix(in srgb, var(--tone) 32%, transparent),
+    inset 0 -2px 0 var(--tone);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beam[data-animate="true"],
+  .icon {
+    transition: none;
+  }
 }
 
 .right {
@@ -132,7 +219,24 @@
 }
 
 .mobileLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
   font-family: var(--font-display);
   font-size: 32px;
   color: var(--ivory);
+  opacity: 0.8;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.mobileIcon {
+  width: 24px;
+  height: 24px;
+  color: var(--tone);
+}
+
+/* The page you are on, lit in its own colour. */
+.mobileActive {
+  opacity: 1;
+  text-shadow: 0 0 22px var(--tone);
 }
