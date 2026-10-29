@@ -14,3 +14,6 @@ next-env.d.ts
 .open-next
 .wrangler
 .dev.vars
+
+# Written automatically by the Next dev server
+AGENTS.md
