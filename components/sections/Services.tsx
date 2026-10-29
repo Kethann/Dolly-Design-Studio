@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { useContent, tx } from "@/lib/content/context";
 import { edItem, edSection, edList } from "@/lib/content/tx";
 import { placeholderProps, versionedSrc } from "@/lib/images";
+import { ServiceDialog } from "./ServiceDialog";
 import styles from "./Services.module.css";
 
 /** The line icons from the portfolio: pen nib (posters), framed T (titles), text box (typography), round logo. */
@@ -57,6 +59,9 @@ function Icon({ name }: { name: string }) {
 
 export function Services() {
   const { home, services } = useContent();
+  /** The service whose card is open (null = none). Clamped, so deleting a service in the portal can never leave it pointing at nothing. */
+  const [openAt, setOpenAt] = useState<number | null>(null);
+  const openIndex = openAt !== null && openAt < services.length ? openAt : null;
   return (
     <section id="services" className={styles.section} {...edSection("home", "services", "Our services")}>
       <div className="container">
@@ -69,7 +74,23 @@ export function Services() {
 
         <div className={styles.cards} {...edList("services", "service", 10)}>
           {services.map((s, i) => (
-            <article key={s.number} className={styles.card} tabIndex={0} {...edItem("services", i, "Service")}>
+            <article
+              key={s.number}
+              className={styles.card}
+              tabIndex={0}
+              role="button"
+              aria-haspopup="dialog"
+              aria-label={`${s.name}: open`}
+              data-cursor="link"
+              onClick={() => setOpenAt(i)}
+              onKeyDown={(e) => {
+                if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  setOpenAt(i);
+                }
+              }}
+              {...edItem("services", i, "Service")}
+            >
               <div className={styles.media} data-fit={s.sample.includes("/proof-table/") || s.sample.includes("/title-designs/") ? "contain" : "cover"}>
                 <Image
                   src={versionedSrc(s.sample)}
@@ -98,10 +119,14 @@ export function Services() {
                     ))}
                   </ul>
                 )}
+                <span className={styles.more} aria-hidden="true">
+                  <i>＋</i> Open
+                </span>
               </div>
             </article>
           ))}
         </div>
+        {openIndex !== null && <ServiceDialog services={services} index={openIndex} onIndex={setOpenAt} onClose={() => setOpenAt(null)} />}
       </div>
     </section>
   );

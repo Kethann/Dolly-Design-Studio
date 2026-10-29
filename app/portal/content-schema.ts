@@ -19,7 +19,7 @@ export type Field =
    * A picture. `alt`, `shape` and `size` name sibling settings kept beside it (e.g. "photoAlt"): a description for
    * screen readers and search engines, how the picture is cropped, and how big it is shown.
    */
-  | { kind: "image"; path: string; label: string; hint?: string; alt?: string; shape?: string; size?: string }
+  | { kind: "image"; path: string; label: string; hint?: string; alt?: string; shape?: string; size?: string; /** Name prefix of sibling zoom / position settings ("photo" gives photoZoom, photoX, photoY). */ adjust?: string }
   /** A font from the built-in list or the uploaded ones ("" = the site's own). */
   | { kind: "font"; path: string; label: string; hint?: string }
   /** An optional colour ("" = the site's own). */
@@ -201,7 +201,7 @@ const home: SchemaPage = {
         { kind: "text", path: "home.founder.label", label: "Small heading", style: true },
         { kind: "text", path: "site.founder.name", label: "Name", style: true },
         { kind: "text", path: "site.founder.role", label: "Role", style: true },
-        { kind: "image", path: "home.founder.photo", label: "Profile picture", hint: "Shown on the glass card. Without one, the initials are shown.", alt: "photoAlt", shape: "photoShape", size: "photoSize" },
+        { kind: "image", path: "home.founder.photo", label: "Profile picture", hint: "Shown on the glass card. Without one, the initials are shown.", alt: "photoAlt", shape: "photoShape", size: "photoSize", adjust: "photo" },
         { kind: "area", path: "home.founder.cardNote", label: "Short description on the card", style: true },
         { kind: "strings", path: "home.founder.paragraphs", label: "Bio paragraphs", add: "Add a paragraph", area: true, style: true },
         SOCIAL_LINKS,
@@ -267,12 +267,25 @@ const home: SchemaPage = {
           add: "Add a service",
           max: 10,
           title: (it) => str(it.name, "New service"),
-          blank: () => ({ number: "", name: "New service", description: "", deliverables: [], sample: "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg" }),
+          blank: () => ({ number: "", name: "New service", description: "", details: "", gallery: [], deliverables: [], sample: "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg" }),
           fields: [
             { kind: "text", path: "name", label: "Name", style: true },
             { kind: "area", path: "description", label: "Description", style: true },
             { kind: "strings", path: "deliverables", label: "What you get", add: "Add an item" },
-            { kind: "image", path: "sample", label: "Picture shown on hover" },
+            { kind: "image", path: "sample", label: "Main picture (on the card, and first when it is opened)" },
+            { kind: "area", path: "details", label: "Inside the card: the full story", hint: "Shown when a visitor opens the card. Leave blank to show the short description again." },
+            {
+              kind: "list",
+              path: "gallery",
+              label: "Inside the card: more pictures",
+              add: "Add a picture",
+              title: (it, i) => `Picture ${i + 1}` + (it.alt ? ` — ${String(it.alt).slice(0, 24)}` : ""),
+              blank: () => ({ src: "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg", alt: "" }),
+              fields: [
+                { kind: "image", path: "src", label: "Picture" },
+                { kind: "text", path: "alt", label: "Description (for screen readers)" },
+              ],
+            },
           ],
         },
       ],

@@ -73,6 +73,10 @@ export interface Service {
   deliverables: string[];
   /** Poster shown when hovering the row, e.g. "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg". */
   sample: string;
+  /** The fuller story shown when the card is opened (blank = the short description). */
+  details?: string;
+  /** More pictures shown inside the opened card. */
+  gallery?: { src: string; alt: string }[];
 }
 
 export interface Testimonial {
