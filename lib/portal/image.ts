@@ -30,14 +30,32 @@ export function sniffImage(b: Uint8Array): ImageExt | null {
   if (b.length > 10 && (ascii(0, 6) === "GIF87a" || ascii(0, 6) === "GIF89a")) return "gif";
   if (b.length > 8 && ((b[0] === 0x49 && b[1] === 0x49 && b[2] === 0x2a && b[3] === 0) || (b[0] === 0x4d && b[1] === 0x4d && b[2] === 0 && b[3] === 0x2a))) return "tiff";
   // SVG is text: an <svg ...> element near the start (after an optional XML header, comment or doctype).
-  const head = new TextDecoder("utf-8", { fatal: false }).decode(b.subarray(0, Math.min(b.length, 2048)));
+  const head = new TextDecoder("utf-8", { fatal: false }).decode(b.subarray(0, Math.min(b.length, 16384)));
   if (/<svg[\s>]/i.test(head) && !/^\uFFFD/.test(head)) return "svg";
   return null;
 }
 
-/** Whether an SVG could run anything when opened by itself (scripts, event handlers, outside references). Such files are refused. */
+/** Whether an SVG could run anything when opened by itself (scripts, event handlers, outside references). */
 export function svgIsUnsafe(text: string): boolean {
-  return /<script|<foreignObject|<iframe|<embed|<object|\son[a-z]+\s*=|javascript:|<!ENTITY|<link|<meta|xlink:href\s*=\s*["'](?!#|data:image\/)/i.test(text);
+  return /<script|<foreignObject|<iframe|<embed|<object|<link[\s>]|<meta[\s>]|<!ENTITY|\son[a-z]+\s*=|javascript:|(?:xlink:)?href\s*=\s*["'](?!#|data:image\/(?:png|jpe?g|gif|webp|avif);)/i.test(text);
+}
+
+/**
+ * Makes an SVG safe instead of refusing it: scripts, embedded pages, event handlers, outside links and entity tricks are
+ * taken out and the drawing itself is kept as it was (design tools put harmless extras in their files, like editor
+ * metadata, so a plain "no" would turn good files away). Anything still unsafe afterwards is refused.
+ */
+export function cleanSvg(text: string): string {
+  const out = text
+    .replace(/^﻿/, "")
+    .replace(/<!DOCTYPE[^>[]*(\[[\s\S]*?\])?\s*>/gi, "")
+    .replace(/<!ENTITY[\s\S]*?>/gi, "")
+    .replace(/<(script|foreignObject|iframe|embed|object|link|meta)(?=[\s/>])(?:[^>]*\/>|[\s\S]*?<\/\1\s*>)/gi, "")
+    .replace(/<\/?(script|foreignObject|iframe|embed|object|link|meta)(?=[\s/>])[^>]*>/gi, "")
+    .replace(/\s(on[a-z]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s(?:xlink:)?href\s*=\s*("(?!#|data:image\/(?:png|jpe?g|gif|webp|avif);)[^"]*"|'(?!#|data:image\/(?:png|jpe?g|gif|webp|avif);)[^']*')/gi, "")
+    .replace(/javascript:/gi, "");
+  return out;
 }
 
 type Sharp = (input: Uint8Array, options?: Record<string, unknown>) => {
@@ -67,9 +85,9 @@ export async function processImage(
 
   if (kind === "svg") {
     // Kept as a vector (it stays sharp at any size), after making sure it can't run anything.
-    const text = new TextDecoder().decode(input);
-    if (svgIsUnsafe(text)) throw new Error("That SVG contains scripts or outside links, so it can’t be used. Export a plain SVG from your design tool.");
-    return { bytes: input, ext: "svg", contentType: TYPES.svg, encoded: false };
+    const cleaned = cleanSvg(new TextDecoder().decode(input));
+    if (svgIsUnsafe(cleaned) || !/<svg[\s>]/i.test(cleaned)) throw new Error("That SVG couldn’t be made safe to use. Export a plain SVG from your design tool.");
+    return { bytes: new TextEncoder().encode(cleaned), ext: "svg", contentType: TYPES.svg, encoded: false };
   }
 
   const sharp = await loadSharp();

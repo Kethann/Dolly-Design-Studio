@@ -26,7 +26,8 @@ export function summarizeContent(prev: SiteContent, next: SiteContent): string {
   if (differ([prev.site, prev.nav, prev.footer], [next.site, next.nav, next.footer])) parts.push("Studio details & menu");
   if (differ(prev.slate, next.slate)) parts.push("Slate text");
   if (differ([prev.type, prev.fonts, prev.customFonts], [next.type, next.fonts, next.customFonts])) parts.push("Fonts & text styles");
-  if (differ(prev.theme, next.theme)) parts.push("Brand colours");
+  if (differ({ ...prev.theme, glass: 0 }, { ...next.theme, glass: 0 })) parts.push("Brand colours");
+  if (differ(prev.theme.glass, next.theme.glass)) parts.push("Glass look");
   if (differ(prev.galleryLayout, next.galleryLayout)) parts.push("Gallery layout");
   return parts.join(", ") || "No visible changes";
 }

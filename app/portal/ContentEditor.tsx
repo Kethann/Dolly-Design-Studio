@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { allFonts } from "@/lib/content/fonts";
-import { fontFaceCss } from "@/lib/content/css";
-import type { PageKey, SiteContent, TextStyle } from "@/lib/content/types";
+import { fontFaceCss, glassVars } from "@/lib/content/css";
+import { DEFAULT_GLASS, GLASS_EFFECTS, type GlassLook, type PageKey, type SiteContent, type TextStyle } from "@/lib/content/types";
 import { Choice, ColorRow, Slider } from "./controls";
 import { styledTexts, type Field, type SchemaPage, type SchemaSection } from "./content-schema";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "@/lib/content/limits";
@@ -1184,6 +1184,10 @@ export function ThemeEditor() {
   const { content, update } = useEditor();
   const DEFAULTS = { accent: "#e8b04b", accentBright: "#fff195", text: "#f4ede1" };
   const set = (k: keyof typeof DEFAULTS, hex: string) => update((c) => ({ ...c, theme: { ...c.theme, [k]: hex } }));
+  const glass = content.theme.glass;
+  const setGlass = (patch: Partial<GlassLook>) => update((c) => ({ ...c, theme: { ...c.theme, glass: { ...c.theme.glass, ...patch } } }));
+  const glassChanged = JSON.stringify(glass) !== JSON.stringify(DEFAULT_GLASS);
+  const preview = Object.fromEntries(glassVars(glass).map((d) => [d.slice(0, d.indexOf(":")), d.slice(d.indexOf(":") + 1)])) as React.CSSProperties;
   const rows: { key: keyof typeof DEFAULTS; label: string; hint: string }[] = [
     { key: "accent", label: "Accent colour", hint: "Small headings, lines, buttons and highlights." },
     { key: "accentBright", label: "Bright accent", hint: "The brightest highlights, like glints and hover states." },
@@ -1207,6 +1211,35 @@ export function ThemeEditor() {
           <p className={styles.hint}>
             The page background and the star colours are in “Page background” and “Star colours”; the colour of any single text is under its “Aa” button.
           </p>
+        </div>
+      </section>
+
+      <section className={styles.section} data-open="true">
+        <div className={styles.sectionHeadStatic}>Glass</div>
+        <div className={styles.sectionBody}>
+          <p className={styles.hint}>The glass behind the numbers, the founder card and the menu. Changes show on the page straight away.</p>
+          <div className={`glass-panel ${styles.glassPreview}`} style={preview} aria-hidden="true">
+            <strong>Glass</strong>
+            <span>Colour, blur and tint</span>
+          </div>
+          <Choice
+            label="Effect"
+            hint="Neon: a glowing coloured rim. Frosted: milky white, no glow. Clear: almost see-through."
+            value={glass.effect}
+            options={GLASS_EFFECTS.map((e) => ({ value: e, label: e }))}
+            onChange={(effect) => setGlass({ effect })}
+          />
+          <ColorRow label="First colour" hint="One end of the gradient." value={glass.colorA} onChange={(colorA) => setGlass({ colorA })} />
+          <ColorRow label="Second colour" hint="The other end of the gradient." value={glass.colorB} onChange={(colorB) => setGlass({ colorB })} />
+          <Slider label="Gradient direction" value={glass.angle} min={0} max={360} step={5} format={(n) => `${n}°`} onChange={(angle) => setGlass({ angle })} />
+          <Slider label="Tint" hint="How strongly the two colours colour the glass." value={glass.tint} min={0} max={0.7} step={0.02} format={(n) => `${Math.round((n / 0.7) * 100)}%`} onChange={(tint) => setGlass({ tint })} />
+          <Slider label="Blur" hint="How much of what is behind the glass is blurred." value={glass.blur} min={0} max={30} step={1} format={(n) => `${n} px`} onChange={(blur) => setGlass({ blur })} />
+          <Slider label="Glow" hint="The soft light around the glass (Neon only)." value={glass.glow} min={0} max={0.8} step={0.02} format={(n) => `${Math.round((n / 0.8) * 100)}%`} onChange={(glow) => setGlass({ glow })} />
+          {glassChanged && (
+            <button type="button" className={styles.link} onClick={() => setGlass({ ...DEFAULT_GLASS })}>
+              Back to the original glass
+            </button>
+          )}
         </div>
       </section>
     </div>

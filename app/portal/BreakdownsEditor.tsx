@@ -400,15 +400,15 @@ function LayerUpload({
       kind="layers"
       multiple
       state={state}
-      title="Drop a Photoshop file (.psd) or your layer PNGs here"
+      title="Drop a Photoshop file (PSD, PSB…) or your layer pictures here"
       hint="A PSD gives you its layers automatically: each visible layer is named after the Photoshop layer and kept in the same order (hidden layers are left out, groups are opened up). Or select every PNG layer at once; they are added in file-name order."
       onFiles={(files) => {
         if (busy) return;
-        const psds = files.filter((f) => /\.psd$/i.test(f.name));
-        const rest = files.filter((f) => !/\.psd$/i.test(f.name));
+        const psds = files.filter((f) => /\.(psd|psb|psdt|pdd)$/i.test(f.name));
+        const rest = files.filter((f) => !/\.(psd|psb|psdt|pdd)$/i.test(f.name));
         if (psds.length) {
           void psdUploads.start(psds.slice(0, 1), (result, file) => {
-            onPsd(result.layers, file.name.replace(/\.psd$/i, "").slice(0, 80));
+            onPsd(result.layers, file.name.replace(/\.(psd|psb|psdt|pdd)$/i, "").slice(0, 80));
             onNotice(result.message + (psds.length > 1 ? " Only the first Photoshop file was used." : ""));
           });
         } else if (rest.length) void onFiles(rest, (fs, each) => uploads.start(fs, each));

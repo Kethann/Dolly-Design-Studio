@@ -33,6 +33,7 @@ export type ActivityAction =
   | "uploaded-image"
   | "uploaded-font"
   | "uploaded-texture"
+  | "deleted-file"
   | "email-test";
 
 export interface ActivityEntry {

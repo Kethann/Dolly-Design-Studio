@@ -46,7 +46,27 @@ export interface Theme {
   accentBright: string;
   /** Normal text. */
   text: string;
+  /** The look of the glass cards (the numbers, the founder) and the strip behind the menu. */
+  glass: GlassLook;
 }
+
+/** The glass: a gradient between two colours, how strong it is, how blurred, and what kind of finish it has. */
+export interface GlassLook {
+  colorA: string;
+  colorB: string;
+  /** Direction of the gradient, 0–360 degrees. */
+  angle: number;
+  /** How strongly the colours tint the glass, 0–0.7. */
+  tint: number;
+  /** How much of what is behind the glass is blurred, 0–30 px. */
+  blur: number;
+  /** The glow around the glass, 0–0.8. */
+  glow: number;
+  /** Neon: glowing gradient rim. Frosted: milky white rim, no glow. Clear: almost see-through. */
+  effect: "Neon" | "Frosted" | "Clear";
+}
+
+export const GLASS_EFFECTS: GlassLook["effect"][] = ["Neon", "Frosted", "Clear"];
 
 /** How the poster gallery looks: one place to change every gallery on the site. */
 export interface GalleryLayout {
@@ -139,3 +159,6 @@ export interface SiteContent {
   /** The look of each page on its own: fonts, accent colour and a backdrop picture. */
   pages: Record<PageKey, PageLook>;
 }
+
+/** The glass as the site first has it (neon violet to blue). */
+export const DEFAULT_GLASS: GlassLook = { colorA: "#8b5cff", colorB: "#38a8ff", angle: 135, tint: 0.34, blur: 14, glow: 0.28, effect: "Neon" };

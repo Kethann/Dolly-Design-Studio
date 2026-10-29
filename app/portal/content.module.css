@@ -739,3 +739,19 @@
   border-radius: 6px;
   border: 1px solid var(--p-line-strong);
 }
+
+/* The live sample in Brand → Glass: a small card over a dark patch, using the same glass the site's cards use. */
+.glassPreview {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  min-height: 84px;
+  margin-bottom: 4px;
+  text-align: center;
+  color: #fff;
+}
+
+.glassPreview span {
+  font-size: 12px;
+  opacity: 0.75;
+}

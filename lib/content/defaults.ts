@@ -7,7 +7,7 @@ import { CATEGORIES } from "@/content/types";
 import { breakdownsPage, footer, notFoundPage, projectPage, workPage } from "@/content/pages";
 import { proofTable } from "@/content/proof-table";
 import { DEFAULT_FONT_ROLES } from "./fonts";
-import type { SiteContent } from "./types";
+import { DEFAULT_GLASS, type SiteContent } from "./types";
 
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 
@@ -37,7 +37,7 @@ export function defaultContent(): SiteContent {
     type: {},
     fonts: { ...DEFAULT_FONT_ROLES },
     customFonts: [],
-    theme: { accent: "#e8b04b", accentBright: "#fff195", text: "#f4ede1" },
+    theme: { accent: "#e8b04b", accentBright: "#fff195", text: "#f4ede1", glass: { ...DEFAULT_GLASS } },
     galleryLayout: { columns: "Auto", shape: "Poster (tall)", showDetails: true, showFilters: true },
     breakdowns: [],
     pages: Object.fromEntries(

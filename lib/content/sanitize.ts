@@ -1,4 +1,5 @@
 import { CATEGORIES, LANGUAGES, LEGACY_CATEGORIES } from "@/content/types";
+import { DEFAULT_GLASS, GLASS_EFFECTS, type GlassLook } from "./types";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "./limits";
 import { defaultContent } from "./defaults";
 import { fontById } from "./fonts";
@@ -182,6 +183,20 @@ export function sanitizeContent(input: unknown): SiteContent {
     if (!isHex(merged.theme[k])) merged.theme[k] = def.theme[k];
     else merged.theme[k] = merged.theme[k].toLowerCase();
   }
+
+  // The glass: real colours, and every number kept inside its range.
+  const gIn = isObj(src.theme) && isObj(src.theme.glass) ? src.theme.glass : {};
+  const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
+  const dg = DEFAULT_GLASS;
+  merged.theme.glass = {
+    colorA: isHex(gIn.colorA) ? gIn.colorA.toLowerCase() : dg.colorA,
+    colorB: isHex(gIn.colorB) ? gIn.colorB.toLowerCase() : dg.colorB,
+    angle: Math.round(num(gIn.angle, 0, 360, dg.angle)),
+    tint: Math.round(num(gIn.tint, 0, 0.7, dg.tint) * 100) / 100,
+    blur: Math.round(num(gIn.blur, 0, 30, dg.blur)),
+    glow: Math.round(num(gIn.glow, 0, 0.8, dg.glow) * 100) / 100,
+    effect: (GLASS_EFFECTS as unknown[]).includes(gIn.effect) ? (gIn.effect as GlassLook["effect"]) : dg.effect,
+  };
 
   // Cards saved before “opens the breakdown viewer” existed: the one with the layers icon does.
   merged.home.process.cards = merged.home.process.cards.map((c) => ({

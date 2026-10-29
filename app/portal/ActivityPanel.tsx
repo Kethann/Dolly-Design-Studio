@@ -60,6 +60,8 @@ function what(e: ActivityEntry): string {
       return "uploaded the font";
     case "uploaded-texture":
       return "uploaded the star texture";
+    case "deleted-file":
+      return "deleted the file";
     case "email-test":
       return "sent a test email";
     default:

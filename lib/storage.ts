@@ -22,6 +22,8 @@ export interface Store {
   remove(key: string): Promise<void>;
   /** Total bytes of everything the portal has saved (content, accounts, enquiries, uploaded pictures and fonts). */
   usedBytes(): Promise<number>;
+  /** Every saved file and its size in bytes (content, accounts, enquiries, uploaded pictures and fonts). */
+  sizes(): Promise<{ key: string; size: number }[]>;
 }
 
 // ── plain files ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -90,18 +92,22 @@ const files: Store = {
     await unlink(diskPath(key)).catch(() => {});
   },
   async usedBytes() {
-    const total = async (dir: string): Promise<number> => {
-      let sum = 0;
+    return (await files.sizes()).reduce((n, f) => n + f.size, 0);
+  },
+  async sizes() {
+    const out: { key: string; size: number }[] = [];
+    const walk = async (dir: string, rel: string, topOnly: boolean) => {
       for (const e of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
-        const full = path.join(dir, e.name);
-        if (e.isDirectory()) sum += await total(full);
-        else if (e.isFile()) sum += (await stat(full).catch(() => null))?.size ?? 0;
+        if (e.isDirectory()) {
+          if (!topOnly) await walk(path.join(dir, e.name), `${rel}${e.name}/`, false);
+        } else if (e.isFile() && !e.name.endsWith(".tmp") && (!topOnly || e.name.endsWith(".json"))) {
+          out.push({ key: rel + e.name, size: (await stat(path.join(dir, e.name)).catch(() => null))?.size ?? 0 });
+        }
       }
-      return sum;
     };
-    let sum = 0;
-    for (const [, dir] of DISK_FOLDERS) sum += await total(path.join(/*turbopackIgnore: true*/ process.cwd(), ...dir));
-    return sum;
+    // The "content" folder also holds the site's own source files; only the saved settings in it count.
+    for (const [prefix, dir] of DISK_FOLDERS) await walk(path.join(/*turbopackIgnore: true*/ process.cwd(), ...dir), prefix, prefix === "content/");
+    return out;
   },
 };
 
@@ -145,14 +151,17 @@ function r2(bucket: R2Bucket): Store {
       await bucket.delete(key);
     },
     async usedBytes() {
-      let sum = 0;
+      return (await this.sizes()).reduce((n, f) => n + f.size, 0);
+    },
+    async sizes() {
+      const out: { key: string; size: number }[] = [];
       let cursor: string | undefined;
       do {
         const page = await bucket.list({ cursor, limit: 1000 });
-        for (const o of page.objects) sum += o.size ?? 0;
+        for (const o of page.objects) out.push({ key: o.key, size: o.size ?? 0 });
         cursor = page.truncated ? page.cursor : undefined;
-      } while (cursor);
-      return sum;
+      } while (cursor && out.length < 50000);
+      return out;
     },
   };
 }

@@ -34,7 +34,6 @@ import { ProofTableEditor } from "./ProofTableEditor";
 import { AccountPanel } from "./AccountPanel";
 import { ActivityPanel } from "./ActivityPanel";
 import { InboxPanel } from "./InboxPanel";
-import { StorageWatch } from "./StorageWatch";
 import { BreakdownsEditor } from "./BreakdownsEditor";
 import { SweepEditor } from "./SweepEditor";
 import type { PortalUser } from "@/lib/portal/users";
@@ -140,7 +139,7 @@ const WINDOWS: Record<Tab, WinDef> = {
   media: { title: "Images", hint: "Your picture library. Upload once, then pick the picture anywhere.", glyph: "media", tint: ["#7fe3c0", "#1fa57a"], w: 520, h: 600 },
   type: { title: "Fonts & text styles", hint: "Change the fonts, or the size, weight and colour of any text.", glyph: "type", tint: ["#f4f4f4", "#9a9aa5"], w: 460, h: 680 },
   background: { title: "Page background", hint: "The background colour, its gradient style, and the colours of each section.", glyph: "background", tint: ["#ff7eb3", "#7a3ad2"], w: 440, h: 700 },
-  theme: { title: "Brand colours", hint: "The gold accents, the bright highlights and the text colour of the whole site.", glyph: "colours", tint: ["#ffbf80", "#e0563a"], w: 420, h: 480 },
+  theme: { title: "Brand & glass", hint: "The gold accents, the text colour, and the colour, blur and tint of the glass.", glyph: "colours", tint: ["#ffbf80", "#e0563a"], w: 420, h: 480 },
   glass: { title: "Logo glass", hint: "The tinted glass over the stars and the soft shield behind the logo.", glyph: "glass", tint: ["#a8e6ff", "#4a7de0"], w: 420, h: 560 },
   colours: { title: "Star colours", hint: "Which colours the stars are, and how much of each.", glyph: "colours", tint: ["#ffd86b", "#ee6b4a"], w: 420, h: 520 },
   finish: { title: "Star look", hint: "How the stars shine: glow, size, metal and depth.", glyph: "finish", tint: ["#fff3a8", "#e8b04b"], w: 420, h: 680 },
@@ -168,7 +167,7 @@ const DOCK: DockGroup[] = [
     ],
   },
   { name: "Library", items: [dockItem("media", "Images", "#7fe3c0"), dockItem("type", "Fonts", "#7fe3c0")] },
-  { name: "Page look", items: [dockItem("background", "Backdrop", "#ff8fc0"), dockItem("theme", "Brand", "#ff8fc0", "drop"), dockItem("glass", "Glass", "#ff8fc0")] },
+  { name: "Page look", items: [dockItem("background", "Backdrop", "#ff8fc0"), dockItem("theme", "Brand", "#ff8fc0", "drop"), dockItem("glass", "Logo glass", "#ff8fc0")] },
   { name: "Stars", items: [dockItem("colours", "Palette", "#ffe27a"), dockItem("finish", "Shine", "#ffe27a"), dockItem("layers", "Groups", "#ffe27a"), dockItem("motion", "Motion", "#ffe27a")] },
   { name: "Animation", items: [dockItem("intro", "Opening", "#ff9a8a"), dockItem("cursor", "Cursor", "#ff9a8a"), dockItem("playback", "Preview", "#ff9a8a")] },
   { name: "Studio", items: [dockItem("inbox", "Enquiries", "#9bc4ff"), dockItem("account", "People", "#9bc4ff"), dockItem("activity", "Activity", "#9bc4ff")] },
@@ -176,7 +175,7 @@ const DOCK: DockGroup[] = [
 
 const DESIGN_WORDS: Partial<Record<Tab, string>> = {
   background: "background colour gradient dots bubbles waves silk halo style density section colours",
-  theme: "brand colours colors accent gold bright text colour theme",
+  theme: "brand colours colors accent gold bright text colour theme glass gradient blur tint frost neon effect glow transparent purple blue",
   glass: "glass shield tint blur frost logo opacity",
   colours: "star colours colors mix share",
   finish: "stars glow size metal shine depth gold",
@@ -2065,8 +2064,6 @@ export function PortalEditor({
         )}
 
         {modalEl}
-
-        {!user.setup && <StorageWatch />}
 
         {spotlight && <Spotlight entries={user.setup ? SEARCH_ENTRIES.filter((e) => e.tab === "account") : SEARCH_ENTRIES} onPick={pickSearch} onClose={() => setSpotlight(false)} />}
 

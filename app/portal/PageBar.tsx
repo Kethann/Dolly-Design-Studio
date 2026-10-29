@@ -2,6 +2,7 @@
 
 import type { PageKey } from "@/lib/content/types";
 import mac from "./mac.module.css";
+import { StorageChip } from "./StorageWatch";
 
 const PAGES: { key: PageKey; label: string; title: string }[] = [
   { key: "home", label: "Home", title: "The home page" },
@@ -88,6 +89,10 @@ export function PageBar({
       <button type="button" className={mac.pageIcon} onClick={onPageLook} title="This page's own fonts, accent colour and background picture">
         ⚙ Page look
       </button>
+
+      <span className={mac.menuSpacer} />
+
+      <StorageChip />
 
       <span className={mac.menuSpacer} />
 
