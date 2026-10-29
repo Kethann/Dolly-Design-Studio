@@ -139,7 +139,7 @@ export function Process() {
                     }
                   : {})}
               >
-                <span className={`${styles.tile} glass-glow`}>
+                <span className={styles.tile}>
                   <StepIcon name={(card as { icon?: string }).icon ?? ICON_ORDER[i] ?? "star"} />
                 </span>
                 <h3 className={styles.stepTitle} {...tx("home.process.cards.title")}>

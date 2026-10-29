@@ -55,8 +55,36 @@
 }
 
 .monogram {
-  width: 52px;
+  display: block;
+  width: 84px;
   height: auto;
+}
+
+/* The colour effect on the logo: the glass colours, shown through the logo's own shape and the cursor's small soft glow, over
+   the letters (instead of the old gold glow). */
+.brandGlow {
+  display: inline-flex;
+  line-height: 0;
+  --glass-r: 92px;
+}
+
+.brandGlow.brandGlow::before {
+  display: none;
+}
+
+.brandGlow.brandGlow::after {
+  z-index: 2;
+  -webkit-mask-image: var(--logo-mask), radial-gradient(circle calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, #000 34%, rgba(0, 0, 0, 0.72) 58%, rgba(0, 0, 0, 0.24) 82%, transparent 100%);
+  mask-image: var(--logo-mask), radial-gradient(circle calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, #000 34%, rgba(0, 0, 0, 0.72) 58%, rgba(0, 0, 0, 0.24) 82%, transparent 100%);
+  -webkit-mask-size: contain, auto;
+  mask-size: contain, auto;
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  mask-repeat: no-repeat, no-repeat;
+  -webkit-mask-position: center, 0 0;
+  mask-position: center, 0 0;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  filter: saturate(2.1) brightness(1.15); /* rich colour over the bright letters */
 }
 
 @media (prefers-reduced-motion: reduce) {

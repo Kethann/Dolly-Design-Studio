@@ -7,12 +7,21 @@ import { useContent } from "@/lib/content/context";
 import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
 import { goToSection, isPlainClick } from "@/lib/section-nav";
 import { DEFAULT_MENU_TONES } from "@/lib/content/types";
+import { useIntroSettings } from "@/lib/intro/settings-context";
 import { NavIcon } from "./NavIcon";
 import styles from "./Nav.module.css";
+
+/** The corner logo's own shape, as a mask: the colour effect is cut to the letters, so it lights the logo and nothing around it. */
+const LOGO_MASK = `url("data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${LOGO_VIEWBOX.width} ${LOGO_VIEWBOX.height}'><path d='${LOGO_BODY_PATH}' fill-rule='evenodd'/></svg>`,
+)}")`;
 
 export function Nav() {
   const { site, nav: navItems } = useContent();
   const pathname = usePathname();
+  const { settings } = useIntroSettings();
+  // The portal's "Corner logo (top left)" glow switch decides whether the logo takes the colour effect when the cursor is on it.
+  const logoGlowOn = settings.logoGlow.enabled && settings.logoGlow.places.navLogo;
   const [open, setOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("");
   /** The corner logo: hidden on the first section of the home page (the big logo is there), then eased in. */
@@ -132,14 +141,12 @@ export function Nav() {
         aria-label={`${site.name} — home`}
         onClick={glideOnHome()}
       >
-        <svg
-          data-glow="nav-logo"
-          className={styles.monogram}
-          viewBox={`0 0 ${LOGO_VIEWBOX.width} ${LOGO_VIEWBOX.height}`}
-          aria-hidden="true"
-        >
-          <path d={LOGO_BODY_PATH} fill="var(--gold-bright)" fillRule="evenodd" />
-        </svg>
+        {/* The logo carries the random glass colours: where the cursor is on it, the letters glow in the colour there. */}
+        <span className={`${logoGlowOn ? "glass-glow " : ""}${styles.brandGlow}`} style={{ ["--logo-mask" as string]: LOGO_MASK }}>
+          <svg className={styles.monogram} viewBox={`0 0 ${LOGO_VIEWBOX.width} ${LOGO_VIEWBOX.height}`} aria-hidden="true">
+            <path d={LOGO_BODY_PATH} fill="var(--gold-bright)" fillRule="evenodd" />
+          </svg>
+        </span>
       </Link>
 
       <nav ref={linksRef} className={styles.links} aria-label="Primary" data-lit={!!activeId}>
