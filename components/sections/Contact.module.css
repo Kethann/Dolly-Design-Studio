@@ -69,7 +69,7 @@
   font-family: var(--font-display);
   font-weight: 700;
   /* On a phone the address is sized to fit the screen; it may also break at any character rather than run off it. */
-  font-size: clamp(15px, 4.6vw, 20px);
+  font-size: clamp(11px, 3.7vw, 20px);
   overflow-wrap: anywhere;
   color: var(--gold-bright);
   border-bottom: 2px solid var(--gold);

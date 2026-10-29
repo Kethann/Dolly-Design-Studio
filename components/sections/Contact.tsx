@@ -5,6 +5,7 @@ import { useContent, tx } from "@/lib/content/context";
 import { edSection } from "@/lib/content/tx";
 import { Magnetic } from "@/components/Magnetic";
 import { CONTACT_LIMITS, validateContact, type ContactErrors, type ContactField } from "@/lib/contact/validate";
+import { renderFx } from "@/components/fx/render-fx";
 import styles from "./Contact.module.css";
 
 type Status = "idle" | "sending" | "sent" | "error";
@@ -116,7 +117,7 @@ export function Contact() {
 
       <div className="container">
         <span className={styles.label} {...tx("home.contact.label")}>{copy.label}</span>
-        <h2 className={styles.headline} {...tx("home.contact.headline")}>{copy.headline}</h2>
+        <h2 className={styles.headline} {...tx("home.contact.headline")}>{renderFx(copy.headline)}</h2>
         <p className={styles.availability} {...tx("home.contact.availability")}>{copy.availability}</p>
 
         <div className={styles.grid}>

@@ -52,8 +52,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errors.sendFailed }, { status: 500 });
   }
 
-  const sent = await sendMail({ to: enquiryRecipient(site.contact.email), replyTo: value.email, ...enquiryEmail(value) });
-  await noteEmail(entry, sent.ok, sent.ok ? undefined : sent.message);
+  // The email goes off in the background; the visitor is answered as soon as the enquiry is saved (or after a moment, if
+  // the mail service is slow), so the form never sits on "Sending…" waiting for it.
+  const mailing = sendMail({ to: enquiryRecipient(site.contact.email), replyTo: value.email, ...enquiryEmail(value) }).then(async (sent) => {
+    await noteEmail(entry, sent.ok, sent.ok ? undefined : sent.message);
+    return sent;
+  });
+  try {
+    // On Cloudflare the work is allowed to finish after the answer has been sent.
+    const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+    getCloudflareContext().ctx.waitUntil(mailing);
+  } catch {
+    // a normal Node server keeps running anyway
+  }
+  const sent = await Promise.race([mailing, new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500))]);
   // The enquiry is safely saved either way: the visitor is thanked, and the portal shows whether the email went.
-  return NextResponse.json({ ok: true, saved: true, emailed: sent.ok });
+  return NextResponse.json({ ok: true, saved: true, emailed: sent ? sent.ok : "pending" });
 }

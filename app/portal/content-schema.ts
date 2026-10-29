@@ -8,7 +8,7 @@ import type { PageKey } from "@/lib/content/types";
  * those are exactly the texts the site tags with `data-t` (see lib/content/context.tsx).
  */
 export type Field =
-  | { kind: "text" | "area"; path: string; label: string; style?: boolean; hint?: string }
+  | { kind: "text" | "area"; path: string; label: string; style?: boolean; hint?: string; /** Offer the particle effect: words in [[double brackets]] (the page must show this text with renderFx). */ fx?: boolean }
   | { kind: "number"; path: string; label: string; min: number; max: number }
   | { kind: "bool"; path: string; label: string }
   | { kind: "select"; path: string; label: string; options: readonly string[]; /** Take the choices from a list in the content instead (e.g. "categories"). */ optionsFrom?: string }
@@ -297,7 +297,7 @@ const home: SchemaPage = {
       art: "contact",
       fields: [
         { kind: "text", path: "home.contact.label", label: "Small heading", style: true },
-        { kind: "text", path: "home.contact.headline", label: "Headline", style: true },
+        { kind: "text", path: "home.contact.headline", label: "Headline", style: true, fx: true },
         { kind: "text", path: "home.contact.availability", label: "Availability line", style: true },
         { kind: "text", path: "home.contact.whatsappLabel", label: "WhatsApp link text" },
         { kind: "text", path: "home.contact.form.nameLabel", label: "Form: name" },

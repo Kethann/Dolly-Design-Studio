@@ -1,0 +1,27 @@
+/* The word keeps its place in the line; the dots are drawn on a canvas that reaches out past it on every side. */
+.wrap {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* The real text: it sizes the word, is read by screen readers and search, and is only hidden to the eye once the dots are drawn. */
+.ghost {
+  display: inline-block;
+  transition: opacity 0.25s ease;
+}
+
+.wrap[data-live="true"] .ghost {
+  opacity: 0;
+}
+
+.canvas {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.wrap[data-live="true"] .canvas {
+  opacity: 1;
+}

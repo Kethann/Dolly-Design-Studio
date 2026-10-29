@@ -633,17 +633,39 @@ function TextInput({ field, path }: { field: Extract<Field, { kind: "text" | "ar
   const { content, update } = useEditor();
   const value = (getAt(content, path) as string | undefined) ?? "";
   const set = (v: string) => update((c) => setAt(c, path, v));
+  const box = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  const hasFx = /\[\[.+?\]\]/.test(value);
+  /** Particle effect on or off: the selected words get [[brackets]]; with nothing selected, the last word does; pressed again, they go. */
+  const toggleFx = () => {
+    const el = box.current;
+    const sel = el ? value.slice(el.selectionStart ?? 0, el.selectionEnd ?? 0) : "";
+    if (sel.trim() && !/\[\[|\]\]/.test(sel)) {
+      const start = (el!.selectionStart ?? 0) + (sel.length - sel.trimStart().length);
+      set(value.slice(0, start) + "[[" + sel.trim() + "]]" + value.slice(start + sel.trim().length));
+    } else if (hasFx) {
+      set(value.replace(/\[\[(.+?)\]\]/g, "$1"));
+    } else {
+      const m = /([^\s.,!?:;]+)([\s.,!?:;]*)$/.exec(value);
+      if (m) set(value.slice(0, m.index) + "[[" + m[1] + "]]" + m[2]);
+    }
+  };
   return (
     <div className={styles.field}>
       <div className={styles.labelRow}>
         <span className={styles.label}>{field.label}</span>
+        {field.fx && (
+          <button type="button" className={styles.aa} data-on={hasFx} aria-pressed={hasFx} title="Select some words first, or it uses the last word. Press again to remove." onMouseDown={(e) => e.preventDefault()} onClick={toggleFx}>
+            ✦ Particles
+          </button>
+        )}
         {field.style && <StyleToggleButtonSlot path={path} />}
       </div>
       {field.kind === "area" ? (
-        <textarea className={styles.input} rows={Math.min(14, Math.max(3, Math.ceil(value.length / 48) + 1))} value={value} onChange={(e) => set(e.target.value)} />
+        <textarea ref={box} className={styles.input} rows={Math.min(14, Math.max(3, Math.ceil(value.length / 48) + 1))} value={value} onChange={(e) => set(e.target.value)} />
       ) : (
-        <input className={styles.input} value={value} onChange={(e) => set(e.target.value)} />
+        <input ref={box} className={styles.input} value={value} onChange={(e) => set(e.target.value)} />
       )}
+      {field.fx && <p className={styles.hint}>Words inside [[double brackets]] turn into dots that scatter from the cursor. Select words and press “✦ Particles”.</p>}
       {field.hint && <p className={styles.hint}>{field.hint}</p>}
       {field.style && <StyleToggleBody path={path} />}
     </div>
