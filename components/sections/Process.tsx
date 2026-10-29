@@ -87,6 +87,20 @@ export function Process() {
   const { reducedMotion } = useMotion();
   const ref = useRef<HTMLDivElement>(null);
 
+  // Each icon's own lines, as a mask: the glass colours are shown through it, so on hover the icon itself lights up in the
+  // colours at the cursor (the same effect as the corner logo), and nothing around its lines does.
+  useEffect(() => {
+    ref.current?.querySelectorAll<HTMLElement>("[data-icon-tile]").forEach((tile) => {
+      const svg = tile.querySelector("svg");
+      if (!svg) return;
+      const copyOfIcon = svg.cloneNode(true) as SVGElement;
+      copyOfIcon.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      copyOfIcon.setAttribute("width", "64");
+      copyOfIcon.setAttribute("height", "64");
+      tile.style.setProperty("--logo-mask", `url("data:image/svg+xml,${encodeURIComponent(copyOfIcon.outerHTML.replace(/currentColor/g, "#000"))}")`);
+    });
+  }, [copy.cards]);
+
   useEffect(() => {
     if (reducedMotion || !ref.current) return;
     const steps = ref.current.querySelectorAll<HTMLElement>("[data-step]");
@@ -139,7 +153,7 @@ export function Process() {
                     }
                   : {})}
               >
-                <span className={styles.tile}>
+                <span className={`${styles.tile} glass-glow`} data-icon-tile>
                   <StepIcon name={(card as { icon?: string }).icon ?? ICON_ORDER[i] ?? "star"} />
                 </span>
                 <h3 className={styles.stepTitle} {...tx("home.process.cards.title")}>
