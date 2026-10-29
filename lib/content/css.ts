@@ -29,8 +29,8 @@ export function glassVars(g: GlassLook): string[] {
     ...six.map((c, i) => `--glass-${i + 1}:${c}`),
     // How strong the colour is under the cursor (Tint), how big the point of light is (Spread), and how bright the edge glows (Glow).
     `--glass-alpha:${(Math.min(1, g.tint / 0.7) * (clear ? 0.45 : frosted ? 0.6 : 1)).toFixed(2)}`,
-    `--glass-r:${Math.round(40 + g.spread * 120)}px`,
-    `--glass-rim-opacity:${Math.min(1, (0.45 + g.glow * 0.7) * (clear ? 0.6 : frosted ? 0.8 : 1)).toFixed(2)}`,
+    `--glass-r:${Math.round(48 + g.spread * 144)}px`,
+    `--glass-rim-opacity:${Math.min(1, (0.6 + g.glow * 0.8) * (clear ? 0.6 : frosted ? 0.8 : 1)).toFixed(2)}`,
     `--glass-blur:${g.blur}px`,
   ];
 }
