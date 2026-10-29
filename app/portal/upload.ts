@@ -14,6 +14,9 @@ export function postFile<T>(url: string, file: File, onProgress?: (percent: numb
       if (xhr.status >= 200 && xhr.status < 300) resolve(data as T);
       else reject(new Error(data.error ?? (xhr.status === 401 ? "Your session has ended. Sign in again." : "Upload failed.")));
     };
+    xhr.timeout = 10 * 60_000;
+    xhr.ontimeout = () => reject(new Error("The upload took too long. Check the connection and try again."));
+    xhr.onabort = () => reject(new Error("The upload was cancelled."));
     xhr.onerror = () => reject(new Error("Couldn’t reach the server. Check the connection and try again."));
     const form = new FormData();
     form.append("file", file);

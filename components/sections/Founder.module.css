@@ -42,6 +42,40 @@
   text-align: center;
 }
 
+/* The profile picture: a sized frame (the picture fills it, cropped to the chosen shape), zoomed and moved from the portal. */
+.photo {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  margin: 0 auto 24px;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 1px solid var(--gold);
+  box-shadow: 0 0 0 6px rgba(232, 176, 75, 0.08);
+  isolation: isolate;
+}
+.photo img {
+  object-fit: cover;
+}
+.photo[data-size="small"],
+.monogram[data-size="small"] {
+  width: 120px;
+  height: 120px;
+}
+.photo[data-size="large"],
+.monogram[data-size="large"] {
+  width: 220px;
+  height: 220px;
+}
+.photo[data-shape="rounded"],
+.monogram[data-shape="rounded"] {
+  border-radius: 28px;
+}
+.photo[data-shape="square"],
+.monogram[data-shape="square"] {
+  border-radius: 6px;
+}
+
 .monogram {
   width: 168px;
   height: 168px;

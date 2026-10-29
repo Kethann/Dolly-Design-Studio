@@ -85,7 +85,7 @@
     },
     "manifesto": {
       "label": "About Our Agency",
-      "statement": "Let us be the cover page of your beautiful book called *‘Cinema’.*",
+      "statement": "Let us be the cover page of your beautiful book called *‘Cinema’*",
       "body": "Dolly Design Studio is a creative collection specializing in film publicity and title design. We blend artistry with strategy to craft unforgettable identities that elevate films and leave a lasting mark."
     },
     "services": {
@@ -162,6 +162,9 @@
       "photoAlt": "",
       "photoShape": "round",
       "photoSize": "medium",
+      "photoZoom": 1,
+      "photoX": 50,
+      "photoY": 50,
       "cardNote": "Designing film posters, title logos and typography for Telugu cinema.",
       "paragraphs": [
         "Sasank Muppalla is the founder and creative director of Dolly Design Studio, designing film posters, title logos and typography from Bangalore.",

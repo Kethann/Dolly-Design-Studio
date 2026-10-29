@@ -654,10 +654,45 @@
 .imageBusy {
   position: absolute;
   inset: auto 0 0 0;
-  padding: 6px;
+  padding: 6px 6px 8px;
   font-size: 11px;
   color: #2b1503;
   background: #e8b04b;
+}
+.imageBusy i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: #2b1503;
+  transition: width 0.2s ease;
+}
+/* Nothing to measure while the file is being prepared or saved: the bar breathes instead of sitting at 0 or 100. */
+.imageBusy i[data-wait="true"],
+.dropBar[data-wait="true"] i {
+  width: 100% !important;
+  opacity: 0.5;
+  animation: uploadWait 1s ease-in-out infinite alternate;
+}
+@keyframes uploadWait {
+  from { opacity: 0.2; }
+  to { opacity: 0.7; }
+}
+.imageNote {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 4px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--p-muted);
+}
+.imageDrop img {
+  transition: opacity 0.2s ease;
+}
+.imageAdjust {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .imageSide {

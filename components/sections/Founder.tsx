@@ -50,7 +50,14 @@ export function Founder() {
         <aside className={`glass-panel ${styles.card}`} aria-label={copy.label}>
           {copy.photo ? (
             <div className={styles.photo} data-shape={copy.photoShape} data-size={copy.photoSize}>
-              <Image src={versionedSrc(copy.photo)} alt={copy.photoAlt || site.founder.name} fill sizes="260px" {...placeholderProps(copy.photo)} />
+              <Image
+                src={versionedSrc(copy.photo)}
+                alt={copy.photoAlt || site.founder.name}
+                fill
+                sizes="260px"
+                style={{ objectPosition: `${copy.photoX}% ${copy.photoY}%`, transformOrigin: `${copy.photoX}% ${copy.photoY}%`, transform: `scale(${copy.photoZoom})` }}
+                {...placeholderProps(copy.photo)}
+              />
             </div>
           ) : (
             <div className={styles.monogram} data-shape={copy.photoShape} data-size={copy.photoSize} aria-hidden="true">

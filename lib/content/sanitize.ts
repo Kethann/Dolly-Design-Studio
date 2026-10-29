@@ -145,6 +145,11 @@ export function sanitizeContent(input: unknown): SiteContent {
         description: str(raw.description),
         deliverables: strs(raw.deliverables),
         sample: str(raw.sample).startsWith("/images/") ? str(raw.sample) : def.services[0].sample,
+        details: str(raw.details).slice(0, 4000),
+        gallery: (Array.isArray(raw.gallery) ? raw.gallery : []).slice(0, 12).flatMap((g: unknown) => {
+          if (!isObj(g) || !str(g.src).startsWith("/images/")) return [];
+          return [{ src: str(g.src), alt: str(g.alt).slice(0, 200) }];
+        }),
       },
     ];
   });
@@ -254,6 +259,10 @@ export function sanitizeContent(input: unknown): SiteContent {
   const SIZES = ["small", "medium", "large"] as const;
   merged.home.founder.photoShape = oneOf(merged.home.founder.photoShape, SHAPES, "round");
   merged.home.founder.photoSize = oneOf(merged.home.founder.photoSize, SIZES, "medium");
+  const f = merged.home.founder;
+  f.photoZoom = num(f.photoZoom, 1, 4, 1);
+  f.photoX = num(f.photoX, 0, 100, 50);
+  f.photoY = num(f.photoY, 0, 100, 50);
   merged.home.clients.portraitShape = oneOf(merged.home.clients.portraitShape, SHAPES, "round");
   merged.home.clients.portraitSize = oneOf(merged.home.clients.portraitSize, SIZES, "large");
   merged.home.clients.logoSize = oneOf(merged.home.clients.logoSize, SIZES, "large");

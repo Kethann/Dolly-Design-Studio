@@ -192,6 +192,14 @@ interface UploadState {
   errors: string[];
 }
 
+/** What an upload is doing right now, in words: getting the file ready, sending it (with a percentage), or the server saving it. */
+export function uploadLabel(s: UploadState) {
+  const of = s.total > 1 ? ` ${s.index} of ${s.total}` : "";
+  if (s.percent <= 0) return `Preparing${of}…`;
+  if (s.percent >= 100) return `Saving${of}…`;
+  return `Uploading${of}… ${s.percent}%`;
+}
+
 const IDLE: UploadState = { busy: false, index: 0, total: 0, percent: 0, errors: [] };
 
 /** Uploads a batch of files one after another, with progress and a plain message for each that can't be sent. */
@@ -272,10 +280,10 @@ export function DropZone({
       >
         {state.busy ? (
           <>
-            <span className={styles.dropTitle}>
-              Uploading{state.total > 1 ? ` ${state.index} of ${state.total}` : ""}… {state.percent}%
+            <span className={styles.dropTitle} role="status">
+              {uploadLabel(state)}
             </span>
-            <span className={styles.dropBar} aria-hidden="true">
+            <span className={styles.dropBar} aria-hidden="true" data-wait={state.percent <= 0 || state.percent >= 100}>
               <i style={{ width: `${state.percent}%` }} />
             </span>
           </>
@@ -452,8 +460,19 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
   const alt = altPath ? ((getAt(content, altPath) as string) ?? "") : "";
   const shape = shapePath ? ((getAt(content, shapePath) as string) ?? "round") : "round";
   const size = sizePath ? ((getAt(content, sizePath) as string) ?? "medium") : "medium";
+  const num = (name: string, d: number) => {
+    const v = getAt(content, sibling(name));
+    return typeof v === "number" && Number.isFinite(v) ? v : d;
+  };
+  const zoom = field.adjust ? num(`${field.adjust}Zoom`, 1) : 1;
+  const posX = field.adjust ? num(`${field.adjust}X`, 50) : 50;
+  const posY = field.adjust ? num(`${field.adjust}Y`, 50) : 50;
+  const setNum = (name: string, v: number) => update((c) => setAt(c, sibling(`${field.adjust}${name}`), v));
   const [open, setOpen] = useState(false);
   const [over, setOver] = useState(false);
+  /** The preview shows a quiet "Loading…" until the picture has really arrived (a new upload can take a moment to appear). */
+  const [shownSrc, setShownSrc] = useState("");
+  const [broken, setBroken] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
   const set = (src: string) => update((c) => setAt(c, path, src));
@@ -496,13 +515,23 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
         >
           {value ? (
             // eslint-disable-next-line @next/next/no-img-element -- a preview of the chosen picture
-            <img src={value} alt={alt || ""} />
+            <img
+              key={value}
+              src={value}
+              alt={alt || ""}
+              onLoad={() => setShownSrc(value)}
+              onError={() => setBroken(value)}
+              style={{ objectPosition: `${posX}% ${posY}%`, transformOrigin: `${posX}% ${posY}%`, transform: `scale(${zoom})`, opacity: shownSrc === value ? 1 : 0 }}
+            />
           ) : (
             <span>{over ? "Drop it here" : "No picture yet"}</span>
           )}
+          {value && !busy && shownSrc !== value && broken !== value && <span className={styles.imageNote} role="status">Loading…</span>}
+          {value && !busy && broken === value && <span className={styles.imageNote} role="alert">Can’t show this picture</span>}
           {busy && (
             <span className={styles.imageBusy} role="status">
-              Uploading… {uploads.state.percent}%
+              {uploadLabel(uploads.state)}
+              <i data-wait={uploads.state.percent <= 0 || uploads.state.percent >= 100} style={{ width: `${uploads.state.percent}%` }} />
             </span>
           )}
         </div>
@@ -550,6 +579,20 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
           </span>
           <input className={styles.input} value={alt} maxLength={200} placeholder="e.g. Sasank Muppalla at his desk" onChange={(e) => setSibling(altPath, e.target.value)} />
         </label>
+      )}
+      {field.adjust && value && (
+        <div className={styles.imageAdjust}>
+          <Slider label="Zoom" value={zoom} min={1} max={4} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setNum("Zoom", v)} />
+          <Slider label="Left ↔ right" value={posX} min={0} max={100} step={1} format={(v) => `${v}%`} onChange={(v) => setNum("X", v)} />
+          <Slider label="Up ↕ down" value={posY} min={0} max={100} step={1} format={(v) => `${v}%`} onChange={(v) => setNum("Y", v)} />
+          <button
+            type="button"
+            className={styles.link}
+            onClick={() => update((c) => setAt(setAt(setAt(c, sibling(`${field.adjust}Zoom`), 1), sibling(`${field.adjust}X`), 50), sibling(`${field.adjust}Y`), 50))}
+          >
+            Reset zoom and position
+          </button>
+        </div>
       )}
       {(shapePath || sizePath) && (
         <div className={styles.imageOptions}>
