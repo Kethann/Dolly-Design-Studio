@@ -16,6 +16,17 @@ const LOGO_MASK = `url("data:image/svg+xml,${encodeURIComponent(
   `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${LOGO_VIEWBOX.width} ${LOGO_VIEWBOX.height}'><path d='${LOGO_BODY_PATH}' fill-rule='evenodd'/></svg>`,
 )}")`;
 
+/** How far the glass pane reaches past the menu items on each side, and how far its sides sweep in towards the bottom. */
+const PANE_EXT = 56;
+const PANE_SWEEP = 44;
+
+/** The glass pane's outline: flush along the top, sides that sweep in with a smooth curve, and a straight bottom. */
+function panePath(w: number, h: number, close: boolean) {
+  const f = PANE_SWEEP;
+  const d = `M 0 0 C 0 ${(0.5 * h).toFixed(1)} ${(0.18 * f).toFixed(1)} ${h} ${f} ${h} L ${(w - f).toFixed(1)} ${h} C ${(w - 0.18 * f).toFixed(1)} ${h} ${w} ${(0.5 * h).toFixed(1)} ${w} 0`;
+  return close ? `${d} Z` : d;
+}
+
 export function Nav() {
   const { site, nav: navItems } = useContent();
   const pathname = usePathname();
@@ -28,6 +39,8 @@ export function Nav() {
   const [pastFirst, setPastFirst] = useState(false);
   const logoShown = pathname !== "/" || pastFirst;
   const linksRef = useRef<HTMLElement>(null);
+  /** The size of the glass pane behind the menu items: sized to them, so its shape is exact at every width. */
+  const [pane, setPane] = useState<{ w: number; h: number; pad: number } | null>(null);
   const linkRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
   /** Where the spotlight sits (over the current item), and whether it may glide there (not on the very first placing). */
   const [beam, setBeam] = useState<{ left: number; width: number; lift: number; animate: boolean } | null>(null);
@@ -90,6 +103,20 @@ export function Nav() {
     };
   }, [pathname]);
 
+  useEffect(() => {
+    const box = linksRef.current;
+    if (!box) return;
+    const measure = () => {
+      const pad = parseFloat(getComputedStyle(box.closest("header") ?? box).getPropertyValue("--nav-pad")) || 24;
+      setPane({ w: box.offsetWidth + 2 * PANE_EXT, h: box.offsetHeight + pad, pad });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    void document.fonts?.ready.then(measure);
+    return () => ro.disconnect();
+  }, []);
+
   // Keep the spotlight over the current item, and glide it along when the item changes.
   useEffect(() => {
     const place = (animate: boolean) => {
@@ -150,6 +177,28 @@ export function Nav() {
       </Link>
 
       <nav ref={linksRef} className={styles.links} aria-label="Primary" data-lit={!!activeId}>
+        {/* The pane of glass behind the items: it hangs from the top of the screen, its sides sweep in in a curve, and its bottom
+            stops just under the glowing line. It is drawn to the exact size of the menu (a clipped frosted layer, an outline
+            and a soft shadow). */}
+        {pane && (
+          <>
+            <span className={styles.pane} aria-hidden="true" style={{ left: -PANE_EXT, top: -pane.pad, width: pane.w, height: pane.h, clipPath: `path("${panePath(pane.w, pane.h, true)}")` }} />
+            <svg className={styles.paneEdge} aria-hidden="true" style={{ left: -PANE_EXT, top: -pane.pad, width: pane.w, height: pane.h + 24 }} viewBox={`0 0 ${pane.w} ${pane.h + 24}`}>
+              <defs>
+                <linearGradient id="nav-pane-edge" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={pane.h}>
+                  <stop offset="0" stopColor="#fff" stopOpacity="0.08" />
+                  <stop offset="0.7" stopColor="#fff" stopOpacity="0.22" />
+                  <stop offset="1" stopColor="#fff" stopOpacity="0.42" />
+                </linearGradient>
+                <filter id="nav-pane-shadow" x="-10%" y="-10%" width="120%" height="160%">
+                  <feGaussianBlur stdDeviation="9" />
+                </filter>
+              </defs>
+              <path d={panePath(pane.w, pane.h, true)} transform="translate(0 12)" fill="rgba(0,0,0,0.42)" filter="url(#nav-pane-shadow)" />
+              <path d={panePath(pane.w, pane.h, false)} fill="none" stroke="url(#nav-pane-edge)" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          </>
+        )}
         {/* The light under the current item, in that item's own colour. It glides from item to item; the other items dim. */}
         <span
           className={styles.beam}
