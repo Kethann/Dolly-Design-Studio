@@ -119,8 +119,8 @@
   filter: drop-shadow(0 0 6px var(--tone));
 }
 
-/* The light under the current item. One piece that glides along behind the items: a soft pool of light rising from
-   under the item, and a thin neon line just below its words with a soft glow of its own. Its colour is the item's own
+/* The light under the current item. One piece that glides along behind the items: a thin neon line just below its
+   words, with soft light rising up from it over the words. Its colour is the item's own
    and changes smoothly as it moves. */
 .beam {
   position: absolute;
@@ -143,20 +143,20 @@
     --tone 0.6s ease;
 }
 
-/* The pool of light rising from under the item. */
+/* The light rising up from the neon line: it starts at the line and fades upward over the words, nothing below it. */
 .beam::before {
   content: "";
   position: absolute;
-  left: -16%;
-  right: -16%;
-  top: 22%;
-  bottom: -16px;
-  background: radial-gradient(ellipse 50% 62% at 50% 78%, color-mix(in srgb, var(--tone) 52%, transparent), color-mix(in srgb, var(--tone) 18%, transparent) 55%, transparent 80%);
-  filter: blur(6px);
+  left: -10%;
+  right: -10%;
+  top: calc(50% - 22px);
+  height: 40px;
+  background: radial-gradient(ellipse 52% 100% at 50% 100%, color-mix(in srgb, var(--tone) 46%, transparent), color-mix(in srgb, var(--tone) 16%, transparent) 50%, transparent 82%);
+  filter: blur(5px);
   animation: navGlow 3.2s ease-in-out infinite;
 }
 
-/* The neon line under the words. */
+/* The neon line under the words; its glow also rises upward. */
 .beam::after {
   content: "";
   position: absolute;
@@ -167,11 +167,12 @@
   border-radius: 2px;
   background: linear-gradient(90deg, transparent, var(--tone) 22%, color-mix(in srgb, var(--tone) 60%, #fff) 50%, var(--tone) 78%, transparent);
   box-shadow:
-    0 0 8px 1px color-mix(in srgb, var(--tone) 80%, transparent),
-    0 0 20px 4px color-mix(in srgb, var(--tone) 40%, transparent);
+    0 -2px 6px 0 color-mix(in srgb, var(--tone) 85%, transparent),
+    0 -8px 16px 0 color-mix(in srgb, var(--tone) 40%, transparent);
+  animation: navGlow 3.2s ease-in-out infinite;
 }
 
-/* The pool of light breathes gently. */
+/* The light and the line breathe together, gently. */
 @keyframes navGlow {
   0%,
   100% {
@@ -188,7 +189,8 @@
     transition: none;
   }
 
-  .beam::before {
+  .beam::before,
+  .beam::after {
     animation: none;
   }
 }
