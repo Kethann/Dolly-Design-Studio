@@ -1,4 +1,5 @@
 import type { ArtSection } from "@/lib/intro/settings";
+import { CARD_LINK_VALUES } from "@/lib/content/card-links";
 import type { PageKey } from "@/lib/content/types";
 
 /**
@@ -239,13 +240,14 @@ const home: SchemaPage = {
           add: "Add a card",
           max: 8,
           title: (it) => str(it.title, "New card"),
-          blank: () => ({ title: "New card", note: "", body: "", icon: "star", opensBreakdowns: false }),
+          blank: () => ({ title: "New card", note: "", body: "", icon: "star", opens: "Does nothing", linkText: "" }),
           fields: [
             { kind: "text", path: "title", label: "Title", style: true },
             { kind: "text", path: "note", label: "Small line", style: true },
             { kind: "area", path: "body", label: "Text", style: true },
             { kind: "select", path: "icon", label: "Icon", options: ["sketch", "camera", "pipeline", "layers", "star"] },
-            { kind: "bool", path: "opensBreakdowns", label: "Clicking this card opens the breakdown viewer (set it up in “Breakdowns”)" },
+            { kind: "select", path: "opens", label: "Click to view: where it takes the visitor", options: CARD_LINK_VALUES },
+            { kind: "text", path: "linkText", label: "Link words (blank = the usual words)" },
           ],
         },
       ],

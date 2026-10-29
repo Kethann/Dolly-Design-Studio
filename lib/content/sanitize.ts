@@ -1,4 +1,5 @@
 import { CATEGORIES, LANGUAGES, LEGACY_CATEGORIES } from "@/content/types";
+import { CARD_LINK_BY_ICON, CARD_LINK_VALUES } from "./card-links";
 import { DEFAULT_GLASS, DEFAULT_MENU_TONES, GLASS_COLOR_COUNT, GLASS_EFFECTS, OLD_GEMINI, OLD_GLASS, OLD_SIX, type GlassLook } from "./types";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "./limits";
 import { defaultContent } from "./defaults";
@@ -229,10 +230,23 @@ export function sanitizeContent(input: unknown): SiteContent {
   merged.theme.menuTones = Object.fromEntries(Object.entries(DEFAULT_MENU_TONES).map(([id, d]) => [id, isHex(tonesIn[id]) ? (tonesIn[id] as string).toLowerCase() : d]));
 
   // Cards saved before “opens the breakdown viewer” existed: the one with the layers icon does.
-  merged.home.process.cards = merged.home.process.cards.map((c) => ({
-    ...c,
-    opensBreakdowns: typeof (c as { opensBreakdowns?: unknown }).opensBreakdowns === "boolean" ? (c as { opensBreakdowns: boolean }).opensBreakdowns : c.icon === "layers",
-  }));
+  merged.home.process.cards = merged.home.process.cards.map((c) => {
+    const old = c as { opensBreakdowns?: unknown; opens?: unknown; linkText?: unknown; icon?: string };
+    const breakdowns = "Opens the Breakdowns page";
+    const opens =
+      typeof old.opens === "string" && CARD_LINK_VALUES.includes(old.opens)
+        ? old.opens
+        : old.opensBreakdowns === true
+          ? breakdowns
+          : (CARD_LINK_BY_ICON[old.icon ?? ""] ?? "Does nothing");
+    return {
+      ...c,
+      // kept for older saved content: true when this card opens the Breakdowns page
+      opensBreakdowns: opens === breakdowns,
+      opens,
+      linkText: typeof old.linkText === "string" ? old.linkText.trim().slice(0, 40) : "",
+    };
+  });
 
   // Picture shapes and sizes: only the known words, so a stale or odd value can never reach the page.
   const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(v as T) ? (v as T) : fallback);

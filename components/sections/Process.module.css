@@ -91,10 +91,10 @@
   display: grid;
   place-items: center;
   border-radius: 24px;
-  color: var(--gold-bright);
+  color: #ffffff; /* the icon's lines are white */
   border: 1px solid rgba(255, 255, 255, 0.18);
   background:
-    radial-gradient(70% 70% at 50% 42%, rgba(232, 176, 75, calc(0.28 * var(--tile-gold, 1))), transparent 70%),
+    radial-gradient(70% 70% at 50% 42%, rgba(255, 255, 255, calc(0.14 * var(--tile-gold, 1))), transparent 70%),
     linear-gradient(180deg, #382c31, #140f12);
   box-shadow:
     0 14px 28px rgba(0, 0, 0, 0.5),
@@ -117,57 +117,39 @@
    the same colours spreads from its lines. */
 .tile:hover {
   --tile-gold: 0;
-  color: rgba(235, 226, 246, 0.3);
+  color: #ffffff; /* the lines stay white; the colours are the neon glow around them */
+}
+
+/* The glow spreads past the tile's edge (a glass-glow tile would clip it). */
+.tile.tile {
+  overflow: visible;
 }
 
 .tile.tile::before {
-  background:
-    radial-gradient(ellipse 58% 58% at var(--bx8) var(--by8), var(--k8) 0, color-mix(in srgb, var(--k8) 55%, transparent) 38%, transparent),
-    radial-gradient(ellipse 58% 58% at var(--bx7) var(--by7), var(--k7) 0, color-mix(in srgb, var(--k7) 55%, transparent) 38%, transparent),
-    radial-gradient(ellipse 70% 70% at var(--bx6) var(--by6), var(--k6) 0, color-mix(in srgb, var(--k6) 55%, transparent) 38%, transparent),
-    radial-gradient(ellipse 70% 70% at var(--bx5) var(--by5), var(--k5) 0, color-mix(in srgb, var(--k5) 55%, transparent) 38%, transparent),
-    radial-gradient(ellipse 70% 70% at var(--bx4) var(--by4), var(--k4) 0, color-mix(in srgb, var(--k4) 55%, transparent) 38%, transparent),
-    radial-gradient(ellipse 70% 70% at var(--bx3) var(--by3), var(--k3) 0, color-mix(in srgb, var(--k3) 55%, transparent) 38%, transparent),
-    radial-gradient(ellipse 70% 70% at var(--bx2) var(--by2), var(--k2) 0, color-mix(in srgb, var(--k2) 55%, transparent) 38%, transparent),
-    radial-gradient(ellipse 70% 70% at var(--bx1) var(--by1), var(--k1) 0, color-mix(in srgb, var(--k1) 55%, transparent) 38%, transparent);
+  display: block;
   padding: 0;
-  z-index: 1;
-  filter: blur(5px) saturate(2.6) brightness(1.5);
+  z-index: 0;
+  /* The neon spill: a bright pool of the colours, behind the lines and following the cursor, plus a wide soft one centred on
+     the icon, so the colour visibly spreads across the tile. */
+  background:
+    radial-gradient(circle calc(var(--glass-r, 72px) * 1.1) at var(--mx) var(--my), color-mix(in srgb, var(--spot-c) 60%, transparent), color-mix(in srgb, var(--spot-c) 20%, transparent) 50%, transparent 78%),
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--k2) 24%, transparent), color-mix(in srgb, var(--k5) 12%, transparent) 55%, transparent 80%);
+  filter: blur(7px) saturate(1.9) brightness(1.2);
   -webkit-mask: none;
   mask: none;
-  -webkit-mask-image: var(--logo-mask), radial-gradient(circle calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, #000 34%, rgba(0, 0, 0, 0.72) 58%, rgba(0, 0, 0, 0.24) 82%, transparent 100%);
-  mask-image: var(--logo-mask), radial-gradient(circle calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, #000 34%, rgba(0, 0, 0, 0.72) 58%, rgba(0, 0, 0, 0.24) 82%, transparent 100%);
-  -webkit-mask-size: 78% 78%, auto;
-  mask-size: 78% 78%, auto;
-  -webkit-mask-repeat: no-repeat, no-repeat;
-  mask-repeat: no-repeat, no-repeat;
-  -webkit-mask-position: center, 0 0;
-  mask-position: center, 0 0;
-  -webkit-mask-composite: source-in;
-  mask-composite: intersect;
-  opacity: calc(var(--lit) * 1);
+  opacity: calc(var(--lit) * 0.7);
+  border-radius: inherit;
 }
 
 .tile.tile::after {
-  z-index: 2;
-  -webkit-mask-image: var(--logo-mask), radial-gradient(circle calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, #000 34%, rgba(0, 0, 0, 0.72) 58%, rgba(0, 0, 0, 0.24) 82%, transparent 100%);
-  mask-image: var(--logo-mask), radial-gradient(circle calc(var(--glass-r, 230px) * var(--bloom) * var(--pulse)) at var(--mx) var(--my), #000 0, #000 34%, rgba(0, 0, 0, 0.72) 58%, rgba(0, 0, 0, 0.24) 82%, transparent 100%);
-  -webkit-mask-size: 78% 78%, auto;
-  mask-size: 78% 78%, auto;
-  -webkit-mask-repeat: no-repeat, no-repeat;
-  mask-repeat: no-repeat, no-repeat;
-  -webkit-mask-position: center, 0 0;
-  mask-position: center, 0 0;
-  -webkit-mask-composite: source-in;
-  mask-composite: intersect;
-  filter: saturate(2.1) brightness(1.15);
+  display: none;
 }
 
 .icon {
   width: 78%;
   height: 78%;
   /* The gold glow at rest; on hover it hands over to a small glow in the colour under the cursor. */
-  filter: drop-shadow(0 0 calc(7px * var(--tile-gold, 1)) rgba(255, 220, 140, calc(0.5 * var(--tile-gold, 1)))) drop-shadow(0 0 2.5px rgba(255, 255, 255, calc((1 - var(--tile-gold, 1)) * 0.9))) drop-shadow(0 0 5px color-mix(in srgb, var(--spot-c) calc((1 - var(--tile-gold, 1)) * 100%), transparent)) drop-shadow(0 0 9px color-mix(in srgb, var(--k2) calc((1 - var(--tile-gold, 1)) * 75%), transparent)) drop-shadow(0 0 16px color-mix(in srgb, var(--k5) calc((1 - var(--tile-gold, 1)) * 60%), transparent));
+  filter: drop-shadow(0 0 calc(7px * var(--tile-gold, 1)) rgba(255, 255, 255, calc(0.45 * var(--tile-gold, 1)))) drop-shadow(0 0 2px rgba(255, 255, 255, calc((1 - var(--tile-gold, 1)) * 1))) drop-shadow(0 0 7px color-mix(in srgb, var(--spot-c) calc((1 - var(--tile-gold, 1)) * 100%), transparent)) drop-shadow(0 0 7px color-mix(in srgb, var(--spot-c) calc((1 - var(--tile-gold, 1)) * 100%), transparent)) drop-shadow(0 0 15px color-mix(in srgb, var(--k2) calc((1 - var(--tile-gold, 1)) * 100%), transparent)) drop-shadow(0 0 26px color-mix(in srgb, var(--k5) calc((1 - var(--tile-gold, 1)) * 90%), transparent));
   transition: color 0.4s ease;
 }
 
@@ -226,7 +208,8 @@
 .stepBody {
   margin: 4px 0 0;
   font-size: 14.5px;
-  opacity: 0.8;
+  color: var(--gold-bright); /* the text under the heading is yellow */
+  opacity: 0.92;
   line-height: 1.65;
 }
 

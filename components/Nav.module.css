@@ -76,7 +76,7 @@
 }
 
 .brandGlow .monogram {
-  filter: drop-shadow(0 0 calc(var(--lit) * 4px) color-mix(in srgb, var(--spot-c) calc(var(--lit) * 100%), transparent)) drop-shadow(0 0 calc(var(--lit) * 10px) color-mix(in srgb, var(--k2) calc(var(--lit) * 75%), transparent)) drop-shadow(0 0 calc(var(--lit) * 18px) color-mix(in srgb, var(--k5) calc(var(--lit) * 60%), transparent));
+  filter: drop-shadow(0 0 calc(var(--lit) * 3px) rgba(255, 255, 255, calc(var(--lit) * 0.9))) drop-shadow(0 0 calc(var(--lit) * 7px) color-mix(in srgb, var(--spot-c) calc(var(--lit) * 100%), transparent)) drop-shadow(0 0 calc(var(--lit) * 14px) color-mix(in srgb, var(--k2) calc(var(--lit) * 90%), transparent)) drop-shadow(0 0 calc(var(--lit) * 24px) color-mix(in srgb, var(--k5) calc(var(--lit) * 75%), transparent));
 }
 
 .brandGlow.brandGlow::before {

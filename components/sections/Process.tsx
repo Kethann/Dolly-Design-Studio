@@ -7,6 +7,8 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useContent, tx } from "@/lib/content/context";
 import { edItem, edList, edSection } from "@/lib/content/tx";
 import { useMotion } from "@/lib/motion";
+import { CARD_LINKS } from "@/lib/content/card-links";
+import { goToSection } from "@/lib/section-nav";
 import styles from "./Process.module.css";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
@@ -135,8 +137,19 @@ export function Process() {
 
         <div className={styles.steps} ref={ref} {...edList("home.process.cards", "card", 8)}>
           {copy.cards.map((card, i) => {
-            // A card can open the Breakdowns page (once there is something to show on it).
-            const opens = (card as { opensBreakdowns?: boolean }).opensBreakdowns === true && breakdowns.length > 0;
+            // "Click to view": a card can take the visitor to the Breakdowns page, the gallery, or a part of this page. (A card that
+            // opens the Breakdowns waits until there is something to show there.)
+            const wanted = (card as { opens?: string }).opens;
+            const link = CARD_LINKS.find((l) => l.value === wanted);
+            const target = link && link.id !== "none" && (link.id !== "breakdowns" || breakdowns.length > 0) ? link : null;
+            const open = () => {
+              if (!target) return;
+              if (target.id === "breakdowns") router.push("/breakdowns");
+              else if (target.id === "work") router.push("/work");
+              else goToSection(target.id === "gallery" ? "work" : target.id);
+            };
+            const opens = !!target;
+            const linkText = ((card as { linkText?: string }).linkText ?? "").trim() || target?.text || "";
             return (
               <div
                 key={i}
@@ -150,11 +163,11 @@ export function Process() {
                       role: "button",
                       tabIndex: 0,
                       "data-cursor": "link",
-                      onClick: () => router.push("/breakdowns"),
+                      onClick: open,
                       onKeyDown: (e: React.KeyboardEvent) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          router.push("/breakdowns");
+                          open();
                         }
                       },
                     }
@@ -175,7 +188,7 @@ export function Process() {
                 <p className={styles.stepBody} {...tx("home.process.cards.body")}>
                   {card.body}
                 </p>
-                {opens && <span className={styles.cta}>See the breakdowns →</span>}
+                {opens && linkText && <span className={styles.cta}>{linkText} →</span>}
               </div>
             );
           })}
