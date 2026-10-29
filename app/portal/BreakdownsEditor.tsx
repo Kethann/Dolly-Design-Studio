@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { BreakdownLayer } from "@/lib/content/types";
 import { MAX_BREAKDOWNS, MAX_BREAKDOWN_LAYERS } from "@/lib/content/limits";
-import { DropZone, FieldView, useEditor, useUploads } from "./ContentEditor";
+import { DropZone, FieldView, PickerDialog, useEditor, useUploads } from "./ContentEditor";
 import type { Field } from "./content-schema";
 import { canvasToPng, readPsdLayers } from "./psd";
 import styles from "./content.module.css";
@@ -213,7 +213,7 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
                         onChange={(e) => patch(i, (x) => ({ ...x, layers: x.layers.map((y, j) => (j === k ? { ...y, label: e.target.value } : y)) }))}
                       />
                       <ReplaceLayer
-                        upload={media.upload}
+                        current={l.image}
                         onDone={(src) => patch(i, (x) => ({ ...x, layers: x.layers.map((y, j) => (j === k ? { ...y, image: src } : y)) }))}
                       />
                       <span className={styles.mini}>
@@ -310,40 +310,15 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
   );
 }
 
-/** A small button that swaps a layer's picture for a new upload, keeping its name and its place in the stack. */
-function ReplaceLayer({ upload, onDone }: { upload: (file: File, onProgress?: (percent: number) => void) => Promise<string>; onDone: (src: string) => void }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [state, setState] = useState<{ busy: boolean; error: string }>({ busy: false, error: "" });
+/** A small button that swaps a layer's picture (choose one you have, or upload a new one), keeping its name and place in the stack. */
+function ReplaceLayer({ current, onDone }: { current: string; onDone: (src: string) => void }) {
+  const [open, setOpen] = useState(false);
   return (
     <>
-      <button
-        type="button"
-        className={styles.pill}
-        disabled={state.busy}
-        title={state.error || "Replace this layer's picture (its name and place stay)"}
-        aria-label="Replace this layer's picture"
-        onClick={() => input.current?.click()}
-      >
-        {state.busy ? "…" : state.error ? "⚠" : "⇄"}
+      <button type="button" className={styles.pill} title="Replace this layer's picture (its name and place stay)" aria-label="Replace this layer's picture" onClick={() => setOpen(true)}>
+        ⇄
       </button>
-      <input
-        ref={input}
-        type="file"
-        hidden
-        accept="image/*,.png,.jpg,.jpeg,.webp,.avif,.gif,.svg,.bmp,.ico,.tif,.tiff"
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          e.target.value = "";
-          if (!file) return;
-          setState({ busy: true, error: "" });
-          try {
-            onDone(await upload(file));
-            setState({ busy: false, error: "" });
-          } catch (err) {
-            setState({ busy: false, error: err instanceof Error ? err.message : "Upload failed." });
-          }
-        }}
-      />
+      {open && <PickerDialog title="Choose a picture for this layer" value={current} onPick={onDone} onClose={() => setOpen(false)} />}
     </>
   );
 }

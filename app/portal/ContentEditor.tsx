@@ -314,22 +314,23 @@ export function DropZone({
 export function ImagePicker({ value, onPick, onClose }: { value: string; onPick: (src: string) => void; onClose: () => void }) {
   const { media } = useEditor();
   const [filter, setFilter] = useState("");
+  const [over, setOver] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
   const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
+  const busy = uploads.state.busy;
   const shown = media.images.filter((src) => src.toLowerCase().includes(filter.toLowerCase()));
+  /** The picture you upload here is used straight away. */
+  const take = (list: FileList | File[] | null) => {
+    const f = Array.from(list ?? [])[0];
+    if (f && !busy) {
+      void uploads.start([f], (src) => {
+        onPick(src);
+        onClose();
+      });
+    }
+  };
   return (
     <div className={styles.picker}>
-      <DropZone
-        kind="image"
-        compact
-        state={uploads.state}
-        title="Drop a picture here, or click to upload"
-        onFiles={(files) =>
-          uploads.start(files, (src) => {
-            onPick(src); // the new picture is used straight away
-            onClose();
-          })
-        }
-      />
       <div className={styles.pickerHead}>
         <input className={styles.input} placeholder="Search your pictures" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <button type="button" className={styles.link} onClick={onClose}>
@@ -337,6 +338,40 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
         </button>
       </div>
       <div className={styles.pickerGrid}>
+        {/* The first box is always the upload box (click it, or drop a file on it); then the pictures you already have. */}
+        <button
+          type="button"
+          className={styles.pickerUpload}
+          data-over={over}
+          data-busy={busy}
+          aria-label="Upload a new picture"
+          disabled={busy}
+          onClick={() => input.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setOver(true);
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            take(e.dataTransfer.files);
+          }}
+        >
+          {busy ? (
+            <>
+              <span>{uploads.state.percent}%</span>
+              <i aria-hidden="true">
+                <b style={{ width: `${uploads.state.percent}%` }} />
+              </i>
+            </>
+          ) : (
+            <>
+              <strong aria-hidden="true">＋</strong>
+              <span>{over ? "Drop it" : "Upload"}</span>
+            </>
+          )}
+        </button>
         {shown.map((src) => (
           <button
             key={src}
@@ -344,6 +379,7 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
             className={styles.pickerTile}
             data-on={src === value}
             title={src.replace("/images/", "")}
+            aria-label={`Use ${src.replace("/images/", "")}`}
             onClick={() => {
               onPick(src);
               onClose();
@@ -353,7 +389,39 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
             <img src={src} alt="" loading="lazy" />
           </button>
         ))}
-        {shown.length === 0 && <p className={styles.hint}>No picture matches “{filter}”.</p>}
+        {shown.length === 0 && filter && <p className={styles.hint}>No picture matches “{filter}”.</p>}
+      </div>
+      {uploads.state.errors.map((m, i) => (
+        <p key={i} className={styles.error} role="alert">
+          {m}
+        </p>
+      ))}
+      <input
+        ref={input}
+        type="file"
+        hidden
+        accept={UPLOAD_KINDS.image.accept}
+        onChange={(e) => {
+          take(e.target.files);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
+/** The same chooser in a window of its own, for places with no room for it inline. */
+export function PickerDialog({ title, value, onPick, onClose }: { title: string; value: string; onPick: (src: string) => void; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className={styles.pickerBackdrop} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={styles.pickerDialog} role="dialog" aria-modal="true" aria-label={title}>
+        <h3>{title}</h3>
+        <ImagePicker value={value} onPick={onPick} onClose={onClose} />
       </div>
     </div>
   );
@@ -405,6 +473,16 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
           className={styles.imageDrop}
           data-over={over}
           data-shape={shapePath ? shape : undefined}
+          role="button"
+          tabIndex={0}
+          title="Click to choose or upload a picture"
+          onClick={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setOpen(true);
+            }
+          }}
           onDragOver={(e) => {
             e.preventDefault();
             setOver(true);
@@ -434,7 +512,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
               ⬆ {value ? "Upload a new picture" : "Upload a picture"}
             </button>
             <button type="button" className={styles.pill} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-              From the library
+              Choose a picture
             </button>
             {value && (
               <button type="button" className={styles.link} onClick={() => set("")}>

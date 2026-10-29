@@ -86,6 +86,14 @@ export function StarTextureEditor({
         <div className={styles.texGrid} role="radiogroup" aria-label="Star texture">
           <button
             type="button"
+            className={`${styles.texTile} ${styles.texUpload}`}
+            disabled={status.kind === "busy"}
+            onClick={() => fileRef.current?.click()}
+          >
+            {status.kind === "busy" ? "Uploading…" : "+ Upload"}
+          </button>
+          <button
+            type="button"
             role="radio"
             aria-checked={!on}
             className={styles.texTile}
@@ -114,14 +122,6 @@ export function StarTextureEditor({
               </button>
             </div>
           ))}
-          <button
-            type="button"
-            className={`${styles.texTile} ${styles.texUpload}`}
-            disabled={status.kind === "busy"}
-            onClick={() => fileRef.current?.click()}
-          >
-            {status.kind === "busy" ? "Uploading…" : "+ Upload"}
-          </button>
         </div>
         <input
           ref={fileRef}
