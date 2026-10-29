@@ -97,6 +97,13 @@ export function Process() {
       copyOfIcon.setAttribute("xmlns", "http://www.w3.org/2000/svg");
       copyOfIcon.setAttribute("width", "64");
       copyOfIcon.setAttribute("height", "64");
+      // Only the icon's lines go in the mask, not its solid insides: the shapes' fills (the dark body of the pencil, the soft
+      // tints) would otherwise be covered by the colour completely. (The small filled play triangle is kept.)
+      copyOfIcon.querySelectorAll("[fill]").forEach((el) => {
+        const f = el.getAttribute("fill");
+        const keep = f === "currentColor" && el.getAttribute("stroke") === "none" && !el.hasAttribute("fill-opacity");
+        if (f !== "none" && !keep) el.setAttribute("fill", "none");
+      });
       tile.style.setProperty("--logo-mask", `url("data:image/svg+xml,${encodeURIComponent(copyOfIcon.outerHTML.replace(/currentColor/g, "#000"))}")`);
     });
   }, [copy.cards]);
