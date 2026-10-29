@@ -96,13 +96,29 @@
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.18),
     0 24px 50px rgba(0, 0, 0, 0.45);
+  backface-visibility: hidden;
   pointer-events: none;
   transition:
     transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 0.4s ease;
 }
 
-.stage[data-live="true"] .plate {
+/* The board's back: dark grey. */
+.plateBack {
+  position: absolute;
+  inset: -2%;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #3a3a41, #26262b 55%, #303036);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  backface-visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.4s ease;
+}
+
+.stage[data-live="true"] .plate,
+.stage[data-live="true"] .plateBack {
   transition: none;
 }
 
@@ -114,11 +130,33 @@
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
-  backface-visibility: visible;
+  backface-visibility: hidden; /* from behind, the mirrored picture is not shown: the layer's dark-grey back is (below) */
   transition:
     transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
     filter 0.4s ease,
     opacity 0.25s ease;
+}
+
+/* The back of a layer, seen only from behind: the layer's own shape, in dark grey (never the mirrored picture). */
+.layerBack {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(150deg, #44444b, #2b2b31);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  backface-visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.25s ease;
+}
+
+.stage[data-live="true"] .layerBack {
+  transition: none;
 }
 
 /* The soft shadow under each layer is costly on a 3D stack: kept for small stacks and while still, dropped for big

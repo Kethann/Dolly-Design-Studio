@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Breakdown } from "@/lib/content/types";
 import { versionedSrc } from "@/lib/images";
 import styles from "./BreakdownStage.module.css";
@@ -598,23 +598,42 @@ export const ExplodeStage = memo(function ExplodeStage({
               aria-hidden="true"
               style={{ opacity: open ? 1 : 0, transform: `translateZ(${open ? zOf(0) - Math.max(24, gap * 0.9) : -1}px)` }}
             />
+            {/* …and its back: seen from behind, the board is dark grey. */}
+            <div
+              className={styles.plateBack}
+              aria-hidden="true"
+              style={{ opacity: open ? 1 : 0, transform: `translateZ(${open ? zOf(0) - Math.max(24, gap * 0.9) : -1}px) rotateY(180deg)` }}
+            />
             {mounted &&
               item.layers.map((layer, i) => (
-                // eslint-disable-next-line @next/next/no-img-element -- transparent layer PNGs stacked in 3D
-                <img
-                  key={`${layer.image}-${i}`}
-                  src={versionedSrc(layer.image)}
-                  alt={layer.label || `Layer ${i + 1}`}
-                  draggable={false}
-                  decoding="async"
-                  loading="lazy"
-                  className={styles.layer}
-                  style={{
-                    opacity: hidden.includes(i) ? 0.06 : focusLayer !== null && focusLayer !== i ? 0.3 : 1,
-                    transform: `translateZ(${zOf(i)}px)`,
-                    transitionDelay: open && !live3d ? `${Math.min(i * 22, 360)}ms` : `${Math.min((n - 1 - i) * 14, 240)}ms`,
-                  }}
-                />
+                <Fragment key={`${layer.image}-${i}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- transparent layer PNGs stacked in 3D */}
+                  <img
+                    src={versionedSrc(layer.image)}
+                    alt={layer.label || `Layer ${i + 1}`}
+                    draggable={false}
+                    decoding="async"
+                    loading="lazy"
+                    className={styles.layer}
+                    style={{
+                      opacity: hidden.includes(i) ? 0.06 : focusLayer !== null && focusLayer !== i ? 0.3 : 1,
+                      transform: `translateZ(${zOf(i)}px)`,
+                      transitionDelay: open && !live3d ? `${Math.min(i * 22, 360)}ms` : `${Math.min((n - 1 - i) * 14, 240)}ms`,
+                    }}
+                  />
+                  {/* The layer's back. From behind, the picture would show mirrored; this shows its shape in dark grey instead. */}
+                  <span
+                    className={styles.layerBack}
+                    aria-hidden="true"
+                    style={{
+                      maskImage: `url("${versionedSrc(layer.image)}")`,
+                      WebkitMaskImage: `url("${versionedSrc(layer.image)}")`,
+                      opacity: hidden.includes(i) ? 0.06 : focusLayer !== null && focusLayer !== i ? 0.3 : 1,
+                      transform: `translateZ(${zOf(i)}px) rotateY(180deg)`,
+                      transitionDelay: open && !live3d ? `${Math.min(i * 22, 360)}ms` : `${Math.min((n - 1 - i) * 14, 240)}ms`,
+                    }}
+                  />
+                </Fragment>
               ))}
           </div>
         </div>
