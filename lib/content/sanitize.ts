@@ -1,5 +1,5 @@
 import { CATEGORIES, LANGUAGES, LEGACY_CATEGORIES } from "@/content/types";
-import { DEFAULT_GLASS, GLASS_COLOR_COUNT, GLASS_EFFECTS, OLD_GEMINI, OLD_GLASS, type GlassLook } from "./types";
+import { DEFAULT_GLASS, DEFAULT_MENU_TONES, GLASS_COLOR_COUNT, GLASS_EFFECTS, OLD_GEMINI, OLD_GLASS, OLD_SIX, type GlassLook } from "./types";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "./limits";
 import { defaultContent } from "./defaults";
 import { fontById } from "./fonts";
@@ -198,6 +198,7 @@ export function sanitizeContent(input: unknown): SiteContent {
     const own = [a, c, b, hexOr(gIn.colorD)].filter(Boolean);
     glassColors = earlier || own.length < GLASS_COLOR_COUNT[0] ? [...dg.colors] : own;
   }
+  if (glassColors.join() === OLD_SIX.join()) glassColors = [...dg.colors]; // the default just before the mesh gradient
   merged.theme.glass = {
     colors: glassColors,
     shuffle: typeof gIn.shuffle === "boolean" ? gIn.shuffle : dg.shuffle,
@@ -207,6 +208,10 @@ export function sanitizeContent(input: unknown): SiteContent {
     glow: Math.round(num(gIn.glow, 0, 0.8, dg.glow) * 100) / 100,
     effect: (GLASS_EFFECTS as unknown[]).includes(gIn.effect) ? (gIn.effect as GlassLook["effect"]) : dg.effect,
   };
+
+  // The menu's lamp colours: one real colour for each menu item.
+  const tonesIn = isObj(src.theme) && isObj(src.theme.menuTones) ? src.theme.menuTones : {};
+  merged.theme.menuTones = Object.fromEntries(Object.entries(DEFAULT_MENU_TONES).map(([id, d]) => [id, isHex(tonesIn[id]) ? (tonesIn[id] as string).toLowerCase() : d]));
 
   // Cards saved before “opens the breakdown viewer” existed: the one with the layers icon does.
   merged.home.process.cards = merged.home.process.cards.map((c) => ({

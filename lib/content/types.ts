@@ -48,6 +48,8 @@ export interface Theme {
   text: string;
   /** The look of the glass cards (the numbers, the founder) and the strip behind the menu. */
   glass: GlassLook;
+  /** The colour of the lamp light that falls on each menu item while it is the page you are on (by the item's id). */
+  menuTones: Record<string, string>;
 }
 
 /** The glass: a gradient between two colours, how strong it is, how blurred, and what kind of finish it has. */
@@ -165,9 +167,9 @@ export interface SiteContent {
 /** How many colours the glass can mix. */
 export const GLASS_COLOR_COUNT = [2, 6] as const;
 
-/** The glass as the site first has it: pink, light blue, dark blue, purple-blue, white and rose, like the Gemini gradient. */
+/** The glass as the site first has it: the Gemini mesh gradient: peach-orange, hot pink, magenta, violet, deep blue and cyan. */
 export const DEFAULT_GLASS: GlassLook = {
-  colors: ["#1e4fd8", "#6d5bff", "#7fd4ff", "#ffffff", "#ff6ec7", "#e8648a"],
+  colors: ["#ff8a4c", "#ff2d8a", "#d21fd8", "#7b2cff", "#2259ff", "#19e3ff"],
   shuffle: true,
   tint: 0.7,
   blur: 14,
@@ -179,13 +181,28 @@ export const DEFAULT_GLASS: GlassLook = {
 /** Earlier looks of the glass (saved settings in one of these move to the current default). */
 export const OLD_GLASS = { colorA: "#8b5cff", colorB: "#38a8ff" };
 export const OLD_GEMINI = { colorA: "#4285f4", colorC: "#9b72cb" };
+/** The six colours the glass had just before the mesh gradient. */
+export const OLD_SIX = ["#1e4fd8", "#6d5bff", "#7fd4ff", "#ffffff", "#ff6ec7", "#e8648a"];
 
 /** Ready-made sets of six colours to pick from in the portal. */
 export const GLASS_PRESETS: { name: string; colors: string[] }[] = [
-  { name: "Gemini", colors: ["#1e4fd8", "#6d5bff", "#7fd4ff", "#ffffff", "#ff6ec7", "#e8648a"] },
+  { name: "Gemini", colors: ["#ff8a4c", "#ff2d8a", "#d21fd8", "#7b2cff", "#2259ff", "#19e3ff"] },
+  { name: "Nebula", colors: ["#1b2bd9", "#3a5bff", "#6a8bff", "#b44dff", "#e04dff", "#c8d8ff"] },
+  { name: "Pastel", colors: ["#ffb199", "#ff7ab6", "#c58bff", "#8fb6ff", "#7ff0ff", "#ffffff"] },
   { name: "Neon", colors: ["#8b5cff", "#5f7dff", "#38d6ff", "#f2f7ff", "#ff4fd8", "#b04dff"] },
   { name: "Sunset", colors: ["#ff8a3d", "#ff3d8b", "#8b3dff", "#fff0e6", "#ffcf5c", "#ff5c5c"] },
   { name: "Aurora", colors: ["#2de2a6", "#38a8ff", "#9b5cff", "#f0fff9", "#7dffcf", "#4d6bff"] },
   { name: "Ocean", colors: ["#00d4ff", "#3a7bff", "#7a5cff", "#eefaff", "#00a3c4", "#1b3fd1"] },
   { name: "Gold", colors: ["#ffd36a", "#ff9a3d", "#ff5c8a", "#fffbe8", "#ffb14d", "#e84a7f"] },
 ];
+
+/** The lamp colour of each menu item, until the portal changes it. */
+export const DEFAULT_MENU_TONES: Record<string, string> = {
+  agency: "#ffc857",
+  clients: "#3ddcff",
+  about: "#ff6ec7",
+  work: "#9b6bff",
+  process: "#4d8bff",
+  services: "#3df2b0",
+  contact: "#ff7a59",
+};

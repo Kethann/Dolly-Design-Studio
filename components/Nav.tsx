@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { useContent } from "@/lib/content/context";
 import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
 import { goToSection, isPlainClick } from "@/lib/section-nav";
-import { NAV_TONES, NavIcon } from "./NavIcon";
+import { DEFAULT_MENU_TONES } from "@/lib/content/types";
+import { NavIcon } from "./NavIcon";
 import styles from "./Nav.module.css";
 
 export function Nav() {
@@ -17,7 +18,9 @@ export function Nav() {
   const linksRef = useRef<HTMLElement>(null);
   const linkRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
   /** Where the spotlight sits (over the current item), and whether it may glide there (not on the very first placing). */
-  const [beam, setBeam] = useState<{ left: number; width: number; animate: boolean } | null>(null);
+  const [beam, setBeam] = useState<{ left: number; width: number; lift: number; animate: boolean } | null>(null);
+  /** An item's lamp colour: the portal's, else the one it starts with. */
+  const toneOf = (id: string) => `var(--tone-${id}, ${DEFAULT_MENU_TONES[id] ?? "#ffc857"})`;
 
   // The item for the place you are: the full gallery (and a project on the home page), the Breakdowns page (it belongs to
   // "How we work"), or the home-page section in view.
@@ -43,7 +46,8 @@ export function Nav() {
   useEffect(() => {
     const place = (animate: boolean) => {
       const el = activeId ? linkRefs.current[activeId] : null;
-      if (el) setBeam({ left: el.offsetLeft, width: el.offsetWidth, animate });
+      // (lift: how far the bar's top is above the items, so the lamp's light starts at the top of the screen)
+      if (el) setBeam({ left: el.offsetLeft, width: el.offsetWidth, lift: (linksRef.current?.getBoundingClientRect().top ?? 0) - (linksRef.current?.closest("header")?.getBoundingClientRect().top ?? 0), animate });
     };
     place(false);
     const raf = requestAnimationFrame(() => place(true));
@@ -97,15 +101,15 @@ export function Nav() {
         <span className={styles.brandName}>{site.shortName}</span>
       </Link>
 
-      <nav ref={linksRef} className={styles.links} aria-label="Primary">
-        {/* The spotlight: a beam of light from above the screen onto the current item, in that item's own glow colour. It
-            glides from item to item. Items that are not the current one stay on the plain glass. */}
+      <nav ref={linksRef} className={styles.links} aria-label="Primary" data-lit={!!activeId}>
+        {/* The lamp: a soft cone of light from the top of the screen down onto the current item, in that item's own colour.
+            It glides from item to item; the other items dim. */}
         <span
           className={styles.beam}
           data-on={!!activeId && !!beam}
           data-animate={beam?.animate}
           aria-hidden="true"
-          style={{ left: beam?.left, width: beam?.width, ["--tone" as string]: NAV_TONES[activeId ?? ""] ?? "#ffc857" }}
+          style={{ left: beam?.left, width: beam?.width, ["--lift" as string]: `${beam?.lift ?? 0}px`, ["--tone" as string]: toneOf(activeId ?? "agency") }}
         />
         {navItems.map((item) => {
           const href = item.id === "work" ? "/work" : `/#${item.id}`;
@@ -120,7 +124,7 @@ export function Nav() {
               data-cursor="link"
               aria-current={isActive ? "page" : undefined}
               className={`${styles.link} ${isActive ? styles.linkActive : ""}`}
-              style={{ ["--tone" as string]: NAV_TONES[item.id] }}
+              style={{ ["--tone" as string]: toneOf(item.id) }}
               onClick={item.id === "work" ? undefined : glideOnHome(item.id)}
             >
               <NavIcon id={item.id} className={styles.icon} />
@@ -152,7 +156,7 @@ export function Nav() {
               key={item.id}
               href={item.id === "work" ? "/work" : `/#${item.id}`}
               className={`${styles.mobileLink} ${item.id === activeId ? styles.mobileActive : ""}`}
-              style={{ ["--tone" as string]: NAV_TONES[item.id] }}
+              style={{ ["--tone" as string]: toneOf(item.id) }}
               onClick={item.id === "work" ? () => setOpen(false) : glideOnHome(item.id)}
             >
               <NavIcon id={item.id} className={styles.mobileIcon} />

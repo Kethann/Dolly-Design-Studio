@@ -1,14 +1,4 @@
-/** A small line icon for each menu item (by the section it opens), and the glow colour that item takes when it is the page you are on. */
-export const NAV_TONES: Record<string, string> = {
-  agency: "#ffc857",
-  clients: "#3ddcff",
-  about: "#ff6ec7",
-  work: "#9b6bff",
-  process: "#4d8bff",
-  services: "#3df2b0",
-  contact: "#ff7a59",
-};
-
+/** A small line icon for each menu item, by the section it opens. */
 const PATHS: Record<string, React.ReactNode> = {
   // a studio building
   agency: (

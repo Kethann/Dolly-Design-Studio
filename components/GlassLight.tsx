@@ -6,11 +6,10 @@ import { DEFAULT_GLASS } from "@/lib/content/types";
 /** The glass colours, as the variables that hold them and what each is until the portal changes them. */
 const SLOTS = DEFAULT_GLASS.colors.map((color, i) => [i + 1, color] as const);
 
-/** The patches of colour on a card: the six glass colours, four shades blended from them, and then those colours again, so
- * the colours repeat across the glass. */
-const BLOBS = 16;
+/** The fields of colour on a card: the six glass colours and two shades blended from them. */
+const BLOBS = 8;
 
-/** Where each patch sits on a card: a tile of a 4 × 4 grid for each, shuffled, and nudged a little off its centre. */
+/** Where each patch sits on a card: a tile of a 4 × 2 grid for each, shuffled, and nudged a little off its centre. */
 function scatter(): { x: number; y: number }[] {
   const tiles = Array.from({ length: BLOBS }, (_, i) => i);
   for (let i = tiles.length - 1; i > 0; i--) {
@@ -18,8 +17,8 @@ function scatter(): { x: number; y: number }[] {
     [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
   }
   return tiles.map((t) => ({
-    x: ((t % 4) + 0.5) * 25 + (Math.random() - 0.5) * 20,
-    y: (Math.floor(t / 4) + 0.5) * 25 + (Math.random() - 0.5) * 20,
+    x: ((t % 4) + 0.5) * 25 + (Math.random() - 0.5) * 30,
+    y: (Math.floor(t / 4) + 0.5) * 50 + (Math.random() - 0.5) * 40,
   }));
 }
 
@@ -56,7 +55,7 @@ export function GlassLight() {
         order.forEach((slot, i) => card.style.setProperty(`--k${i + 1}`, `var(--glass-${SLOTS[slot][0]}, ${SLOTS[slot][1]})`));
       }
       const spots = fixed
-        ? Array.from({ length: BLOBS }, (_, i) => ({ x: ((i % 4) + 0.5) * 25, y: (Math.floor(i / 4) + 0.5) * 25 }))
+        ? Array.from({ length: BLOBS }, (_, i) => ({ x: ((i % 4) + 0.5) * 25, y: (Math.floor(i / 4) + 0.5) * 50 }))
         : scatter();
       places.set(card, spots);
       spots.forEach((p, i) => {
@@ -102,7 +101,7 @@ export function GlassLight() {
             best = i;
           }
         });
-        card.style.setProperty("--spot-c", `var(--k${(best % 10) + 1})`); // the later patches repeat the first ten colours
+        card.style.setProperty("--spot-c", `var(--k${best + 1})`);
       }
     };
     const onMove = (e: PointerEvent) => {

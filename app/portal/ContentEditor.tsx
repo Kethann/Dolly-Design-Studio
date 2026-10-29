@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { allFonts } from "@/lib/content/fonts";
 import { fontFaceCss, glassVars } from "@/lib/content/css";
-import { DEFAULT_GLASS, GLASS_COLOR_COUNT, GLASS_EFFECTS, GLASS_PRESETS, type GlassLook, type PageKey, type SiteContent, type TextStyle } from "@/lib/content/types";
+import { DEFAULT_GLASS, DEFAULT_MENU_TONES, GLASS_COLOR_COUNT, GLASS_EFFECTS, GLASS_PRESETS, type GlassLook, type PageKey, type SiteContent, type TextStyle } from "@/lib/content/types";
 import { Choice, ColorRow, Slider } from "./controls";
 import { styledTexts, type Field, type SchemaPage, type SchemaSection } from "./content-schema";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "@/lib/content/limits";
@@ -1380,6 +1380,29 @@ export function ThemeEditor() {
           {glassChanged && (
             <button type="button" className={styles.link} onClick={() => setGlass({ ...DEFAULT_GLASS, colors: [...DEFAULT_GLASS.colors] })}>
               Back to the original glass
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className={styles.section} data-open="true">
+        <div className={styles.sectionHeadStatic}>Menu lamp</div>
+        <div className={styles.sectionBody}>
+          <p className={styles.hint}>
+            The menu at the top lights the page you are on with a soft lamp from above, in that item&apos;s own colour; the other items dim. Pick each
+            item&apos;s colour.
+          </p>
+          {content.nav.map((n) => (
+            <ColorRow
+              key={n.id}
+              label={n.label}
+              value={content.theme.menuTones[n.id] ?? DEFAULT_MENU_TONES[n.id] ?? "#ffc857"}
+              onChange={(hex) => update((c) => ({ ...c, theme: { ...c.theme, menuTones: { ...c.theme.menuTones, [n.id]: hex } } }))}
+            />
+          ))}
+          {JSON.stringify(content.theme.menuTones) !== JSON.stringify(DEFAULT_MENU_TONES) && (
+            <button type="button" className={styles.link} onClick={() => update((c) => ({ ...c, theme: { ...c.theme, menuTones: { ...DEFAULT_MENU_TONES } } }))}>
+              Back to the original lamp colours
             </button>
           )}
         </div>

@@ -1,6 +1,6 @@
 import { fontById, fontStack, DEFAULT_FONT_ROLES, type CustomFontLike } from "./fonts";
 import { PAGE_KEYS } from "./page-key";
-import { DEFAULT_GLASS, type GlassLook, type SiteContent, type TextStyle } from "./types";
+import { DEFAULT_GLASS, DEFAULT_MENU_TONES, type GlassLook, type SiteContent, type TextStyle } from "./types";
 
 const FORMAT: Record<string, string> = { ttf: "truetype", otf: "opentype", woff: "woff", woff2: "woff2" };
 
@@ -20,7 +20,7 @@ export function glassVars(g: GlassLook): string[] {
   const clear = g.effect === "Clear";
   const frosted = g.effect === "Frosted";
   // Always six slots: a shorter list repeats round, and Frosted is all pale whites.
-  const pale = ["#ffffff", "#ece8ff", "#d9d4ff", "#ffffff", "#f3f0ff", "#e4deff"];
+  const pale = ["#ffffff", "#ece8ff", "#d9d4ff", "#f6f2ff", "#f3f0ff", "#e4deff"];
   const own = g.colors.length ? g.colors : DEFAULT_GLASS.colors;
   const six = Array.from({ length: 6 }, (_, i) => (frosted ? pale[i] : own[i % own.length]));
   // The colour under the cursor goes first colour, middle colour, last colour as the cursor crosses the glass (the
@@ -72,6 +72,8 @@ export function contentCss(c: Pick<SiteContent, "type" | "fonts" | "customFonts"
   if (c.theme.text !== THEME_DEFAULT.text) roots.push(`--ivory:${c.theme.text}`);
   const g = c.theme.glass;
   if (g && JSON.stringify(g) !== JSON.stringify(DEFAULT_GLASS)) roots.push(...glassVars(g));
+  // The menu's lamp colours, where the portal changed them.
+  for (const [id, hex] of Object.entries(c.theme.menuTones ?? {})) if (/^[a-z]+$/.test(id) && hex !== DEFAULT_MENU_TONES[id]) roots.push(`--tone-${id}:${hex}`);
   if (roots.length) parts.push(`:root{${roots.join(";")}}`);
   // A page's own fonts and accent apply to that page's content (the menu and footer keep the site's).
   for (const key of PAGE_KEYS) {

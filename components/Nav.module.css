@@ -45,24 +45,14 @@
   color: var(--ivory);
 }
 
-/* The menu: one pane of glass holding the items. They sit on the plain glass until one is the current page, which the
-   spotlight finds. */
+/* The menu items, on the frosted strip of the bar. While one of them is the page you are on, a lamp lights its whole
+   column and the others dim. */
 .links {
   position: relative;
   display: none;
   align-items: center;
-  gap: 2px;
-  padding: 5px 6px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 45%, rgba(255, 255, 255, 0.05)),
-    rgba(40, 20, 34, 0.3);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 10px 30px rgba(0, 0, 0, 0.3);
-  -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.2);
-  backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.2);
+  gap: 4px;
+  height: 100%;
 }
 
 @media (min-width: 860px) {
@@ -85,11 +75,16 @@
   text-transform: uppercase;
   white-space: nowrap;
   color: var(--ivory);
-  opacity: 0.72;
+  opacity: 0.78;
   transition:
-    opacity 0.25s ease,
-    background 0.25s ease,
-    color 0.25s ease;
+    opacity 0.45s ease,
+    color 0.45s ease,
+    text-shadow 0.45s ease;
+}
+
+/* While one item is lit, the others step back into the dark. */
+.links[data-lit="true"] .link:not(.linkActive) {
+  opacity: 0.42;
 }
 
 .icon {
@@ -100,21 +95,23 @@
     transform 0.3s ease;
 }
 
-.link:hover,
-.link:focus-visible {
+.links .link:hover,
+.links .link:focus-visible {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.07);
 }
 
 .link:hover .icon {
   transform: translateY(-1px) scale(1.08);
 }
 
-/* The current page: full brightness, its icon in its own glow colour. */
+/* The current page: full brightness, the words glowing softly in the lamp's colour. */
 .linkActive,
 .linkActive:hover {
   opacity: 1;
-  background: color-mix(in srgb, var(--tone) 13%, transparent);
+  color: #fff;
+  text-shadow:
+    0 0 10px color-mix(in srgb, var(--tone) 75%, transparent),
+    0 0 24px color-mix(in srgb, var(--tone) 45%, transparent);
 }
 
 .linkActive .icon {
@@ -122,9 +119,9 @@
   filter: drop-shadow(0 0 6px var(--tone));
 }
 
-/* The spotlight. It is one piece that slides along behind and above the items: a light-coloured triangle falling from
-   the top of the screen onto the current item (wide where it lands, narrow at the top), a glowing line under the item
-   and a soft pool of light around it. Its colour is the item's own and changes smoothly as it moves. */
+/* The lamp. One piece that glides along behind the items: a soft cone of light from the top of the screen down the
+   whole height of the bar onto the current item (narrow at the lamp, wide below), a bright glow where the lamp hangs and
+   a soft pool of light on the floor under the item. Its colour is the item's own and changes smoothly as it moves. */
 .beam {
   position: absolute;
   top: 0;
@@ -132,7 +129,6 @@
   z-index: 0;
   pointer-events: none;
   opacity: 0;
-  --beam-glow: color-mix(in srgb, var(--tone) 70%, transparent);
 }
 
 .beam[data-on="true"] {
@@ -141,37 +137,43 @@
 
 .beam[data-animate="true"] {
   transition:
-    left 0.55s cubic-bezier(0.22, 0.9, 0.25, 1),
-    width 0.55s cubic-bezier(0.22, 0.9, 0.25, 1),
-    opacity 0.35s ease,
-    --tone 0.55s ease;
+    left 0.6s cubic-bezier(0.22, 0.9, 0.25, 1),
+    width 0.6s cubic-bezier(0.22, 0.9, 0.25, 1),
+    opacity 0.45s ease,
+    --tone 0.6s ease;
 }
 
-/* The triangle of light. */
+/* The cone, from the very top of the screen to just below the bar. */
 .beam::before {
   content: "";
   position: absolute;
-  left: -26%;
-  right: -26%;
-  bottom: calc(100% - 10px);
-  height: 74px;
-  clip-path: polygon(calc(50% - 3px) 0, calc(50% + 3px) 0, 100% 100%, 0 100%);
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--tone) 22%, transparent) 40%, color-mix(in srgb, var(--tone) 62%, transparent));
-  filter: blur(1.5px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 55%);
-  mask-image: linear-gradient(to bottom, transparent, #000 55%);
+  left: -22%;
+  right: -22%;
+  top: calc(-1 * var(--lift, 0px));
+  bottom: -14px;
+  clip-path: polygon(38% 0, 62% 0, 100% 100%, 0 100%);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--tone) 70%, transparent),
+    color-mix(in srgb, var(--tone) 30%, transparent) 45%,
+    color-mix(in srgb, var(--tone) 10%, transparent) 85%,
+    transparent
+  );
+  filter: blur(7px);
 }
 
-/* The glowing line and pool under the item. */
+/* The lamp's own glow at the top, and the pool of light on the floor under the item. */
 .beam::after {
   content: "";
   position: absolute;
-  inset: 4px 0;
-  border-radius: 999px;
-  box-shadow:
-    0 0 20px 1px var(--beam-glow),
-    0 0 46px 4px color-mix(in srgb, var(--tone) 32%, transparent),
-    inset 0 -2px 0 var(--tone);
+  left: -30%;
+  right: -30%;
+  top: calc(-1 * var(--lift, 0px) - 18px);
+  bottom: -22px;
+  background:
+    radial-gradient(ellipse 38% 26px at 50% 18px, color-mix(in srgb, var(--tone) 85%, #fff 15%), transparent),
+    radial-gradient(ellipse 48% 16px at 50% calc(100% - 14px), color-mix(in srgb, var(--tone) 55%, transparent), transparent);
+  filter: blur(4px);
 }
 
 @media (prefers-reduced-motion: reduce) {
