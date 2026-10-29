@@ -297,3 +297,30 @@ html.portal-preview a[href="/work"],
 html.portal-preview a[href="/"] {
   pointer-events: none;
 }
+
+/* A pane of glass for cards that sit over the star field: a pale sheen, a bright rim, a soft blur of what is behind. */
+.glass-panel {
+  position: relative;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03) 42%, rgba(255, 255, 255, 0.07)),
+    rgba(40, 20, 34, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 40px rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  backdrop-filter: blur(10px) saturate(1.2);
+  overflow: hidden;
+}
+
+/* A diagonal glint across the glass. */
+.glass-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.12) 46%, transparent 60%);
+}

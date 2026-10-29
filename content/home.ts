@@ -67,6 +67,8 @@ export const home = {
     label: "About the Founder",
     /** A photo of the founder (empty = a monogram). */
     photo: "",
+    /** A short description shown on the glass profile card, under the name and role. */
+    cardNote: "Designing film posters, title logos and typography for Telugu cinema.",
     /** [CLIENT TO CONFIRM] Add a fuller bio and a photo when ready. */
     paragraphs: [
       "Sasank Muppalla is the founder and creative director of Dolly Design Studio, designing film posters, title logos and typography from Bangalore.",
@@ -92,11 +94,13 @@ export const home = {
     form: {
       nameLabel: "Name",
       emailLabel: "Email",
+      phoneLabel: "Phone number",
       companyLabel: "Company / Production",
       projectTypeLabel: "Project type",
       budgetLabel: "Budget range",
       timelineLabel: "Timeline",
-      messageLabel: "Message",
+      messageLabel: "Describe your project",
+      messagePlaceholder: "What are you making, who is it for, and when do you need it?",
       selectPlaceholder: "Select one",
       submitButton: "Send message",
       sendingButton: "Sending…",
@@ -114,7 +118,7 @@ export const home = {
       timelines: ["Under 2 weeks", "2 – 4 weeks", "1 – 3 months", "Flexible"],
       errors: {
         generic: "Something went wrong.",
-        missingFields: "Please fill in your name, a valid email, project type and message.",
+        missingFields: "Please check the highlighted fields and try again.",
         tooManyRequests: "Too many requests. Please try again later.",
         sendFailed: "Could not send your message right now. Please email us directly.",
         badRequest: "Invalid request body.",

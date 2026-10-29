@@ -44,7 +44,7 @@
 
 .viewport {
   /* Height of the picture zone: every logo and portrait is centred in it, and the stars sit on its middle line. */
-  --media-h: clamp(72px, 7.5vw, 108px);
+  --media-h: clamp(112px, 12vw, 180px);
   overflow: hidden;
   padding-block: 22px;
   border-block: 1px solid var(--smoke);
@@ -108,7 +108,7 @@
 /* ── a row with pictures: logo or round photo on top, name underneath ───── */
 
 .item {
-  --gap: clamp(56px, 8vw, 112px);
+  --gap: clamp(64px, 9vw, 130px);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -133,9 +133,9 @@
 
 .logo {
   display: block;
-  height: clamp(54px, 6vw, 84px);
+  height: clamp(84px, 9vw, 132px);
   width: auto;
-  max-width: clamp(130px, 15vw, 210px);
+  max-width: clamp(190px, 22vw, 320px);
   object-fit: contain;
   transition: transform 0.35s ease, filter 0.35s ease;
 }
@@ -157,7 +157,7 @@
 .textMark {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(20px, 2.6vw, 30px);
+  font-size: clamp(24px, 3vw, 38px);
   white-space: nowrap;
   color: var(--ivory);
   opacity: 0.7;
@@ -177,17 +177,17 @@
 
 /* The name: always centred under its picture; long names wrap to two tidy lines. */
 .caption {
-  width: clamp(120px, 13vw, 170px);
+  width: clamp(150px, 17vw, 230px);
   min-height: 2.6em;
   text-align: center;
   white-space: normal;
   font-family: var(--font-label);
-  font-size: clamp(9px, 0.9vw, 11px);
+  font-size: clamp(11px, 1.05vw, 14px);
   line-height: 1.3;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--ivory);
-  opacity: 0.75;
+  opacity: 0.85;
 }
 
 /* The star between two items sits on the middle line of the pictures, halfway into the gap. */

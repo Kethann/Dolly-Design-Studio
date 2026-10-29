@@ -233,3 +233,38 @@
     display: none;
   }
 }
+
+/* Mistakes are shown right under the field they belong to. */
+.field input[aria-invalid="true"],
+.field select[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
+  border-color: #ff8a80;
+}
+
+.fieldError {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #ff9d94;
+}
+
+.fieldMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.counter {
+  flex: none;
+  margin-top: 6px;
+  font-family: var(--font-label);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  opacity: 0.55;
+}
+
+.counter[data-low="true"] {
+  color: #ff9d94;
+  opacity: 1;
+}

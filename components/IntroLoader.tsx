@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { STAR_UNIT_PATH } from "@/content/generated/logo-paths";
-import { NIB_PATH, NIB_VIEWBOX } from "@/content/generated/nib-path";
 import { introProgress, onIntroProgress } from "@/lib/intro/loading";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import styles from "./IntroLoader.module.css";
@@ -30,9 +29,27 @@ const SPECKS = Array.from({ length: 150 }, (_, i) => {
   return { x: +(Math.cos(a) * r).toFixed(3), y: +(Math.sin(a) * r).toFixed(3), r: 0.006 + ((i * 7) % 4) * 0.003, o: 0.12 + ((i * 13) % 5) * 0.06 };
 });
 
+/** The ring, drawn in one SVG so the track, the fading tail and the dot share exactly one centre and turn as a single piece. */
+const RING_R = 48.5;
+const TAIL_STEP = 4; // degrees per segment
+const TAIL_SEGMENTS = 66; // 264°: the tail fades out over three quarters of the way round
+const polar = (deg: number) => {
+  const a = ((deg - 90) * Math.PI) / 180;
+  return `${(Math.cos(a) * RING_R).toFixed(3)} ${(Math.sin(a) * RING_R).toFixed(3)}`;
+};
+/** Segment j runs from j steps behind the head to j+1 steps behind it (the ring turns clockwise, so "behind" is anticlockwise). */
+const TAIL = Array.from({ length: TAIL_SEGMENTS }, (_, j) => {
+  const t = j / TAIL_SEGMENTS;
+  return {
+    d: `M ${polar(-j * TAIL_STEP)} A ${RING_R} ${RING_R} 0 0 0 ${polar(-(j + 1) * TAIL_STEP - 0.4)}`,
+    o: +(0.95 * Math.pow(1 - t, 1.7)).toFixed(3),
+    hot: t < 0.25,
+  };
+});
+
 /**
  * While the intro loads: a faceted, spun-metal gold star — the same look as the stars on the page — turning slowly in
- * the centre, inside a ring tight around it. A pen leads round the ring and the rest of the circle follows behind it as
+ * the centre, inside a ring tight around it. A glowing point leads round the ring and the rest of the circle follows behind it as
  * a fading tail, turning without a pause. No numbers. When everything has loaded the loader fades away as the intro's
  * stars appear. Rendered on the server, so it's there from the very first paint; both spins are pure CSS, so they keep
  * turning smoothly even while the scene is being built.
@@ -86,19 +103,33 @@ export function IntroLoader() {
       style={{ "--pen-size": 0.75, "--pen-color": color, "--pen-glow": glow } as React.CSSProperties}
     >
       <div className={styles.mark}>
-        {/* The ring, tight around the star: a hairline track, and a comet — the pen at the head, the circle fading out
+        {/* The ring, tight around the star: a hairline track, and a comet — a glowing dot at the head, the circle fading out
             behind it — turning round it. */}
         <div className={styles.ring} aria-hidden="true">
-          <div className={styles.track} />
+          <svg className={styles.track} viewBox="-50 -50 100 100">
+            <circle r={RING_R} fill="none" stroke="rgba(244,237,225,0.12)" strokeWidth="2" />
+          </svg>
           <div className={styles.comet}>
-            <div className={styles.tail} />
-            <div className={styles.head}>
-              <div className={styles.nib}>
-                <svg viewBox={NIB_VIEWBOX} width="30">
-                  <path d={NIB_PATH} />
-                </svg>
-              </div>
-            </div>
+            <svg viewBox="-50 -50 100 100">
+              <defs>
+                <radialGradient id="loader-dot" cx="0.4" cy="0.35" r="0.7">
+                  <stop offset="0" stopColor="#ffffff" />
+                  <stop offset="0.55" stopColor="var(--pen-color, #fff195)" />
+                  <stop offset="1" stopColor="#e8b04b" />
+                </radialGradient>
+              </defs>
+              <g fill="none" strokeWidth="2">
+                {TAIL.map((seg, i) => (
+                  <path key={i} d={seg.d} stroke={seg.hot ? "#fff1b8" : "#f0c564"} strokeOpacity={seg.o} />
+                ))}
+              </g>
+              {/* The dot sits exactly on the ring's line, with a soft halo (plain circles: no filter to repaint). */}
+              <g transform={`translate(0 ${-RING_R})`}>
+                <circle r="7" fill="var(--pen-glow, #ffd36a)" opacity="0.16" />
+                <circle r="4.6" fill="var(--pen-color, #fff195)" opacity="0.4" />
+                <circle r="2.9" fill="url(#loader-dot)" />
+              </g>
+            </svg>
           </div>
         </div>
 

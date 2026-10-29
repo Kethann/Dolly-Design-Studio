@@ -167,7 +167,7 @@
 @media (min-width: 1000px) {
   .row {
     display: grid;
-    grid-template-columns: minmax(250px, 0.3fr) minmax(0, 1fr);
+    grid-template-columns: minmax(230px, 0.24fr) minmax(0, 1fr);
     gap: clamp(24px, 3.5vw, 56px);
     align-items: start;
   }
@@ -254,8 +254,9 @@
   opacity: 0.55;
 }
 
-/* ── the numbers along the right edge ────────────────────────────────────── */
+/* ── moving between breakdowns ───────────────────────────────────────────── */
 
+/* Wide screens: a slim column at the right edge: previous, a scrolling list of numbers, next. */
 .rail {
   position: fixed;
   right: clamp(10px, 1.6vw, 26px);
@@ -264,10 +265,30 @@
   z-index: 20;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
+  max-height: min(78vh, 520px);
 }
 
-.rail button {
+.railList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 2px;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 6%, #000 94%, transparent);
+}
+
+.railList::-webkit-scrollbar {
+  display: none;
+}
+
+.rail button,
+.dock button {
+  flex: none;
   width: 30px;
   height: 30px;
   display: grid;
@@ -284,7 +305,12 @@
   transition:
     background 0.25s ease,
     color 0.25s ease,
-    border-color 0.25s ease;
+    border-color 0.25s ease,
+    opacity 0.25s ease;
+}
+
+.rail .railStep {
+  font-size: 9px;
 }
 
 .rail button[data-on="true"] {
@@ -293,10 +319,23 @@
   background: linear-gradient(180deg, #ffe9a6, #e8b04b);
 }
 
-.rail button:hover:not([data-on="true"]),
-.rail button:focus-visible {
+.rail button:hover:not([data-on="true"]):not(:disabled),
+.rail button:focus-visible,
+.dock button:hover:not(:disabled),
+.dock button:focus-visible {
   border-color: var(--gold);
   outline: none;
+}
+
+.rail button:disabled,
+.dock button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Phones: a bar along the bottom instead. */
+.dock {
+  display: none;
 }
 
 @keyframes bp-rise {
@@ -309,6 +348,61 @@
 @media (max-width: 760px) {
   .rail {
     display: none;
+  }
+
+  .dock {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(20, 10, 16, 0.78);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+
+  .dock button {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .dockText {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    font-family: var(--font-label);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .dockText b {
+    color: var(--gold-bright);
+    font-size: 11px;
+  }
+
+  .dockText span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.75;
+  }
+
+  /* Room under the last breakdown for the bar. */
+  .page {
+    padding-bottom: 110px;
   }
 }
 

@@ -29,6 +29,7 @@ import mac from "./mac.module.css";
 import { ProofTableEditor } from "./ProofTableEditor";
 import { AccountPanel } from "./AccountPanel";
 import { ActivityPanel } from "./ActivityPanel";
+import { InboxPanel } from "./InboxPanel";
 import { BreakdownsEditor } from "./BreakdownsEditor";
 import { SweepEditor } from "./SweepEditor";
 import type { PortalUser } from "@/lib/portal/users";
@@ -107,7 +108,8 @@ type Tab =
   | "cursor"
   | "playback"
   | "account"
-  | "activity";
+  | "activity"
+  | "inbox";
 
 interface WinDef {
   title: string;
@@ -143,6 +145,7 @@ const WINDOWS: Record<Tab, WinDef> = {
   cursor: { title: "Cursor & glow", hint: "The pen that follows the mouse, and the glow when you hover.", glyph: "cursor", tint: ["#ffe28a", "#d9892a"], w: 420, h: 600 },
   playback: { title: "Preview controls", hint: "Replay the opening animation, or pause it on any moment to adjust.", glyph: "playback", tint: ["#d0d0d8", "#6a6a78"], w: 560, h: 250, small: true },
   account: { title: "People & passwords", hint: "Your username, email and password; who can sign in, their roles, and the email codes.", glyph: "account", tint: ["#9bb4c9", "#4a6075"], w: 560, h: 680 },
+  inbox: { title: "Enquiries", hint: "Messages sent through the contact form on your site: read, reply, archive or delete them.", glyph: "inbox", tint: ["#ffd36a", "#e8742a"], w: 520, h: 680 },
   activity: { title: "Activity log", hint: "Who signed in, and what each person published, uploaded or changed.", glyph: "activity", tint: ["#b5e0a8", "#4f9a56"], w: 520, h: 680 },
 };
 
@@ -152,7 +155,7 @@ const DOCK: DockGroup[] = [
   { name: "Page look", items: [dockItem("background"), dockItem("theme"), dockItem("glass")] },
   { name: "Stars", items: [dockItem("colours"), dockItem("finish"), dockItem("layers"), dockItem("motion")] },
   { name: "Animation", items: [dockItem("intro"), dockItem("cursor"), dockItem("playback")] },
-  { name: "Account", items: [dockItem("account"), dockItem("activity")] },
+  { name: "Account", items: [dockItem("inbox"), dockItem("account"), dockItem("activity")] },
 ];
 
 const DESIGN_WORDS: Partial<Record<Tab, string>> = {
@@ -171,6 +174,7 @@ const DESIGN_WORDS: Partial<Record<Tab, string>> = {
   type: "fonts typography typeface upload font file ttf otf woff size weight italic spacing text style headings paragraphs",
   playback: "play pause hold scrub timeline intro preview",
   account: "users people password login sign in security owner editor account username email reset forgot otp code two-step smtp gmail",
+  inbox: "enquiries inbox contact form messages submissions leads email phone reply clients",
   activity: "activity log history audit who signed in logged in changes published uploaded when",
 };
 
@@ -1778,6 +1782,7 @@ export function PortalEditor({
           )}
           {tab === "account" && <AccountPanel me={user} />}
           {tab === "activity" && <ActivityPanel me={user} />}
+          {tab === "inbox" && <InboxPanel />}
     </>
   );
 
@@ -1917,7 +1922,7 @@ export function PortalEditor({
             onClose={() => closeWin(id)}
             onChange={(patch) => setWins((w) => (w[id] ? { ...w, [id]: { ...w[id]!, ...patch } } : w))}
           >
-            {id !== "playback" && id !== "account" && id !== "activity" && (
+            {id !== "playback" && id !== "account" && id !== "activity" && id !== "inbox" && (
               <p className={mac.winHint}>{WINDOWS[id].hint}</p>
             )}
             {renderPanel(id)}

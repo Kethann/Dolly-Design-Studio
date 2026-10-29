@@ -8,6 +8,57 @@ import { glideTo } from "@/lib/smooth-scroll";
 import styles from "./BreakdownsPage.module.css";
 
 /**
+ * Moving between breakdowns: on a wide screen a slim column at the right edge (previous, next, and a scrolling list of
+ * numbers, however many there are); on a phone a bar along the bottom with previous, next and where you are.
+ */
+function BreakdownNav({ items, current, onGo }: { items: string[]; current: number; onGo: (i: number) => void }) {
+  const list = useRef<HTMLDivElement>(null);
+  const last = items.length - 1;
+
+  // Keep the current number in view inside the column.
+  useEffect(() => {
+    const box = list.current;
+    const btn = box?.children[current] as HTMLElement | undefined;
+    if (!box || !btn) return;
+    box.scrollTo({ top: btn.offsetTop - box.clientHeight / 2 + btn.offsetHeight / 2, behavior: "smooth" });
+  }, [current]);
+
+  return (
+    <>
+      <nav className={styles.rail} aria-label="Breakdowns">
+        <button type="button" className={styles.railStep} onClick={() => onGo(Math.max(0, current - 1))} disabled={current <= 0} aria-label="Previous breakdown" title="Previous breakdown">
+          ▲
+        </button>
+        <div ref={list} className={styles.railList}>
+          {items.map((title, i) => (
+            <button key={i} type="button" data-on={i === current} onClick={() => onGo(i)} aria-label={`${title} (${i + 1} of ${items.length})`} aria-current={i === current ? "true" : undefined} title={title}>
+              <span>{i + 1}</span>
+            </button>
+          ))}
+        </div>
+        <button type="button" className={styles.railStep} onClick={() => onGo(Math.min(last, current + 1))} disabled={current >= last} aria-label="Next breakdown" title="Next breakdown">
+          ▼
+        </button>
+      </nav>
+      <nav className={styles.dock} aria-label="Breakdowns">
+        <button type="button" onClick={() => onGo(Math.max(0, current - 1))} disabled={current <= 0} aria-label="Previous breakdown">
+          ‹
+        </button>
+        <span className={styles.dockText}>
+          <b>
+            {current + 1} / {items.length}
+          </b>
+          <span>{items[current]}</span>
+        </span>
+        <button type="button" onClick={() => onGo(Math.min(last, current + 1))} disabled={current >= last} aria-label="Next breakdown">
+          ›
+        </button>
+      </nav>
+    </>
+  );
+}
+
+/**
  * The Breakdowns page: every design the studio has taken apart, one after another down an ordinary page. Each one is
  * the finished artwork; put the cursor on it (or tap it) and it falls apart into labelled layers.
  */
@@ -27,7 +78,10 @@ export function BreakdownsPage() {
 
   const goTo = useCallback((i: number) => {
     const el = entries.current[i];
-    if (el) glideTo(el);
+    if (!el) return;
+    // Land just below the menu bar (Lenis ignores CSS scroll-margin, so the offset is worked out here).
+    const bar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 72;
+    glideTo(Math.max(0, el.getBoundingClientRect().top + window.scrollY - bar - 20));
   }, []);
 
   // A link such as /breakdowns#b2 lands on that breakdown.
@@ -38,7 +92,7 @@ export function BreakdownsPage() {
     return () => clearTimeout(t);
   }, [goTo]);
 
-  // Entries fade up as they arrive, and the side numbers follow where you are.
+  // Entries fade up as they arrive.
   useEffect(() => {
     const seen = new IntersectionObserver(
       (list) => {
@@ -46,20 +100,40 @@ export function BreakdownsPage() {
       },
       { threshold: 0.12 },
     );
-    const where = new IntersectionObserver(
-      (list) => {
-        for (const e of list) if (e.isIntersecting) setCurrent(entries.current.indexOf(e.target as HTMLElement));
-      },
-      { rootMargin: "-40% 0px -55% 0px" },
-    );
-    entries.current.forEach((el) => {
-      if (!el) return;
-      seen.observe(el);
-      where.observe(el);
-    });
+    entries.current.forEach((el) => el && seen.observe(el));
+    return () => seen.disconnect();
+  }, [items.length]);
+
+  // The side numbers follow where you are: the entry covering the upper-middle of the screen. Measured on scroll (not
+  // with observers), so a tall entry can never leave the number stuck or skip one.
+  useEffect(() => {
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const line = window.innerHeight * 0.4;
+      let best = 0;
+      let bestDist = Infinity;
+      entries.current.forEach((el, i) => {
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const dist = r.top <= line && r.bottom >= line ? 0 : Math.min(Math.abs(r.top - line), Math.abs(r.bottom - line));
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = i;
+        }
+      });
+      setCurrent(best);
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
     return () => {
-      seen.disconnect();
-      where.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
     };
   }, [items.length]);
 
@@ -144,7 +218,7 @@ export function BreakdownsPage() {
                 <span className={styles.layerCount}>{item.layers.length} {item.layers.length === 1 ? "layer" : "layers"}</span>
               </div>
               <div className={styles.visual}>
-                <ExplodeStage item={item} openSignal={signals[i] ?? 0} onOpenChange={(o) => setOpen(i, o)} />
+                <ExplodeStage item={item} index={i} openSignal={signals[i] ?? 0} onOpenChange={setOpen} />
               {item.layers.length > 1 && (
                 <p className={styles.hint} {...tx(touch ? "breakdownsPage.hintTouch" : "breakdownsPage.hintMouse")}>
                   {touch ? t.hintTouch : t.hintMouse}
@@ -156,15 +230,7 @@ export function BreakdownsPage() {
         ))}
       </div>
 
-      {items.length > 1 && (
-        <nav className={styles.rail} aria-label="Breakdowns">
-          {items.map((it, i) => (
-            <button key={i} type="button" data-on={i === current} onClick={() => goTo(i)} aria-label={`${it.title} (${i + 1} of ${items.length})`} aria-current={i === current} title={it.title}>
-              <span>{i + 1}</span>
-            </button>
-          ))}
-        </nav>
-      )}
+      {items.length > 1 && <BreakdownNav items={items.map((b) => b.title)} current={current} onGo={goTo} />}
     </section>
   );
 }

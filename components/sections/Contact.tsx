@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useContent, tx } from "@/lib/content/context";
 import { Magnetic } from "@/components/Magnetic";
+import { CONTACT_LIMITS, validateContact, type ContactErrors, type ContactField } from "@/lib/contact/validate";
 import styles from "./Contact.module.css";
 
 type Status = "idle" | "sending" | "sent" | "error";
@@ -13,34 +14,93 @@ export function Contact() {
   const form = copy.form;
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  /** What is wrong with each field, shown beside it. A field is only checked once it has been left, or on sending. */
+  const [fieldErrors, setFieldErrors] = useState<ContactErrors>({});
+  const [chars, setChars] = useState(0);
+  const touched = useRef(new Set<ContactField>());
   const [flakes, setFlakes] = useState<{ id: number; left: number; delay: number }[]>([]);
+
+  /** Checks the form as it stands; only the fields in `which` have their message shown. */
+  function check(formEl: HTMLFormElement, which: Iterable<ContactField>) {
+    const { errors } = validateContact(Object.fromEntries(new FormData(formEl).entries()));
+    const shown = new Set(which);
+    setFieldErrors(Object.fromEntries(Object.entries(errors).filter(([k]) => shown.has(k as ContactField))) as ContactErrors);
+    return errors;
+  }
+
+  function onLeave(e: React.FocusEvent<HTMLFormElement>) {
+    const name = (e.target as unknown as HTMLInputElement).name as ContactField;
+    if (!name || name === ("website" as string)) return;
+    touched.current.add(name);
+    check(e.currentTarget, touched.current);
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setStatus("sending");
-    setErrorMsg("");
-
+    if (status === "sending") return;
     const formEl = e.currentTarget;
     const data = Object.fromEntries(new FormData(formEl).entries());
+    setErrorMsg("");
 
+    const problems = validateContact(data).errors;
+    const keys = Object.keys(problems) as ContactField[];
+    keys.forEach((k) => touched.current.add(k));
+    check(formEl, [...touched.current, ...keys]);
+    if (keys.length) {
+      setStatus("error");
+      setErrorMsg(form.errors.missingFields);
+      formEl.querySelector<HTMLElement>(`[name="${keys[0]}"]`)?.focus();
+      return;
+    }
+
+    setStatus("sending");
     try {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 20_000);
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || form.errors.generic);
+        signal: ctl.signal,
+      }).finally(() => clearTimeout(timer));
+      const json = (await res.json().catch(() => ({}))) as { error?: string; fields?: ContactErrors };
+      if (!res.ok) {
+        if (json.fields) {
+          setFieldErrors(json.fields);
+          formEl.querySelector<HTMLElement>(`[name="${Object.keys(json.fields)[0]}"]`)?.focus();
+        }
+        throw new Error(json.error || form.errors.generic);
+      }
       setStatus("sent");
       setFlakes(
         Array.from({ length: 24 }, (_, i) => ({ id: i, left: Math.random() * 100, delay: Math.random() * 0.6 })),
       );
       formEl.reset();
+      touched.current.clear();
+      setFieldErrors({});
+      setChars(0);
     } catch (err) {
       setStatus("error");
-      setErrorMsg(err instanceof Error ? err.message : form.errors.generic);
+      setErrorMsg(
+        err instanceof DOMException && err.name === "AbortError"
+          ? "This is taking too long. Check your connection and try again."
+          : err instanceof TypeError
+            ? "Couldn’t reach the server. Check your connection and try again."
+            : err instanceof Error
+              ? err.message
+              : form.errors.generic,
+      );
     }
   }
+
+  /** The attributes that tie a field to its error message for screen readers. */
+  const bad = (f: ContactField) => ({ "aria-invalid": fieldErrors[f] ? true : undefined, "aria-describedby": fieldErrors[f] ? `err-${f}` : undefined });
+  const err = (f: ContactField) =>
+    fieldErrors[f] ? (
+      <p id={`err-${f}`} className={styles.fieldError} role="alert">
+        {fieldErrors[f]}
+      </p>
+    ) : null;
 
   return (
     <section id="contact" className={styles.section}>
@@ -85,16 +145,24 @@ export function Contact() {
             </div>
           </div>
 
-          <form className={styles.form} onSubmit={onSubmit}>
+          <form className={styles.form} onSubmit={onSubmit} onBlur={onLeave} noValidate>
             <div className={styles.row2}>
               <div className={styles.field}>
                 <label htmlFor="name">{form.nameLabel}</label>
-                <input id="name" name="name" type="text" required autoComplete="name" />
+                <input id="name" name="name" type="text" required autoComplete="name" maxLength={CONTACT_LIMITS.nameMax} {...bad("name")} />
+                {err("name")}
               </div>
               <div className={styles.field}>
                 <label htmlFor="email">{form.emailLabel}</label>
-                <input id="email" name="email" type="email" required autoComplete="email" />
+                <input id="email" name="email" type="email" required autoComplete="email" maxLength={CONTACT_LIMITS.emailMax} {...bad("email")} />
+                {err("email")}
               </div>
+            </div>
+
+            <div className={styles.field}>
+              <label htmlFor="phone">{form.phoneLabel}</label>
+              <input id="phone" name="phone" type="tel" inputMode="tel" required autoComplete="tel" placeholder="+91 98765 43210" maxLength={24} {...bad("phone")} />
+              {err("phone")}
             </div>
 
             <div className={styles.field}>
@@ -105,7 +173,7 @@ export function Contact() {
             <div className={styles.row2}>
               <div className={styles.field}>
                 <label htmlFor="projectType">{form.projectTypeLabel}</label>
-                <select id="projectType" name="projectType" required defaultValue="">
+                <select id="projectType" name="projectType" required defaultValue="" {...bad("projectType")}>
                   <option value="" disabled>
                     {form.selectPlaceholder}
                   </option>
@@ -115,6 +183,7 @@ export function Contact() {
                     </option>
                   ))}
                 </select>
+                {err("projectType")}
               </div>
               <div className={styles.field}>
                 <label htmlFor="budget">{form.budgetLabel}</label>
@@ -147,7 +216,22 @@ export function Contact() {
 
             <div className={styles.field}>
               <label htmlFor="message">{form.messageLabel}</label>
-              <textarea id="message" name="message" rows={4} required />
+              <textarea
+                id="message"
+                name="message"
+                rows={5}
+                required
+                maxLength={CONTACT_LIMITS.messageMax}
+                placeholder={form.messagePlaceholder}
+                onChange={(e) => setChars(e.target.value.length)}
+                {...bad("message")}
+              />
+              <div className={styles.fieldMeta}>
+                {err("message") ?? <span />}
+                <span className={styles.counter} data-low={chars > 0 && chars < CONTACT_LIMITS.messageMin}>
+                  {chars} / {CONTACT_LIMITS.messageMax}
+                </span>
+              </div>
             </div>
 
             {/* Honeypot — hidden from real visitors, bots fill it in. */}
@@ -162,8 +246,10 @@ export function Contact() {
               </button>
             </Magnetic>
 
-            {status === "sent" && <p className={`${styles.status} ${styles.statusOk}`}>{form.successMessage}</p>}
-            {status === "error" && <p className={`${styles.status} ${styles.statusError}`}>{errorMsg}</p>}
+            <div aria-live="polite">
+              {status === "sent" && <p className={`${styles.status} ${styles.statusOk}`}>{form.successMessage}</p>}
+              {status === "error" && <p className={`${styles.status} ${styles.statusError}`}>{errorMsg}</p>}
+            </div>
           </form>
         </div>
       </div>

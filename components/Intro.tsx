@@ -6,7 +6,7 @@ import { postToPortal, useIntroSettings } from "@/lib/intro/settings-context";
 import { settleHandoff } from "@/lib/intro/handoff";
 import type { PreviewRun } from "@/lib/intro/preview-protocol";
 import { IntroFirstLight } from "./IntroFirstLight";
-import { reportIntroProgress } from "@/lib/intro/loading";
+import { introProgress, reportIntroProgress } from "@/lib/intro/loading";
 
 // three.js only loads for visitors who actually get the 3D intro…
 const loadStarIntro = () =>
@@ -21,8 +21,13 @@ if (typeof window !== "undefined" && window.location.pathname === "/" && !window
   void loadStarIntro();
 }
 
-/** Longest the intro may hold the page before we reveal it regardless (the show itself is ~8s). */
-const FAILSAFE_MS = 16000;
+/**
+ * How long the visitor waits on the loader for the show to get on screen (its code, scene and shaders). If it is not
+ * playing by then the page is revealed instead, and whatever is still loading carries on quietly in the background.
+ */
+const LOAD_FAILSAFE_MS = 5000;
+/** Hard stop for the whole intro, in case a show that did start then hangs (the show itself is ~8s). */
+const FAILSAFE_MS = 14000;
 
 function supportsWebGL(): boolean {
   try {
@@ -133,11 +138,17 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run]);
 
-  // Safety net: whatever happens (slow chunk load, GPU trouble), the page appears. Not for held preview frames.
+  // Safety nets: whatever happens (slow chunk load, GPU trouble), the page appears: after 5s if the show has not started, and after 14s at the latest. Not for held preview frames.
   useEffect(() => {
     if ((mode !== "stars" && mode !== "fallback") || run?.paused) return;
-    const timer = setTimeout(skip, FAILSAFE_MS);
-    return () => clearTimeout(timer);
+    const slowLoad = setTimeout(() => {
+      if (introProgress() < 1) skip(); // still loading after 5s: show the page now
+    }, LOAD_FAILSAFE_MS);
+    const hardStop = setTimeout(skip, FAILSAFE_MS);
+    return () => {
+      clearTimeout(slowLoad);
+      clearTimeout(hardStop);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, run]);
 

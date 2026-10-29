@@ -1,6 +1,7 @@
 import { CATEGORIES, LANGUAGES } from "@/content/types";
 import { defaultContent } from "./defaults";
 import { fontById } from "./fonts";
+import { MAX_BREAKDOWNS, MAX_BREAKDOWN_LAYERS } from "./limits";
 import type { Breakdown, CustomFont, SiteContent, TextStyle } from "./types";
 
 const MAX_TEXT = 8000;
@@ -175,14 +176,13 @@ export function sanitizeContent(input: unknown): SiteContent {
   }));
 
   // Breakdowns: a title, and layers that are pictures from the library (a layer without one is left out).
-  merged.breakdowns = (Array.isArray(src.breakdowns) ? src.breakdowns : []).slice(0, 12).flatMap((raw): Breakdown[] => {
+  merged.breakdowns = (Array.isArray(src.breakdowns) ? src.breakdowns : []).slice(0, MAX_BREAKDOWNS).flatMap((raw): Breakdown[] => {
     if (!isObj(raw)) return [];
-    const layers = (Array.isArray(raw.layers) ? raw.layers : []).slice(0, 24).flatMap((l) => {
+    const layers = (Array.isArray(raw.layers) ? raw.layers : []).slice(0, MAX_BREAKDOWN_LAYERS).flatMap((l) => {
       if (!isObj(l) || typeof l.image !== "string" || !l.image.startsWith("/images/")) return [];
       return [{ image: l.image, label: str(l.label).trim().slice(0, 60) }];
     });
-    return layers.length
-      ? [
+    return [
           {
             title: str(raw.title).trim().slice(0, 80) || "Breakdown",
             note: str(raw.note).trim().slice(0, 140),
@@ -192,8 +192,7 @@ export function sanitizeContent(input: unknown): SiteContent {
             turn: raw.turn === "angled" ? "angled" : "side",
             labels: raw.labels !== false,
           },
-        ]
-      : [];
+        ];
   });
 
   // Each page's own look: real fonts, a real colour, a picture from the library, a sensible dimming.

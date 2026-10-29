@@ -62,66 +62,22 @@
   inset: 10%;
 }
 
-/* The ring: every layer is a thin band cut out of a full circle. */
+/* The ring is one SVG per layer: the static track, and the comet (tail and dot) turning above it on the same centre. */
 .track,
-.tail {
+.comet,
+.comet svg {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
-}
-
-.track {
-  background: rgba(244, 237, 225, 0.1);
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
 }
 
 /* The comet turns without stopping, on the compositor: nothing here is touched by script. */
 .comet {
-  position: absolute;
-  inset: 0;
   animation: spin 1.7s linear infinite;
   will-change: transform;
-}
-
-/* The circle follows behind the pen: brightest at the head, fading away over three quarters of the way round. */
-.tail {
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    transparent 80deg,
-    rgba(240, 197, 100, 0.34) 190deg,
-    rgba(246, 210, 122, 0.9) 330deg,
-    #fff1b8 360deg
-  );
-}
-
-/* The pen nib at the head: the same nib and colour as the pointer. Its point sits exactly on the ring, at the top of
-   the comet, aimed the way it travels. */
-.head {
-  position: absolute;
-  inset: 0;
-}
-
-.nib {
-  position: absolute;
-  left: 50%;
-  /* The pen's tip sits on the ring's line (the middle of its band). */
-  top: calc(-8.8px * var(--pen-size, 1) + 1.5px);
-  transform-origin: 0 calc(8.8px * var(--pen-size, 1));
-  /* The pen lies along the ring behind its tip, like the logo's pen drawing the circle: the tail follows it. */
-  transform: rotate(192deg);
-  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.65));
-}
-
-.nib svg {
-  display: block;
-  width: calc(30px * var(--pen-size, 1));
-  height: auto;
-}
-
-.nib path {
-  fill: var(--pen-color, #fff195);
 }
 
 /* The star turns at a constant speed on its own layer: no filters, nothing restyled every frame, so it keeps turning

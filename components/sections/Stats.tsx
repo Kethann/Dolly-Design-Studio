@@ -11,7 +11,7 @@ export function Stats() {
     <section className={styles.section} aria-label="Studio in numbers">
       <div className={`container ${styles.row}`}>
         {home.stats.map((s) => (
-          <div key={s.label} className={styles.stat}>
+          <div key={s.label} className={`glass-panel ${styles.stat}`}>
             <div className={styles.value} {...tx("home.stats.value")}>
               <CountUp value={s.value} suffix={s.suffix} />
             </div>

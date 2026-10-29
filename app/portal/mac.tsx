@@ -91,6 +91,12 @@ const PATHS: Record<string, ReactNode> = {
       <rect x="13.5" y="11" width="7" height="8" rx="1.2" />
     </>
   ),
+  inbox: (
+    <>
+      <path d="M4 13l2.4-7h11.2L20 13v5H4z" />
+      <path d="M4 13h4.5l1 2.5h5l1-2.5H20" />
+    </>
+  ),
   activity: (
     <>
       <path d="M4 6h16M4 12h10M4 18h13" />

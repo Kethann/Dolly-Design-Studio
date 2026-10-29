@@ -1,22 +1,45 @@
 /* One breakdown's stage: the artwork, the room its layers fall into, and the numbered labels. */
 
-/* ── the stage: the artwork, and the room its layers fall into ─────────────── */
+/* ── the viewer: controls on top, then the stage the layers fall into ─────── */
+
+.wrap {
+  --maxh: 80vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+/* In full screen the whole viewer is the picture, with its controls above it. */
+.wrap[data-fullscreen="true"] {
+  --maxh: calc(100vh - 150px);
+  justify-content: center;
+  padding: 20px;
+  background: radial-gradient(80% 80% at 50% 40%, #2a0d12, #12060a);
+}
 
 .stage {
   position: relative;
-  width: min(100%, 900px);
-  max-height: 66vh;
+  /* As wide as the column allows, but never taller than the screen: the shape follows the artwork's own proportions. */
+  width: min(100%, 1200px, calc(var(--maxh) * var(--aspect, 1.33)));
+  aspect-ratio: var(--aspect, 1.33);
   margin: 0 auto 20px; /* the labels make room below themselves when the layers open */
-  perspective: 1500px;
-  perspective-origin: 50% 40%;
-  cursor: zoom-in;
+  cursor: grab;
   outline: none;
-  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Sideways drags turn the design; up and down still scroll the page. */
+  touch-action: pan-y;
   transition: margin-bottom 0.3s ease; /* the labels' rows make room as they appear */
 }
 
-.stage[data-open="true"] {
-  cursor: zoom-out;
+.stage[data-open="false"] {
+  cursor: zoom-in;
+}
+
+.stage[data-live="true"] {
+  cursor: grabbing;
 }
 
 .stage:focus-visible {
@@ -25,11 +48,33 @@
   border-radius: 12px;
 }
 
+.viewport {
+  position: absolute;
+  inset: 0;
+  perspective: 1500px;
+  perspective-origin: 50% 40%;
+}
+
+/* Zoomed in, the design stays inside its stage instead of covering the page around it. */
+.stage[data-zoomed="true"] .viewport {
+  overflow: clip;
+}
+
 .stack {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-  transition: transform 0.95s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.stage[data-open="true"] .stack {
+  will-change: transform;
+}
+
+/* While a finger or the 360° spin is turning it, it follows exactly, with no easing to lag behind. */
+.stage[data-live="true"] .stack,
+.stage[data-live="true"] .layer {
+  transition: none;
 }
 
 .layer {
@@ -40,13 +85,99 @@
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
+  backface-visibility: visible;
   transition:
-    transform 0.95s cubic-bezier(0.2, 0.8, 0.2, 1),
-    filter 0.6s ease;
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.4s ease;
 }
 
-.stage[data-open="true"] .layer {
+/* The soft shadow under each layer is costly on a 3D stack: kept for small stacks and while still, dropped for big
+   stacks and while the design is being turned. */
+.stage[data-open="true"][data-heavy="false"]:not([data-live="true"]) .layer {
   filter: drop-shadow(0 20px 22px rgba(0, 0, 0, 0.5));
+}
+
+/* ── the control bar ───────────────────────────────────────────────────────── */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(20, 10, 16, 0.62);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.bar button {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ivory);
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.bar button:hover:not(:disabled),
+.bar button:focus-visible {
+  border-color: var(--gold);
+  background: rgba(232, 176, 75, 0.18);
+  outline: none;
+}
+
+.bar button[aria-pressed="true"] {
+  color: #2b1503;
+  border-color: transparent;
+  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
+}
+
+.bar button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.btnMain {
+  font-weight: 700;
+}
+
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.group button {
+  padding: 0 12px;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.zoomValue {
+  min-width: 48px;
+  text-align: center;
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--gold-bright);
 }
 
 /* ── numbered labels and the lines to them ─────────────────────────────────── */
@@ -56,12 +187,29 @@
   inset: 0 0 auto 0;
   height: 100%;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.4s ease;
 }
 
-.labels[data-on="true"] {
+/* Each label (and its line) arrives on its own, one after the next: the delay per label is set in the component. */
+.lines g {
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.tag {
+  opacity: 0;
+  translate: 0 8px;
+  transition:
+    opacity 0.22s ease,
+    translate 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.labels[data-on="true"] .lines g {
   opacity: 1;
+}
+
+.labels[data-on="true"] .tag {
+  opacity: 1;
+  translate: 0 0;
 }
 
 .lines {
@@ -137,6 +285,14 @@
 }
 
 @media (max-width: 640px) {
+  .bar {
+    border-radius: 22px;
+    gap: 6px;
+  }
+  .bar button {
+    padding: 0 11px;
+    font-size: 10px;
+  }
   .tag {
     font-size: 9.5px;
     letter-spacing: 0.1em;

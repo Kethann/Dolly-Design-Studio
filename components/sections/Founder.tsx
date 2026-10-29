@@ -5,7 +5,7 @@ import { useContent, tx } from "@/lib/content/context";
 import { placeholderProps, versionedSrc } from "@/lib/images";
 import styles from "./Founder.module.css";
 
-/** About the founder: a monogram card (until there's a photo) beside a short bio. */
+/** About the founder: a glass profile card (portrait, name, role and a short description) beside the longer bio. */
 export function Founder() {
   const { home, site } = useContent();
   const copy = home.founder;
@@ -17,10 +17,10 @@ export function Founder() {
   return (
     <section id="about" className={styles.section}>
       <div className={`container ${styles.layout}`}>
-        <aside className={styles.card} aria-label={copy.label}>
+        <aside className={`glass-panel ${styles.card}`} aria-label={copy.label}>
           {copy.photo ? (
             <div className={styles.photo}>
-              <Image src={versionedSrc(copy.photo)} alt={site.founder.name} fill sizes="260px" {...placeholderProps(copy.photo)} />
+              <Image src={versionedSrc(copy.photo)} alt={site.founder.name} fill sizes="200px" {...placeholderProps(copy.photo)} />
             </div>
           ) : (
             <div className={styles.monogram} aria-hidden="true">
@@ -29,6 +29,11 @@ export function Founder() {
           )}
           <p className={styles.name} {...tx("site.founder.name")}>{site.founder.name}</p>
           <p className={styles.role} {...tx("site.founder.role")}>{site.founder.role}</p>
+          {copy.cardNote && (
+            <p className={styles.note} {...tx("home.founder.cardNote")}>
+              {copy.cardNote}
+            </p>
+          )}
           <p className={styles.place}>{site.contact.location}</p>
         </aside>
 

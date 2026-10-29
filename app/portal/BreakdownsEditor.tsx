@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { BreakdownLayer } from "@/lib/content/types";
+import { MAX_BREAKDOWNS, MAX_BREAKDOWN_LAYERS } from "@/lib/content/limits";
 import { DropZone, FieldView, useEditor, useUploads } from "./ContentEditor";
 import type { Field } from "./content-schema";
 import styles from "./content.module.css";
@@ -32,6 +33,8 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
   const { content, update, media } = useEditor();
   const items = content.breakdowns;
   const [open, setOpen] = useState<number | null>(items.length ? 0 : null);
+  /** Why the last layer upload added fewer files than were chosen. */
+  const [notice, setNotice] = useState<string | null>(null);
 
   const patch = (i: number, fn: (b: (typeof items)[number]) => (typeof items)[number]) =>
     update((c) => ({ ...c, breakdowns: c.breakdowns.map((b, j) => (j === i ? fn(b) : b)) }));
@@ -73,10 +76,15 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
               update((c) => ({ ...c, breakdowns: [...c.breakdowns, { title: "New breakdown", note: "", description: "", layers: [], spread: "normal", turn: "side", labels: true }] }));
               choose(items.length);
             }}
-            disabled={items.length >= 12}
+            disabled={items.length >= MAX_BREAKDOWNS}
           >
             ＋ Add a breakdown
           </button>
+          <p className={styles.hint} role="status" data-full={items.length >= MAX_BREAKDOWNS}>
+            {items.length >= MAX_BREAKDOWNS
+              ? `You have reached the limit of ${MAX_BREAKDOWNS} breakdowns. Delete one to add another.`
+              : `${items.length} of ${MAX_BREAKDOWNS} breakdowns used. Each can hold up to ${MAX_BREAKDOWN_LAYERS} layers.`}
+          </p>
         </div>
       </section>
 
@@ -145,11 +153,32 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
                 />
               </label>
 
+              <p className={styles.hint} role="status" data-full={b.layers.length >= MAX_BREAKDOWN_LAYERS}>
+                {b.layers.length} of {MAX_BREAKDOWN_LAYERS} layers used{b.layers.length >= MAX_BREAKDOWN_LAYERS ? " — this breakdown is full. Remove a layer to add another." : "."}
+              </p>
+              {notice && (
+                <p className={styles.error} role="alert">
+                  {notice}{" "}
+                  <button type="button" className={styles.pill} onClick={() => setNotice(null)}>
+                    Dismiss
+                  </button>
+                </p>
+              )}
               <LayerUpload
+                full={b.layers.length >= MAX_BREAKDOWN_LAYERS}
                 onFiles={async (files, start) => {
                   // In the order of the file names, each becoming the next layer up, named after its file.
                   const sorted = [...files].sort((a, b2) => a.name.localeCompare(b2.name, undefined, { numeric: true }));
-                  await start(sorted, (src, file) => {
+                  const room = MAX_BREAKDOWN_LAYERS - b.layers.length;
+                  if (sorted.length > room) {
+                    setNotice(
+                      room <= 0
+                        ? `This breakdown already has ${MAX_BREAKDOWN_LAYERS} layers, the most it can hold. Nothing was added.`
+                        : `A breakdown holds up to ${MAX_BREAKDOWN_LAYERS} layers. Only the first ${room} of the ${sorted.length} files you chose were added; the other ${sorted.length - room} were skipped.`,
+                    );
+                  } else setNotice(null);
+                  if (room <= 0) return;
+                  await start(sorted.slice(0, room), (src, file) => {
                     const layer: BreakdownLayer = { image: src, label: labelFrom(file.name) };
                     patch(i, (x) => ({ ...x, layers: [...x.layers, layer] }));
                   });
@@ -240,7 +269,8 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
                 <button
                   type="button"
                   className={styles.pill}
-                  disabled={items.length >= 12}
+                  disabled={items.length >= MAX_BREAKDOWNS}
+                  title={items.length >= MAX_BREAKDOWNS ? `The limit is ${MAX_BREAKDOWNS} breakdowns` : undefined}
                   onClick={() => {
                     update((c) => ({ ...c, breakdowns: [...c.breakdowns, { ...b, title: `${b.title} copy`, layers: b.layers.map((l) => ({ ...l })) }] }));
                     choose(items.length);
@@ -265,11 +295,14 @@ export function BreakdownsEditor({ onShow }: { onShow: (index: number | null) =>
 function LayerUpload({
   onFiles,
   upload,
+  full,
 }: {
+  full?: boolean;
   onFiles: (files: File[], start: (files: File[], onEach: (src: string, file: File) => void) => Promise<void>) => Promise<void>;
   upload: (file: File, onProgress?: (percent: number) => void) => Promise<string>;
 }) {
   const uploads = useUploads<string>("image", (f, p) => upload(f, p));
+  if (full) return null; // the drop area gives way to the "full" message above it
   return (
     <DropZone
       kind="image"

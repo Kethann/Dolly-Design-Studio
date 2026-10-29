@@ -111,7 +111,7 @@ async function transportFor(c: MailConfig): Promise<Transporter> {
 
 export type SendResult = { ok: true } | { ok: false; reason: "not-configured" | "failed"; message: string };
 
-export async function sendMail(input: { to: string; subject: string; text: string; html: string }): Promise<SendResult> {
+export async function sendMail(input: { to: string; subject: string; text: string; html: string; replyTo?: string }): Promise<SendResult> {
   const config = mailConfig();
   if (!config) {
     // While developing without email set up, the message is printed so a code can still be used.
@@ -123,7 +123,7 @@ export async function sendMail(input: { to: string; subject: string; text: strin
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: config.from, to: [input.to], subject: input.subject, text: input.text, html: input.html }),
+        body: JSON.stringify({ from: config.from, to: [input.to], subject: input.subject, text: input.text, html: input.html, ...(input.replyTo ? { reply_to: input.replyTo } : {}) }),
       });
       if (!res.ok) {
         console.error("[portal] Resend refused the email:", res.status, (await res.text().catch(() => "")).slice(0, 300));
@@ -131,7 +131,7 @@ export async function sendMail(input: { to: string; subject: string; text: strin
       }
       return { ok: true };
     }
-    await (await transportFor(config)).sendMail({ from: config.from, to: input.to, subject: input.subject, text: input.text, html: input.html });
+    await (await transportFor(config)).sendMail({ from: config.from, to: input.to, subject: input.subject, text: input.text, html: input.html, replyTo: input.replyTo });
     return { ok: true };
   } catch (err) {
     console.error("[portal] could not send email", err instanceof Error ? err.message : err);
@@ -169,4 +169,39 @@ export function testEmail(name: string) {
   const text = `Hello ${name},\n\nThis is a test message from the Dolly Design Studio portal. Your email settings work, so sign-in codes and password-reset codes will reach you.\n\nDolly Design Studio`;
   const html = `<p style="font-family:Arial,sans-serif">Hello ${esc(name)},</p><p style="font-family:Arial,sans-serif">This is a test message from the Dolly Design Studio portal. Your email settings work, so sign-in codes and password-reset codes will reach you.</p>`;
   return { subject: "Test email from the portal", text, html };
+}
+
+/** Where website enquiries are sent: CONTACT_TO_EMAIL if set, otherwise the connected mail account itself. */
+export function enquiryRecipient(fallback: string): string {
+  const env = process.env;
+  const own = env.GMAIL_USER || env.SMTP_USER;
+  return (env.CONTACT_TO_EMAIL || own || fallback).trim();
+}
+
+/** The email telling the studio about a new enquiry. */
+export function enquiryEmail(e: { name: string; email: string; phone: string; company: string; projectType: string; budget: string; timeline: string; message: string }) {
+  const rows: [string, string][] = [
+    ["Name", e.name],
+    ["Email", e.email],
+    ["Phone", e.phone],
+    ["Company / production", e.company || "\u2014"],
+    ["Project type", e.projectType],
+    ["Budget", e.budget || "Not specified"],
+    ["Timeline", e.timeline || "Not specified"],
+  ];
+  const text = `New enquiry from the website\n\n${rows.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\nDescription:\n${e.message}\n\nReply to this email to answer ${e.name} directly.`;
+  const cells = rows
+    .map(([k, v]) => `<tr><td style="padding:6px 14px 6px 0;color:#a89d8e;font-size:13px;white-space:nowrap;vertical-align:top">${esc(k)}</td><td style="padding:6px 0;font-size:14px;color:#f4ede1">${esc(v)}</td></tr>`)
+    .join("");
+  const html = `<!doctype html><html><body style="margin:0;background:#1a0a10;font-family:Arial,Helvetica,sans-serif;color:#f4ede1">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#1a0a10;padding:32px 12px"><tr><td align="center">
+<table role="presentation" width="520" cellspacing="0" cellpadding="0" style="max-width:520px;background:#261219;border:1px solid #4a2c35;border-radius:16px;padding:28px">
+<tr><td style="color:#e8b04b;font-size:12px;letter-spacing:3px;text-transform:uppercase">Dolly Design Studio</td></tr>
+<tr><td style="padding:12px 0 16px;font-size:20px;font-weight:bold">New enquiry from ${esc(e.name)}</td></tr>
+<tr><td><table role="presentation" cellspacing="0" cellpadding="0">${cells}</table></td></tr>
+<tr><td style="padding-top:18px;color:#a89d8e;font-size:13px">Description</td></tr>
+<tr><td style="padding-top:6px;font-size:14px;line-height:1.7;color:#f4ede1;white-space:pre-wrap">${esc(e.message)}</td></tr>
+<tr><td style="padding-top:20px;font-size:12px;color:#a89d8e">Reply to this email to answer ${esc(e.name)} directly.</td></tr>
+</table></td></tr></table></body></html>`;
+  return { subject: `New enquiry \u2014 ${e.name} (${e.projectType})`, text, html };
 }
