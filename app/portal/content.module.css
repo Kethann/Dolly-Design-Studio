@@ -826,3 +826,43 @@
   border-color: #d93a3a;
   font-weight: 700;
 }
+
+/* The ready-made colour sets and the Randomise button in Brand & glass. */
+.glassPresets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.glassPreset {
+  display: grid;
+  gap: 4px;
+  width: 78px;
+  padding: 5px;
+  border-radius: 10px;
+  border: 1px solid var(--p-line-strong, rgba(255, 255, 255, 0.2));
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.glassPreset:hover,
+.glassPreset[data-on="true"] {
+  border-color: var(--p-accent, #e8b04b);
+}
+
+.glassPreset i {
+  display: block;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.glassDice {
+  display: grid !important;
+  place-items: center;
+  font-style: normal;
+  font-size: 18px;
+  background: rgba(255, 255, 255, 0.08);
+}

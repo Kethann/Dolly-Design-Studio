@@ -19,14 +19,18 @@ export function fontFaceCss(custom: CustomFontLike[]): string {
 export function glassVars(g: GlassLook): string[] {
   const clear = g.effect === "Clear";
   const frosted = g.effect === "Frosted";
-  // The colour under the cursor is a mix of these two, depending on where the cursor is (the gradient between them).
+  // The colour under the cursor goes first colour, middle colour, last colour as the cursor crosses the glass (the
+  // mixing itself is in globals.css, because it follows the pointer with --mt).
   return [
     `--glass-a:${frosted ? "#ffffff" : g.colorA}`,
+    `--glass-c:${frosted ? "#ece8ff" : g.colorC}`,
     `--glass-b:${frosted ? "#d9d4ff" : g.colorB}`,
     `--glass-angle:${g.angle}deg`,
-    // How strong the colour is under the cursor (from the Tint setting), and how wide the lit area is (the Spread setting).
+    // How strong the colour is under the cursor (Tint), how wide the lit area is (Spread), and the glow around the glass.
     `--glass-spot:${Math.round((g.tint / 0.7) * 85 * (clear ? 0.45 : frosted ? 0.6 : 1))}%`,
-    `--glass-radius:${Math.round(35 + (g.glow / 0.8) * 60)}%`,
+    `--glass-radius:${Math.round(16 + g.spread * 44)}%`,
+    `--glass-glow-k:${Math.round(g.glow * 100 * (clear ? 0 : frosted ? 0.5 : 1))}`,
+    `--glass-glow-r:${Math.round(14 + (g.glow / 0.8) * 36)}px`,
     `--glass-rim-opacity:${clear ? 0.5 : frosted ? 0.75 : 0.95}`,
     `--glass-blur:${g.blur}px`,
   ];

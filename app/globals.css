@@ -326,13 +326,24 @@ html.portal-preview a[href="/"] {
   initial-value: 50%;
 }
 
+/* How lit the glass is: 0 at rest, 1 while the cursor is on it (it fades, and the glow around the glass follows it). */
+@property --lit {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
 /* A pane of glass for cards that sit over the star field: a pale sheen, a bright rim, a soft blur of what is behind.
    Only the spot under the cursor (or a tap, or focus) takes colour: a soft pool of light, in a mix of the two colours
    chosen in the portal's Glass settings that depends on where on the glass the cursor is, with the rim glowing in
    the same place. The rest of the glass stays pale. The values after the commas are the colours until they are
    changed (neon violet and blue). */
 .glass-panel {
-  --spot-c: color-mix(in srgb, var(--glass-b, #38a8ff) var(--mt), var(--glass-a, #8b5cff));
+  /* The colour at a place on the glass: the first colour on one side, the middle colour halfway, the last on the far side.
+     Two more shades a little further along either way make the lit area several colours at once, like a gradient. */
+  --spot-c: color-mix(in srgb, var(--glass-b, #d96570) clamp(0%, calc((var(--mt) - 50%) * 2), 100%), color-mix(in srgb, var(--glass-c, #9b72cb) clamp(0%, calc(var(--mt) * 2), 100%), var(--glass-a, #4285f4)));
+  --spot-c2: color-mix(in srgb, var(--glass-b, #d96570) clamp(0%, calc((clamp(0%, calc(var(--mt) + 40%), 100%) - 50%) * 2), 100%), color-mix(in srgb, var(--glass-c, #9b72cb) clamp(0%, calc(clamp(0%, calc(var(--mt) + 40%), 100%) * 2), 100%), var(--glass-a, #4285f4)));
+  --spot-c3: color-mix(in srgb, var(--glass-b, #d96570) clamp(0%, calc((clamp(0%, calc(var(--mt) - 40%), 100%) - 50%) * 2), 100%), color-mix(in srgb, var(--glass-c, #9b72cb) clamp(0%, calc(clamp(0%, calc(var(--mt) - 40%), 100%) * 2), 100%), var(--glass-a, #4285f4)));
   position: relative;
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -343,14 +354,16 @@ html.portal-preview a[href="/"] {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
     inset 0 -1px 0 rgba(255, 255, 255, 0.06),
-    0 18px 40px rgba(0, 0, 0, 0.35);
+    0 18px 40px rgba(0, 0, 0, 0.35),
+    0 0 var(--glass-glow-r, 26px) color-mix(in srgb, var(--spot-c) calc(var(--lit) * var(--glass-glow-k, 30) * 1%), transparent);
   -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.1);
   overflow: hidden;
   transition:
-    --mx 0.25s ease-out,
-    --my 0.25s ease-out,
-    --mt 0.25s ease-out;
+    --mx 0.22s ease-out,
+    --my 0.22s ease-out,
+    --mt 0.22s ease-out,
+    --lit 0.4s ease;
 }
 
 /* The rim, lit only near the pointer: a masked ring, so the inside stays clear. */
@@ -362,7 +375,7 @@ html.portal-preview a[href="/"] {
   border-radius: inherit;
   padding: 1.4px;
   pointer-events: none;
-  background: radial-gradient(circle at var(--mx) var(--my), var(--spot-c), transparent calc(var(--glass-radius, 60%) * 0.85));
+  background: radial-gradient(circle at var(--mx) var(--my), var(--spot-c), transparent calc(var(--glass-radius, 29%) * 1.6));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
@@ -378,14 +391,31 @@ html.portal-preview a[href="/"] {
   z-index: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: radial-gradient(
-    circle at var(--mx) var(--my),
-    color-mix(in srgb, var(--spot-c) var(--glass-spot, 60%), transparent) 0,
-    color-mix(in srgb, var(--spot-c) calc(var(--glass-spot, 60%) * 0.45), transparent) calc(var(--glass-radius, 60%) * 0.45),
-    transparent var(--glass-radius, 60%)
-  );
+  background:
+    radial-gradient(
+      circle at var(--mx) var(--my),
+      color-mix(in srgb, var(--spot-c) var(--glass-spot, 60%), transparent) 0,
+      color-mix(in srgb, var(--spot-c) calc(var(--glass-spot, 60%) * 0.45), transparent) calc(var(--glass-radius, 29%) * 0.8),
+      transparent calc(var(--glass-radius, 29%) * 1.7)
+    ),
+    radial-gradient(
+      circle at calc(var(--mx) - 9%) calc(var(--my) + 10%),
+      color-mix(in srgb, var(--spot-c2) calc(var(--glass-spot, 60%) * 0.7), transparent) 0,
+      transparent calc(var(--glass-radius, 29%) * 1.5)
+    ),
+    radial-gradient(
+      circle at calc(var(--mx) + 9%) calc(var(--my) - 10%),
+      color-mix(in srgb, var(--spot-c3) calc(var(--glass-spot, 60%) * 0.7), transparent) 0,
+      transparent calc(var(--glass-radius, 29%) * 1.5)
+    );
   opacity: 0;
   transition: opacity 0.3s ease;
+}
+
+.glass-panel:hover,
+.glass-panel:focus-within,
+.glass-panel[data-lit="true"] {
+  --lit: 1;
 }
 
 .glass-panel:hover::before,

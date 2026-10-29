@@ -52,7 +52,9 @@ export interface Theme {
 
 /** The glass: a gradient between two colours, how strong it is, how blurred, and what kind of finish it has. */
 export interface GlassLook {
+  /** The glass takes three colours across it: this one on one side, the middle colour, then the last on the far side. */
   colorA: string;
+  colorC: string;
   colorB: string;
   /** Direction of the gradient, 0–360 degrees. */
   angle: number;
@@ -60,7 +62,9 @@ export interface GlassLook {
   tint: number;
   /** How much of what is behind the glass is blurred, 0–30 px. */
   blur: number;
-  /** The glow around the glass, 0–0.8. */
+  /** How wide the lit area around the cursor is, 0–1. */
+  spread: number;
+  /** The glow around the glass while it is lit, 0–0.8. */
   glow: number;
   /** Neon: glowing gradient rim. Frosted: milky white rim, no glow. Clear: almost see-through. */
   effect: "Neon" | "Frosted" | "Clear";
@@ -160,5 +164,18 @@ export interface SiteContent {
   pages: Record<PageKey, PageLook>;
 }
 
-/** The glass as the site first has it (neon violet to blue). */
-export const DEFAULT_GLASS: GlassLook = { colorA: "#8b5cff", colorB: "#38a8ff", angle: 135, tint: 0.34, blur: 14, glow: 0.28, effect: "Neon" };
+/** The glass as the site first has it: a Gemini-style blue, violet and rose. */
+export const DEFAULT_GLASS: GlassLook = { colorA: "#4285f4", colorC: "#9b72cb", colorB: "#d96570", angle: 135, tint: 0.34, blur: 14, spread: 0.3, glow: 0.3, effect: "Neon" };
+
+/** The look glass had before it took three colours (saved settings in this look move to the new one). */
+export const OLD_GLASS = { colorA: "#8b5cff", colorB: "#38a8ff" };
+
+/** Ready-made sets of three colours to pick from in the portal. */
+export const GLASS_PRESETS: { name: string; colors: [string, string, string] }[] = [
+  { name: "Gemini", colors: ["#4285f4", "#9b72cb", "#d96570"] },
+  { name: "Neon", colors: ["#8b5cff", "#5f7dff", "#38a8ff"] },
+  { name: "Sunset", colors: ["#ff6a3d", "#ff3d8b", "#8b3dff"] },
+  { name: "Aurora", colors: ["#2de2a6", "#38a8ff", "#9b5cff"] },
+  { name: "Ocean", colors: ["#00d4ff", "#3a7bff", "#7a5cff"] },
+  { name: "Gold", colors: ["#ffd36a", "#ff9a3d", "#ff5c8a"] },
+];

@@ -1,5 +1,5 @@
 import { CATEGORIES, LANGUAGES, LEGACY_CATEGORIES } from "@/content/types";
-import { DEFAULT_GLASS, GLASS_EFFECTS, type GlassLook } from "./types";
+import { DEFAULT_GLASS, GLASS_EFFECTS, OLD_GLASS, type GlassLook } from "./types";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "./limits";
 import { defaultContent } from "./defaults";
 import { fontById } from "./fonts";
@@ -188,12 +188,22 @@ export function sanitizeContent(input: unknown): SiteContent {
   const gIn = isObj(src.theme) && isObj(src.theme.glass) ? src.theme.glass : {};
   const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
   const dg = DEFAULT_GLASS;
+  // Glass saved before it took three colours: the original violet-and-blue becomes the new default; other two-colour looks
+  // keep their colours, with the colour between them as the middle one.
+  const twoColour = !("colorC" in gIn);
+  const hexOf = (n: number) => n.toString(16).padStart(2, "0");
+  const midway = (x: string, y: string) => "#" + [1, 3, 5].map((i) => hexOf(Math.round((parseInt(x.slice(i, i + 2), 16) + parseInt(y.slice(i, i + 2), 16)) / 2))).join("");
+  const colA = isHex(gIn.colorA) ? gIn.colorA.toLowerCase() : dg.colorA;
+  const colB = isHex(gIn.colorB) ? gIn.colorB.toLowerCase() : dg.colorB;
+  const isOld = twoColour && colA === OLD_GLASS.colorA && colB === OLD_GLASS.colorB;
   merged.theme.glass = {
-    colorA: isHex(gIn.colorA) ? gIn.colorA.toLowerCase() : dg.colorA,
-    colorB: isHex(gIn.colorB) ? gIn.colorB.toLowerCase() : dg.colorB,
+    colorA: isOld ? dg.colorA : colA,
+    colorC: isHex(gIn.colorC) ? gIn.colorC.toLowerCase() : isOld || (twoColour && !isHex(gIn.colorA)) ? dg.colorC : midway(colA, colB),
+    colorB: isOld ? dg.colorB : colB,
     angle: Math.round(num(gIn.angle, 0, 360, dg.angle)),
     tint: Math.round(num(gIn.tint, 0, 0.7, dg.tint) * 100) / 100,
     blur: Math.round(num(gIn.blur, 0, 30, dg.blur)),
+    spread: Math.round(num(gIn.spread, 0, 1, dg.spread) * 100) / 100,
     glow: Math.round(num(gIn.glow, 0, 0.8, dg.glow) * 100) / 100,
     effect: (GLASS_EFFECTS as unknown[]).includes(gIn.effect) ? (gIn.effect as GlassLook["effect"]) : dg.effect,
   };

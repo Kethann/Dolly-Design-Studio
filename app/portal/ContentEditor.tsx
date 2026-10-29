@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { allFonts } from "@/lib/content/fonts";
 import { fontFaceCss, glassVars } from "@/lib/content/css";
-import { DEFAULT_GLASS, GLASS_EFFECTS, type GlassLook, type PageKey, type SiteContent, type TextStyle } from "@/lib/content/types";
+import { DEFAULT_GLASS, GLASS_EFFECTS, GLASS_PRESETS, type GlassLook, type PageKey, type SiteContent, type TextStyle } from "@/lib/content/types";
 import { Choice, ColorRow, Slider } from "./controls";
 import { styledTexts, type Field, type SchemaPage, type SchemaSection } from "./content-schema";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "@/lib/content/limits";
@@ -1183,6 +1183,16 @@ export function TypographyEditor({ onFocus }: { onFocus?: (target: string) => vo
   );
 }
 
+/** A colour from its hue (0–360), saturation and lightness (percent), as #rrggbb. */
+function hslHex(h: number, sat: number, light: number): string {
+  const s = sat / 100;
+  const l = light / 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
+  return "#" + [f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, "0")).join("");
+}
+
 /** Brand colours: the gold used for accents and highlights, and the colour of normal text. */
 export function ThemeEditor() {
   const { content, update } = useEditor();
@@ -1191,6 +1201,17 @@ export function ThemeEditor() {
   const glass = content.theme.glass;
   const setGlass = (patch: Partial<GlassLook>) => update((c) => ({ ...c, theme: { ...c.theme, glass: { ...c.theme.glass, ...patch } } }));
   const glassChanged = JSON.stringify(glass) !== JSON.stringify(DEFAULT_GLASS);
+  /** Three bright colours that belong together: a random starting hue, and two more a good way round the colour wheel. */
+  const randomGlass = () => {
+    const h = Math.random() * 360;
+    const step = 40 + Math.random() * 50;
+    setGlass({
+      colorA: hslHex(h, 85, 62),
+      colorC: hslHex((h + step) % 360, 85, 62),
+      colorB: hslHex((h + step * 2 + Math.random() * 40) % 360, 85, 62),
+      angle: Math.round(Math.random() * 72) * 5,
+    });
+  };
   const preview = Object.fromEntries(glassVars(glass).map((d) => [d.slice(0, d.indexOf(":")), d.slice(d.indexOf(":") + 1)])) as React.CSSProperties;
   const rows: { key: keyof typeof DEFAULTS; label: string; hint: string }[] = [
     { key: "accent", label: "Accent colour", hint: "Small headings, lines, buttons and highlights." },
@@ -1233,12 +1254,35 @@ export function ThemeEditor() {
             options={GLASS_EFFECTS.map((e) => ({ value: e, label: e }))}
             onChange={(effect) => setGlass({ effect })}
           />
+          <div className={styles.glassPresets} role="group" aria-label="Colour sets">
+            {GLASS_PRESETS.map((p) => (
+              <button
+                key={p.name}
+                type="button"
+                className={styles.glassPreset}
+                data-on={glass.colorA === p.colors[0] && glass.colorC === p.colors[1] && glass.colorB === p.colors[2]}
+                onClick={() => setGlass({ colorA: p.colors[0], colorC: p.colors[1], colorB: p.colors[2] })}
+                title={`${p.name} colours`}
+              >
+                <i style={{ background: `linear-gradient(90deg, ${p.colors.join(", ")})` }} />
+                <span>{p.name}</span>
+              </button>
+            ))}
+            <button type="button" className={styles.glassPreset} onClick={randomGlass} title="Pick three new colours that go well together">
+              <i className={styles.glassDice} aria-hidden="true">
+                ⚄
+              </i>
+              <span>Randomise</span>
+            </button>
+          </div>
           <ColorRow label="First colour" hint="The colour on one side of the glass." value={glass.colorA} onChange={(colorA) => setGlass({ colorA })} />
-          <ColorRow label="Second colour" hint="The colour on the other side of the glass." value={glass.colorB} onChange={(colorB) => setGlass({ colorB })} />
+          <ColorRow label="Middle colour" hint="The colour halfway across." value={glass.colorC} onChange={(colorC) => setGlass({ colorC })} />
+          <ColorRow label="Last colour" hint="The colour on the far side." value={glass.colorB} onChange={(colorB) => setGlass({ colorB })} />
           <Slider label="Colour direction" hint="Which way the colour changes across the glass." value={glass.angle} min={0} max={360} step={5} format={(n) => `${n}°`} onChange={(angle) => setGlass({ angle })} />
           <Slider label="Tint" hint="How strong the colour is under the cursor." value={glass.tint} min={0} max={0.7} step={0.02} format={(n) => `${Math.round((n / 0.7) * 100)}%`} onChange={(tint) => setGlass({ tint })} />
+          <Slider label="Spread" hint="How wide the lit area around the cursor is." value={glass.spread} min={0} max={1} step={0.02} format={(n) => `${Math.round(n * 100)}%`} onChange={(spread) => setGlass({ spread })} />
+          <Slider label="Glow" hint="The soft light around the whole glass while it is lit." value={glass.glow} min={0} max={0.8} step={0.02} format={(n) => `${Math.round((n / 0.8) * 100)}%`} onChange={(glow) => setGlass({ glow })} />
           <Slider label="Blur" hint="How much of what is behind the glass is blurred." value={glass.blur} min={0} max={30} step={1} format={(n) => `${n} px`} onChange={(blur) => setGlass({ blur })} />
-          <Slider label="Spread" hint="How wide the lit area around the cursor is." value={glass.glow} min={0} max={0.8} step={0.02} format={(n) => `${Math.round((n / 0.8) * 100)}%`} onChange={(glow) => setGlass({ glow })} />
           {glassChanged && (
             <button type="button" className={styles.link} onClick={() => setGlass({ ...DEFAULT_GLASS })}>
               Back to the original glass
