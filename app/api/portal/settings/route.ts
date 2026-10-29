@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { getPortalUser } from "@/lib/portal/auth";
+import { tooLarge } from "@/lib/portal/body-limit";
 import { logActivity } from "@/lib/portal/activity";
 import { summarizeSettings } from "@/lib/portal/summary";
 import { readIntroSettings, writeIntroSettings } from "@/lib/portal/settings-store";
@@ -17,6 +18,9 @@ export async function PUT(req: NextRequest) {
   if (origin && origin !== req.nextUrl.origin) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
+
+  const big = tooLarge(req, 2 * 1024 * 1024);
+  if (big) return big;
 
   let settings;
   try {

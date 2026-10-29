@@ -101,7 +101,8 @@ export function describeDevice(ua: string | null | undefined): string {
 }
 
 export function clientIp(headers: Headers): string {
-  return headers.get("x-forwarded-for")?.split(",")[0]?.trim() || headers.get("x-real-ip") || "unknown";
+  // Behind Cloudflare, cf-connecting-ip is set by Cloudflare itself (a visitor cannot fake it); x-forwarded-for can be faked.
+  return headers.get("cf-connecting-ip") || headers.get("x-forwarded-for")?.split(",")[0]?.trim() || headers.get("x-real-ip") || "unknown";
 }
 
 /** Who did it. The setup login has no stored account, so it is named here. */

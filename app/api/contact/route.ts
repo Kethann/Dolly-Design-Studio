@@ -4,7 +4,7 @@ import { home } from "@/content/home";
 import { site } from "@/content/site";
 import { validateContact } from "@/lib/contact/validate";
 import { noteEmail, saveEnquiry } from "@/lib/contact/inbox";
-import { describeDevice } from "@/lib/portal/activity";
+import { clientIp, describeDevice } from "@/lib/portal/activity";
 import { enquiryEmail, enquiryRecipient, sendMail } from "@/lib/portal/mail";
 
 const errors = home.contact.form.errors;
@@ -19,6 +19,8 @@ export async function POST(req: NextRequest) {
   // Only from this site's own contact form (a browser always says where a post comes from).
   const origin = req.headers.get("origin");
   if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: errors.badRequest }, { status: 403 });
+  // Refused from the declared size, before any of it is read.
+  if (Number(req.headers.get("content-length")) > MAX_BODY) return NextResponse.json({ error: errors.badRequest }, { status: 413 });
   let body: Record<string, unknown>;
   try {
     const raw = await req.text();
@@ -39,7 +41,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Only real attempts count towards the limit, so fixing a typo never locks anyone out.
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+  const ip = clientIp(req.headers);
   if (isRateLimited(ip)) return NextResponse.json({ error: errors.tooManyRequests }, { status: 429 });
 
   let entry;

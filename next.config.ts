@@ -44,6 +44,8 @@ const nextConfig: NextConfig = {
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
       { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+      // Nothing on this site is ever put in a frame by another site, posts a form elsewhere, or loads a plug-in.
+      { key: "Content-Security-Policy", value: "frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" },
     ];
     const always = [
       { source: "/:path*", headers: security },
