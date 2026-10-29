@@ -3,7 +3,7 @@
 /* ── the viewer: controls on top, then the stage the layers fall into ─────── */
 
 .wrap {
-  --maxh: 80vh;
+  --maxh: 88vh;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -73,7 +73,7 @@
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .stage[data-open="true"] .stack {
@@ -96,7 +96,7 @@
   -webkit-user-drag: none;
   backface-visibility: hidden; /* from behind, the mirrored picture is not shown: the layer's dark-grey back is (below) */
   transition:
-    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1),
     filter 0.4s ease,
     opacity 0.25s ease;
 }
@@ -115,7 +115,7 @@
   backface-visibility: hidden;
   pointer-events: none;
   transition:
-    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 0.25s ease;
 }
 
@@ -391,7 +391,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 12px 5px 6px;
+  padding: 4px 11px 4px 5px;
   border-radius: 999px;
   white-space: nowrap;
   font-family: var(--font-label);

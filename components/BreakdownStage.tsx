@@ -28,11 +28,11 @@ const SPIN_SPEED = 28;
 /** A pointer must travel this far (px) before a press counts as a drag rather than a click. */
 const DRAG_SLOP = 6;
 /** The labels sit in rows above the artwork: each row is this tall (px). */
-const TAG_ROW = 50;
+const TAG_ROW = 38;
 /** How far the viewer is from the stack (matches the CSS perspective). */
 const PERSPECTIVE = 1500;
 /** The pause (ms) between one label appearing and the next: quick, so the whole set reads as one sweep. */
-const LABEL_STAGGER = 45;
+const LABEL_STAGGER = 14;
 /** After the pointer leaves, how long (ms) before an unpinned stack closes: moving across a gap never flickers it. */
 const CLOSE_DELAY = 280;
 /** The easing the layers use; the labels use the same, so they glide together. */
@@ -174,7 +174,7 @@ export const ExplodeStage = memo(function ExplodeStage({
   // across the page beside it.
   const colW = size.col || size.w || 800;
   const gap = Math.max(40, Math.min(360, (colW * 0.84) / (Math.max(1, n - 1) * 0.85))) * SPREADS[item.spread] * spreadK;
-  const baseScale = n <= 2 ? 0.74 : n <= 3 ? 0.66 : n <= 5 ? 0.58 : n <= 9 ? 0.5 : n <= 16 ? 0.42 : 0.35;
+  const baseScale = n <= 2 ? 0.86 : n <= 3 ? 0.78 : n <= 5 ? 0.7 : n <= 9 ? 0.64 : n <= 16 ? 0.58 : 0.48;
   const zOf = (i: number) => (open ? (i - (n - 1) / 2) * gap : i * 0.4);
 
   const transformFor = useCallback(
@@ -483,7 +483,7 @@ export const ExplodeStage = memo(function ExplodeStage({
   const labelsOn = open && atHome && !dragging && !spinning && hasLabels;
   const live3d = dragging || spinning;
   /** Room kept above the picture for the labels, always (open or closed, turning or still), so the picture never hops when it opens. */
-  const labelSpace = hasLabels ? 20 + (Math.max(0, ...rowOf) + 1) * TAG_ROW : 0;
+  const labelSpace = hasLabels ? 14 + (Math.max(0, ...rowOf) + 1) * TAG_ROW : 0;
 
   return (
     <div
@@ -606,7 +606,7 @@ export const ExplodeStage = memo(function ExplodeStage({
                     style={{
                       opacity: hidden.includes(i) ? 0.06 : focusLayer !== null && focusLayer !== i ? 0.3 : 1,
                       transform: `translateZ(${zOf(i)}px)`,
-                      transitionDelay: open && !live3d ? `${Math.min(i * 22, 360)}ms` : `${Math.min((n - 1 - i) * 14, 240)}ms`,
+                      transitionDelay: open && !live3d ? `${Math.min(i * 12, 140)}ms` : `${Math.min((n - 1 - i) * 10, 120)}ms`,
                     }}
                   />
                   {/* The layer's back. From behind, the picture would show mirrored; this shows its shape in dark grey instead. */}
@@ -618,7 +618,7 @@ export const ExplodeStage = memo(function ExplodeStage({
                       WebkitMaskImage: `url("${versionedSrc(layer.image)}")`,
                       opacity: hidden.includes(i) ? 0.06 : focusLayer !== null && focusLayer !== i ? 0.3 : 1,
                       transform: `translateZ(${zOf(i)}px) rotateY(180deg)`,
-                      transitionDelay: open && !live3d ? `${Math.min(i * 22, 360)}ms` : `${Math.min((n - 1 - i) * 14, 240)}ms`,
+                      transitionDelay: open && !live3d ? `${Math.min(i * 12, 140)}ms` : `${Math.min((n - 1 - i) * 10, 120)}ms`,
                     }}
                   />
                 </Fragment>
@@ -632,15 +632,15 @@ export const ExplodeStage = memo(function ExplodeStage({
         <div className={styles.labels} data-on={labelsOn} aria-hidden={!labelsOn} hidden={!item.labels}>
           {points.map((pt, i) => {
             const row = rowOf[i] ?? 0;
-            const top = -(14 + row * TAG_ROW);
+            const top = -(12 + row * TAG_ROW);
             const shift = (centres[i] ?? pt.x) - pt.x;
-            const d = open && !live3d ? Math.min(i * 22, 360) : 0;
+            const d = open && !live3d ? Math.min(i * 12, 140) : 0;
             // The line runs from the middle of the label down to the dot: straight down normally, and at an angle when
             // the label has been held in from the edge of the screen, so the two are always joined.
             const h = Math.max(0, pt.y - top);
             const len = Math.hypot(shift, h);
             const angle = len ? (Math.asin(shift / len) * 180) / Math.PI : 0;
-            const glide = `0.7s ${EASE} ${d}ms`;
+            const glide = `0.5s ${EASE} ${d}ms`;
             return (
               <div
                 key={i}
@@ -651,7 +651,7 @@ export const ExplodeStage = memo(function ExplodeStage({
                     top,
                     height: Math.max(0, pt.y - top),
                     "--shift": `${shift}px`,
-                    transition: `left 0.7s ${EASE} ${d}ms, top 0.7s ${EASE} ${d}ms, height 0.7s ${EASE} ${d}ms, opacity 0.22s ease ${labelsOn ? i * LABEL_STAGGER : 0}ms`,
+                    transition: `left 0.5s ${EASE} ${d}ms, top 0.5s ${EASE} ${d}ms, height 0.5s ${EASE} ${d}ms, opacity 0.16s ease ${labelsOn ? i * LABEL_STAGGER : 0}ms`,
                   } as React.CSSProperties
                 }
               >
