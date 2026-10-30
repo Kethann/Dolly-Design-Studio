@@ -14,7 +14,7 @@ export default {
     headers.set("x-forwarded-proto", "https");
 
     const hasBody = request.method !== "GET" && request.method !== "HEAD";
-    const upstream = await fetch(
+    const upstream = await env.WEB.fetch(
       new Request(target, { method: request.method, headers, body: hasBody ? request.body : undefined, redirect: "manual", duplex: "half" }),
     );
 
