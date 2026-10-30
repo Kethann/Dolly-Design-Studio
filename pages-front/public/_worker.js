@@ -14,14 +14,16 @@ export default {
     headers.set("x-forwarded-proto", "https");
 
     const hasBody = request.method !== "GET" && request.method !== "HEAD";
-    const upstream = await env.WEB.fetch(
+    const upstream = await fetch(
       new Request(target, { method: request.method, headers, body: hasBody ? request.body : undefined, redirect: "manual", duplex: "half" }),
     );
 
-    // Keep visitors on this address when the site redirects.
+    // Keep visitors on this address when the site redirects. Everything else is handed back untouched (no copy of the body is made
+    // here, so pictures of any size pass through at almost no cost to this front, which has only a few milliseconds of work to use).
+    const location = upstream.headers.get("location");
+    if (!location) return upstream;
     const out = new Headers(upstream.headers);
-    const location = out.get("location");
-    if (location) out.set("location", location.split(ORIGIN).join(url.origin));
+    out.set("location", location.split(ORIGIN).join(url.origin));
     return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: out });
   },
 };
