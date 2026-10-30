@@ -47,3 +47,10 @@ export function srcSetFor(src: string, widths = [480, 828, 1280, 1920]): string 
     .map((w) => `${path.startsWith("/images/uploads/") ? `${path}?${query ? `${query}&` : ""}w=${w}` : `/_next/image?url=${encodeURIComponent(versionedSrc(src))}&w=${w}&q=80`} ${w}w`)
     .join(", ");
 }
+
+/** The picture at a given width where Cloudflare can make that copy (the live site); otherwise the picture itself. For tiny uses (a mask, the shape of a picture) that must not pull in the full-size file. */
+export function resizedSrc(src: string, width: number): string {
+  if (process.env.NODE_ENV !== "production" || !src.startsWith("/images/uploads/")) return versionedSrc(src);
+  const [path, query = ""] = versionedSrc(src).split("?");
+  return `${path}?${query ? `${query}&` : ""}w=${width}`;
+}

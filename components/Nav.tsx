@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useContent } from "@/lib/content/context";
 import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
-import { goToSection, isPlainClick } from "@/lib/section-nav";
+import { glideLock, glideLocked, goToSection, isPlainClick } from "@/lib/section-nav";
 import { freezeScroll, releaseScroll } from "@/lib/smooth-scroll";
 import { DEFAULT_MENU_TONES } from "@/lib/content/types";
 import { useIntroSettings } from "@/lib/intro/settings-context";
@@ -62,13 +62,22 @@ export function Nav() {
     if (!sections.length) return;
     // The section across the reading line (just above the middle of the screen) is the one you are in. Worked out from where
     // the sections are, so even a very tall section (the pinned slate) is found correctly.
+    let settle = 0;
     const find = () => {
+      // Pressed an item and the page is gliding there: the highlight is already on it and stays (checked once more when the glide ends).
+      if (glideLocked()) {
+        setActiveSection(ITEM_OF[glideLock.id] ?? "");
+        window.clearTimeout(settle);
+        settle = window.setTimeout(find, Math.max(40, glideLock.until - performance.now() + 40));
+        return;
+      }
       const line = window.innerHeight * 0.45;
       const here = sections.find((s) => {
         const r = s.getBoundingClientRect();
         return r.top <= line && r.bottom > line;
       });
-      setActiveSection(here ? (ITEM_OF[here.id] ?? "") : "");
+      // In a gap between two sections (the numbers under the agency text) the highlight stays where it was, rather than going out and coming back.
+      setActiveSection((prev) => (here ? (ITEM_OF[here.id] ?? "") : prev));
     };
     const io = new IntersectionObserver(find, { rootMargin: "-40% 0px -50% 0px", threshold: [0, 1] });
     sections.forEach((s) => io.observe(s));
@@ -79,6 +88,7 @@ export function Nav() {
     window.addEventListener("pageshow", find);
     find();
     return () => {
+      window.clearTimeout(settle);
       io.disconnect();
       ro.disconnect();
       window.removeEventListener("scroll", find);

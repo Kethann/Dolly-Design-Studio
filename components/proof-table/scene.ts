@@ -928,9 +928,12 @@ export function createProofScene(
     const insp = smooth(range(p, STAGES.inspect));
     const push = smooth(range(p, [0, STAGES.drops[1]]));
     const aspect = width / height;
+    // Stacked layout (phones, upright tablets): the headline above is tallest, relative to the screen, on short phones (about
+    // 0.56 wide for every 1 tall), so the table sits lower and smaller there; on a tall phone or a tablet it can be higher and larger.
+    const shortScreen = aspect < 0.6 ? Math.min(1, Math.max(0, (aspect - 0.46) / 0.14)) : Math.min(1, Math.max(0, (0.8 - aspect) / 0.2));
     const fit = (9.6 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)))) * Math.max(1, 1.5 / aspect);
-    const radius = fit * lerp(lerp(1.18, 1.05, push), mobile ? 0.66 : 0.74, insp);
-    const elev = THREE.MathUtils.degToRad(lerp(55, mobile ? 34 : 24, insp));
+    const radius = fit * lerp(lerp(1.18, 1.05, push), mobile ? 0.8 + 0.16 * shortScreen : 0.74, insp);
+    const elev = THREE.MathUtils.degToRad(lerp(55, mobile ? 44 : 24, insp));
     camYaw = THREE.MathUtils.degToRad(lerp(35, mobile ? 20 : 14, insp));
     slabSheenTex.offset.x = 0.2 + (camYaw - 0.3) * 0.5 + push * 0.12 + insp * 0.1;
     target.set(lerp(0, mobile ? 0 : 0.6, insp), lerp(0.2, 0.35, insp), lerp(0, mobile ? 0 : 0.4, insp));
@@ -940,7 +943,7 @@ export function createProofScene(
       target.z + radius * Math.cos(elev) * Math.cos(camYaw),
     );
     camera.lookAt(target);
-    camera.setViewOffset(width, height, mobile ? 0 : -width * 0.3 * insp, mobile ? -height * 0.22 * insp : 0, width, height);
+    camera.setViewOffset(width, height, mobile ? 0 : -width * 0.3 * insp, mobile ? -height * (0.17 + 0.2 * shortScreen) * insp : 0, width, height);
     // Standing up, a card faces the camera: tilted back by the camera's elevation.
     const standAngle = Math.PI / 2 - elev;
 

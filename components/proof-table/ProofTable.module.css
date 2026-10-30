@@ -108,8 +108,8 @@
   border-color: var(--gold-bright);
 }
 
-/* Phones: the headline sits above the table. */
-@media (max-width: 767px) {
+/* Phones, and tablets held upright: the headline sits above the table. */
+@media (max-width: 767px), (orientation: portrait) and (max-width: 1100px) {
   .copy {
     top: calc(var(--nav-h) + 40px);
     left: 20px;

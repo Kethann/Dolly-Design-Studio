@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { railSections } from "@/content/site";
-import { goToSection, isPlainClick } from "@/lib/section-nav";
+import { glideLock, glideLocked, goToSection, isPlainClick } from "@/lib/section-nav";
 import styles from "./RightRail.module.css";
 
 /** A right-edge rail of 2:3 mini-frames marking each section; the current one lights up. */
@@ -16,8 +16,16 @@ export function RightRail() {
     // again (back/forward) and whenever the page's height changes (images and fonts arriving), so it can never be left
     // pointing at the wrong section, however fast the page is scrolled or jumped.
     let raf = 0;
+    let settle = 0;
     const find = () => {
       raf = 0;
+      // A press on the rail (or the menu) is gliding the page: the lit frame goes straight to the chosen section and stays.
+      if (glideLocked() && railSections.some((s) => s.id === glideLock.id)) {
+        setActive(glideLock.id);
+        window.clearTimeout(settle);
+        settle = window.setTimeout(schedule, Math.max(40, glideLock.until - performance.now() + 40));
+        return;
+      }
       const line = window.innerHeight * 0.45;
       let current: string | undefined = railSections[0]?.id;
       for (const s of railSections) {
@@ -40,6 +48,7 @@ export function RightRail() {
     const ro = new ResizeObserver(schedule);
     ro.observe(document.body);
     return () => {
+      window.clearTimeout(settle);
       if (raf) cancelAnimationFrame(raf);
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);

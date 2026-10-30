@@ -154,7 +154,7 @@ export function ProofTableEditor({
       <Section
         title={`Cards (${items.length} / ${PROOF_LIMITS.items})`}
         scope="Page"
-        hint="They drop in this order. Phones show the first six."
+        hint="They drop in this order, on phones too."
       >
         <div ref={attach} style={{ display: "contents" }}>
         {items.map((it, i) => (

@@ -2,7 +2,7 @@
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Breakdown } from "@/lib/content/types";
-import { versionedSrc } from "@/lib/images";
+import { resizedSrc, srcSetFor, versionedSrc } from "@/lib/images";
 import styles from "./BreakdownStage.module.css";
 
 /** How the exploded stack starts out: edge-on from the side like parts in an exploded diagram, or tilted to show more of each layer. */
@@ -165,7 +165,7 @@ export const ExplodeStage = memo(function ExplodeStage({
       shapes.set(first, img.naturalWidth / img.naturalHeight);
       setAspect(img.naturalWidth / img.naturalHeight);
     };
-    img.src = versionedSrc(first);
+    img.src = resizedSrc(first, 64); // only its proportions are needed, not the whole picture
   }, [first, near]);
   const mounted = near || open || fullscreen;
 
@@ -598,6 +598,8 @@ export const ExplodeStage = memo(function ExplodeStage({
                   {/* eslint-disable-next-line @next/next/no-img-element -- transparent layer PNGs stacked in 3D */}
                   <img
                     src={versionedSrc(layer.image)}
+                    srcSet={srcSetFor(layer.image, [640, 1080, 1600, 2400])}
+                    sizes="(max-width: 700px) 100vw, 1100px"
                     alt={layer.label || `Layer ${i + 1}`}
                     draggable={false}
                     decoding="async"
@@ -614,8 +616,8 @@ export const ExplodeStage = memo(function ExplodeStage({
                     className={styles.layerBack}
                     aria-hidden="true"
                     style={{
-                      maskImage: `url("${versionedSrc(layer.image)}")`,
-                      WebkitMaskImage: `url("${versionedSrc(layer.image)}")`,
+                      maskImage: `url("${resizedSrc(layer.image, 1280)}")`,
+                      WebkitMaskImage: `url("${resizedSrc(layer.image, 1280)}")`,
                       opacity: hidden.includes(i) ? 0.06 : focusLayer !== null && focusLayer !== i ? 0.3 : 1,
                       transform: `translateZ(${zOf(i)}px) rotateY(180deg)`,
                       transitionDelay: open && !live3d ? `${Math.min(i * 12, 140)}ms` : `${Math.min((n - 1 - i) * 10, 120)}ms`,

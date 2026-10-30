@@ -13,7 +13,7 @@ import styles from "./ProofTable.module.css";
 import { renderFx } from "@/components/fx/render-fx";
 
 type Mode = "pinned" | "static" | "fallback";
-const MOBILE_ITEMS = 6;
+const MOBILE_ITEMS = 24; // phones show every card (the grid fits any number to the glass); this only guards against an absurd count
 
 function hasWebGL() {
   try {
@@ -46,9 +46,15 @@ export function ProofTable() {
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client capability check
-    setMobile(window.matchMedia("(max-width: 767px)").matches);
+    // Phones, and tablets held upright, get the stacked layout (headline above, the whole table below it).
+    const stacked = window.matchMedia("(max-width: 767px), (orientation: portrait) and (max-width: 1100px)");
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time client capability checks */
+    setMobile(stacked.matches);
     setMode(!hasWebGL() ? "fallback" : reduced ? "static" : "pinned");
+    /* eslint-enable react-hooks/set-state-in-effect */
+    const follow = () => setMobile(stacked.matches);
+    stacked.addEventListener("change", follow); // turning the tablet over switches layout
+    return () => stacked.removeEventListener("change", follow);
   }, []);
 
   // Live from the portal: new / removed slots and card size swap the cards; the glass restyles in place.
