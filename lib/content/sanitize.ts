@@ -237,6 +237,12 @@ export function sanitizeContent(input: unknown): SiteContent {
   const tonesIn = isObj(src.theme) && isObj(src.theme.menuTones) ? src.theme.menuTones : {};
   merged.theme.menuTones = Object.fromEntries(Object.entries(DEFAULT_MENU_TONES).map(([id, d]) => [id, isHex(tonesIn[id]) ? (tonesIn[id] as string).toLowerCase() : d]));
 
+  // The contact headline used to end "…something cinematic." Saved copies of that exact text now get the particle word and
+  // lose the full stop; a dot straight after a marked word is never kept. Anything the creator wrote differently is left alone.
+  const headline = merged.home.contact.headline;
+  if (/^Let[’']s create something cinematic\.?$/i.test(headline.trim())) merged.home.contact.headline = "Let’s create something [[cinematic]]";
+  else merged.home.contact.headline = headline.replace(/(\[\[[^\]]+\]\])\.\s*$/, "$1");
+
   // Cards saved before “opens the breakdown viewer” existed: the one with the layers icon does.
   merged.home.process.cards = merged.home.process.cards.map((c) => {
     const old = c as { opensBreakdowns?: unknown; opens?: unknown; linkText?: unknown; icon?: string };
