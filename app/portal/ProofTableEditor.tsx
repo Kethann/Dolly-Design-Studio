@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirmDelete } from "./DeleteDialog";
 import { resizedSrc } from "@/lib/images";
 import { useRef, useState } from "react";
 import type { ProofItem } from "@/content/proof-table";
@@ -26,6 +27,7 @@ export function ProofTableEditor({
   onShow: () => void;
 }) {
   const media = useMedia();
+  const { ask: askDelete, dialog: deleteDialog } = useConfirmDelete();
   const images = media.images; // everything uploaded anywhere in the portal
   const [upload, setUpload] = useState<{ kind: "idle" | "busy" | "error"; message?: string }>({ kind: "idle" });
   const fileRef = useRef<HTMLInputElement>(null);
@@ -75,6 +77,7 @@ export function ProofTableEditor({
 
   return (
     <>
+      {deleteDialog}
       <Section title="Proof Table" scope="Page" hint="The 3D section where your titles drop onto a lit proofing table.">
         <Toggle label="Show the section" checked={value.enabled} onChange={(enabled) => onChange({ enabled })} />
         <div className={styles.control}>
@@ -171,7 +174,14 @@ export function ProofTableEditor({
                   className={styles.iconButton}
                   aria-label={`Remove ${it.film}`}
                   disabled={items.length <= 1}
-                  onClick={() => setItems(items.filter((_, j) => j !== i))}
+                  onClick={() =>
+                    askDelete({
+                      what: `the slate title “${it.film}”`,
+                      item: it,
+                      elsewhere: items.filter((_, j) => j !== i),
+                      onDelete: () => setItems(items.filter((_, j) => j !== i)),
+                    })
+                  }
                 >
                   ×
                 </button>

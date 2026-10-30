@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirmDelete } from "./DeleteDialog";
 import { resizedSrc } from "@/lib/images";
 import { useState } from "react";
 import type { Breakdown, BreakdownLayer } from "@/lib/content/types";
@@ -70,6 +71,7 @@ function LayerRows({ b, i, patch }: { b: Breakdown; i: number; patch: (i: number
  */
 export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: number | null) => void; /** Open this breakdown first (the Edit button on one of the page's entries). */ initialOpen?: number }) {
   const { content, update, media } = useEditor();
+  const { ask: askDelete, dialog: deleteDialog } = useConfirmDelete();
   const items = content.breakdowns;
   const [open, setOpen] = useState<number | null>(initialOpen !== undefined && initialOpen < items.length ? initialOpen : items.length ? 0 : null);
   /** Why the last layer upload added fewer files than were chosen. */
@@ -89,6 +91,7 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
 
   return (
     <div className={styles.page} ref={attach}>
+      {deleteDialog}
       <section className={styles.section} data-open="true">
         <div className={styles.sectionHeadStatic}>How it works</div>
         <div className={styles.sectionBody}>
@@ -139,12 +142,17 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
               <button
                 type="button"
                 aria-label="Delete this breakdown"
-                onClick={() => {
-                  if (window.confirm(`Delete the breakdown “${b.title}” and its layer list? (The pictures stay in your library.)`)) {
-                    update((c) => ({ ...c, breakdowns: c.breakdowns.filter((_, j) => j !== i) }));
-                    choose(null);
-                  }
-                }}
+                onClick={() =>
+                  askDelete({
+                    what: `the breakdown “${b.title}”`,
+                    item: b,
+                    note: "Its layer list goes. It only disappears from the site when you publish.",
+                    onDelete: () => {
+                      update((c) => ({ ...c, breakdowns: c.breakdowns.filter((_, j) => j !== i) }));
+                      choose(null);
+                    },
+                  })
+                }
               >
                 ×
               </button>

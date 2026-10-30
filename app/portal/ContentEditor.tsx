@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirmDelete } from "./DeleteDialog";
+import { createPortal } from "react-dom";
 import { resizedSrc } from "@/lib/images";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { allFonts } from "@/lib/content/fonts";
@@ -885,6 +887,7 @@ function BulkUpload({ field, path }: { field: Extract<Field, { kind: "list" }>; 
 
 function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; path: string }) {
   const { content, update } = useEditor();
+  const { ask: askDelete, dialog: deleteDialog } = useConfirmDelete();
   const list = (getAt(content, path) as Record<string, unknown>[] | undefined) ?? [];
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const mode = useContext(ListModeCtx);
@@ -933,12 +936,16 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
                       type="button"
                       aria-label="Delete"
                       disabled={list.length <= (field.min ?? 0)}
-                      onClick={() => {
-                        if (window.confirm(`Delete “${field.title(item, i)}”? (It only disappears from the site when you publish.)`)) {
-                          set(list.filter((_, j) => j !== i));
-                          setOpenIndex(null);
-                        }
-                      }}
+                      onClick={() =>
+                        askDelete({
+                          what: `“${field.title(item, i)}”`,
+                          item,
+                          onDelete: () => {
+                            set(list.filter((_, j) => j !== i));
+                            setOpenIndex(null);
+                          },
+                        })
+                      }
                     >
                       ×
                     </button>
@@ -971,6 +978,7 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
         </button>
       )}
       {field.bulk && !field.fixed && !atMax && <BulkUpload field={field} path={path} />}
+      {deleteDialog}
     </div>
   );
 }
@@ -1496,25 +1504,46 @@ export function ThemeEditor() {
 export function MediaLibrary() {
   const { media, content } = useEditor();
   const [filter, setFilter] = useState("");
-  /** The picture waiting for the second click ("Delete"), and what went wrong with the last deletion. */
-  const [asking, setAsking] = useState<string | null>(null);
+  /** Select-many mode: tapping a picture ticks it, then one Delete removes all that are ticked. */
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  /** The pictures waiting for "Delete for good?" (one from its ✕, or every ticked one). */
+  const [asking, setAsking] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
   const shown = media.images.filter((s) => s.toLowerCase().includes(filter.toLowerCase()));
-  const used = (src: string) => JSON.stringify(content).includes(src);
-  async function remove(src: string) {
+  const shownRemovable = shown.filter((s) => media.removable.includes(s));
+  const siteJson = JSON.stringify(content);
+  const used = (src: string) => siteJson.includes(src);
+  const toggle = (src: string) => setPicked((p) => (p.includes(src) ? p.filter((x) => x !== src) : [...p, src]));
+  const stopSelecting = () => {
+    setSelecting(false);
+    setPicked([]);
+  };
+  async function removeAll(list: string[]) {
     setBusy(true);
     setError("");
-    try {
-      await media.remove(src);
-      setAsking(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn’t delete that picture.");
-    } finally {
-      setBusy(false);
+    const failed: string[] = [];
+    const done: string[] = [];
+    for (const src of list) {
+      try {
+        await media.remove(src);
+        done.push(src);
+      } catch (err) {
+        failed.push(err instanceof Error ? err.message : "Couldn’t delete that picture.");
+      }
     }
+    setBusy(false);
+    setPicked((p) => p.filter((x) => !done.includes(x)));
+    if (failed.length) {
+      setError(`${list.length - failed.length} deleted, ${failed.length} couldn’t be: ${failed[0]}`);
+    } else if (selecting) {
+      stopSelecting();
+    }
+    setAsking(null);
   }
+  const askingUsed = asking ? asking.filter(used).length : 0;
   return (
     <div className={styles.page}>
       <section className={styles.section} data-open="true">
@@ -1528,8 +1557,35 @@ export function MediaLibrary() {
             onFiles={(files) => uploads.start(files, () => {})}
           />
           <input className={styles.input} placeholder="Search by name or folder" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <div className={styles.libBar}>
+            <span className={styles.grow}>
+              {selecting
+                ? `${picked.length} selected`
+                : `${media.images.length} pictures${filter ? ` — ${shown.length} match` : ""}`}
+            </span>
+            {selecting ? (
+              <>
+                <button type="button" onClick={() => setPicked(shownRemovable)} disabled={shownRemovable.length === 0 || picked.length === shownRemovable.length}>
+                  Select all{filter ? " shown" : ""}
+                </button>
+                <button type="button" onClick={() => setPicked([])} disabled={picked.length === 0}>
+                  Clear
+                </button>
+                <button type="button" data-danger="true" onClick={() => { setError(""); setAsking(picked); }} disabled={picked.length === 0 || busy}>
+                  Delete{picked.length ? ` (${picked.length})` : ""}
+                </button>
+                <button type="button" onClick={stopSelecting}>
+                  Done
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={() => { setError(""); setSelecting(true); }} disabled={shownRemovable.length === 0}>
+                Select several
+              </button>
+            )}
+          </div>
           <p className={styles.hint}>
-            {media.images.length} pictures{filter ? ` — ${shown.length} match` : ""}. Pictures you uploaded have a ✕ to delete them for good.
+            {selecting ? "Tap the pictures you want to remove, then press Delete. Pictures that came with the site can’t be deleted." : "Pictures you uploaded can be deleted for good: use the ✕ on one, or Select several."}
           </p>
           {error && (
             <p className={styles.error} role="alert">
@@ -1539,29 +1595,29 @@ export function MediaLibrary() {
           <div className={styles.libraryGrid}>
             {shown.map((src) => {
               const canRemove = media.removable.includes(src);
+              const on = picked.includes(src);
               return (
-                <figure key={src} className={styles.libraryTile} title={src} data-asking={asking === src}>
+                <figure
+                  key={src}
+                  className={styles.libraryTile}
+                  title={src}
+                  data-selecting={selecting && canRemove}
+                  data-picked={on}
+                  style={selecting && !canRemove ? { opacity: 0.45 } : undefined}
+                  onClick={selecting && canRemove ? () => toggle(src) : undefined}
+                >
                   <span className={styles.libraryPic}>
                     {/* eslint-disable-next-line @next/next/no-img-element -- library thumbnails */}
                     <img src={resizedSrc(src, 320)} alt="" loading="lazy" decoding="async" />
-                    {canRemove && asking !== src && (
-                      <button type="button" className={styles.libraryX} aria-label={`Delete ${src.replace("/images/", "")}`} title="Delete this picture" onClick={() => { setError(""); setAsking(src); }}>
+                    {selecting && canRemove && (
+                      <span className={styles.libraryTick} aria-hidden="true">
+                        {on ? "✓" : ""}
+                      </span>
+                    )}
+                    {!selecting && canRemove && (
+                      <button type="button" className={styles.libraryX} aria-label={`Delete ${src.replace("/images/", "")}`} title="Delete this picture" onClick={() => { setError(""); setAsking([src]); }}>
                         ✕
                       </button>
-                    )}
-                    {asking === src && (
-                      <span className={styles.libraryAsk} role="group" aria-label="Delete this picture for good?">
-                        <strong>Delete for good?</strong>
-                        <small>{used(src) ? "It is used on the site: that spot will be left empty." : "If a card or page uses it, that spot will be left empty."}</small>
-                        <span>
-                          <button type="button" onClick={() => setAsking(null)} disabled={busy}>
-                            Cancel
-                          </button>
-                          <button type="button" data-danger="true" onClick={() => remove(src)} disabled={busy} autoFocus>
-                            {busy ? "Deleting…" : "Delete"}
-                          </button>
-                        </span>
-                      </span>
                     )}
                   </span>
                   <figcaption>{src.replace("/images/", "")}</figcaption>
@@ -1571,6 +1627,37 @@ export function MediaLibrary() {
           </div>
         </div>
       </section>
+      {asking &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className={styles.delBackdrop} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && !busy && setAsking(null)}>
+            <div className={styles.delDialog} role="alertdialog" aria-modal="true" aria-label="Delete for good?" onKeyDown={(e) => e.key === "Escape" && !busy && setAsking(null)}>
+              <h3>Delete {asking.length === 1 ? "this picture" : `${asking.length} pictures`} for good?</h3>
+              <p>
+                {askingUsed
+                  ? `${askingUsed === asking.length && asking.length === 1 ? "It is" : `${askingUsed} of them ${askingUsed === 1 ? "is" : "are"}`} used on the site: ${askingUsed === 1 ? "that spot" : "those spots"} will be left empty.`
+                  : "If a card or page uses it, that spot will be left empty."}{" "}
+                This can’t be undone.
+              </p>
+              <span className={styles.delThumbs} aria-hidden="true">
+                {asking.slice(0, 10).map((src) => (
+                  // eslint-disable-next-line @next/next/no-img-element -- tiny previews
+                  <img key={src} src={resizedSrc(src, 120)} alt="" />
+                ))}
+                {asking.length > 10 && <em>+{asking.length - 10}</em>}
+              </span>
+              <span className={styles.delActions}>
+                <button type="button" onClick={() => setAsking(null)} disabled={busy}>
+                  Cancel
+                </button>
+                <button type="button" data-danger="true" onClick={() => removeAll(asking)} disabled={busy} autoFocus>
+                  {busy ? "Deleting…" : asking.length === 1 ? "Delete" : `Delete ${asking.length}`}
+                </button>
+              </span>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

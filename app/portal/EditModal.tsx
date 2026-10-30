@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfirmDelete } from "./DeleteDialog";
 import { useEffect, useRef, type ReactNode } from "react";
 import { FieldView, ProblemsProvider, getAt, moveItem, setAt, useEditor } from "./ContentEditor";
 import { findList, findSection, type Field } from "./content-schema";
@@ -133,6 +134,7 @@ export function ItemEditor({ list, index }: { list: string; index: number }) {
 /** Move earlier / later, duplicate and delete for the item being edited. Returns the item's new place (or null once deleted). */
 export function ItemTools({ list, index, onIndex, onDeleted }: { list: string; index: number; onIndex: (i: number) => void; onDeleted: () => void }) {
   const { content, update } = useEditor();
+  const { ask: askDelete, dialog: deleteDialog } = useConfirmDelete();
   const def = findList(list);
   const items = (getAt(content, list) as Record<string, unknown>[] | undefined) ?? [];
   if (!def) return null;
@@ -183,14 +185,20 @@ export function ItemTools({ list, index, onIndex, onDeleted }: { list: string; i
         aria-label="Delete"
         disabled={!canDelete}
         data-danger
-        onClick={() => {
-          if (!window.confirm(`Delete “${def.title(items[index], index)}”? (It only disappears from the site when you publish.)`)) return;
-          set(items.filter((_, j) => j !== index));
-          onDeleted();
-        }}
+        onClick={() =>
+          askDelete({
+            what: `“${def.title(items[index], index)}”`,
+            item: items[index],
+            onDelete: () => {
+              set(items.filter((_, j) => j !== index));
+              onDeleted();
+            },
+          })
+        }
       >
         🗑
       </button>
+      {deleteDialog}
     </span>
   );
 }
