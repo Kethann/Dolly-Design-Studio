@@ -206,16 +206,6 @@ div.itemButton {
   opacity: 0.7;
 }
 
-.emptyIcon {
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  font-size: 26px;
-  color: #2b1503;
-  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
-}
 
 .emptyText {
   opacity: 0.7;
@@ -399,4 +389,14 @@ div.itemButton {
   font-size: 12px;
   opacity: 0.7;
   color: var(--ivory);
+}
+
+/* While editing, the "Add a card" tile is the one place to add, so the visitor's "nothing here yet" note steps aside. */
+:global(html[data-dds-edit="1"]) .empty {
+  display: none;
+}
+
+/* Keep the tile a sensible size, whatever shape the pictures are. */
+.addTile button {
+  max-height: 360px;
 }

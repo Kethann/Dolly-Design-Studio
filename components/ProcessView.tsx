@@ -139,9 +139,6 @@ export function ProcessView({ slug }: { slug: string }) {
         <ul className={styles.grid} data-cols={page.cols} data-shape={page.shape}>
           {page.items.length === 0 && (
             <li className={styles.empty}>
-              <span className={styles.emptyIcon} aria-hidden="true">
-                ＋
-              </span>
               <strong>Nothing here yet</strong>
               <span>Cards added to “{card.title}” will appear on this page.</span>
             </li>
