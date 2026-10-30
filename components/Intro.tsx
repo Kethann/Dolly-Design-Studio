@@ -126,17 +126,8 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
       reportIntroProgress(1); // the portal decides when to play: no loader in its preview
       return;
     }
-    // Once per visit: coming back to the home page within the visit goes straight to the page.
-    let seen = false;
-    try {
-      seen = sessionStorage.getItem("dolly-intro-seen") === "1";
-    } catch {}
-    // A reload (or a new tab) plays it again; only coming back within the visit skips it.
-    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-    if (seen && nav?.type !== "reload") {
-      skip();
-      return;
-    }
+    // Every fresh load of the home page plays the opening (a reload, a typed address, a new visit). Moving around inside the site
+    // never replays it: this component is only set up once per load.
     // Read media queries directly: child effects run before MotionProvider's,
     // so the context values aren't populated yet at this point.
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

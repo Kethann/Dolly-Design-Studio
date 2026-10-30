@@ -150,7 +150,10 @@ export function ProofTable() {
       sceneRef.current = scene;
       const r = canvas.getBoundingClientRect();
       scene.resize(r.width, r.height);
-      shown = held = progress();
+      // The story always starts from its beginning and catches up to where the scroll is: if the scene finishes loading while the
+      // visitor is already part-way through the section, it plays forward quickly instead of appearing half-done.
+      held = progress();
+      shown = 0;
       setVars(shown);
       // Off screen: don't draw yet (that would upload everything at once); warm the GPU up in idle moments instead.
       if (visible) scene.update(shown, 0);
