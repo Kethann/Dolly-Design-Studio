@@ -8,6 +8,7 @@ import { placeholderProps, versionedSrc } from "@/lib/images";
 import { adjustStyle } from "@/lib/content/adjust";
 import { ServiceDialog } from "./ServiceDialog";
 import styles from "./Services.module.css";
+import { renderFx } from "@/components/fx/render-fx";
 
 /** The line icons from the portfolio: pen nib (posters), framed T (titles), text box (typography), round logo. */
 function Icon({ name }: { name: string }) {
@@ -67,10 +68,10 @@ export function Services() {
     <section id="services" className={styles.section} {...edSection("home", "services", "Our services")}>
       <div className="container">
         <span className={styles.label} {...tx("home.services.label")}>
-          {home.services.label}
+          {renderFx(home.services.label)}
         </span>
         <h2 className={styles.title} {...tx("home.services.title")}>
-          {home.services.title}
+          {renderFx(home.services.title)}
         </h2>
 
         <div className={styles.cards} {...edList("services", "service", 10)}>
@@ -109,10 +110,10 @@ export function Services() {
               <div className={styles.body}>
                 <span className={styles.num}>{s.number}</span>
                 <h3 className={styles.name} {...tx("services.name")}>
-                  {s.name}
+                  {renderFx(s.name)}
                 </h3>
                 <p className={styles.desc} {...tx("services.description")}>
-                  {s.description}
+                  {renderFx(s.description)}
                 </p>
                 {s.deliverables.length > 0 && (
                   <ul className={styles.chips}>

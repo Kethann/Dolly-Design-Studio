@@ -4,6 +4,7 @@ import { useContent, tx } from "@/lib/content/context";
 import { edItem, edSection, edList } from "@/lib/content/tx";
 import { CountUp } from "@/components/CountUp";
 import styles from "./Stats.module.css";
+import { renderFx } from "@/components/fx/render-fx";
 
 /** Years of experience · projects · clients, right under the agency statement. */
 export function Stats() {
@@ -16,7 +17,7 @@ export function Stats() {
             <div className={styles.value} {...tx("home.stats.value")}>
               <CountUp value={s.value} suffix={s.suffix} />
             </div>
-            <div className={styles.label} {...tx("home.stats.label")}>{s.label}</div>
+            <div className={styles.label} {...tx("home.stats.label")}>{renderFx(s.label)}</div>
           </div>
         ))}
       </div>

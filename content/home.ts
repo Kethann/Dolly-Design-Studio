@@ -65,6 +65,8 @@ export const home = {
   // 7. ABOUT THE FOUNDER — name and role come from site.ts.
   founder: {
     label: "About the Founder",
+    /** The big heading beside the card (its own text and look; the card has the name, role and a short note). */
+    heading: "Sasank Muppalla",
     /** A photo of the founder (empty = a monogram). */
     photo: "",
     /** What the photo shows, for screen readers and search engines. */

@@ -117,9 +117,9 @@ export function Contact() {
       )}
 
       <div className="container">
-        <span className={styles.label} {...tx("home.contact.label")}>{copy.label}</span>
+        <span className={styles.label} {...tx("home.contact.label")}>{renderFx(copy.label)}</span>
         <h2 className={styles.headline} {...tx("home.contact.headline")}>{renderFx(copy.headline)}</h2>
-        <p className={styles.availability} {...tx("home.contact.availability")}>{copy.availability}</p>
+        <p className={styles.availability} {...tx("home.contact.availability")}>{renderFx(copy.availability)}</p>
 
         <div className={styles.grid}>
           <div className={styles.quickLinks}>

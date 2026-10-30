@@ -7,6 +7,7 @@ import { useContent, tx } from "@/lib/content/context";
 import { edItem, edSection } from "@/lib/content/tx";
 import { glideTo, topOf } from "@/lib/smooth-scroll";
 import styles from "./BreakdownsPage.module.css";
+import { renderFx } from "@/components/fx/render-fx";
 
 /**
  * Moving between breakdowns: on a wide screen a slim column at the right edge (previous, next, and a scrolling list of
@@ -154,13 +155,13 @@ export function BreakdownsPage() {
         </Link>
         <header className={styles.hero}>
           <span className={`label gold-text ${styles.label}`} {...tx("breakdownsPage.label")}>
-            {t.label}
+            {renderFx(t.label)}
           </span>
           <h1 className={styles.title} {...tx("breakdownsPage.title")}>
-            {t.title}
+            {renderFx(t.title)}
           </h1>
           <p className={styles.intro} {...tx("breakdownsPage.intro")}>
-            {t.intro}
+            {renderFx(t.intro)}
           </p>
           {items.length > 0 && (
             <span className={styles.count}>

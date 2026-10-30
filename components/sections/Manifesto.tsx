@@ -7,6 +7,8 @@ import { useContent, tx } from "@/lib/content/context";
 import { edSection } from "@/lib/content/tx";
 import { useMotion } from "@/lib/motion";
 import styles from "./Manifesto.module.css";
+import { renderFx } from "@/components/fx/render-fx";
+import { ParticleText } from "@/components/fx/ParticleText";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
@@ -27,6 +29,16 @@ function renderStatement(statement: string) {
       <Fragment key={i}>
         {seg.split(" ").map((w, j) => {
           if (!w) return null;
+          // A [[word]] keeps its place in the line as the particle word (it is always lit; the rest light up as you scroll).
+          const fx = /^\[\[(.+)\]\]([.,!?;:]*)$/.exec(w);
+          if (fx) {
+            return (
+              <Fragment key={j}>
+                <ParticleText>{fx[1]}</ParticleText>
+                {fx[2]}{" "}
+              </Fragment>
+            );
+          }
           wordIndex += 1;
           return (
             <Fragment key={j}>
@@ -74,11 +86,11 @@ export function Manifesto() {
   return (
     <section id="agency" className={styles.section} {...edSection("home", "agency", "About the agency")}>
       <div className={`container ${styles.inner}`}>
-        <span className={styles.label} {...tx("home.manifesto.label")}>{home.manifesto.label}</span>
+        <span className={styles.label} {...tx("home.manifesto.label")}>{renderFx(home.manifesto.label)}</span>
         <p ref={ref} className={styles.statement} {...tx("home.manifesto.statement")}>
           {renderStatement(home.manifesto.statement)}
         </p>
-        <p className={styles.body} {...tx("home.manifesto.body")}>{home.manifesto.body}</p>
+        <p className={styles.body} {...tx("home.manifesto.body")}>{renderFx(home.manifesto.body)}</p>
       </div>
     </section>
   );

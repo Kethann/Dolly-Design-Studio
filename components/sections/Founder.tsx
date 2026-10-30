@@ -6,6 +6,7 @@ import { edSection } from "@/lib/content/tx";
 import { placeholderProps, versionedSrc } from "@/lib/images";
 import { SocialLogo } from "@/components/SocialLogo";
 import styles from "./Founder.module.css";
+import { renderFx } from "@/components/fx/render-fx";
 
 /** About the founder: a glass profile card (portrait, name, role and a short description) beside the longer bio. */
 export function Founder() {
@@ -40,17 +41,17 @@ export function Founder() {
           <p className={styles.role} {...tx("site.founder.role")}>{site.founder.role}</p>
           {copy.cardNote && (
             <p className={styles.note} {...tx("home.founder.cardNote")}>
-              {copy.cardNote}
+              {renderFx(copy.cardNote)}
             </p>
           )}
         </aside>
 
         <div className={styles.story}>
-          <span className={styles.label} {...tx("home.founder.label")}>{copy.label}</span>
-          <h2 className={styles.title} {...tx("site.founder.name")}>{site.founder.name}</h2>
+          <span className={styles.label} {...tx("home.founder.label")}>{renderFx(copy.label)}</span>
+          <h2 className={styles.title} {...tx("home.founder.heading")}>{renderFx(copy.heading)}</h2>
           {copy.paragraphs.map((p, i) => (
             <p key={i} className={styles.body} {...tx("home.founder.paragraphs")}>
-              {p}
+              {renderFx(p)}
             </p>
           ))}
           {copy.social.length > 0 && (

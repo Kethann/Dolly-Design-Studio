@@ -211,12 +211,15 @@ const home: SchemaPage = {
       target: "about",
       art: "about",
       fields: [
-        { kind: "text", path: "home.founder.label", label: "Small heading", style: true },
-        { kind: "text", path: "site.founder.name", label: "Name", style: true },
-        { kind: "text", path: "site.founder.role", label: "Role", style: true },
-        { kind: "image", path: "home.founder.photo", label: "Profile picture", hint: "Shown on the glass card. Without one, the initials are shown.", alt: "photoAlt", shape: "photoShape", size: "photoSize", adjust: "photo" },
-        { kind: "area", path: "home.founder.cardNote", label: "Short description on the card", style: true },
-        { kind: "strings", path: "home.founder.paragraphs", label: "Bio paragraphs", add: "Add a paragraph", area: true, style: true },
+        // The card (left): its picture, name, role and short note.
+        { kind: "image", path: "home.founder.photo", label: "Card · Profile picture", hint: "Shown on the glass card. Without one, the initials are shown.", alt: "photoAlt", shape: "photoShape", size: "photoSize", adjust: "photo" },
+        { kind: "text", path: "site.founder.name", label: "Card · Name", style: true },
+        { kind: "text", path: "site.founder.role", label: "Card · Role", style: true },
+        { kind: "area", path: "home.founder.cardNote", label: "Card · Short description", style: true },
+        // The story (right): its small heading, big heading, paragraphs and links. Each has its own text and its own look.
+        { kind: "text", path: "home.founder.label", label: "Beside the card · Small heading", style: true },
+        { kind: "text", path: "home.founder.heading", label: "Beside the card · Heading", style: true },
+        { kind: "strings", path: "home.founder.paragraphs", label: "Beside the card · Bio paragraphs", add: "Add a paragraph", area: true, style: true },
         FOUNDER_LINKS,
       ],
     },

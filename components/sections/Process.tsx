@@ -12,6 +12,7 @@ import { extraOf } from "@/lib/content/process";
 import { goToSection } from "@/lib/section-nav";
 import { withPreview } from "@/lib/intro/preview-protocol";
 import styles from "./Process.module.css";
+import { renderFx } from "@/components/fx/render-fx";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
@@ -132,9 +133,9 @@ export function Process() {
     <section id="process" className={styles.section} {...edSection("home", "process", "How we work")}>
       <div className="container">
         <div className={styles.head}>
-          <span className={styles.label} {...tx("home.process.label")}>{copy.label}</span>
-          <h2 className={styles.title} {...tx("home.process.title")}>{copy.title}</h2>
-          <p className={styles.body} {...tx("home.process.intro")}>{copy.intro}</p>
+          <span className={styles.label} {...tx("home.process.label")}>{renderFx(copy.label)}</span>
+          <h2 className={styles.title} {...tx("home.process.title")}>{renderFx(copy.title)}</h2>
+          <p className={styles.body} {...tx("home.process.intro")}>{renderFx(copy.intro)}</p>
         </div>
 
         <div className={styles.steps} ref={ref} {...edList("home.process.cards", "card", 8)}>
@@ -182,16 +183,16 @@ export function Process() {
                   <StepIcon name={(card as { icon?: string }).icon ?? ICON_ORDER[i] ?? "star"} />
                 </span>
                 <h3 className={styles.stepTitle} {...tx("home.process.cards.title")}>
-                  {card.title}
+                  {renderFx(card.title)}
                 </h3>
                 <div className={styles.headRow}>
                   <span className={styles.number}>{String(i + 1).padStart(2, "0")}</span>
                   <p className={styles.note} {...tx("home.process.cards.note")}>
-                    {card.note}
+                    {renderFx(card.note)}
                   </p>
                 </div>
                 <p className={styles.stepBody} {...tx("home.process.cards.body")}>
-                  {card.body}
+                  {renderFx(card.body)}
                 </p>
                 {opens && linkText && <span className={styles.cta}>{linkText} →</span>}
               </div>

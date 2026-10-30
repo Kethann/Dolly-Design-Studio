@@ -10,6 +10,7 @@ import { ProofTableFallback } from "./Fallback";
 import type { ProofScene } from "./scene";
 import { STAGES } from "./stages";
 import styles from "./ProofTable.module.css";
+import { renderFx } from "@/components/fx/render-fx";
 
 type Mode = "pinned" | "static" | "fallback";
 const MOBILE_ITEMS = 6;
@@ -216,17 +217,17 @@ export function ProofTable() {
   const copy = (
     <div className={styles.copy}>
       <span className={styles.overline} style={{ "--r": "var(--r0)" } as React.CSSProperties}>
-        {slate.overline}
+        {renderFx(slate.overline)}
       </span>
       <h2 className={styles.headline}>
         {slate.headline.map((line, i) => (
           <span key={line} className={styles.line} style={{ "--r": `var(--r${i + 1})` } as React.CSSProperties}>
-            {line}
+            {renderFx(line)}
           </span>
         ))}
       </h2>
       <p className={styles.body} style={{ "--r": "var(--r3)" } as React.CSSProperties}>
-        {slate.body}
+        {renderFx(slate.body)}
       </p>
       <Link
         href={proofTable.cta.href}

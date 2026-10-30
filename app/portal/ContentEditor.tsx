@@ -79,6 +79,9 @@ export function setAt<T>(obj: T, path: string, value: unknown): T {
 /** "home.process.cards.2.title" → "home.process.cards.title": the key a text's style is stored under. */
 const styleKey = (path: string) => path.replace(/\.\d+(?=\.|$)/g, "");
 
+/** Texts that are not drawn with the particle effect (they also appear in page titles, search results or as lists of words). */
+const NO_FX = new Set(["home.hero.disciplines", "site.founder.name", "site.founder.role"]);
+
 export const moveItem = <T,>(list: T[], i: number, by: number) => {
   const j = i + by;
   if (j < 0 || j >= list.length) return list;
@@ -654,6 +657,8 @@ function TextInput({ field, path }: { field: Extract<Field, { kind: "text" | "ar
   const set = (v: string) => update((c) => setAt(c, path, v));
   const box = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const hasFx = /\[\[.+?\]\]/.test(value);
+  /** The effect is offered on every text the site can draw with it: all the headings, small headings and paragraphs (not names, which also sit in page titles, or lists of words). */
+  const fxOn = field.fx ?? (!!field.style && !NO_FX.has(styleKey(path)));
   /** Particle effect on or off: the selected words get [[brackets]]; with nothing selected, the last word does; pressed again, they go. */
   const toggleFx = () => {
     const el = box.current;
@@ -672,7 +677,7 @@ function TextInput({ field, path }: { field: Extract<Field, { kind: "text" | "ar
     <div className={styles.field}>
       <div className={styles.labelRow}>
         <span className={styles.label}>{field.label}</span>
-        {field.fx && (
+        {fxOn && (
           <button type="button" className={styles.aa} data-on={hasFx} aria-pressed={hasFx} title="Select some words first, or it uses the last word. Press again to remove." onMouseDown={(e) => e.preventDefault()} onClick={toggleFx}>
             ✦ Particles
           </button>
@@ -684,7 +689,7 @@ function TextInput({ field, path }: { field: Extract<Field, { kind: "text" | "ar
       ) : (
         <input ref={box} className={styles.input} value={value} onChange={(e) => set(e.target.value)} />
       )}
-      {field.fx && <p className={styles.hint}>Words inside [[double brackets]] turn into dots that scatter from the cursor. Select words and press “✦ Particles”.</p>}
+      {fxOn && <p className={styles.hint}>Words inside [[double brackets]] turn into dots that scatter from the cursor. Select words and press “✦ Particles”.</p>}
       {field.hint && <p className={styles.hint}>{field.hint}</p>}
       {field.style && <StyleToggleBody path={path} />}
     </div>

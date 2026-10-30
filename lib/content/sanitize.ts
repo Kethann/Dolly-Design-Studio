@@ -279,6 +279,9 @@ export function sanitizeContent(input: unknown): SiteContent {
   merged.home.founder.photoShape = oneOf(merged.home.founder.photoShape, SHAPES, "round");
   merged.home.founder.photoSize = oneOf(merged.home.founder.photoSize, SIZES, "medium");
   const f = merged.home.founder;
+  // The heading beside the card is its own text now; until it is written it shows the founder's name, as it always did.
+  if (!f.heading || !f.heading.trim()) f.heading = merged.site.founder.name;
+  f.heading = f.heading.slice(0, 120);
   f.photoZoom = num(f.photoZoom, ZOOM_MIN, ZOOM_MAX, 1);
   f.photoX = num(f.photoX, 0, 100, 50);
   f.photoY = num(f.photoY, 0, 100, 50);

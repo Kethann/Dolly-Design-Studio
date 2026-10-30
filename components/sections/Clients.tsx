@@ -6,6 +6,7 @@ import { edSection } from "@/lib/content/tx";
 import { useDragMarquee } from "./useDragMarquee";
 import { adjustStyle } from "@/lib/content/adjust";
 import styles from "./Clients.module.css";
+import { renderFx } from "@/components/fx/render-fx";
 
 interface Item {
   name: string;
@@ -80,8 +81,8 @@ export function Clients() {
   return (
     <section id="clients" className={styles.section} {...edSection("home", "clients", "Clients & collaborations")}>
       <div className="container">
-        <span className={styles.label} {...tx("home.clients.label")}>{home.clients.label}</span>
-        <h2 className={styles.title} {...tx("home.clients.title")}>{home.clients.title}</h2>
+        <span className={styles.label} {...tx("home.clients.label")}>{renderFx(home.clients.label)}</span>
+        <h2 className={styles.title} {...tx("home.clients.title")}>{renderFx(home.clients.title)}</h2>
       </div>
 
       <div className={styles.rows}>
