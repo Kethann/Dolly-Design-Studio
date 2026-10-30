@@ -36,7 +36,8 @@
 html {
   background: var(--stage);
   scroll-behavior: auto;
-  overflow-x: clip; /* nothing can ever widen the page sideways */
+  /* (No overflow rule here: any on <html> turns <body>'s own overflow-x into a scroller of its own, and position: sticky
+     (the pinned slate, the breakdown controls, the project page) stops working. <body> keeps its overflow-x below.) */
   overscroll-behavior-y: none; /* no rubber-band bounce that makes fixed layers and text judder */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;

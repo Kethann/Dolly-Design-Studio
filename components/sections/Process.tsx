@@ -159,6 +159,7 @@ export function Process() {
                 {...edItem("home.process.cards", i, "Card")}
                 className={styles.step}
                 data-step
+                data-glow-card
                 data-opens={opens}
                 style={reducedMotion ? { opacity: 1, transform: "none" } : undefined}
                 {...(opens

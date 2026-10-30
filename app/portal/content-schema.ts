@@ -82,20 +82,28 @@ const pageLook = (key: PageKey, name: string): SchemaSection => ({
   ],
 });
 
-/** The social links (Instagram, X, IMDb…): shown in the studio details, and in the founder's form (they sit under the founder's story). */
-const SOCIAL_LINKS: Field = {
+/** The networks that have a logo of their own; anything else shows its name. */
+const SOCIAL_NETWORKS = ["Instagram", "X", "IMDb", "YouTube", "Facebook", "LinkedIn", "Behance", "WhatsApp", "Website"] as const;
+
+/** A list of social links, each a network (its logo is shown) and your own address. The studio's and the founder's are separate lists. */
+const socialList = (path: string, label: string, hint: string): Field => ({
   kind: "list",
-  path: "site.social",
-  label: "Social links (Instagram, X, IMDb…)",
+  path,
+  label,
   add: "Add a link",
   max: 8,
   title: (it) => str(it.label, "New link"),
   blank: () => ({ label: "Instagram", href: "https://" }),
   fields: [
-    { kind: "text", path: "label", label: "Name (Instagram, X or IMDb show their logo)" },
-    { kind: "text", path: "href", label: "Address (https://…)" },
+    { kind: "select", path: "label", label: "Which one (its logo is shown)", options: SOCIAL_NETWORKS },
+    { kind: "text", path: "href", label: "Your link", hint },
   ],
-};
+});
+
+/** The studio's links: under the contact details (and the search engines' "same as" list). */
+const SOCIAL_LINKS: Field = socialList("site.social", "The studio's social links", "The full address, starting https:// (for example https://www.instagram.com/yourstudio). A link left as just https:// is not shown.");
+/** The founder's own links: under their story in "About the founder". */
+const FOUNDER_LINKS: Field = socialList("home.founder.social", "The founder's own social links", "Their own address, starting https:// (separate from the studio's links in the contact section).");
 
 const home: SchemaPage = {
   id: "home",
@@ -209,7 +217,7 @@ const home: SchemaPage = {
         { kind: "image", path: "home.founder.photo", label: "Profile picture", hint: "Shown on the glass card. Without one, the initials are shown.", alt: "photoAlt", shape: "photoShape", size: "photoSize", adjust: "photo" },
         { kind: "area", path: "home.founder.cardNote", label: "Short description on the card", style: true },
         { kind: "strings", path: "home.founder.paragraphs", label: "Bio paragraphs", add: "Add a paragraph", area: true, style: true },
-        SOCIAL_LINKS,
+        FOUNDER_LINKS,
       ],
     },
     {
@@ -323,6 +331,7 @@ const home: SchemaPage = {
       art: "contact",
       fields: [
         { kind: "text", path: "home.contact.label", label: "Small heading", style: true },
+        SOCIAL_LINKS,
         { kind: "text", path: "home.contact.headline", label: "Headline", style: true, fx: true },
         { kind: "text", path: "home.contact.availability", label: "Availability line", style: true },
         { kind: "text", path: "home.contact.whatsappLabel", label: "WhatsApp link text" },

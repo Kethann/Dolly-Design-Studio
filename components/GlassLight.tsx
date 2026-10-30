@@ -122,7 +122,8 @@ export function GlassLight() {
     const tapTimers = new WeakMap<HTMLElement, number>();
     const onTap = (e: PointerEvent) => {
       if (e.pointerType === "mouse" || !(e.target instanceof Element)) return;
-      const card = e.target.closest<HTMLElement>(".glass-panel, .glass-glow");
+      // A tap on a glass card lights it; a tap anywhere on a card marked data-glow-card lights the glass icon inside it.
+      const card = e.target.closest<HTMLElement>(".glass-panel, .glass-glow") ?? e.target.closest("[data-glow-card]")?.querySelector<HTMLElement>(".glass-glow") ?? null;
       if (!card) return;
       card.setAttribute("data-tap", "");
       window.clearTimeout(tapTimers.get(card));

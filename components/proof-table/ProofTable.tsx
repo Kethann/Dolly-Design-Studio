@@ -9,7 +9,6 @@ import { useIntroSettings } from "@/lib/intro/settings-context";
 import { ProofTableFallback } from "./Fallback";
 import type { ProofScene } from "./scene";
 import { STAGES } from "./stages";
-import { jumpTo } from "@/lib/smooth-scroll";
 import styles from "./ProofTable.module.css";
 
 type Mode = "pinned" | "static" | "fallback";
@@ -77,9 +76,7 @@ export function ProofTable() {
     let raf = 0;
     let visible = false;
     let shown = 0; // smoothed progress
-    let held = 0; // the furthest the story has played on this pass: it only moves forward
-    let lastTarget = 0;
-    let upMove = 0;
+    let held = 0; // where the scroll says the story is (the shown value eases towards it)
     let last = performance.now();
     let disposed = false;
     let loading = false;
@@ -109,21 +106,9 @@ export function ProofTable() {
       // A frame's timestamp can be a hair earlier than the clock read when the loop started: never a negative step.
       const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
       last = now;
-      // The story plays only while scrolling down. Scrolling back up leaves everything where it landed; once the
-      // section is left behind above (it sits fully below the screen), the next time down plays it again.
+      // The story follows the scroll, down and up alike: scrolling back up winds it back, and the page never jumps.
       if (mode === "pinned" && section.getBoundingClientRect().top >= window.innerHeight) held = shown = 0;
-      const target = progress();
-      // Scrolling back up doesn't replay anything, so there's nothing to scroll through: one clear move up jumps to
-      // the start of the pinned stretch. The view there is identical (same held frame), so the jump is invisible, and
-      // the very next scroll up continues to the section above.
-      upMove = target < lastTarget ? upMove + (lastTarget - target) : 0;
-      lastTarget = target;
-      if (mode === "pinned" && target > 0.002 && upMove > 0.012) {
-        upMove = 0;
-        lastTarget = 0;
-        jumpTo(section.getBoundingClientRect().top + window.scrollY);
-      }
-      held = Math.max(held, target);
+      held = progress();
       shown += (held - shown) * (1 - Math.exp(-dt * 9));
       if (Math.abs(held - shown) < 0.0004) shown = held;
       shown = Math.min(1, Math.max(0, shown));

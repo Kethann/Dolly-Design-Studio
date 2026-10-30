@@ -53,9 +53,9 @@ export function Founder() {
               {p}
             </p>
           ))}
-          {site.social.length > 0 && (
+          {copy.social.length > 0 && (
             <nav className={styles.social} aria-label={`${site.founder.name} on social media`}>
-              {site.social.map((s) => (
+              {copy.social.map((s) => (
                 <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" data-cursor="link" aria-label={s.label} title={s.label}>
                   <SocialLogo label={s.label} />
                 </a>

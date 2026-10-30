@@ -77,6 +77,12 @@ export const home = {
     photoZoom: 1,
     photoX: 50,
     photoY: 50,
+    /** The founder's own social links, shown under their story (the studio's are in site.ts and shown in the contact section). */
+    social: [
+      { label: "Instagram", href: "https://www.instagram.com/dollydstudio" },
+      { label: "X", href: "https://x.com/dollydstudio" },
+      { label: "IMDb", href: "https://www.imdb.com/find/?q=Sasank%20Muppalla" },
+    ],
     /** A short description shown on the glass profile card, under the name and role. */
     cardNote: "Designing film posters, title logos and typography for Telugu cinema.",
     /** [CLIENT TO CONFIRM] Add a fuller bio and a photo when ready. */

@@ -120,6 +120,29 @@
   color: #ffffff; /* the lines stay white; the colours are the neon glow around them */
 }
 
+/* Anywhere on the card (not just on the icon) lights the same glow on the icon: the colours spread from its lines, centred on it.
+   On a touch screen a tap on the card does it (data-tap, set by GlassLight) and it fades away by itself. */
+.step:hover .tile,
+.step:focus-visible .tile,
+.tile[data-tap] {
+  --tile-gold: 0;
+  --lit: 1;
+  --bloom: 1;
+  --mx: 50%;
+  --my: 50%;
+  animation: tileBreathe 3s ease-in-out infinite;
+}
+
+@keyframes tileBreathe {
+  0%,
+  100% {
+    --pulse: 0.9;
+  }
+  50% {
+    --pulse: 1.1;
+  }
+}
+
 /* The glow spreads past the tile's edge (a glass-glow tile would clip it). */
 .tile.tile {
   overflow: visible;
