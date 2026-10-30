@@ -36,11 +36,16 @@ const when = (iso?: string) =>
 export function AccountPanel({ me }: { me: PortalUser }) {
   const router = useRouter();
   const [users, setUsers] = useState<PortalUser[]>([]);
+  /** True when email can always bring the owner back in, so even your own account can be removed. */
+  const [emailRecovery, setEmailRecovery] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
   const refresh = useCallback(() => {
     call("GET")
-      .then((d) => setUsers(d.users ?? []))
+      .then((d) => {
+        setUsers(d.users ?? []);
+        setEmailRecovery(!!d.emailRecovery);
+      })
       .catch(() => {});
   }, []);
   useEffect(refresh, [refresh]);
@@ -92,7 +97,7 @@ export function AccountPanel({ me }: { me: PortalUser }) {
         <>
           <MyAccount me={me} run={run} />
           {owner && <EmailSetup me={me} />}
-          {owner && <Team me={me} users={users} run={run} />}
+          {owner && <Team me={me} users={users} run={run} emailRecovery={emailRecovery} />}
           <SecurityNotes />
         </>
       )}
@@ -484,10 +489,12 @@ function Team({
   me,
   users,
   run,
+  emailRecovery,
 }: {
   me: PortalUser;
   users: PortalUser[];
   run: (fn: () => Promise<unknown>, ok: string) => Promise<boolean>;
+  emailRecovery: boolean;
 }) {
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", username: "", email: "", password: "", role: "editor" as Role });
@@ -565,7 +572,22 @@ function Team({
             </div>
             <div className={styles.personActions}>
               {u.id === me.id ? (
-                <RoleBadge role={u.role} />
+                <>
+                  <RoleBadge role={u.role} />
+                  {emailRecovery && me.role === "owner" && (
+                    <button
+                      type="button"
+                      className={styles.dangerButton}
+                      title="Removes this account. You can still sign in later with a code sent to the studio’s email."
+                      onClick={async () => {
+                        if (!window.confirm("Remove your own account? You will be signed out. You can still sign in again with a code sent to the studio’s email address, which makes a fresh owner account.")) return;
+                        if (await run(() => call("DELETE", { id: u.id }), "Your account was removed.")) window.location.reload();
+                      }}
+                    >
+                      Remove my account
+                    </button>
+                  )}
+                </>
               ) : (
                 <>
                   <select

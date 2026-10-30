@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionToken, getPortalUser, sessionCookie } from "@/lib/portal/auth";
 import { logActivity } from "@/lib/portal/activity";
+import { canRecoverByMail } from "@/lib/portal/mail";
 import { clearCodes } from "@/lib/portal/otp";
 import {
   UserError,
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
   const me = await guard(req, false);
   if (me instanceof NextResponse) return me;
   const users = me.setup ? [] : await listUsers();
-  return NextResponse.json({ me, users: me.role === "owner" ? users : users.filter((u) => u.id === me.id) });
+  return NextResponse.json({ me, users: me.role === "owner" ? users : users.filter((u) => u.id === me.id), emailRecovery: canRecoverByMail() });
 }
 
 /** Add an account (owners only; the setup login may create the first owner). */
@@ -115,13 +116,17 @@ export async function DELETE(req: NextRequest) {
   if (me instanceof NextResponse) return me;
   if (me.role !== "owner" || me.setup) return fail("Only owners can remove accounts.", 403);
   const id = text((await body(req)).id, 64) ?? "";
-  if (id === me.id) return fail("You can’t remove your own account.");
+  // Everyone, even the last owner or yourself, can be removed when the studio's mailbox can bring the owner back in.
+  const recovery = canRecoverByMail();
+  if (id === me.id && !recovery) return fail("You can’t remove your own account. (Set up email first, so you can always get back in with a code.)");
   try {
     const gone = (await listUsers()).find((u) => u.id === id);
-    await removeUser(id);
+    await removeUser(id, { allowLastOwner: recovery });
     await clearCodes(id);
     if (gone) await logActivity({ headers: req.headers, actor: me, action: "person-removed", detail: `${gone.name} (${gone.username})` });
-    return NextResponse.json({ ok: true });
+    const res = NextResponse.json({ ok: true, signedOut: id === me.id });
+    if (id === me.id) res.cookies.delete("dds_portal");
+    return res;
   } catch (err) {
     return handle(err);
   }

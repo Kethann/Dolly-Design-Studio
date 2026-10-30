@@ -7,7 +7,7 @@ import styles from "./portal.module.css";
 
 const PASSWORD_MIN = 10;
 
-type Step = "password" | "code" | "forgot" | "reset";
+type Step = "password" | "code" | "forgot" | "reset" | "mail" | "mailcode";
 
 async function post(url: string, body: unknown) {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -19,7 +19,7 @@ async function post(url: string, body: unknown) {
  * Signing in: username and password; then, for people who turned on two-step sign-in, the code emailed to them.
  * "Forgot password" emails a code too, and the code plus a new password sets a new one.
  */
-export function PortalLogin({ configured, setup = false, google = false }: { configured: boolean; setup?: boolean; google?: boolean }) {
+export function PortalLogin({ configured, setup = false, google = false, emailLogin = false }: { configured: boolean; setup?: boolean; google?: boolean; emailLogin?: boolean }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("password");
   const [username, setUsername] = useState("");
@@ -30,6 +30,8 @@ export function PortalLogin({ configured, setup = false, google = false }: { con
   const [identifier, setIdentifier] = useState("");
   const [fresh, setFresh] = useState({ next: "", confirm: "" });
   const [googleNote, setGoogleNote] = useState<string | null>(null);
+  /** "Email me a sign-in code": the address, then the code that was sent to it. */
+  const [mailAddr, setMailAddr] = useState("");
 
   // Coming back from Google with a problem (/portal?google=nouser): say what happened, then tidy the address.
   useEffect(() => {
@@ -127,6 +129,32 @@ export function PortalLogin({ configured, setup = false, google = false }: { con
     });
   };
 
+  const sendMailCode = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    return run(async () => {
+      const r = await post("/api/portal/session/email", { email: mailAddr });
+      if (!r.ok) {
+        setError(r.data.error ?? "Couldn’t send the code. Try again.");
+        return;
+      }
+      setNotice("If that address can sign in here, a code is on its way. It lasts 10 minutes.");
+      go("mailcode");
+    });
+  };
+
+  const verifyMailCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    return run(async () => {
+      const r = await post("/api/portal/session/email/verify", { email: mailAddr, code });
+      if (r.ok) {
+        router.refresh();
+        return;
+      }
+      if (r.data.restart) go("mail"); // (going back clears messages, so the reason is shown after it)
+      setError(r.data.error ?? "That code didn’t work.");
+    });
+  };
+
   const mismatch = fresh.confirm.length > 0 && fresh.confirm !== fresh.next;
 
   return (
@@ -211,6 +239,19 @@ export function PortalLogin({ configured, setup = false, google = false }: { con
                 Forgot your password?
               </button>
             )}
+            {emailLogin && (
+              <button
+                type="button"
+                className={styles.linkButton}
+                onClick={() => {
+                  setMailAddr("");
+                  setNotice(null);
+                  go("mail");
+                }}
+              >
+                Email me a sign-in code instead
+              </button>
+            )}
           </form>
           {google && (
             <div className={styles.googleBlock}>
@@ -228,6 +269,71 @@ export function PortalLogin({ configured, setup = false, google = false }: { con
             </div>
           )}
           </>
+        )}
+
+        {configured && step === "mail" && (
+          <form onSubmit={sendMailCode} className={styles.loginForm}>
+            <p className={styles.loginLead}>Type the email address of your account (or the studio’s own address). We’ll send a 6-digit code to it: no password needed.</p>
+            <label htmlFor="portal-mail" className={styles.controlLabel}>
+              Email address
+            </label>
+            <input
+              id="portal-mail"
+              type="email"
+              className={styles.loginInput}
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              autoFocus
+              value={mailAddr}
+              onChange={(e) => setMailAddr(e.target.value)}
+            />
+            {error && (
+              <p className={styles.loginError} role="alert">
+                {error}
+              </p>
+            )}
+            <button type="submit" className={styles.primaryButton} disabled={busy || !mailAddr.includes("@")}>
+              {busy ? "Sending…" : "Send me a code"}
+            </button>
+            <button type="button" className={styles.linkButton} onClick={() => go("password")}>
+              Back to the password
+            </button>
+          </form>
+        )}
+
+        {configured && step === "mailcode" && (
+          <form onSubmit={verifyMailCode} className={styles.loginForm}>
+            <p className={styles.loginLead}>
+              Type the 6-digit code we sent to <strong>{mailAddr}</strong>.
+            </p>
+            <label htmlFor="portal-mailcode" className={styles.controlLabel}>
+              Code
+            </label>
+            <input
+              id="portal-mailcode"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9 ]*"
+              maxLength={7}
+              className={`${styles.loginInput} ${styles.codeInput}`}
+              autoComplete="one-time-code"
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/[^0-9 ]/g, ""))}
+            />
+            {error && (
+              <p className={styles.loginError} role="alert">
+                {error}
+              </p>
+            )}
+            <button type="submit" className={styles.primaryButton} disabled={busy || code.replace(/\s/g, "").length < 6}>
+              {busy ? "Checking…" : "Sign in"}
+            </button>
+            <button type="button" className={styles.linkButton} onClick={() => go("mail")}>
+              Send a new code
+            </button>
+          </form>
         )}
 
         {configured && step === "code" && (

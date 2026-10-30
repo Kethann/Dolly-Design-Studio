@@ -7,7 +7,7 @@
 // First run: while no account exists, sign in as "admin" with PORTAL_PASSWORD (from the server's environment) and
 // create your own owner account. From then on PORTAL_PASSWORD no longer signs anyone in.
 import { randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual, createHash } from "node:crypto";
-import { readJson, writeJson } from "@/lib/storage";
+import { readJson, writeJsonSafely } from "@/lib/storage";
 import { promisify } from "node:util";
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
@@ -76,7 +76,7 @@ async function load(): Promise<StoredUser[]> {
 
 /** Saved as a whole file at a time (to disk, or to the R2 bucket on Cloudflare). */
 async function save(users: StoredUser[]) {
-  await writeJson(KEY, { users }, true);
+  await writeJsonSafely(KEY, { users }, "people");
 }
 
 async function hashPassword(password: string, salt = randomBytes(16)) {
@@ -212,6 +212,26 @@ export async function findUserByEmail(email: string): Promise<{ user: PortalUser
   return u ? { user: publicUser(u), version: u.version } : null;
 }
 
+/**
+ * The owner account for a studio mailbox: the existing one, or (if every account was deleted) a new one made from the
+ * address. It gets a long random password nobody knows; the owner signs in with a code sent to the mailbox, and can set a
+ * password of their own any time under People & passwords.
+ */
+export async function ensureOwnerForMailbox(email: string): Promise<{ user: PortalUser; version: number }> {
+  const key = normalizeEmail(email);
+  const found = await findUserByEmail(key);
+  if (found) return found;
+  const taken = new Set((await load()).map((u) => u.username));
+  const local = key.split("@")[0].replace(/[^a-z0-9._-]/g, "").slice(0, 24);
+  let username = /^[a-z0-9]/.test(local) && local.length >= 3 ? local : "owner";
+  for (let n = 2; taken.has(username); n++) username = `${local.length >= 3 ? local : "owner"}${n}`.slice(0, 32);
+  const name = local ? local[0].toUpperCase() + local.slice(1) : "Owner";
+  const created = await createUser({ username, name, password: randomBytes(24).toString("base64url"), role: "owner", email: key });
+  const withVersion = await getUserWithVersion(created.id);
+  if (!withVersion) throw new UserError("Couldn’t create the account.");
+  return withVersion;
+}
+
 /** Finds someone by username or by email address (for "forgot password"). */
 export async function findUserByLogin(identifier: string): Promise<PortalUser | null> {
   const key = identifier.trim().toLowerCase();
@@ -278,11 +298,11 @@ export async function bumpVersion(id: string): Promise<number> {
   return user.version;
 }
 
-export async function removeUser(id: string) {
+export async function removeUser(id: string, opts: { allowLastOwner?: boolean } = {}) {
   const users = await load();
   const user = users.find((u) => u.id === id);
   if (!user) return;
-  if (user.role === "owner" && users.filter((u) => u.role === "owner").length === 1) {
+  if (!opts.allowLastOwner && user.role === "owner" && users.filter((u) => u.role === "owner").length === 1) {
     throw new UserError("You can’t remove the last owner.");
   }
   await save(users.filter((u) => u.id !== id));

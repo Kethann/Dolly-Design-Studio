@@ -237,3 +237,17 @@ export function replyEmail(opts: { to: string; visitor: string; body: string; se
 </div></body></html>`;
   return { text, html };
 }
+
+/**
+ * The studio's own mailboxes: the Gmail / SMTP account this server sends from (it holds that account's app password, so
+ * whoever runs the server owns the mailbox), plus PORTAL_OWNER_EMAIL if set. Whoever can read these can sign in with an
+ * emailed code, even when no portal account exists at all.
+ */
+export function studioMailboxes(): string[] {
+  const e = process.env;
+  const list = [e.GMAIL_USER, /@/.test(e.SMTP_USER ?? "") ? e.SMTP_USER : "", e.PORTAL_OWNER_EMAIL].map((x) => (x ?? "").trim().toLowerCase());
+  return [...new Set(list.filter((x) => /^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/.test(x)))];
+}
+
+/** True when email can bring the owner back in: mail works here and there is a studio mailbox to send the code to. */
+export const canRecoverByMail = () => isMailConfigured() && studioMailboxes().length > 0;

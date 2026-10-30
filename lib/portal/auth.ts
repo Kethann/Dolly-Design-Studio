@@ -4,6 +4,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { hasAccounts, userForSession, type PortalUser } from "./users";
+import { canRecoverByMail } from "./mail";
 
 export const SESSION_COOKIE = "dds_portal";
 export const SESSION_MAX_AGE = 60 * 60 * 12; // 12 hours
@@ -17,7 +18,7 @@ function signingKey(): string | null {
 
 /** The portal works once the server can sign sessions; accounts can exist without the setup password. */
 export async function isPortalConfigured() {
-  return !!signingKey() && (!!process.env.PORTAL_PASSWORD || (await hasAccounts()));
+  return !!signingKey() && (!!process.env.PORTAL_PASSWORD || (await hasAccounts()) || canRecoverByMail());
 }
 
 const sign = (payload: string, key: string) => createHmac("sha256", key).update(payload).digest("hex");
