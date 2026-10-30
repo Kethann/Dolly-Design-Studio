@@ -1,7 +1,7 @@
 // Server-only: reads and writes the creator's content (text, lists, images, fonts), through the storage layer
 // (plain files on your computer, an R2 bucket on Cloudflare — see lib/storage.ts).
 import { connection } from "next/server";
-import { onCloudflare, readJson, writeJson } from "@/lib/storage";
+import { onCloudflare, readJson, writeJsonSafely } from "@/lib/storage";
 import { sanitizeContent } from "./sanitize";
 import type { SiteContent } from "./types";
 
@@ -25,6 +25,6 @@ export async function getContent(): Promise<SiteContent> {
 }
 
 export async function writeContent(content: SiteContent): Promise<void> {
-  await writeJson(KEY, content, true);
+  await writeJsonSafely(KEY, content, "content");
   remembered = null;
 }

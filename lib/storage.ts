@@ -196,6 +196,31 @@ export async function writeJson(key: string, value: unknown, pretty = false): Pr
   await (await store()).putText(key, JSON.stringify(value, null, pretty ? 2 : undefined) + "\n", "application/json");
 }
 
+/** How many earlier versions of each saved document are kept. */
+const BACKUPS_KEPT = 20;
+
+/**
+ * Saves a document, first keeping the version it replaces (data/backups/<name>/<time>.json, the newest 20), so a wrong
+ * save, a bad edit or a damaged file can always be undone by copying an earlier version back. A backup that cannot be
+ * made never stops the save itself.
+ */
+export async function writeJsonSafely(key: string, value: unknown, backupName: string): Promise<void> {
+  const s = await store();
+  const next = JSON.stringify(value, null, 2) + "\n";
+  try {
+    const current = await s.getText(key);
+    if (current && current !== next) {
+      const folder = `data/backups/${backupName}/`;
+      await s.putText(`${folder}${new Date().toISOString().replace(/[:.]/g, "-")}.json`, current, "application/json");
+      const all = await s.list(folder);
+      for (const old of all.slice(0, Math.max(0, all.length - BACKUPS_KEPT))) await s.remove(old);
+    }
+  } catch (err) {
+    console.error("[storage] could not keep a backup of", key, err);
+  }
+  await s.putText(key, next, "application/json");
+}
+
 const CONTENT_TYPES: Record<string, string> = {
   webp: "image/webp",
   png: "image/png",

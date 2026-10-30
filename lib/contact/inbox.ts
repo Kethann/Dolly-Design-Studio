@@ -48,6 +48,22 @@ export async function saveEnquiry(input: ContactInput, extra: { device: string }
   return entry;
 }
 
+/**
+ * An enquiry that was just sent (a double click, a retry after a slow connection): the same email address and message in the
+ * last two minutes. It is not stored or emailed a second time.
+ */
+export async function findRecentDuplicate(input: ContactInput): Promise<Enquiry | null> {
+  const s = await store();
+  const recent = (await s.list(DIR)).slice(-4); // newest last
+  for (const key of recent.reverse()) {
+    try {
+      const e = JSON.parse((await s.getText(key)) ?? "") as Enquiry;
+      if (Date.now() - new Date(e.at).getTime() < 2 * 60_000 && e.email === input.email && e.message === input.message) return e;
+    } catch {}
+  }
+  return null;
+}
+
 async function find(id: string): Promise<{ key: string; entry: Enquiry } | null> {
   if (!/^[0-9a-f-]{6,36}$/.test(id)) return null;
   const s = await store();

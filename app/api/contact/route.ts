@@ -3,7 +3,7 @@ import { isRateLimited } from "@/lib/rate-limit";
 import { home } from "@/content/home";
 import { site } from "@/content/site";
 import { validateContact } from "@/lib/contact/validate";
-import { noteEmail, saveEnquiry } from "@/lib/contact/inbox";
+import { findRecentDuplicate, noteEmail, saveEnquiry } from "@/lib/contact/inbox";
 import { clientIp, describeDevice } from "@/lib/portal/activity";
 import { enquiryEmail, enquiryRecipient, enquiryRecipients, sendMail } from "@/lib/portal/mail";
 import { ownerEmails } from "@/lib/portal/users";
@@ -45,11 +45,18 @@ export async function POST(req: NextRequest) {
   const ip = clientIp(req.headers);
   if (isRateLimited(ip)) return NextResponse.json({ error: errors.tooManyRequests }, { status: 429 });
 
+  // The same message sent twice in a row (a double click, a retry) is kept once.
+  if (await findRecentDuplicate(value).catch(() => null)) return NextResponse.json({ ok: true, saved: true, duplicate: true });
+
   let entry;
   try {
     entry = await saveEnquiry(value, { device: describeDevice(req.headers.get("user-agent")) });
   } catch (err) {
+    // The database could not take it. The message must still not be lost: it is emailed to the studio straight away.
     console.error("[contact] could not save the enquiry", err);
+    const owners = await ownerEmails().catch(() => [] as string[]);
+    const sent = await sendMail({ to: enquiryRecipients(enquiryRecipient(site.contact.email), owners), replyTo: value.email, ...enquiryEmail(value) });
+    if (sent.ok) return NextResponse.json({ ok: true, saved: false, emailed: true });
     return NextResponse.json({ error: errors.sendFailed }, { status: 500 });
   }
 

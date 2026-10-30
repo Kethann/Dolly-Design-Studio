@@ -2,7 +2,7 @@
 import { connection } from "next/server";
 import bundledSettings from "@/content/intro-settings.json";
 import { DEFAULT_INTRO_SETTINGS, sanitizeIntroSettings, type IntroSettings } from "@/lib/intro/settings";
-import { onCloudflare, readJson, writeJson } from "@/lib/storage";
+import { onCloudflare, readJson, writeJsonSafely } from "@/lib/storage";
 
 const KEY = "content/intro-settings.json";
 
@@ -28,6 +28,6 @@ export async function readIntroSettings(): Promise<IntroSettings> {
 }
 
 export async function writeIntroSettings(settings: IntroSettings): Promise<void> {
-  await writeJson(KEY, settings, true);
+  await writeJsonSafely(KEY, settings, "design");
   remembered = null;
 }
