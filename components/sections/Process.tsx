@@ -8,6 +8,7 @@ import { useContent, tx } from "@/lib/content/context";
 import { edItem, edList, edSection } from "@/lib/content/tx";
 import { useMotion } from "@/lib/motion";
 import { CARD_LINKS } from "@/lib/content/card-links";
+import { extraOf } from "@/lib/content/process";
 import { goToSection } from "@/lib/section-nav";
 import styles from "./Process.module.css";
 
@@ -144,7 +145,8 @@ export function Process() {
             const target = link && link.id !== "none" && (link.id !== "breakdowns" || breakdowns.length > 0) ? link : null;
             const open = () => {
               if (!target) return;
-              if (target.id === "breakdowns") router.push("/breakdowns");
+              if (target.id === "page") router.push(`/process/${extraOf(card).slug}`);
+              else if (target.id === "breakdowns") router.push("/breakdowns");
               else if (target.id === "work") router.push("/work");
               else goToSection(target.id === "gallery" ? "work" : target.id);
             };

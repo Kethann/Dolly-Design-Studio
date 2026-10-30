@@ -25,6 +25,8 @@ import { postFile, prepareImage } from "./upload";
 import { Dock, MenuBar, type DockGroup, type MenuDef } from "./mac";
 import { PageBar } from "./PageBar";
 import { EditModal, ItemEditor, ItemTools, SectionEditor, sectionPaths } from "./EditModal";
+import type { PreviewRoute } from "./PageBar";
+import { extraOf } from "@/lib/content/process";
 import { contentProblems, problemsUnder } from "./validate";
 import edit from "./edit.module.css";
 import type { PageKey, SiteContent } from "@/lib/content/types";
@@ -407,12 +409,16 @@ export function PortalEditor({
   const [spotlight, setSpotlight] = useState(false);
   const [device, setDevice] = useState<"desktop" | "tablet" | "phone">("desktop");
   /** Which page the live preview shows: it follows the page whose settings are open. */
-  const [previewRoute, setPreviewRoute] = useState<PageKey>("home");
+  const [previewRoute, setPreviewRoute] = useState<PreviewRoute>("home");
+  /** The "How we work" card whose own page the preview shows when you go inside one. */
+  const [previewStep, setPreviewStep] = useState("");
+  const stepList = contentSaved.home.process.cards.map((c) => ({ slug: extraOf(c).slug, title: c.title }));
+  const stepSlug = stepList.some((s) => s.slug === previewStep) ? previewStep : (stepList[0]?.slug ?? "");
   /** The project whose own page the preview shows when you go inside one. */
   const [previewProject, setPreviewProject] = useState("");
   const projectSlug = contentSaved.projects.some((p) => p.slug === previewProject) ? previewProject : (contentSaved.projects[0]?.slug ?? "");
   const previewPath =
-    previewRoute === "work" ? "/work" : previewRoute === "breakdowns" ? "/breakdowns" : previewRoute === "project" ? `/work/${projectSlug}` : previewRoute === "notFound" ? "/page-not-found-preview" : "/";
+    previewRoute === "work" ? "/work" : previewRoute === "breakdowns" ? "/breakdowns" : previewRoute === "project" ? `/work/${projectSlug}` : previewRoute === "step" ? `/process/${stepSlug}` : previewRoute === "notFound" ? "/page-not-found-preview" : "/";
   const breakdownsOpen = previewRoute === "breakdowns";
   const undoRef = useRef(() => {});
   const redoRef = useRef(() => {});
@@ -1980,6 +1986,21 @@ export function PortalEditor({
                     Open its page ›
                   </button>
                 )}
+                {modal.list === "home.process.cards" && contentSaved.home.process.cards[modal.index] && (
+                  <button
+                    type="button"
+                    className={edit.cancel}
+                    title="Go inside this card: its own page, with the cards in it and an Add button"
+                    onClick={() => {
+                      setPreviewStep(extraOf(contentSaved.home.process.cards[modal.index]).slug);
+                      setPreviewRoute("step");
+                      setEditMode(true);
+                      closeModal();
+                    }}
+                  >
+                    Open its page ›
+                  </button>
+                )}
                 <ItemTools list={modal.list} index={modal.index} onIndex={(i) => setModal({ kind: "item", list: modal.list, index: i })} onDeleted={closeModal} />
               </>
             }
@@ -2058,6 +2079,9 @@ export function PortalEditor({
         {/* The screen: one at a time, a normal pane down the left with its own heading, hint and scrolling. */}
         <PageBar
           route={previewRoute}
+          steps={stepList}
+          stepSlug={stepSlug}
+          onStep={setPreviewStep}
           onRoute={(k) => {
             setPreviewRoute(k);
             setSheetOpen(false);

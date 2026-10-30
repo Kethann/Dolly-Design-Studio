@@ -4,11 +4,15 @@ import type { PageKey } from "@/lib/content/types";
 import mac from "./mac.module.css";
 import { StorageChip } from "./StorageWatch";
 
-const PAGES: { key: PageKey; label: string; title: string }[] = [
+/** The pages the preview can show: the site's pages, and the inside of a "How we work" card. */
+export type PreviewRoute = PageKey | "step";
+
+const PAGES: { key: PreviewRoute; label: string; title: string }[] = [
   { key: "home", label: "Home", title: "The home page" },
   { key: "work", label: "Work", title: "The full gallery page" },
   { key: "breakdowns", label: "Breakdowns", title: "The Breakdowns page" },
   { key: "project", label: "Inside a project", title: "A project's own page: its cover, details and pictures" },
+  { key: "step", label: "Inside a card", title: "The page a “How we work” card opens: the cards in it, ready to add to, edit and remove" },
 ];
 
 /**
@@ -33,9 +37,12 @@ export function PageBar({
   projects,
   projectSlug,
   onProject,
+  steps,
+  stepSlug,
+  onStep,
 }: {
-  route: PageKey;
-  onRoute: (k: PageKey) => void;
+  route: PreviewRoute;
+  onRoute: (k: PreviewRoute) => void;
   editing: boolean;
   onEditing: (on: boolean) => void;
   device: "desktop" | "tablet" | "phone";
@@ -54,6 +61,10 @@ export function PageBar({
   projects: { slug: string; title: string }[];
   projectSlug: string;
   onProject: (slug: string) => void;
+  /** The "How we work" cards you can go inside, which one is showing, and how to choose another. */
+  steps: { slug: string; title: string }[];
+  stepSlug: string;
+  onStep: (slug: string) => void;
 }) {
   return (
     <div className={mac.pageBar} role="toolbar" aria-label="Pages">
@@ -70,6 +81,16 @@ export function PageBar({
           {projects.map((p) => (
             <option key={p.slug} value={p.slug}>
               {p.title}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {route === "step" && (
+        <select className={mac.pageJump} aria-label="Which card" value={stepSlug} onChange={(e) => onStep(e.target.value)}>
+          {steps.map((s) => (
+            <option key={s.slug} value={s.slug}>
+              {s.title}
             </option>
           ))}
         </select>

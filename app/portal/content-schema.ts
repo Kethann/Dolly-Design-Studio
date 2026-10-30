@@ -1,5 +1,6 @@
 import type { ArtSection } from "@/lib/intro/settings";
-import { CARD_LINK_VALUES } from "@/lib/content/card-links";
+import { CARD_LINK_VALUES, CARD_OPENS_OWN_PAGE } from "@/lib/content/card-links";
+import { MAX_PROCESS_ITEMS, PROCESS_COLS, PROCESS_FITS, PROCESS_SHAPES } from "@/lib/content/process";
 import type { PageKey } from "@/lib/content/types";
 
 /**
@@ -240,7 +241,7 @@ const home: SchemaPage = {
           add: "Add a card",
           max: 8,
           title: (it) => str(it.title, "New card"),
-          blank: () => ({ title: "New card", note: "", body: "", icon: "star", opens: "Does nothing", linkText: "" }),
+          blank: () => ({ title: "New card", note: "", body: "", icon: "star", opens: CARD_OPENS_OWN_PAGE, linkText: "", pageIntro: "", cols: "medium", shape: "poster", items: [] }),
           fields: [
             { kind: "text", path: "title", label: "Title", style: true },
             { kind: "text", path: "note", label: "Small line", style: true },
@@ -248,6 +249,24 @@ const home: SchemaPage = {
             { kind: "select", path: "icon", label: "Icon", options: ["sketch", "camera", "pipeline", "layers", "star"] },
             { kind: "select", path: "opens", label: "Click to view: where it takes the visitor", options: CARD_LINK_VALUES },
             { kind: "text", path: "linkText", label: "Link words (blank = the usual words)" },
+            { kind: "area", path: "pageIntro", label: "Inside page: intro", hint: "Shown at the top of this card’s own page. Blank = the text above." },
+            { kind: "select", path: "cols", label: "Inside page: size of the cards", options: PROCESS_COLS },
+            { kind: "select", path: "shape", label: "Inside page: shape of the pictures", options: PROCESS_SHAPES },
+            {
+              kind: "list",
+              path: "items",
+              label: "Inside page: the cards in it",
+              add: "Add a card",
+              max: MAX_PROCESS_ITEMS,
+              title: (it, i) => str(it.title, `Card ${i + 1}`),
+              blank: () => ({ image: "", title: "New card", note: "", fit: "cover", imageZoom: 1, imageX: 50, imageY: 50 }),
+              fields: [
+                { kind: "image", path: "image", label: "Picture", hint: "Any picture format. Zoom and move it to choose what shows.", adjust: "image" },
+                { kind: "select", path: "fit", label: "Picture in its frame", options: PROCESS_FITS },
+                { kind: "text", path: "title", label: "Title" },
+                { kind: "area", path: "note", label: "Small text under it" },
+              ],
+            },
           ],
         },
       ],

@@ -1,0 +1,347 @@
+.page {
+  padding-top: calc(var(--nav-h) + 40px);
+  padding-bottom: clamp(70px, 9vw, 120px);
+  min-height: 80vh;
+  min-height: 80svh;
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: 26px;
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.back:hover,
+.back:focus-visible {
+  opacity: 1;
+  color: var(--gold-bright);
+}
+
+.head {
+  max-width: 760px;
+  margin-bottom: clamp(30px, 5vw, 56px);
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 14px;
+  font-family: var(--font-label);
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.title {
+  margin: 0 0 18px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(32px, 5.4vw, 60px);
+  line-height: 1.08;
+}
+
+.intro {
+  margin: 0;
+  font-size: clamp(16px, 1.6vw, 19px);
+  line-height: 1.75;
+  color: var(--ivory);
+  opacity: 0.85;
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55);
+}
+
+/* ── the cards inside: as many across as fit, each frame the shape chosen in the portal ──────────────────────── */
+.grid {
+  --min: 260px;
+  --ratio: 2 / 3;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--min)), 1fr));
+  gap: clamp(14px, 2vw, 26px);
+  min-height: 140px; /* an empty list still has room for the portal's "＋ Add" button */
+}
+
+.grid[data-cols="small"] {
+  --min: 190px;
+}
+
+.grid[data-cols="large"] {
+  --min: 380px;
+}
+
+.grid[data-shape="square"] {
+  --ratio: 1;
+}
+
+.grid[data-shape="landscape"] {
+  --ratio: 3 / 2;
+}
+
+.item {
+  min-width: 0;
+}
+
+.itemButton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+div.itemButton {
+  cursor: default;
+}
+
+.frame {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: var(--ratio);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(20, 8, 16, 0.6);
+  box-shadow: 0 24px 50px -28px rgba(0, 0, 0, 0.8);
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* "As the picture is": the frame takes the picture's own proportions instead of a fixed shape. */
+.grid[data-shape="natural"] .frame {
+  aspect-ratio: auto;
+}
+
+.frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.grid[data-shape="natural"] .frame img {
+  height: auto;
+}
+
+.frame[data-fit="contain"] img {
+  object-fit: contain;
+}
+
+@media (hover: hover) {
+  button.itemButton:hover .frame,
+  button.itemButton:focus-visible .frame {
+    transform: translateY(-4px);
+    border-color: rgba(255, 220, 140, 0.55);
+    box-shadow: 0 30px 56px -26px rgba(0, 0, 0, 0.85), 0 0 34px -12px rgba(232, 176, 75, 0.4);
+  }
+}
+
+.blank {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--gold-bright);
+  opacity: 0.8;
+}
+
+.caption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.caption strong {
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.caption span {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ivory);
+  opacity: 0.75;
+}
+
+/* Nothing in it yet. */
+.empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: clamp(36px, 7vw, 72px) 20px;
+  text-align: center;
+  border-radius: 20px;
+  border: 1px dashed rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.empty strong {
+  font-family: var(--font-display);
+  font-size: clamp(18px, 2.4vw, 24px);
+}
+
+.empty > span:last-child {
+  max-width: 44ch;
+  font-size: 14px;
+  line-height: 1.6;
+  opacity: 0.7;
+}
+
+.emptyIcon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 26px;
+  color: #2b1503;
+  background: linear-gradient(180deg, #ffe9a6, #e8b04b);
+}
+
+.emptyText {
+  opacity: 0.7;
+}
+
+.more {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px 24px;
+  margin-top: clamp(40px, 6vw, 72px);
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: var(--font-label);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.more a {
+  opacity: 0.75;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.more a:hover,
+.more a:focus-visible {
+  opacity: 1;
+  color: var(--gold-bright);
+}
+
+/* ── a picture opened large ──────────────────────────────────────────────────────────────────────────────── */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-items: center;
+  padding: clamp(12px, 4vw, 48px);
+  background: rgba(10, 4, 8, 0.92);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  animation: lbIn 0.25s ease both;
+}
+
+.lbFigure {
+  margin: 0;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.lbFigure img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 150px);
+  max-height: calc(100dvh - 150px);
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+.lbFigure figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+.lbFigure figcaption span {
+  font-size: 14px;
+  opacity: 0.75;
+}
+
+.lbClose,
+.lbStep {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(20, 10, 16, 0.85);
+  color: var(--ivory);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.lbClose {
+  top: 14px;
+  right: 14px;
+}
+
+.lbStep {
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 26px;
+}
+
+.lbPrev {
+  left: 12px;
+}
+
+.lbNext {
+  right: 12px;
+}
+
+.lbClose:hover,
+.lbStep:hover,
+.lbClose:focus-visible,
+.lbStep:focus-visible {
+  border-color: var(--gold);
+  outline: none;
+}
+
+@keyframes lbIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lightbox {
+    animation: none;
+  }
+  .frame {
+    transition: none;
+  }
+}

@@ -1,5 +1,6 @@
 import { CATEGORIES, LANGUAGES, LEGACY_CATEGORIES } from "@/content/types";
-import { CARD_LINK_BY_ICON, CARD_LINK_VALUES } from "./card-links";
+import { CARD_LINK_BY_ICON, CARD_LINK_VALUES, CARD_OPENS_OWN_PAGE } from "./card-links";
+import { cleanExtra } from "./process";
 import { DEFAULT_GLASS, DEFAULT_MENU_TONES, GLASS_COLOR_COUNT, GLASS_EFFECTS, OLD_GEMINI, OLD_GLASS, OLD_SIX, type GlassLook } from "./types";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "./limits";
 import { defaultContent } from "./defaults";
@@ -244,14 +245,20 @@ export function sanitizeContent(input: unknown): SiteContent {
         : old.opensBreakdowns === true
           ? breakdowns
           : (CARD_LINK_BY_ICON[old.icon ?? ""] ?? "Does nothing");
+    // A card with no page address yet was saved before the inside pages existed: it now opens its own page.
+    const firstTime = !(typeof (c as { slug?: unknown }).slug === "string" && (c as { slug?: string }).slug);
+    const finalOpens = firstTime ? CARD_OPENS_OWN_PAGE : opens;
     return {
       ...c,
       // kept for older saved content: true when this card opens the Breakdowns page
-      opensBreakdowns: opens === breakdowns,
-      opens,
-      linkText: typeof old.linkText === "string" ? old.linkText.trim().slice(0, 40) : "",
+      opensBreakdowns: finalOpens === breakdowns,
+      opens: finalOpens,
+      linkText: firstTime ? "" : typeof old.linkText === "string" ? old.linkText.trim().slice(0, 40) : "",
     };
   });
+  // Each card's inside page: its own address (never two the same), its settings and its list of cards.
+  const takenSlugs = new Set<string>();
+  merged.home.process.cards = merged.home.process.cards.map((c) => ({ ...c, ...cleanExtra(c, str(c.title), takenSlugs) }));
 
   // Picture shapes and sizes: only the known words, so a stale or odd value can never reach the page.
   const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(v as T) ? (v as T) : fallback);
