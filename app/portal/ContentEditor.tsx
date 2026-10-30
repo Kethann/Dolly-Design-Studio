@@ -1,5 +1,6 @@
 "use client";
 
+import { resizedSrc } from "@/lib/images";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { allFonts } from "@/lib/content/fonts";
 import { fontFaceCss, glassVars } from "@/lib/content/css";
@@ -411,7 +412,7 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
           >
             <span className={styles.pickerThumb}>
               {/* eslint-disable-next-line @next/next/no-img-element -- library thumbnails */}
-              <img src={src} alt="" loading="lazy" decoding="async" />
+              <img src={resizedSrc(src, 320)} alt="" loading="lazy" decoding="async" />
             </span>
             <span className={styles.pickerName}>{prettyName(src)}</span>
           </button>
@@ -539,7 +540,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
             // eslint-disable-next-line @next/next/no-img-element -- a preview of the chosen picture
             <img
               key={value}
-              src={value}
+              src={resizedSrc(value, 1280)}
               alt={alt || ""}
               onLoad={() => setShownSrc(value)}
               onError={() => setBroken(value)}
@@ -917,7 +918,7 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
                   <span className={styles.cardIndex}>{String(i + 1).padStart(2, "0")}</span>
                   {thumbOf(item, field) && (
                     // eslint-disable-next-line @next/next/no-img-element -- a small preview of the item's picture
-                    <img className={styles.cardThumb} src={thumbOf(item, field)} alt="" />
+                    <img className={styles.cardThumb} src={resizedSrc(thumbOf(item, field), 240)} alt="" />
                   )}
                   <span className={styles.cardName}>{field.title(item, i)}</span>
                 </button>
@@ -1542,7 +1543,7 @@ export function MediaLibrary() {
                 <figure key={src} className={styles.libraryTile} title={src} data-asking={asking === src}>
                   <span className={styles.libraryPic}>
                     {/* eslint-disable-next-line @next/next/no-img-element -- library thumbnails */}
-                    <img src={src} alt="" loading="lazy" />
+                    <img src={resizedSrc(src, 320)} alt="" loading="lazy" decoding="async" />
                     {canRemove && asking !== src && (
                       <button type="button" className={styles.libraryX} aria-label={`Delete ${src.replace("/images/", "")}`} title="Delete this picture" onClick={() => { setError(""); setAsking(src); }}>
                         ✕

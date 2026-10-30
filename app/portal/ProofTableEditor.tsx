@@ -1,5 +1,6 @@
 "use client";
 
+import { resizedSrc } from "@/lib/images";
 import { useRef, useState } from "react";
 import type { ProofItem } from "@/content/proof-table";
 import { PROOF_LIMITS, type ProofTableSettings } from "@/lib/intro/settings";
@@ -162,7 +163,7 @@ export function ProofTableEditor({
             <div className={styles.slotHead}>
               {reGrip(i, items.length)}
               {/* eslint-disable-next-line @next/next/no-img-element -- a small preview of the chosen title */}
-              <img className={styles.slotThumb} src={it.src} alt="" />
+              <img className={styles.slotThumb} src={resizedSrc(it.src, 240)} alt="" />
               <span className={styles.slotIndex}>{String(i + 1).padStart(2, "0")}</span>
               <span className={styles.slotActions}>
                 <button
@@ -220,7 +221,7 @@ export function ProofTableEditor({
                 <span>Image</span>
                 <button type="button" className={styles.picture} onClick={() => setPicking(picking === i ? null : i)} aria-expanded={picking === i} title="Choose a different picture for this card">
                   {/* eslint-disable-next-line @next/next/no-img-element -- the card's current picture */}
-                  <img src={it.src} alt="" />
+                  <img src={resizedSrc(it.src, 480)} alt="" />
                   <span>{picking === i ? "Close the pictures" : "Change the picture"}</span>
                 </button>
                 {picking === i && <ImagePicker value={it.src} onPick={(src) => patchItem(i, { src })} onClose={() => setPicking(null)} />}

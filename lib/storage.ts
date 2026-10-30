@@ -16,6 +16,8 @@ export interface Store {
   getText(key: string): Promise<string | null>;
   putText(key: string, text: string, contentType?: string): Promise<void>;
   getBytes(key: string): Promise<{ bytes: Uint8Array; contentType?: string } | null>;
+  /** The same file as a stream, without copying it into the Worker's memory first (R2 only; costs the Worker almost no work). */
+  getStream?(key: string): Promise<{ body: ReadableStream<Uint8Array>; contentType?: string } | null>;
   putBytes(key: string, bytes: Uint8Array, contentType?: string): Promise<void>;
   /** Every key that starts with the prefix, in alphabetical order. */
   list(prefix: string): Promise<string[]>;
@@ -115,7 +117,7 @@ const files: Store = {
 
 /** The parts of an R2 bucket this file uses. */
 interface R2Bucket {
-  get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer>; text(): Promise<string>; httpMetadata?: { contentType?: string } } | null>;
+  get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer>; text(): Promise<string>; body: ReadableStream<Uint8Array>; httpMetadata?: { contentType?: string } } | null>;
   put(key: string, value: ArrayBuffer | Uint8Array | string, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
   delete(key: string): Promise<void>;
   list(options: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string; size?: number }[]; truncated: boolean; cursor?: string }>;
@@ -133,6 +135,10 @@ function r2(bucket: R2Bucket): Store {
     async getBytes(key) {
       const obj = await bucket.get(key);
       return obj ? { bytes: new Uint8Array(await obj.arrayBuffer()), contentType: obj.httpMetadata?.contentType } : null;
+    },
+    async getStream(key) {
+      const obj = await bucket.get(key);
+      return obj ? { body: obj.body, contentType: obj.httpMetadata?.contentType } : null;
     },
     async putBytes(key, bytes, contentType) {
       await bucket.put(key, bytes, contentType ? { httpMetadata: { contentType } } : undefined);
@@ -251,20 +257,45 @@ export const contentTypeOf = (name: string) => CONTENT_TYPES[name.split(".").pop
 /** Serves one stored upload with long-lived caching (every upload's name carries a fingerprint of its bytes). */
 export async function serveUpload(prefix: string, name: string, width?: number): Promise<Response> {
   if (!/^[\w.-]{1,120}\.(webp|png|jpe?g|avif|gif|svg|ttf|otf|woff2?)$/i.test(name) || name.includes("..")) return new Response("Not found", { status: 404 });
-  const found = await (await store()).getBytes(prefix + name);
-  if (!found) return new Response("Not found", { status: 404 });
+  const kept = { "Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" };
+  const s = await store();
   // A smaller copy was asked for (?w=): on Cloudflare it is made there, so the visitor's device never has to load and hold the
-  // full-size picture. Animated, vector and unreadable ones are sent as they are.
+  // full-size picture. Each size is made once and kept (the Worker's own cache), so a busy page costs the Worker next to nothing.
   const images = width && /\.(webp|png|jpe?g|avif)$/i.test(name) ? cloudflareImages() : null;
-  if (images && width) {
+  if (images && width && s.getStream) {
+    const w = Math.min(3840, Math.max(16, Math.round(width)));
+    const cache = (globalThis as { caches?: { default?: { match(r: Request): Promise<Response | undefined>; put(r: Request, v: Response): Promise<void> } } }).caches?.default;
+    const cacheKey = new Request(`https://resized.invalid/${prefix}${name}?w=${w}`);
     try {
-      const w = Math.min(3840, Math.max(16, Math.round(width)));
-      const out = await images.input(new Response(found.bytes as BodyInit).body as ReadableStream<Uint8Array>).transform({ width: w, fit: "scale-down" }).output({ format: "image/webp", quality: 82 });
-      return new Response(out.image(), { headers: { "Content-Type": out.contentType(), "Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" } });
+      const hit = await cache?.match(cacheKey);
+      if (hit) return hit;
+    } catch {}
+    try {
+      const src = await s.getStream(prefix + name);
+      if (!src) return new Response("Not found", { status: 404 });
+      const out = await images.input(src.body).transform({ width: w, fit: "scale-down" }).output({ format: "image/webp", quality: 82 });
+      const res = new Response(out.image(), { headers: { "Content-Type": out.contentType(), ...kept } });
+      if (cache) {
+        const copy = res.clone();
+        const keep = cache.put(cacheKey, copy).catch(() => {});
+        const ctx = (globalThis as Record<symbol, unknown>)[Symbol.for("__cloudflare-context__")] as { ctx?: { waitUntil(p: Promise<unknown>): void } } | undefined;
+        if (ctx?.ctx) ctx.ctx.waitUntil(keep);
+      }
+      return res;
     } catch (err) {
       console.error("[images] could not resize", name, err);
     }
   }
+  // The original, as it is: streamed straight from R2 when there (no copy made in the Worker).
+  const lowerSvg = name.toLowerCase().endsWith(".svg");
+  const extra: Record<string, string> = lowerSvg ? { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox" } : {};
+  if (s.getStream) {
+    const src = await s.getStream(prefix + name);
+    if (!src) return new Response("Not found", { status: 404 });
+    return new Response(src.body, { headers: { "Content-Type": src.contentType ?? contentTypeOf(name), ...kept, ...extra } });
+  }
+  const found = await s.getBytes(prefix + name);
+  if (!found) return new Response("Not found", { status: 404 });
   return new Response(found.bytes as BodyInit, {
     headers: {
       "Content-Type": found.contentType ?? contentTypeOf(name),

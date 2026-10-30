@@ -1,5 +1,6 @@
 "use client";
 
+import { resizedSrc } from "@/lib/images";
 import { useState } from "react";
 import type { Breakdown, BreakdownLayer } from "@/lib/content/types";
 import { MAX_BREAKDOWNS, MAX_BREAKDOWN_LAYERS } from "@/lib/content/limits";
@@ -38,7 +39,7 @@ function LayerRows({ b, i, patch }: { b: Breakdown; i: number; patch: (i: number
                       <span className={bd.num}>{k + 1}</span>
                       <span className={bd.thumb}>
                         {/* eslint-disable-next-line @next/next/no-img-element -- small preview of a library picture */}
-                        <img src={l.image} alt="" />
+                        <img src={resizedSrc(l.image, 160)} alt="" loading="lazy" decoding="async" />
                       </span>
                       <input
                         className={bd.name}
