@@ -185,7 +185,7 @@ export function Contact() {
 
             <div className={styles.field}>
               <label htmlFor="phone">{form.phoneLabel}</label>
-              <input id="phone" name="phone" type="tel" inputMode="tel" required autoComplete="tel" placeholder="+91 98765 43210" maxLength={24} {...bad("phone")} />
+              <input id="phone" name="phone" type="tel" inputMode="tel" required autoComplete="tel" maxLength={24} {...bad("phone")} />
               {err("phone")}
             </div>
 
