@@ -50,6 +50,9 @@ site/
 `public/images/` — the step-by-step guide is in
 [`content/README.md`](content/README.md).**
 
+For an overall guide to the site's features, animation, performance choices,
+and technology keywords, see [`PROJECT-NOTES.md`](PROJECT-NOTES.md).
+
 ## The intro (V1)
 
 Every time the home page is loaded (about 8 seconds):
@@ -73,8 +76,9 @@ There is no skip button; keyboard users can press **Esc** to jump to the end.
 It doesn't replay when moving around inside the site, and links straight to
 another page (e.g. a project) open that page directly.
 
-Touch devices, visitors with "reduce motion" turned on, and browsers without
-WebGL get a lightweight version instead.
+Visitors who prefer reduced motion, browsers without WebGL, and touch devices
+that do not meet the device checks get a lightweight version instead. Capable
+phones and tablets can play the 3D version too.
 
 The code lives in `components/intro/StarIntro.tsx` (the intro) and
 `components/StarField.tsx` (the stars that stay). The timing of every beat is
