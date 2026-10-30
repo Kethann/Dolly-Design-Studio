@@ -6,6 +6,7 @@ import { edSection } from "@/lib/content/tx";
 import { Magnetic } from "@/components/Magnetic";
 import { CONTACT_LIMITS, validateContact, type ContactErrors, type ContactField } from "@/lib/contact/validate";
 import { renderFx } from "@/components/fx/render-fx";
+import { SocialLogo } from "@/components/SocialLogo";
 import styles from "./Contact.module.css";
 
 type Status = "idle" | "sending" | "sent" | "error";
@@ -122,29 +123,50 @@ export function Contact() {
 
         <div className={styles.grid}>
           <div className={styles.quickLinks}>
-            <Magnetic>
-              <a href={`mailto:${site.contact.email}`} className={styles.emailButton} data-cursor="link">
-                {site.contact.email}
-              </a>
-            </Magnetic>
-            <p className={styles.contactRow}>
-              <a href={site.contact.phoneHref} data-cursor="link">
-                {site.contact.phone}
-              </a>
-            </p>
-            <p className={styles.contactRow}>
-              <a href={site.contact.whatsapp} target="_blank" rel="noreferrer" data-cursor="link">
-                {copy.whatsappLabel}
-              </a>
-            </p>
-            <p className={styles.contactRow}>{site.contact.location}</p>
-            <div className={styles.social}>
-              {site.social.map((s) => (
-                <a key={s.label} href={s.href} target="_blank" rel="noreferrer" data-cursor="link">
-                  {s.label}
+            <a href={`mailto:${site.contact.email}`} className={styles.emailButton} data-cursor="link">
+              {site.contact.email}
+            </a>
+            <ul className={styles.details}>
+              <li>
+                <span className={styles.icon} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />
+                  </svg>
+                </span>
+                <a href={site.contact.phoneHref} data-cursor="link">
+                  {site.contact.phone}
                 </a>
-              ))}
-            </div>
+              </li>
+              <li>
+                <span className={styles.icon} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3.5 20.5l1.3-4.2A8.5 8.5 0 1 1 8 19.4z" />
+                    <path d="M9 8.8c.3 2.6 2.6 5 5.4 5.6l1.2-1.3-2-1-.9.7a4 4 0 0 1-1.9-1.9l.7-.9-1-2z" fill="currentColor" stroke="none" />
+                  </svg>
+                </span>
+                <a href={site.contact.whatsapp} target="_blank" rel="noreferrer" data-cursor="link">
+                  {copy.whatsappLabel}
+                </a>
+              </li>
+              <li>
+                <span className={styles.icon} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z" />
+                    <circle cx="12" cy="9.5" r="2.5" />
+                  </svg>
+                </span>
+                <span>{site.contact.location}</span>
+              </li>
+            </ul>
+            {site.social.length > 0 && (
+              <nav className={styles.social} aria-label="Social media">
+                {site.social.map((s) => (
+                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" data-cursor="link" aria-label={s.label} title={s.label}>
+                    <SocialLogo label={s.label} />
+                  </a>
+                ))}
+              </nav>
+            )}
           </div>
 
           <form className={styles.form} onSubmit={onSubmit} onBlur={onLeave} noValidate>

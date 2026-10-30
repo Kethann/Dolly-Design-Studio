@@ -104,7 +104,7 @@ export const home = {
   // 9. CONTACT US — the enquiry form.
   contact: {
     label: "Contact Us",
-    headline: "Let’s create something [[cinematic]].",
+    headline: "Let’s create something [[cinematic]]",
     availability: "Available for feature films, OTT originals & campaign launches",
     whatsappLabel: "WhatsApp",
     form: {

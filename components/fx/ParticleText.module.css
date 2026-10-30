@@ -5,13 +5,13 @@
   white-space: nowrap;
 }
 
-/* The real text: it sizes the word, is read by screen readers and search, and is only hidden to the eye once the dots are drawn. */
+/* The real text: it is what you see until the pointer is on the word; it also sizes the word and is read by screen readers and search. */
 .ghost {
   display: inline-block;
   transition: opacity 0.25s ease;
 }
 
-.wrap[data-live="true"] .ghost {
+.wrap[data-active="true"] .ghost {
   opacity: 0;
 }
 
@@ -22,6 +22,6 @@
   transition: opacity 0.25s ease;
 }
 
-.wrap[data-live="true"] .canvas {
+.wrap[data-active="true"] .canvas {
   opacity: 1;
 }

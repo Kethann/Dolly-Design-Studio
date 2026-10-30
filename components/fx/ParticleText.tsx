@@ -52,6 +52,8 @@ export function ParticleText({ children }: { children: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   /** True once the dots are drawn: until then (and without canvas support or with reduced motion) the plain text shows. */
   const [live, setLive] = useState(false);
+  /** True only while the dots are showing (the pointer is on the word, and until they have settled again); otherwise the word is plain text. */
+  const [active, setActive] = useState(false);
 
   useEffect(() => {
     const host = wrap.current;
@@ -71,6 +73,12 @@ export function ParticleText({ children }: { children: string }) {
     let raf = 0;
     let warp = 0;
     let hovering = false;
+    let shown = false;
+    const show = (on: boolean) => {
+      if (shown === on) return;
+      shown = on;
+      setActive(on);
+    };
     let px = -9999;
     let py = -9999;
     let visible = true;
@@ -196,6 +204,8 @@ export function ParticleText({ children }: { children: string }) {
         }
       }
       draw();
+      // Everything is home again and the glow is gone: back to the ordinary text.
+      if (!moving && !hovering && warp === 0) show(false);
       if (moving && visible) raf = requestAnimationFrame(step);
     }
     const wake = () => {
@@ -207,9 +217,20 @@ export function ParticleText({ children }: { children: string }) {
       const r = host!.getBoundingClientRect();
       px = e.clientX - r.left;
       py = e.clientY - r.top;
-      const near = px > -REACH && px < r.width + REACH && py > -REACH && py < r.height + REACH;
-      if (near !== hovering) hovering = near;
-      if (near) wake();
+      // The dots begin when the pointer is on the word; once they are showing, they keep reacting while it is within reach.
+      const slack = shown ? REACH : 14;
+      const near = px > -slack && px < r.width + slack && py > -slack && py < r.height + slack;
+      if (near !== hovering) {
+        hovering = near;
+        wake(); // let the dots settle, and the word go back to plain text
+      }
+      if (near) {
+        if (!shown) {
+          show(true);
+          draw();
+        }
+        wake();
+      }
     }
     const onMove = (e: PointerEvent) => {
       if (e.pointerType === "mouse" || e.pointerType === "pen") point(e);
@@ -272,7 +293,7 @@ export function ParticleText({ children }: { children: string }) {
   }, [word]);
 
   return (
-    <span ref={wrap} className={styles.wrap} data-live={live}>
+    <span ref={wrap} className={styles.wrap} data-live={live} data-active={active}>
       {/* The real text: it gives the word its size and place, stays for screen readers and search, and shows until the dots are ready. */}
       <span ref={ghost} className={styles.ghost}>
         {word}
