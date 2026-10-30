@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { GOOGLE_MESSAGES } from "@/lib/portal/google-messages";
 import styles from "./portal.module.css";
 
 const PASSWORD_MIN = 10;
@@ -18,7 +19,7 @@ async function post(url: string, body: unknown) {
  * Signing in: username and password; then, for people who turned on two-step sign-in, the code emailed to them.
  * "Forgot password" emails a code too, and the code plus a new password sets a new one.
  */
-export function PortalLogin({ configured, setup = false }: { configured: boolean; setup?: boolean }) {
+export function PortalLogin({ configured, setup = false, google = false }: { configured: boolean; setup?: boolean; google?: boolean }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("password");
   const [username, setUsername] = useState("");
@@ -28,6 +29,15 @@ export function PortalLogin({ configured, setup = false }: { configured: boolean
   const [code, setCode] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [fresh, setFresh] = useState({ next: "", confirm: "" });
+  const [googleNote, setGoogleNote] = useState<string | null>(null);
+
+  // Coming back from Google with a problem (/portal?google=nouser): say what happened, then tidy the address.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("google");
+    if (!code) return;
+    setGoogleNote(GOOGLE_MESSAGES[code] ?? GOOGLE_MESSAGES.failed); // eslint-disable-line react-hooks/set-state-in-effect -- one-time read of the address
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -141,7 +151,14 @@ export function PortalLogin({ configured, setup = false }: { configured: boolean
           </p>
         )}
 
+        {configured && step === "password" && googleNote && (
+          <p className={styles.loginError} role="alert">
+            {googleNote}
+          </p>
+        )}
+
         {configured && step === "password" && (
+          <>
           <form onSubmit={signIn} className={styles.loginForm}>
             {setup && (
               <p className={styles.loginNote}>
@@ -195,6 +212,22 @@ export function PortalLogin({ configured, setup = false }: { configured: boolean
               </button>
             )}
           </form>
+          {google && (
+            <div className={styles.googleBlock}>
+              <span className={styles.googleOr}>or</span>
+              <a className={styles.googleButton} href="/api/portal/google" data-testid="google-signin">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.7v3h3.9c2.3-2.1 3.5-5.2 3.5-8.9z" />
+                  <path fill="#34A853" d="M12 24c3.2 0 6-1.1 7.9-2.9l-3.9-3c-1.1.7-2.5 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24z" />
+                  <path fill="#FBBC05" d="M5.4 14.3a7.2 7.2 0 0 1 0-4.6V6.6H1.4a12 12 0 0 0 0 10.8z" />
+                  <path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.4 6.6l4 3.1C6.3 6.9 8.9 4.8 12 4.8z" />
+                </svg>
+                Continue with Google
+              </a>
+              <p className={styles.googleHint}>One step: no password or code. It works for the Gmail address on your portal account.</p>
+            </div>
+          )}
+          </>
         )}
 
         {configured && step === "code" && (

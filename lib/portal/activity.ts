@@ -34,7 +34,8 @@ export type ActivityAction =
   | "uploaded-font"
   | "uploaded-texture"
   | "deleted-file"
-  | "email-test";
+  | "email-test"
+  | "replied-enquiry";
 
 export interface ActivityEntry {
   id: string;
@@ -55,7 +56,7 @@ export interface ActivityEntry {
 /** Which filter tab each action belongs to. */
 export const ACTION_GROUPS: Record<string, ActivityAction[]> = {
   "sign-ins": ["sign-in", "sign-in-failed", "sign-out", "code-sent", "code-failed", "signed-out-everywhere"],
-  changes: ["published-content", "published-design"],
+  changes: ["published-content", "published-design", "replied-enquiry"],
   uploads: ["uploaded-image", "uploaded-font", "uploaded-texture"],
   account: [
     "password-changed",

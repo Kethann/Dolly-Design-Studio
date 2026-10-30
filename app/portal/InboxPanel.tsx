@@ -26,6 +26,11 @@ export function InboxPanel({ onCount }: { onCount?: (unread: number) => void }) 
   const [mailOk, setMailOk] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  /** The enquiry being answered, what has been typed for each (kept if you switch away and back), and which is sending. */
+  const [composeId, setComposeId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [sending, setSending] = useState<string | null>(null);
+  const [replyError, setReplyError] = useState("");
   const seq = useRef(0);
 
   const load = useCallback(async () => {
@@ -82,6 +87,26 @@ export function InboxPanel({ onCount }: { onCount?: (unread: number) => void }) 
   async function remove(e: Enquiry) {
     if (!window.confirm(`Delete the enquiry from ${e.name}? This can’t be undone.`)) return;
     if (await call("DELETE", e.id, {})) setItems((l) => l.filter((x) => x.id !== e.id));
+  }
+
+  /** Emails the typed words to the person, from the studio's account, and shows the answer under their message. */
+  async function sendReply(e: Enquiry) {
+    const message = (drafts[e.id] ?? "").trim();
+    if (!message || sending) return;
+    setSending(e.id);
+    setReplyError("");
+    try {
+      const res = await fetch("/api/portal/inbox/reply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: e.id, message }) });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; enquiry?: Enquiry };
+      if (data.enquiry) setItems((l) => l.map((x) => (x.id === e.id ? (data.enquiry as Enquiry) : x)));
+      if (!res.ok) throw new Error(data.error || "The reply couldn’t be sent. Try again.");
+      setDrafts((d) => ({ ...d, [e.id]: "" }));
+      setComposeId(null);
+    } catch (err) {
+      setReplyError(err instanceof Error ? err.message : "The reply couldn’t be sent. Try again.");
+    } finally {
+      setSending(null);
+    }
   }
 
   function toggle(e: Enquiry) {
@@ -166,10 +191,65 @@ export function InboxPanel({ onCount }: { onCount?: (unread: number) => void }) 
                   <p className={inbox.note} data-ok={e.emailed}>
                     {e.emailed ? "✓ Also emailed to your inbox." : `Not emailed${e.emailNote ? `: ${e.emailNote}` : "."}`}
                   </p>
+                  {(e.replies ?? []).map((r, i) => (
+                    <div key={i} className={inbox.sent} data-ok={r.sent}>
+                      <div className={inbox.sentHead}>
+                        <strong>{r.by}</strong> replied · <time dateTime={r.at}>{when(r.at)}</time>
+                        <span>{r.sent ? "✓ Emailed to " + e.email : "Not sent" + (r.note ? `: ${r.note}` : "")}</span>
+                      </div>
+                      <p>{r.body}</p>
+                    </div>
+                  ))}
+                  {composeId === e.id && (
+                    <form
+                      className={inbox.compose}
+                      onSubmit={(ev) => {
+                        ev.preventDefault();
+                        void sendReply(e);
+                      }}
+                    >
+                      <label htmlFor={`reply-${e.id}`}>
+                        Your reply to <strong>{e.name}</strong> <em>({e.email})</em>
+                      </label>
+                      <textarea
+                        id={`reply-${e.id}`}
+                        rows={6}
+                        maxLength={5000}
+                        autoFocus
+                        value={drafts[e.id] ?? ""}
+                        placeholder={`Hello ${e.name.split(" ")[0]}, thank you for getting in touch…`}
+                        onChange={(ev) => setDrafts((d) => ({ ...d, [e.id]: ev.target.value }))}
+                        disabled={sending === e.id}
+                      />
+                      <p className={inbox.hint}>It is emailed from the studio’s own address, with their message quoted underneath. Their answer comes back to the studio’s inbox.</p>
+                      {replyError && (
+                        <p className={inbox.warn} role="alert">
+                          {replyError}
+                        </p>
+                      )}
+                      <div className={inbox.actions}>
+                        <button type="submit" className={inbox.reply} disabled={sending === e.id || !(drafts[e.id] ?? "").trim() || !mailOk}>
+                          {sending === e.id ? "Sending…" : "Send reply"}
+                        </button>
+                        <button type="button" disabled={sending === e.id} onClick={() => setComposeId(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
                   <div className={inbox.actions}>
-                    <a className={inbox.reply} href={`mailto:${e.email}?subject=${encodeURIComponent(`Re: your enquiry (${e.projectType})`)}`}>
-                      ✉ Reply
-                    </a>
+                    {composeId !== e.id && (
+                      <button
+                        type="button"
+                        className={inbox.reply}
+                        onClick={() => {
+                          setReplyError("");
+                          setComposeId(e.id);
+                        }}
+                      >
+                        ✉ Reply
+                      </button>
+                    )}
                     {e.status !== "new" && (
                       <button type="button" disabled={busy === e.id} onClick={() => mark(e.id, "new")}>
                         Mark as new

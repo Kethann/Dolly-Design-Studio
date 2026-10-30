@@ -5,6 +5,7 @@ import { hasAccounts } from "@/lib/portal/users";
 import { getContent } from "@/lib/content/store";
 import { PortalEditor } from "./PortalEditor";
 import { PortalLogin } from "./PortalLogin";
+import { googleConfigured } from "@/lib/portal/google";
 
 export const metadata: Metadata = {
   title: "Creator portal",
@@ -17,6 +18,6 @@ export const dynamic = "force-dynamic";
 export default async function PortalPage() {
   if (!(await isPortalConfigured())) return <PortalLogin configured={false} />;
   const user = await getPortalUser();
-  if (!user) return <PortalLogin configured setup={!(await hasAccounts())} />;
+  if (!user) return <PortalLogin configured setup={!(await hasAccounts())} google={googleConfigured()} />;
   return <PortalEditor initial={await readIntroSettings()} initialContent={await getContent()} user={user} />;
 }

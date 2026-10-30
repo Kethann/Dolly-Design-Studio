@@ -15,11 +15,13 @@
 //     SMTP_PASS=…
 //     SMTP_FROM="Dolly Design Studio <no-reply@example.com>"
 //
-// On Cloudflare, mail connections (SMTP) aren't possible, so use Resend's HTTPS service instead:
+// On Cloudflare the site opens its own connection to Gmail / SMTP (see smtp-socket.ts), so the Gmail settings above work there
+// too: add them as secrets (npx wrangler secret put GMAIL_USER / GMAIL_APP_PASSWORD). Resend's HTTPS service is the alternative:
 //
 //     RESEND_API_KEY=re_…
 //     MAIL_FROM="Dolly Design Studio <portal@yourdomain.com>"      (a domain you verified in Resend)
 import type { Transporter } from "nodemailer";
+import { inWorker, sendViaSocket } from "./smtp-socket";
 
 export interface MailConfig {
   /** "resend" sends over HTTPS (works everywhere, including Cloudflare); "smtp" needs a server that can open mail connections. */
@@ -111,11 +113,14 @@ async function transportFor(c: MailConfig): Promise<Transporter> {
 
 export type SendResult = { ok: true } | { ok: false; reason: "not-configured" | "failed"; message: string };
 
-export async function sendMail(input: { to: string; subject: string; text: string; html: string; replyTo?: string }): Promise<SendResult> {
+export async function sendMail(input: { to: string | string[]; subject: string; text: string; html: string; replyTo?: string }): Promise<SendResult> {
   const config = mailConfig();
+  // One or several addresses, each once, without blanks.
+  const recipients = [...new Set((Array.isArray(input.to) ? input.to : [input.to]).map((t) => t.trim()).filter(Boolean))];
+  if (!recipients.length) return { ok: false, reason: "failed", message: "There is no address to send to." };
   if (!config) {
     // While developing without email set up, the message is printed so a code can still be used.
-    if (process.env.NODE_ENV !== "production") console.log(`\n[portal email — not configured, so not sent]\nTo: ${input.to}\n${input.subject}\n${input.text}\n`);
+    if (process.env.NODE_ENV !== "production") console.log(`\n[portal email — not configured, so not sent]\nTo: ${recipients.join(", ")}\n${input.subject}\n${input.text}\n`);
     return { ok: false, reason: "not-configured", message: "Email isn’t set up on this server yet." };
   }
   try {
@@ -123,7 +128,7 @@ export async function sendMail(input: { to: string; subject: string; text: strin
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: config.from, to: [input.to], subject: input.subject, text: input.text, html: input.html, ...(input.replyTo ? { reply_to: input.replyTo } : {}) }),
+        body: JSON.stringify({ from: config.from, to: recipients, subject: input.subject, text: input.text, html: input.html, ...(input.replyTo ? { reply_to: input.replyTo } : {}) }),
       });
       if (!res.ok) {
         console.error("[portal] Resend refused the email:", res.status, (await res.text().catch(() => "")).slice(0, 300));
@@ -131,7 +136,12 @@ export async function sendMail(input: { to: string; subject: string; text: strin
       }
       return { ok: true };
     }
-    await (await transportFor(config)).sendMail({ from: config.from, to: input.to, subject: input.subject, text: input.text, html: input.html, replyTo: input.replyTo });
+    if (inWorker()) {
+      // A Cloudflare Worker has no Node mail library: it opens its own connection to the mail server.
+      await sendViaSocket({ host: config.host, port: config.port, secure: config.secure, user: config.user, pass: config.pass, from: config.from, to: recipients, replyTo: input.replyTo, subject: input.subject, text: input.text, html: input.html });
+      return { ok: true };
+    }
+    await (await transportFor(config)).sendMail({ from: config.from, to: recipients, subject: input.subject, text: input.text, html: input.html, replyTo: input.replyTo });
     return { ok: true };
   } catch (err) {
     console.error("[portal] could not send email", err instanceof Error ? err.message : err);
@@ -204,4 +214,26 @@ export function enquiryEmail(e: { name: string; email: string; phone: string; co
 <tr><td style="padding-top:20px;font-size:12px;color:#a89d8e">Reply to this email to answer ${esc(e.name)} directly.</td></tr>
 </table></td></tr></table></body></html>`;
   return { subject: `New enquiry \u2014 ${e.name} (${e.projectType})`, text, html };
+}
+
+/** Everyone who should be told about a new enquiry: the studio's inbox, plus every owner who has an email on their account. */
+export function enquiryRecipients(studio: string, ownerEmails: string[]): string[] {
+  return [...new Set([studio, ...ownerEmails].map((e) => e.trim().toLowerCase()).filter((e) => /^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/.test(e)))];
+}
+
+/** The email a person at the studio writes back to someone who used the contact form, with their own words quoted below it. */
+export function replyEmail(opts: { to: string; visitor: string; body: string; sender: string; original: { at: string; message: string; projectType: string } }) {
+  const when = new Date(opts.original.at).toUTCString();
+  const quoted = opts.original.message.split(/\r?\n/).map((l) => `> ${l}`).join("\n");
+  const text = `Hello ${opts.visitor},\n\n${opts.body}\n\n${opts.sender}\nDolly Design Studio\n\n—\nOn ${when} you wrote (${opts.original.projectType}):\n${quoted}`;
+  const html = `<!doctype html><html><body style="margin:0;font-family:Arial,Helvetica,sans-serif;color:#222;background:#fff">
+<div style="max-width:560px;margin:0 auto;padding:24px">
+<p style="font-size:15px;line-height:1.7;margin:0 0 14px">Hello ${esc(opts.visitor)},</p>
+<p style="font-size:15px;line-height:1.7;margin:0 0 18px;white-space:pre-wrap">${esc(opts.body)}</p>
+<p style="font-size:15px;line-height:1.6;margin:0 0 24px">${esc(opts.sender)}<br><span style="color:#8a6a1e">Dolly Design Studio</span></p>
+<div style="border-left:3px solid #e8b04b;padding:4px 0 4px 14px;color:#666;font-size:13px;line-height:1.6">
+<div style="margin-bottom:6px">On ${esc(when)} you wrote (${esc(opts.original.projectType)}):</div>
+<div style="white-space:pre-wrap">${esc(opts.original.message)}</div></div>
+</div></body></html>`;
+  return { text, html };
 }

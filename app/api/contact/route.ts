@@ -5,7 +5,8 @@ import { site } from "@/content/site";
 import { validateContact } from "@/lib/contact/validate";
 import { noteEmail, saveEnquiry } from "@/lib/contact/inbox";
 import { clientIp, describeDevice } from "@/lib/portal/activity";
-import { enquiryEmail, enquiryRecipient, sendMail } from "@/lib/portal/mail";
+import { enquiryEmail, enquiryRecipient, enquiryRecipients, sendMail } from "@/lib/portal/mail";
+import { ownerEmails } from "@/lib/portal/users";
 
 const errors = home.contact.form.errors;
 // A message is never bigger than this many bytes of JSON.
@@ -54,7 +55,8 @@ export async function POST(req: NextRequest) {
 
   // The email goes off in the background; the visitor is answered as soon as the enquiry is saved (or after a moment, if
   // the mail service is slow), so the form never sits on "Sending…" waiting for it.
-  const mailing = sendMail({ to: enquiryRecipient(site.contact.email), replyTo: value.email, ...enquiryEmail(value) }).then(async (sent) => {
+  const owners = await ownerEmails().catch(() => [] as string[]);
+  const mailing = sendMail({ to: enquiryRecipients(enquiryRecipient(site.contact.email), owners), replyTo: value.email, ...enquiryEmail(value) }).then(async (sent) => {
     await noteEmail(entry, sent.ok, sent.ok ? undefined : sent.message);
     return sent;
   });

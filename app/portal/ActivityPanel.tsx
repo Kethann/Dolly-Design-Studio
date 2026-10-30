@@ -64,6 +64,8 @@ function what(e: ActivityEntry): string {
       return "deleted the file";
     case "email-test":
       return "sent a test email";
+    case "replied-enquiry":
+      return "replied to an enquiry:";
     default:
       return e.action;
   }
@@ -80,6 +82,7 @@ const ICON: Record<string, string> = {
   "code-failed": "⚠",
   "published-content": "✎",
   "published-design": "✦",
+  "replied-enquiry": "✉",
   "uploaded-image": "▣",
   "uploaded-font": "Aa",
   "uploaded-texture": "▣",

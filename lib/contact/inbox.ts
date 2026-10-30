@@ -11,6 +11,19 @@ const DIR = "data/inbox/";
 
 export type EnquiryStatus = "new" | "read" | "archived";
 
+/** One answer sent from the portal to the person who used the contact form. */
+export interface Reply {
+  /** ISO time it was sent. */
+  at: string;
+  /** Who at the studio wrote it (their name in the portal). */
+  by: string;
+  subject: string;
+  body: string;
+  /** Whether the email went out. A failed one is kept, so the words are never lost, and can be sent again. */
+  sent: boolean;
+  note?: string;
+}
+
 export interface Enquiry extends ContactInput {
   id: string;
   /** ISO time it arrived. */
@@ -21,6 +34,8 @@ export interface Enquiry extends ContactInput {
   /** Why the email did not go, when it didn't. */
   emailNote?: string;
   device: string;
+  /** The answers sent from the portal, oldest first. */
+  replies?: Reply[];
 }
 
 const keyOf = (e: Pick<Enquiry, "id" | "at">) => `${DIR}${e.at.replace(/[:.]/g, "-")}_${e.id}.json`;
@@ -52,6 +67,19 @@ export async function noteEmail(entry: Enquiry, emailed: boolean, note?: string)
   } catch (err) {
     console.error("[contact] could not record the email result", err);
   }
+}
+
+/** Adds an answer to an enquiry (and marks the enquiry as read). Returns the updated enquiry, or null if it is gone. */
+export async function addReply(id: string, reply: Reply): Promise<Enquiry | null> {
+  const hit = await find(id);
+  if (!hit) return null;
+  const entry: Enquiry = { ...hit.entry, status: hit.entry.status === "new" ? "read" : hit.entry.status, replies: [...(hit.entry.replies ?? []), reply].slice(-50) };
+  await (await store()).putText(hit.key, JSON.stringify(entry));
+  return entry;
+}
+
+export async function getEnquiry(id: string): Promise<Enquiry | null> {
+  return (await find(id))?.entry ?? null;
 }
 
 /** Newest first. */

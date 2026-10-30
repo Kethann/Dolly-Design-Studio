@@ -199,6 +199,19 @@ export async function updateUser(
   return { user: publicUser(user), version: user.version };
 }
 
+/** The confirmed email addresses of every owner: they are told about each new enquiry. */
+export async function ownerEmails(): Promise<string[]> {
+  return (await load()).filter((u) => u.role === "owner" && u.email).map((u) => u.email as string);
+}
+
+/** Finds someone by their email address only (Google sign-in: the address Google has confirmed). */
+export async function findUserByEmail(email: string): Promise<{ user: PortalUser; version: number } | null> {
+  const key = normalizeEmail(email);
+  if (!key) return null;
+  const u = (await load()).find((x) => x.email === key);
+  return u ? { user: publicUser(u), version: u.version } : null;
+}
+
 /** Finds someone by username or by email address (for "forgot password"). */
 export async function findUserByLogin(identifier: string): Promise<PortalUser | null> {
   const key = identifier.trim().toLowerCase();
