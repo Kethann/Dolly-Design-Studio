@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isRateLimited } from "@/lib/rate-limit";
 import { clientIp, logActivity } from "@/lib/portal/activity";
 import { CODE_MINUTES, issueCode } from "@/lib/portal/otp";
-import { codeEmail, isMailConfigured, sendMail } from "@/lib/portal/mail";
+import { codeEmail, isMailConfigured, sendMail, studioMailboxes } from "@/lib/portal/mail";
 import { findUserByLogin } from "@/lib/portal/users";
 
 /**
@@ -37,6 +37,17 @@ export async function POST(req: NextRequest) {
         const sent = await sendMail({ to: user.email, ...codeEmail({ name: user.name, code: issued.code, purpose: "reset", minutes: CODE_MINUTES }) });
         await logActivity({ headers: req.headers, actor: user, action: "code-sent", detail: "Password reset code", ok: sent.ok });
       }
+    }
+  }
+  // The studio's own address works too, even if every account was deleted: the code goes to that mailbox, and choosing a
+  // new password with it makes the owner account again.
+  const mailbox = identifier.toLowerCase();
+  if (!user && emailEnabled && studioMailboxes().includes(mailbox)) {
+    const issued = await issueCode("reset", `mail:${mailbox}`);
+    if ("code" in issued) {
+      const name = mailbox.split("@")[0];
+      const sent = await sendMail({ to: mailbox, ...codeEmail({ name, code: issued.code, purpose: "reset", minutes: CODE_MINUTES }) });
+      await logActivity({ headers: req.headers, actor: { id: "unknown", username: mailbox, name }, action: "code-sent", detail: "Password reset code (studio mailbox)", ok: sent.ok });
     }
   }
   return NextResponse.json({ ok: true, emailEnabled });

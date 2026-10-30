@@ -127,7 +127,8 @@ export async function verifyLogin(username: string, password: string): Promise<{
     if (!setup || name !== SETUP_USERNAME) return null;
     return timingSafeEqual(sha256(password), sha256(setup)) ? { user: SETUP_USER, version: setupVersion() } : null;
   }
-  const user = users.find((u) => u.username === name);
+  // The username, or the email address on the account, works as the name.
+  const user = users.find((u) => u.username === name || (name.includes("@") && u.email === name));
   if (!user) {
     await hashPassword(password); // same cost as a real check
     return null;
@@ -204,7 +205,7 @@ export async function ownerEmails(): Promise<string[]> {
   return (await load()).filter((u) => u.role === "owner" && u.email).map((u) => u.email as string);
 }
 
-/** Finds someone by their email address only (Google sign-in: the address Google has confirmed). */
+/** Finds someone by their email address only (the address a sign-in code was sent to). */
 export async function findUserByEmail(email: string): Promise<{ user: PortalUser; version: number } | null> {
   const key = normalizeEmail(email);
   if (!key) return null;

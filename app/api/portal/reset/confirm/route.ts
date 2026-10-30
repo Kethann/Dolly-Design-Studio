@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { noteFailure, tooManyFailures } from "@/lib/rate-limit";
 import { clientIp, logActivity } from "@/lib/portal/activity";
 import { checkCode, clearCodes } from "@/lib/portal/otp";
-import { UserError, findUserByLogin, updateUser, validatePassword } from "@/lib/portal/users";
+import { studioMailboxes } from "@/lib/portal/mail";
+import { UserError, ensureOwnerForMailbox, findUserByLogin, updateUser, validatePassword } from "@/lib/portal/users";
 
 /** "Forgot password", step two: the emailed code plus a new password. Every device is signed out afterwards. */
 export async function POST(req: NextRequest) {
@@ -25,8 +26,12 @@ export async function POST(req: NextRequest) {
   if (keys.some(tooManyFailures)) return NextResponse.json({ error: "Too many wrong codes. Try again in a few minutes." }, { status: 429 });
 
   const generic = NextResponse.json({ error: "That code isn’t right, or it has expired. Ask for a new one." }, { status: 400 });
-  const user = await findUserByLogin(identifier);
-  if (!user) {
+  let user = await findUserByLogin(identifier);
+  // The studio's own mailbox with no account (everyone was deleted): the code was sent to that mailbox, and the owner account
+  // is made again once the code is right.
+  const mailbox = identifier.toLowerCase();
+  const fromMailbox = !user && studioMailboxes().includes(mailbox);
+  if (!user && !fromMailbox) {
     keys.forEach(noteFailure);
     return generic;
   }
@@ -35,15 +40,16 @@ export async function POST(req: NextRequest) {
   const weak = validatePassword(password);
   if (weak) return NextResponse.json({ error: weak }, { status: 400 });
 
-  const result = await checkCode("reset", user.id, code);
+  const result = await checkCode("reset", user ? user.id : `mail:${mailbox}`, code);
   if (!result.ok) {
     keys.forEach(noteFailure);
-    await logActivity({ headers: req.headers, actor: user, action: "code-failed", detail: "Password reset code", ok: false });
+    await logActivity({ headers: req.headers, actor: user ?? { id: "unknown", username: mailbox, name: mailbox }, action: "code-failed", detail: "Password reset code", ok: false });
     if (result.reason === "locked") return NextResponse.json({ error: "Too many wrong tries for that code. Ask for a new one." }, { status: 400 });
     return generic;
   }
 
   try {
+    if (!user) user = (await ensureOwnerForMailbox(mailbox)).user;
     await updateUser(user.id, { password }); // ends this person's sessions everywhere
   } catch (err) {
     if (err instanceof UserError) return NextResponse.json({ error: err.message }, { status: 400 });
