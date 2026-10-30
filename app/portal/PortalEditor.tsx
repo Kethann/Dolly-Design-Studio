@@ -420,6 +420,18 @@ export function PortalEditor({
   const previewPath =
     previewRoute === "work" ? "/work" : previewRoute === "breakdowns" ? "/breakdowns" : previewRoute === "project" ? `/work/${projectSlug}` : previewRoute === "step" ? `/process/${stepSlug}` : previewRoute === "notFound" ? "/page-not-found-preview" : "/";
   const breakdownsOpen = previewRoute === "breakdowns";
+  /** The preview's first address. It is not changed after that (that would reload the page): moving to another page is done below. */
+  const [firstFrameSrc] = useState(`${previewPath}?${PREVIEW_PARAM}`);
+  useEffect(() => {
+    // Go to the chosen page only if the preview is not already there (it may have gone there by itself, when a card was pressed).
+    const w = frameRef.current?.contentWindow;
+    if (!w) return;
+    let here = "";
+    try {
+      here = w.location.pathname;
+    } catch {}
+    if (here.startsWith("/") && here !== previewPath) w.location.assign(`${previewPath}?${PREVIEW_PARAM}`);
+  }, [previewPath]);
   const undoRef = useRef(() => {});
   const redoRef = useRef(() => {});
   useEffect(() => {
@@ -528,6 +540,22 @@ export function PortalEditor({
         setPlayhead(msg.t);
       }
       if (msg.type === "edit-add") addItemRef.current(msg.list);
+      if (msg.type === "route") {
+        // The preview went to another page by itself (a card was pressed): the page tabs follow it.
+        const path = msg.path;
+        const project = /^\/work\/([^/]+)$/.exec(path)?.[1];
+        const step = /^\/process\/([^/]+)$/.exec(path)?.[1];
+        if (path === "/") setPreviewRoute("home");
+        else if (path === "/work") setPreviewRoute("work");
+        else if (path === "/breakdowns") setPreviewRoute("breakdowns");
+        else if (project) {
+          setPreviewProject(project);
+          setPreviewRoute("project");
+        } else if (step) {
+          setPreviewStep(step);
+          setPreviewRoute("step");
+        }
+      }
       if (msg.type === "edit-open") {
         // An Edit button on the preview: "home:founder" is a section, "projects.3" is one item.
         if ("section" in msg) {
@@ -2029,7 +2057,7 @@ export function PortalEditor({
     <EditorProvider value={{ content: contentDraft, update: updateContent, media }}>
       <div className={`${styles.shell} ${mac.desktop}`} data-editing={editMode}>
         <div ref={stageRef} className={mac.wallpaper} data-framed="true" data-device={device}>
-          <iframe ref={frameRef} title="Live preview of the site" src={`${previewPath}?${PREVIEW_PARAM}`} />
+          <iframe ref={frameRef} title="Live preview of the site" src={firstFrameSrc} />
         </div>
 
         <MenuBar menus={menus}>

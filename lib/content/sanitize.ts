@@ -1,6 +1,7 @@
 import { CATEGORIES, LANGUAGES, LEGACY_CATEGORIES } from "@/content/types";
 import { CARD_LINK_BY_ICON, CARD_LINK_VALUES, CARD_OPENS_OWN_PAGE } from "./card-links";
 import { cleanExtra } from "./process";
+import { ZOOM_MAX, ZOOM_MIN, cleanAdjust } from "./adjust";
 import { DEFAULT_GLASS, DEFAULT_MENU_TONES, GLASS_COLOR_COUNT, GLASS_EFFECTS, OLD_GEMINI, OLD_GLASS, OLD_SIX, type GlassLook } from "./types";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "./limits";
 import { defaultContent } from "./defaults";
@@ -129,7 +130,7 @@ export function sanitizeContent(input: unknown): SiteContent {
         deliverables: strs(raw.deliverables),
         brief: str(raw.brief),
         ...(credits.length ? { credits } : {}),
-        images: images.map((im) => ({ src: im.src, alt: typeof im.alt === "string" && im.alt ? im.alt : title })),
+        images: images.map((im) => ({ src: im.src, alt: typeof im.alt === "string" && im.alt ? im.alt : title, ...cleanAdjust(im, "src") })),
         ...(raw.featured === true ? { featured: true } : {}),
         order: i + 1,
       },
@@ -146,10 +147,11 @@ export function sanitizeContent(input: unknown): SiteContent {
         description: str(raw.description),
         deliverables: strs(raw.deliverables),
         sample: str(raw.sample).startsWith("/images/") ? str(raw.sample) : def.services[0].sample,
+        ...cleanAdjust(raw, "sample"),
         details: str(raw.details).slice(0, 4000),
         gallery: (Array.isArray(raw.gallery) ? raw.gallery : []).slice(0, 12).flatMap((g: unknown) => {
           if (!isObj(g) || !str(g.src).startsWith("/images/")) return [];
-          return [{ src: str(g.src), alt: str(g.alt).slice(0, 200) }];
+          return [{ src: str(g.src), alt: str(g.alt).slice(0, 200), ...cleanAdjust(g, "src") }];
         }),
       },
     ];
@@ -170,7 +172,7 @@ export function sanitizeContent(input: unknown): SiteContent {
     const name = str(raw.name).trim();
     const photo = str(raw.photo);
     const alt = str(raw.alt).trim().slice(0, 200);
-    return name ? [{ name, photo: photo.startsWith("/images/") ? photo : "", ...(alt ? { alt } : {}) }] : [];
+    return name ? [{ name, photo: photo.startsWith("/images/") ? photo : "", ...(alt ? { alt } : {}), ...cleanAdjust(raw, "photo") }] : [];
   });
 
   // Uploaded fonts: only files this portal stored, with safe ids.
@@ -267,7 +269,7 @@ export function sanitizeContent(input: unknown): SiteContent {
   merged.home.founder.photoShape = oneOf(merged.home.founder.photoShape, SHAPES, "round");
   merged.home.founder.photoSize = oneOf(merged.home.founder.photoSize, SIZES, "medium");
   const f = merged.home.founder;
-  f.photoZoom = num(f.photoZoom, 1, 4, 1);
+  f.photoZoom = num(f.photoZoom, ZOOM_MIN, ZOOM_MAX, 1);
   f.photoX = num(f.photoX, 0, 100, 50);
   f.photoY = num(f.photoY, 0, 100, 50);
   merged.home.clients.portraitShape = oneOf(merged.home.clients.portraitShape, SHAPES, "round");

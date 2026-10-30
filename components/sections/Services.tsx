@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useContent, tx } from "@/lib/content/context";
 import { edItem, edSection, edList } from "@/lib/content/tx";
 import { placeholderProps, versionedSrc } from "@/lib/images";
+import { adjustStyle } from "@/lib/content/adjust";
 import { ServiceDialog } from "./ServiceDialog";
 import styles from "./Services.module.css";
 
@@ -93,6 +94,7 @@ export function Services() {
             >
               <div className={styles.media} data-fit={s.sample.includes("/proof-table/") || s.sample.includes("/title-designs/") ? "contain" : "cover"}>
                 <Image
+                  style={adjustStyle(s, "sample")}
                   src={versionedSrc(s.sample)}
                   alt=""
                   fill

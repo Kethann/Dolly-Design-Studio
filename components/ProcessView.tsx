@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PREVIEW_PARAM } from "@/lib/intro/preview-protocol";
 import Link from "next/link";
 import { useContent } from "@/lib/content/context";
-import { edItem, edList, edSection } from "@/lib/content/tx";
+import { edItem, edSection } from "@/lib/content/tx";
 import { MAX_PROCESS_ITEMS, extraOf, type ProcessItem } from "@/lib/content/process";
 import { versionedSrc } from "@/lib/images";
 import { freezeScroll, releaseScroll } from "@/lib/smooth-scroll";
@@ -11,7 +12,7 @@ import styles from "./ProcessView.module.css";
 
 /** How a picture sits in its frame: filled or whole, zoomed, and moved (all set per card in the portal). */
 const pictureStyle = (it: ProcessItem): React.CSSProperties => ({
-  objectFit: it.fit,
+  objectFit: it.fit === "fit" ? "contain" : "cover",
   objectPosition: `${it.imageX}% ${it.imageY}%`,
   transformOrigin: `${it.imageX}% ${it.imageY}%`,
   transform: it.imageZoom !== 1 ? `scale(${it.imageZoom})` : undefined,
@@ -93,12 +94,17 @@ export function ProcessView({ slug }: { slug: string }) {
   const pages = cards.map((c) => extraOf(c));
   const index = pages.findIndex((p) => p.slug === slug);
   const [open, setOpen] = useState<number | null>(null);
+  /** Inside the portal's preview, links keep its flag (so the page stays in preview mode). */
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    setQ(new URLSearchParams(window.location.search).has(PREVIEW_PARAM) ? `?${PREVIEW_PARAM}` : ""); // eslint-disable-line react-hooks/set-state-in-effect -- one-time read of the address
+  }, []);
 
   if (index < 0) {
     return (
       <section className={styles.page}>
         <div className="container">
-          <Link href="/#process" className={styles.back} data-cursor="link">
+          <Link href={`/${q}#process`} className={styles.back} data-cursor="link">
             ← How we work
           </Link>
           <p className={styles.emptyText}>This page isn’t available any more.</p>
@@ -118,7 +124,7 @@ export function ProcessView({ slug }: { slug: string }) {
   return (
     <article className={styles.page} {...edSection("home", "process", "How we work")}>
       <div className="container">
-        <Link href="/#process" className={styles.back} data-cursor="link">
+        <Link href={`/${q}#process`} className={styles.back} data-cursor="link">
           ← {home.process.label}
         </Link>
 
@@ -130,7 +136,7 @@ export function ProcessView({ slug }: { slug: string }) {
           {intro && <p className={styles.intro}>{intro}</p>}
         </header>
 
-        <ul className={styles.grid} data-cols={page.cols} data-shape={page.shape} {...edList(listPath, "card", MAX_PROCESS_ITEMS)}>
+        <ul className={styles.grid} data-cols={page.cols} data-shape={page.shape}>
           {page.items.length === 0 && (
             <li className={styles.empty}>
               <span className={styles.emptyIcon} aria-hidden="true">
@@ -172,14 +178,28 @@ export function ProcessView({ slug }: { slug: string }) {
               </li>
             );
           })}
+          {/* In the portal's edit mode only (see the stylesheet): a "＋" card to add another, which opens it to fill in and upload to. */}
+          {page.items.length < MAX_PROCESS_ITEMS && (
+            <li className={styles.addTile}>
+              <button
+                type="button"
+                data-ed-ui
+                onClick={() => window.parent.postMessage({ source: "dds-site", type: "edit-add", list: listPath }, window.location.origin)}
+              >
+                <span aria-hidden="true">＋</span>
+                <strong>Add a card</strong>
+                <em>Upload pictures, add a title</em>
+              </button>
+            </li>
+          )}
         </ul>
 
         {pages.length > 1 && (
           <nav className={styles.more} aria-label="More from How we work">
-            <Link href={`/process/${prev.slug}`} data-cursor="link">
+            <Link href={`/process/${prev.slug}${q}`} data-cursor="link">
               ← {cards[(index - 1 + pages.length) % pages.length].title}
             </Link>
-            <Link href={`/process/${next.slug}`} data-cursor="link">
+            <Link href={`/process/${next.slug}${q}`} data-cursor="link">
               {cards[(index + 1) % pages.length].title} →
             </Link>
           </nav>

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import type { Service } from "@/content/types";
 import { placeholderProps, versionedSrc } from "@/lib/images";
+import { adjustStyle } from "@/lib/content/adjust";
 import { freezeScroll, releaseScroll } from "@/lib/smooth-scroll";
 import { goToSection } from "@/lib/section-nav";
 import styles from "./Services.module.css";
@@ -71,7 +72,7 @@ export function ServiceDialog({
   }, [index, services.length, onClose, onIndex]);
 
   if (!s) return null;
-  const pictures = [{ src: s.sample, alt: s.name }, ...(s.gallery ?? [])];
+  const pictures = [{ src: s.sample, alt: s.name, style: adjustStyle(s, "sample") }, ...(s.gallery ?? []).map((g) => ({ src: g.src, alt: g.alt, style: adjustStyle(g, "src") }))];
   const current = pictures[Math.min(shot, pictures.length - 1)];
   const contain = current.src.includes("/proof-table/") || current.src.includes("/title-designs/");
   const many = services.length > 1;
@@ -95,13 +96,13 @@ export function ServiceDialog({
 
         <div className={styles.dialogMedia}>
           <div className={styles.dialogShot} data-fit={contain ? "contain" : "cover"}>
-            <Image key={current.src} src={versionedSrc(current.src)} alt={current.alt || s.name} fill sizes="(max-width: 860px) 92vw, 520px" quality={90} {...placeholderProps(current.src)} />
+            <Image key={current.src} style={current.style} src={versionedSrc(current.src)} alt={current.alt || s.name} fill sizes="(max-width: 860px) 92vw, 520px" quality={90} {...placeholderProps(current.src)} />
           </div>
           {pictures.length > 1 && (
             <div className={styles.dialogThumbs} role="group" aria-label="Pictures">
               {pictures.map((p, i) => (
                 <button key={`${p.src}-${i}`} type="button" data-on={i === shot} aria-label={`Picture ${i + 1} of ${pictures.length}`} aria-pressed={i === shot} onClick={() => setShot(i)} data-cursor="link">
-                  <Image src={versionedSrc(p.src)} alt="" fill sizes="72px" />
+                  <Image src={versionedSrc(p.src)} style={p.style} alt="" fill sizes="72px" />
                 </button>
               ))}
             </div>

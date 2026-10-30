@@ -10,6 +10,7 @@ import { useMotion } from "@/lib/motion";
 import { CARD_LINKS } from "@/lib/content/card-links";
 import { extraOf } from "@/lib/content/process";
 import { goToSection } from "@/lib/section-nav";
+import { withPreview } from "@/lib/intro/preview-protocol";
 import styles from "./Process.module.css";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
@@ -145,9 +146,9 @@ export function Process() {
             const target = link && link.id !== "none" && (link.id !== "breakdowns" || breakdowns.length > 0) ? link : null;
             const open = () => {
               if (!target) return;
-              if (target.id === "page") router.push(`/process/${extraOf(card).slug}`);
-              else if (target.id === "breakdowns") router.push("/breakdowns");
-              else if (target.id === "work") router.push("/work");
+              if (target.id === "page") router.push(withPreview(`/process/${extraOf(card).slug}`));
+              else if (target.id === "breakdowns") router.push(withPreview("/breakdowns"));
+              else if (target.id === "work") router.push(withPreview("/work"));
               else goToSection(target.id === "gallery" ? "work" : target.id);
             };
             const opens = !!target;
@@ -165,6 +166,7 @@ export function Process() {
                       role: "button",
                       tabIndex: 0,
                       "data-cursor": "link",
+                      "data-ed-open": "",
                       onClick: open,
                       onKeyDown: (e: React.KeyboardEvent) => {
                         if (e.key === "Enter" || e.key === " ") {

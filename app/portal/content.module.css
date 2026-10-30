@@ -996,3 +996,55 @@
 .pickerDialog .pickerGrid {
   max-height: 55vh;
 }
+
+/* The picture chooser: each picture shown whole, its name in small text under it. */
+.pickerGrid {
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 10px;
+  max-height: 380px;
+}
+
+.pickerTile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  aspect-ratio: auto;
+  overflow: visible;
+  padding: 6px;
+  text-align: center;
+  color: var(--p-text);
+}
+
+.pickerThumb {
+  display: block;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 6px;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.06) 0 25%, transparent 0 50%) 0 0 / 14px 14px;
+}
+
+.pickerTile .pickerThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.pickerName {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--p-muted);
+}
+
+.pickerTile[data-on="true"] .pickerName {
+  color: var(--p-gold-bright, #ffe9a6);
+}
+
+.pickerUpload {
+  aspect-ratio: auto;
+  min-height: 112px;
+}

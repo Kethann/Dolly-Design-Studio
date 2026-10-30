@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { PREVIEW_PARAM, type PortalToSite, type SiteToPortal } from "@/lib/intro/preview-protocol";
 
 /** A list's container, and where its "＋ Add" button goes (below it, centred). */
@@ -60,6 +61,13 @@ export function EditBridge() {
   const [lists, setLists] = useState<ListBox[]>([]);
   const [hover, setHover] = useState<string | null>(null);
   const frame = useRef(0);
+  const pathname = usePathname();
+
+  // Tell the portal which page the preview is on, so its page tabs always match what is shown (even after a card was pressed).
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has(PREVIEW_PARAM) || window.parent === window) return;
+    post({ source: "dds-site", type: "route", path: pathname });
+  }, [pathname]);
 
   useEffect(() => {
     if (!new URLSearchParams(window.location.search).has(PREVIEW_PARAM) || window.parent === window) return;
@@ -121,6 +129,8 @@ export function EditBridge() {
     const onClick = (e: MouseEvent) => {
       const t = e.target as Element | null;
       if (t?.closest("[data-ed-ui]")) return;
+      // A card that opens a page (data-ed-open) does just that when pressed; its own Edit button is what edits it.
+      if (t?.closest("[data-ed-open]")) return;
       e.preventDefault();
       e.stopPropagation();
       if (root.dataset.ddsDragged) return; // the end of a drag along a track is not a click

@@ -4,6 +4,7 @@ import { useContent, tx } from "@/lib/content/context";
 import { edItem } from "@/lib/content/tx";
 import { edSection } from "@/lib/content/tx";
 import { useDragMarquee } from "./useDragMarquee";
+import { adjustStyle } from "@/lib/content/adjust";
 import styles from "./Clients.module.css";
 
 interface Item {
@@ -43,6 +44,7 @@ function Row({ items, label, reverse, shape, size, logoSize, list }: { items: It
                           src={(it.logo || it.photo) as string}
                           alt={it.alt || ""}
                           draggable={false}
+                          style={it.photo ? adjustStyle(it, "photo") : undefined}
                           className={it.photo ? styles.portrait : styles.logo}
                           loading="lazy"
                           decoding="async"

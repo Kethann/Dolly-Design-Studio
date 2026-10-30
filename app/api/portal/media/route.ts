@@ -11,7 +11,7 @@ import { store } from "@/lib/storage";
 
 /** The image library: every picture the site has, plus uploads (creator portal only). */
 const ROOT = path.join(process.cwd(), "public", "images");
-const MAX_BYTES = 30 * 1024 * 1024;
+const MAX_BYTES = 90 * 1024 * 1024; // the browser shrinks anything big first; this is only the outer limit
 const IMAGE = /\.(webp|png|jpe?g|avif|gif|svg)$/i;
 /** Folders that are the studio's own artwork, not for picking. */
 const HIDDEN = new Set(["brand", "textures", "star-textures"]);
@@ -62,11 +62,11 @@ export async function POST(req: NextRequest) {
   } catch {}
   // The kind of picture is decided from its bytes (below), not from what the browser says it is.
   if (!file) return NextResponse.json({ error: "Choose a picture to upload." }, { status: 400 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: "That image is over 30 MB." }, { status: 400 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: "That image is over 90 MB." }, { status: 400 });
 
   try {
     // Shrunk to at most 3200px as high-quality WebP where the server can; otherwise kept exactly as sent.
-    const img = await processImage(new Uint8Array(await file.arrayBuffer()), { max: 3200, quality: 95 });
+    const img = await processImage(new Uint8Array(await file.arrayBuffer()), { max: 4096, quality: 92 });
     const base =
       file.name
         .replace(/\.[^.]+$/, "")

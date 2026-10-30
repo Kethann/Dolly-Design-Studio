@@ -40,6 +40,8 @@ export type Field =
       fixed?: boolean;
       min?: number;
       max?: number;
+      /** Offer "upload many pictures at once": each picture becomes an item, with it stored in this field. */
+      bulk?: string;
     };
 
 export interface SchemaSection {
@@ -175,7 +177,7 @@ const home: SchemaPage = {
           blank: () => ({ name: "New person", photo: "" }),
           fields: [
             { kind: "text", path: "name", label: "Name" },
-            { kind: "image", path: "photo", label: "Photo", hint: "A square portrait works best; any picture format is fine.", alt: "alt" },
+            { kind: "image", path: "photo", label: "Photo", hint: "A square portrait works best; any picture format is fine.", alt: "alt", adjust: "photo" },
           ],
         },
         {
@@ -258,11 +260,12 @@ const home: SchemaPage = {
               label: "Inside page: the cards in it",
               add: "Add a card",
               max: MAX_PROCESS_ITEMS,
+              bulk: "image",
               title: (it, i) => str(it.title, `Card ${i + 1}`),
-              blank: () => ({ image: "", title: "New card", note: "", fit: "cover", imageZoom: 1, imageX: 50, imageY: 50 }),
+              blank: () => ({ image: "", title: "New card", note: "", fit: "fit", imageZoom: 1, imageX: 50, imageY: 50 }),
               fields: [
                 { kind: "image", path: "image", label: "Picture", hint: "Any picture format. Zoom and move it to choose what shows.", adjust: "image" },
-                { kind: "select", path: "fit", label: "Picture in its frame", options: PROCESS_FITS },
+                { kind: "select", path: "fit", label: "Picture in its frame (fit = the whole picture, fill = cover the frame)", options: PROCESS_FITS },
                 { kind: "text", path: "title", label: "Title" },
                 { kind: "area", path: "note", label: "Small text under it" },
               ],
@@ -291,17 +294,18 @@ const home: SchemaPage = {
             { kind: "text", path: "name", label: "Name", style: true },
             { kind: "area", path: "description", label: "Description", style: true },
             { kind: "strings", path: "deliverables", label: "What you get", add: "Add an item" },
-            { kind: "image", path: "sample", label: "Main picture (on the card, and first when it is opened)" },
+            { kind: "image", path: "sample", label: "Main picture (on the card, and first when it is opened)", adjust: "sample" },
             { kind: "area", path: "details", label: "Inside the card: the full story", hint: "Shown when a visitor opens the card. Leave blank to show the short description again." },
             {
               kind: "list",
               path: "gallery",
               label: "Inside the card: more pictures",
               add: "Add a picture",
+              bulk: "src",
               title: (it, i) => `Picture ${i + 1}` + (it.alt ? ` — ${String(it.alt).slice(0, 24)}` : ""),
               blank: () => ({ src: "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg", alt: "" }),
               fields: [
-                { kind: "image", path: "src", label: "Picture" },
+                { kind: "image", path: "src", label: "Picture", adjust: "src" },
                 { kind: "text", path: "alt", label: "Description (for screen readers)" },
               ],
             },
@@ -535,11 +539,12 @@ const projects: SchemaPage = {
               path: "images",
               label: "Images (the first is the cover)",
               add: "Add an image",
+              bulk: "src",
               min: 1,
               title: (it, i) => (i === 0 ? "Cover" : `Image ${i + 1}`) + (it.alt ? ` — ${String(it.alt).slice(0, 24)}` : ""),
               blank: () => ({ src: "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg", alt: "" }),
               fields: [
-                { kind: "image", path: "src", label: "Picture" },
+                { kind: "image", path: "src", label: "Picture", adjust: "src" },
                 { kind: "text", path: "alt", label: "Description (for screen readers)" },
               ],
             },

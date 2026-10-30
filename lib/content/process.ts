@@ -1,14 +1,15 @@
 // The "inside" page of each "How we work" card: its own address (/process/<slug>) and a list of cards of its own.
 // Kept apart from the home page's card text so the home page's content shape does not change.
+import { ZOOM_MAX, ZOOM_MIN } from "./adjust";
 
 export interface ProcessItem {
   /** A picture from the library or an upload ("" = none yet: the card shows its title on a plain tile). */
   image: string;
   title: string;
   note: string;
-  /** "cover" fills the frame (cropped); "contain" shows the whole picture. */
-  fit: "cover" | "contain";
-  /** Zoom (1 = as fitted) and where the picture is centred, as a percentage across and down. */
+  /** "fit" shows the whole picture in the frame; "fill" fills the frame (and crops what does not fit). */
+  fit: "fit" | "fill";
+  /** Zoom (1 = as fitted; below 1 zooms out, above zooms in) and where the picture is centred, as a percentage across and down. */
   imageZoom: number;
   imageX: number;
   imageY: number;
@@ -28,7 +29,7 @@ export interface ProcessCardExtra {
 
 export const PROCESS_COLS = ["small", "medium", "large"] as const;
 export const PROCESS_SHAPES = ["poster", "square", "landscape", "natural"] as const;
-export const PROCESS_FITS = ["cover", "contain"] as const;
+export const PROCESS_FITS = ["fit", "fill"] as const;
 export const MAX_PROCESS_ITEMS = 40;
 
 export const slugify = (title: string) =>
@@ -52,8 +53,9 @@ export function cleanItem(raw: unknown): ProcessItem | null {
     image: image.startsWith("/images/") ? image : "",
     title: str(raw.title, 120).trim(),
     note: str(raw.note, 400).trim(),
-    fit: oneOf(raw.fit, PROCESS_FITS, "cover"),
-    imageZoom: num(raw.imageZoom, 1, 4, 1),
+    // ("contain" and "cover" are what older saves called them)
+    fit: oneOf(raw.fit === "contain" ? "fit" : raw.fit === "cover" ? "fill" : raw.fit, PROCESS_FITS, "fit"),
+    imageZoom: num(raw.imageZoom, ZOOM_MIN, ZOOM_MAX, 1),
     imageX: num(raw.imageX, 0, 100, 50),
     imageY: num(raw.imageY, 0, 100, 50),
   };

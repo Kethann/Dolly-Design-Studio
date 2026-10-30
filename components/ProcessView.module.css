@@ -345,3 +345,58 @@ div.itemButton {
     transition: none;
   }
 }
+
+/* The "＋ Add a card" tile: only while the portal's Edit mode is on (the portal sets data-dds-edit on the page). */
+.addTile {
+  display: none;
+}
+
+:global(html[data-dds-edit="1"]) .addTile {
+  display: block;
+  min-width: 0;
+}
+
+.addTile button {
+  width: 100%;
+  min-height: 180px;
+  aspect-ratio: var(--ratio);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 2px dashed rgba(255, 211, 106, 0.7);
+  background: rgba(255, 211, 106, 0.07);
+  color: var(--gold-bright);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.addTile button:hover,
+.addTile button:focus-visible {
+  background: rgba(255, 211, 106, 0.16);
+  border-color: #ffd36a;
+  outline: none;
+  transform: translateY(-3px);
+}
+
+.addTile span {
+  font-size: 38px;
+  line-height: 1;
+}
+
+.addTile strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--ivory);
+}
+
+.addTile em {
+  font-style: normal;
+  font-size: 12px;
+  opacity: 0.7;
+  color: var(--ivory);
+}

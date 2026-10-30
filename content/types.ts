@@ -39,6 +39,10 @@ export interface WorkImage {
   src: string;
   /** Required: describes the image for screen readers and search engines. */
   alt: string;
+  /** How the picture sits in its frame (zoom, and where it is centred). */
+  srcZoom?: number;
+  srcX?: number;
+  srcY?: number;
 }
 
 export interface Project {
@@ -73,10 +77,13 @@ export interface Service {
   deliverables: string[];
   /** Poster shown when hovering the row, e.g. "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg". */
   sample: string;
+  sampleZoom?: number;
+  sampleX?: number;
+  sampleY?: number;
   /** The fuller story shown when the card is opened (blank = the short description). */
   details?: string;
   /** More pictures shown inside the opened card. */
-  gallery?: { src: string; alt: string }[];
+  gallery?: { src: string; alt: string; srcZoom?: number; srcX?: number; srcY?: number }[];
 }
 
 export interface Testimonial {
@@ -99,4 +106,7 @@ export interface CollaboratorEntry {
   photo: string;
   /** What the photo shows (optional). */
   alt?: string;
+  photoZoom?: number;
+  photoX?: number;
+  photoY?: number;
 }

@@ -3,6 +3,7 @@ import Image from "next/image";
 import type { Project } from "@/content/types";
 import { sharedLabels } from "@/content/pages";
 import { placeholderProps, versionedSrc } from "@/lib/images";
+import { adjustStyle } from "@/lib/content/adjust";
 import { edItem } from "@/lib/content/tx";
 import styles from "./ProjectCard.module.css";
 
@@ -19,6 +20,7 @@ export function ProjectCard({ project, index, priority = false, showDetails = tr
     >
       <div className={styles.frame} data-glow="poster">
         <Image
+          style={adjustStyle(cover, "src")}
           src={versionedSrc(cover.src)}
           alt={cover.alt}
           fill

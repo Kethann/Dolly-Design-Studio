@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useContent } from "@/lib/content/context";
 import { edItem, edSection } from "@/lib/content/tx";
 import { placeholderProps, versionedSrc } from "@/lib/images";
+import { adjustStyle } from "@/lib/content/adjust";
 import styles from "@/app/work/[slug]/page.module.css";
 
 /**
@@ -33,6 +34,7 @@ export function ProjectView({ slug }: { slug: string }) {
         <div className={styles.layout} {...edItem("projects", index, project.title)}>
           <div className={styles.coverFrame} {...edItem(`projects.${index}.images`, 0, "Cover picture")}>
             <Image
+              style={adjustStyle(cover, "src")}
               src={versionedSrc(cover.src)}
               alt={cover.alt}
               fill
@@ -84,7 +86,7 @@ export function ProjectView({ slug }: { slug: string }) {
           <div className={styles.restGrid}>
             {rest.map((img, k) => (
               <div key={`${img.src}-${k}`} className={styles.restFrame} {...edItem(`projects.${index}.images`, k + 1, "Picture")}>
-                <Image src={versionedSrc(img.src)} alt={img.alt} fill sizes="(max-width: 700px) 92vw, 30vw" quality={90} {...placeholderProps(img.src)} />
+                <Image src={versionedSrc(img.src)} style={adjustStyle(img, "src")} alt={img.alt} fill sizes="(max-width: 700px) 92vw, 30vw" quality={90} {...placeholderProps(img.src)} />
               </div>
             ))}
           </div>

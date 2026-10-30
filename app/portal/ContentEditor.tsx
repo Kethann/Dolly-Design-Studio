@@ -5,6 +5,7 @@ import { allFonts } from "@/lib/content/fonts";
 import { fontFaceCss, glassVars } from "@/lib/content/css";
 import { DEFAULT_GLASS, DEFAULT_MENU_TONES, GLASS_COLOR_COUNT, GLASS_EFFECTS, GLASS_PRESETS, type GlassLook, type PageKey, type SiteContent, type TextStyle } from "@/lib/content/types";
 import { Choice, ColorRow, Slider } from "./controls";
+import { posToZoom, zoomToPos } from "@/lib/content/adjust";
 import { styledTexts, type Field, type SchemaPage, type SchemaSection } from "./content-schema";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "@/lib/content/limits";
 import type { Problem } from "./validate";
@@ -319,6 +320,14 @@ export function DropZone({
 
 // ── image picking ───────────────────────────────────────────────────────────────────────────────────────────────
 
+/** A readable name for a picture from its file name: no folder, no ending, no random tail, dashes as spaces. */
+export const prettyName = (src: string) =>
+  decodeURIComponent(src.split("/").pop() ?? src)
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/-[0-9a-f]{8}$/i, "")
+    .replace(/[-_]+/g, " ")
+    .trim();
+
 export function ImagePicker({ value, onPick, onClose }: { value: string; onPick: (src: string) => void; onClose: () => void }) {
   const { media } = useEditor();
   const [filter, setFilter] = useState("");
@@ -326,21 +335,24 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
   const input = useRef<HTMLInputElement>(null);
   const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
   const busy = uploads.state.busy;
-  const shown = media.images.filter((src) => src.toLowerCase().includes(filter.toLowerCase()));
-  /** The picture you upload here is used straight away. */
+  const shown = media.images.filter((src) => `${src} ${prettyName(src)}`.toLowerCase().includes(filter.toLowerCase()));
+  /** One picture uploaded here is used straight away; several are all added to the library and the chooser stays open to pick from. */
   const take = (list: FileList | File[] | null) => {
-    const f = Array.from(list ?? [])[0];
-    if (f && !busy) {
-      void uploads.start([f], (src) => {
+    const files = Array.from(list ?? []);
+    if (!files.length || busy) return;
+    if (files.length === 1) {
+      void uploads.start(files, (src) => {
         onPick(src);
         onClose();
       });
+    } else {
+      void uploads.start(files, () => {});
     }
   };
   return (
     <div className={styles.picker}>
       <div className={styles.pickerHead}>
-        <input className={styles.input} placeholder="Search your pictures" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <input className={styles.input} placeholder="Search your pictures by name" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Search your pictures by name" />
         <button type="button" className={styles.link} onClick={onClose}>
           Close
         </button>
@@ -368,7 +380,7 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
         >
           {busy ? (
             <>
-              <span>{uploads.state.percent}%</span>
+              <span>{uploadLabel(uploads.state)}</span>
               <i aria-hidden="true">
                 <b style={{ width: `${uploads.state.percent}%` }} />
               </i>
@@ -376,7 +388,7 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
           ) : (
             <>
               <strong aria-hidden="true">＋</strong>
-              <span>{over ? "Drop it" : "Upload"}</span>
+              <span>{over ? "Drop them" : "Upload pictures"}</span>
             </>
           )}
         </button>
@@ -387,14 +399,17 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
             className={styles.pickerTile}
             data-on={src === value}
             title={src.replace("/images/", "")}
-            aria-label={`Use ${src.replace("/images/", "")}`}
+            aria-label={`Use ${prettyName(src)}`}
             onClick={() => {
               onPick(src);
               onClose();
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element -- tiny library thumbnails */}
-            <img src={src} alt="" loading="lazy" />
+            <span className={styles.pickerThumb}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- library thumbnails */}
+              <img src={src} alt="" loading="lazy" decoding="async" />
+            </span>
+            <span className={styles.pickerName}>{prettyName(src)}</span>
           </button>
         ))}
         {shown.length === 0 && filter && <p className={styles.hint}>No picture matches “{filter}”.</p>}
@@ -408,6 +423,7 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
         ref={input}
         type="file"
         hidden
+        multiple
         accept={UPLOAD_KINDS.image.accept}
         onChange={(e) => {
           take(e.target.files);
@@ -465,6 +481,8 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
     return typeof v === "number" && Number.isFinite(v) ? v : d;
   };
   const zoom = field.adjust ? num(`${field.adjust}Zoom`, 1) : 1;
+  /** A card set to "fit" shows the whole picture, so the preview does too. */
+  const fitWhole = getAt(content, sibling("fit")) === "fit";
   const posX = field.adjust ? num(`${field.adjust}X`, 50) : 50;
   const posY = field.adjust ? num(`${field.adjust}Y`, 50) : 50;
   const setNum = (name: string, v: number) => update((c) => setAt(c, sibling(`${field.adjust}${name}`), v));
@@ -521,7 +539,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
               alt={alt || ""}
               onLoad={() => setShownSrc(value)}
               onError={() => setBroken(value)}
-              style={{ objectPosition: `${posX}% ${posY}%`, transformOrigin: `${posX}% ${posY}%`, transform: `scale(${zoom})`, opacity: shownSrc === value ? 1 : 0 }}
+              style={{ objectFit: fitWhole ? "contain" : undefined, objectPosition: `${posX}% ${posY}%`, transformOrigin: `${posX}% ${posY}%`, transform: `scale(${zoom})`, opacity: shownSrc === value ? 1 : 0 }}
             />
           ) : (
             <span>{over ? "Drop it here" : "No picture yet"}</span>
@@ -582,7 +600,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
       )}
       {field.adjust && value && (
         <div className={styles.imageAdjust}>
-          <Slider label="Zoom" value={zoom} min={1} max={4} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setNum("Zoom", v)} />
+          <Slider label="Zoom out ↔ in" hint="100% is the middle. Slide left to make the picture smaller, right to make it bigger." value={zoomToPos(zoom)} min={0} max={100} step={1} format={() => `${Math.round(zoom * 100)}%`} onChange={(p) => setNum("Zoom", posToZoom(p))} />
           <Slider label="Left ↔ right" value={posX} min={0} max={100} step={1} format={(v) => `${v}%`} onChange={(v) => setNum("X", v)} />
           <Slider label="Up ↕ down" value={posY} min={0} max={100} step={1} format={(v) => `${v}%`} onChange={(v) => setNum("Y", v)} />
           <button
@@ -833,6 +851,39 @@ function thumbOf(item: Record<string, unknown>, field: Extract<Field, { kind: "l
   return typeof first?.src === "string" ? first.src : "";
 }
 
+/** A card title from a file name: "sketch-01_final.png" gives "Sketch 01 final". */
+const titleFromFile = (name: string) => {
+  const t = name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ").trim();
+  return t ? t[0].toUpperCase() + t.slice(1) : "";
+};
+
+/** Drop or choose as many pictures as you like: each becomes one more item of the list, with its picture and a title from its file name. */
+function BulkUpload({ field, path }: { field: Extract<Field, { kind: "list" }>; path: string }) {
+  const { update, media } = useEditor();
+  const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
+  return (
+    <DropZone
+      kind="image"
+      multiple
+      state={uploads.state}
+      title="Upload many pictures at once"
+      hint="Choose or drop as many as you like, in any size or format. Each one becomes its own card."
+      onFiles={(files) =>
+        void uploads.start(files, (src, file) =>
+          update((c) => {
+            const cur = (getAt(c, path) as Record<string, unknown>[] | undefined) ?? [];
+            if (field.max !== undefined && cur.length >= field.max) return c;
+            const item: Record<string, unknown> = { ...field.blank(), [field.bulk!]: src };
+            const title = titleFromFile(file.name);
+            if ("title" in item && title) item.title = title;
+            return setAt(c, path, [...cur, item]);
+          }),
+        )
+      }
+    />
+  );
+}
+
 function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; path: string }) {
   const { content, update } = useEditor();
   const list = (getAt(content, path) as Record<string, unknown>[] | undefined) ?? [];
@@ -919,6 +970,7 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
           ＋ {field.add}
         </button>
       )}
+      {field.bulk && !field.fixed && !atMax && <BulkUpload field={field} path={path} />}
     </div>
   );
 }

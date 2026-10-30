@@ -34,4 +34,13 @@ export type SiteToPortal =
   | { source: "dds-site"; type: "edit-open"; section: string }
   | { source: "dds-site"; type: "edit-open"; item: string }
   /** The "＋ Add" button under a list was pressed: add a new item to that list ("home.process.cards") and open it. */
-  | { source: "dds-site"; type: "edit-add"; list: string };
+  | { source: "dds-site"; type: "edit-add"; list: string }
+  /** The preview moved to another page by itself (a card was pressed, a link followed): this is where it is now. */
+  | { source: "dds-site"; type: "route"; path: string };
+
+/** An address for a link inside the preview: it keeps the preview flag, so the page stays in the portal's preview mode. */
+export function withPreview(href: string): string {
+  if (typeof window === "undefined" || !new URLSearchParams(window.location.search).has(PREVIEW_PARAM)) return href;
+  const [rest, hash] = href.split("#");
+  return `${rest}${rest.includes("?") ? "&" : "?"}${PREVIEW_PARAM}${hash !== undefined ? `#${hash}` : ""}`;
+}
