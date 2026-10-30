@@ -1,3 +1,4 @@
+import { deviceBudget } from "@/lib/device-budget";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
@@ -375,7 +376,7 @@ export function createProofScene(
 ): ProofScene {
   const { mobile } = opts;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, deviceBudget().dprScene));
   renderer.setClearColor(0x000000, 0);
   // Checking each shader right after compiling makes the browser wait for it; in production let them compile in the
   // background instead (they're checked during development).

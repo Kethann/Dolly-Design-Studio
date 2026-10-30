@@ -172,6 +172,17 @@ function cloudflareBucket(): R2Bucket | null {
   return (context?.env?.PORTAL_BUCKET as R2Bucket | undefined) ?? null;
 }
 
+/** The Worker's Images binding (resizes pictures), when running on Cloudflare. */
+interface ImagesBinding {
+  input(stream: ReadableStream<Uint8Array>): {
+    transform(options: { width: number; fit: string }): { output(options: { format: string; quality: number }): Promise<{ image(): ReadableStream<Uint8Array>; contentType(): string }> };
+  };
+}
+function cloudflareImages(): ImagesBinding | null {
+  const context = (globalThis as Record<symbol, unknown>)[Symbol.for("__cloudflare-context__")] as { env?: Record<string, unknown> } | undefined;
+  return (context?.env?.IMAGES as ImagesBinding | undefined) ?? null;
+}
+
 /** Where things are saved right now. */
 export async function store(): Promise<Store> {
   const bucket = cloudflareBucket();
@@ -238,10 +249,22 @@ const CONTENT_TYPES: Record<string, string> = {
 export const contentTypeOf = (name: string) => CONTENT_TYPES[name.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream";
 
 /** Serves one stored upload with long-lived caching (every upload's name carries a fingerprint of its bytes). */
-export async function serveUpload(prefix: string, name: string): Promise<Response> {
+export async function serveUpload(prefix: string, name: string, width?: number): Promise<Response> {
   if (!/^[\w.-]{1,120}\.(webp|png|jpe?g|avif|gif|svg|ttf|otf|woff2?)$/i.test(name) || name.includes("..")) return new Response("Not found", { status: 404 });
   const found = await (await store()).getBytes(prefix + name);
   if (!found) return new Response("Not found", { status: 404 });
+  // A smaller copy was asked for (?w=): on Cloudflare it is made there, so the visitor's device never has to load and hold the
+  // full-size picture. Animated, vector and unreadable ones are sent as they are.
+  const images = width && /\.(webp|png|jpe?g|avif)$/i.test(name) ? cloudflareImages() : null;
+  if (images && width) {
+    try {
+      const w = Math.min(3840, Math.max(16, Math.round(width)));
+      const out = await images.input(new Response(found.bytes as BodyInit).body as ReadableStream<Uint8Array>).transform({ width: w, fit: "scale-down" }).output({ format: "image/webp", quality: 82 });
+      return new Response(out.image(), { headers: { "Content-Type": out.contentType(), "Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" } });
+    } catch (err) {
+      console.error("[images] could not resize", name, err);
+    }
+  }
   return new Response(found.bytes as BodyInit, {
     headers: {
       "Content-Type": found.contentType ?? contentTypeOf(name),

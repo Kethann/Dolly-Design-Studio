@@ -1,5 +1,6 @@
 "use client";
 
+import { deviceBudget } from "@/lib/device-budget";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
@@ -133,7 +134,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const dpr = Math.min(window.devicePixelRatio, 2);
+    const dpr = Math.min(window.devicePixelRatio, deviceBudget().dprIntro);
 
     // --- renderer, camera, lighting, post-processing ------------------------
     renderer.setPixelRatio(dpr);

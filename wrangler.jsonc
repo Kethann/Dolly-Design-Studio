@@ -12,6 +12,10 @@
 		"directory": ".open-next/assets",
 		"binding": "ASSETS"
 	},
+	// Resizes pictures on the fly, so visitors' devices get ones the size of their screen (see lib/image-loader.ts)
+	"images": {
+		"binding": "IMAGES"
+	},
 	"observability": {
 		"enabled": true
 	},

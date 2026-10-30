@@ -1,5 +1,6 @@
 "use client";
 
+import { deviceBudget } from "@/lib/device-budget";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import * as THREE from "three";
@@ -93,7 +94,7 @@ function createEngine(wrap: HTMLDivElement, settings: IntroSettings, back: boole
   const width = Math.max(1, wrap.clientWidth);
   const height = Math.max(1, wrap.clientHeight);
   // It runs behind every page, so keep it light. The back layer sits under frosted glass, so 1x is visually the same.
-  const dpr = Math.min(window.devicePixelRatio, back ? 1 : 1.75);
+  const dpr = Math.min(window.devicePixelRatio, back ? 1 : deviceBudget().dprFront);
   renderer.setPixelRatio(dpr);
   renderer.setSize(width, height, false);
   wrap.appendChild(renderer.domElement);

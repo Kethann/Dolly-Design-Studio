@@ -35,3 +35,15 @@ export function versionedSrc(src: string): string {
   const meta = getImageMeta(src);
   return meta ? `${src}?v=${meta.version}` : src;
 }
+
+/**
+ * A srcset for a plain <img> (the pictures inside "How we work" cards): the same picture at several widths, so the browser
+ * takes the one nearest the size it is shown at. Only on the live site, where Cloudflare makes the smaller copies.
+ */
+export function srcSetFor(src: string, widths = [480, 828, 1280, 1920]): string | undefined {
+  if (process.env.NODE_ENV !== "production" || !src.startsWith("/")) return undefined;
+  const [path, query = ""] = versionedSrc(src).split("?");
+  return widths
+    .map((w) => `${path.startsWith("/images/uploads/") ? `${path}?${query ? `${query}&` : ""}w=${w}` : `/_next/image?url=${encodeURIComponent(versionedSrc(src))}&w=${w}&q=80`} ${w}w`)
+    .join(", ");
+}

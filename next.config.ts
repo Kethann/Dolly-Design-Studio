@@ -11,7 +11,9 @@ const nextConfig: NextConfig = {
   images: {
     // While editing locally, show images straight from public/images, so an added or replaced
     // file appears as soon as the page is refreshed. The live site serves optimised AVIF/WebP.
-    unoptimized: isDev || onCloudflare,
+    unoptimized: isDev, // (on Cloudflare the pictures are resized there: see lib/image-loader.ts)
+    loader: "custom",
+    loaderFile: "./lib/image-loader.ts",
     formats: ["image/avif", "image/webp"],
     deviceSizes: [480, 640, 828, 1080, 1280, 1600, 1920, 2560, 3840],
     imageSizes: [96, 160, 256, 384],

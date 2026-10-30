@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useContent } from "@/lib/content/context";
 import { edItem, edSection } from "@/lib/content/tx";
 import { MAX_PROCESS_ITEMS, extraOf, type ProcessItem } from "@/lib/content/process";
-import { versionedSrc } from "@/lib/images";
+import { srcSetFor, versionedSrc } from "@/lib/images";
 import { freezeScroll, releaseScroll } from "@/lib/smooth-scroll";
 import styles from "./ProcessView.module.css";
 
@@ -150,7 +150,7 @@ export function ProcessView({ slug }: { slug: string }) {
                 <span className={styles.frame} data-fit={it.fit}>
                   {it.image ? (
                     // eslint-disable-next-line @next/next/no-img-element -- any picture format, not only the ones Next can resize
-                    <img src={versionedSrc(it.image)} alt={it.title || ""} loading="lazy" decoding="async" style={pictureStyle(it)} />
+                    <img src={versionedSrc(it.image)} srcSet={srcSetFor(it.image)} sizes="(max-width: 700px) 92vw, (max-width: 1100px) 46vw, 30vw" alt={it.title || ""} loading="lazy" decoding="async" style={pictureStyle(it)} />
                   ) : (
                     <span className={styles.blank}>{it.title || "No picture yet"}</span>
                   )}
