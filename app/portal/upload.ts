@@ -24,17 +24,20 @@ export function postFile<T>(url: string, file: File, onProgress?: (percent: numb
   });
 }
 
+/** The most one uploaded file may weigh. Anything bigger is refused (pictures made from a Photoshop file's layers are fitted under it). */
+export const MAX_UPLOAD_MB = 6;
+
 /** What each kind of upload accepts, checked in the browser first so mistakes are caught before sending. */
 export const UPLOAD_KINDS = {
   image: {
     pattern: /\.(png|jpe?g|jfif|webp|avif|gif|svg|bmp|ico|tiff?|heic|heif)$/i,
     accept: "image/*,.png,.jpg,.jpeg,.jfif,.webp,.avif,.gif,.svg,.bmp,.ico,.tif,.tiff,.heic,.heif",
-    maxMb: 1000, // big pictures are shrunk in the browser before they are sent (see prepareImage), so size is not a limit
+    maxMb: MAX_UPLOAD_MB,
     noun: "a picture",
   },
-  layers: { pattern: /\.(psd|psb|psdt|pdd|png|jpe?g|jfif|webp|avif|gif|svg|bmp|ico|tiff?|heic|heif)$/i, accept: "image/*,.psd,.psb,.psdt,.pdd,.png,.jpg,.jpeg,.jfif,.webp,.avif,.gif,.svg,.bmp,.ico,.tif,.tiff,.heic,.heif", maxMb: 1000, noun: "a Photoshop file or an image" },
-  psd: { pattern: /\.(psd|psb|psdt|pdd)$/i, accept: ".psd,.psb,.psdt,.pdd,image/vnd.adobe.photoshop", maxMb: 1000, noun: "a Photoshop file (PSD, PSB, PSDT or PDD)" },
-  font: { pattern: /\.(ttf|otf|woff2?)$/i, accept: ".ttf,.otf,.woff,.woff2", maxMb: 10, noun: "a font (TTF, OTF, WOFF or WOFF2)" },
+  layers: { pattern: /\.(psd|psb|psdt|pdd|png|jpe?g|jfif|webp|avif|gif|svg|bmp|ico|tiff?|heic|heif)$/i, accept: "image/*,.psd,.psb,.psdt,.pdd,.png,.jpg,.jpeg,.jfif,.webp,.avif,.gif,.svg,.bmp,.ico,.tif,.tiff,.heic,.heif", maxMb: MAX_UPLOAD_MB, noun: "a Photoshop file or an image" },
+  psd: { pattern: /\.(psd|psb|psdt|pdd)$/i, accept: ".psd,.psb,.psdt,.pdd,image/vnd.adobe.photoshop", maxMb: 1000, /* a Photoshop file is opened in the browser and never sent: only its layers are, each fitted under the limit */ noun: "a Photoshop file (PSD, PSB, PSDT or PDD)" },
+  font: { pattern: /\.(ttf|otf|woff2?)$/i, accept: ".ttf,.otf,.woff,.woff2", maxMb: MAX_UPLOAD_MB, noun: "a font (TTF, OTF, WOFF or WOFF2)" },
 } as const;
 
 export type UploadKind = keyof typeof UPLOAD_KINDS;
@@ -45,57 +48,57 @@ export function checkFile(file: File, kind: UploadKind): string | null {
   // Any picture is welcome: by its ending, or by what the browser says it is (a file with an unusual ending still counts).
   const pictureByType = kind === "image" && file.type.startsWith("image/");
   if (!k.pattern.test(file.name) && !pictureByType) return `“${file.name}” isn’t ${k.noun}.`;
-  if (file.size > k.maxMb * 1024 * 1024) return `“${file.name}” is over ${k.maxMb} MB.`;
+  const photoshop = /\.(psd|psb|psdt|pdd)$/i.test(file.name);
+  if (file.size > (photoshop ? 1000 : k.maxMb) * 1024 * 1024) return `“${file.name}” is over ${photoshop ? 1000 : k.maxMb} MB, so it wasn’t uploaded. Make it smaller (the limit is ${MAX_UPLOAD_MB} MB per file) and try again.`;
   return null;
 }
 
 /** Formats the server reads itself; anything else a browser can show is turned into a picture the server can read here first. */
 const SERVER_READS = /\.(png|jpe?g|jfif|webp|avif|gif|svg|tiff?)$/i;
-/** A picture bigger than this is re-encoded in the browser; one larger than the server takes (even then) is refused. */
-const SHRINK_ABOVE = 10 * 1024 * 1024;
-const SERVER_MAX = 90 * 1024 * 1024;
-/** The longest side a shrunk picture keeps: far more than any screen shows, so nothing visible is lost. */
-const LONGEST_SIDE = 4096;
+const SERVER_MAX = MAX_UPLOAD_MB * 1024 * 1024;
+/** The longest side a re-encoded picture keeps: far more than any screen shows, so nothing visible is lost. */
+const LONGEST_SIDE = 3200;
 
 /**
- * Gets a picture ready to send, whatever it is. A normal-sized PNG, JPG, WebP, AVIF, GIF, SVG or TIFF goes as it is. A very
- * large one (or any format the server can't read: BMP, ICO, HEIC where the browser can open it…) is decoded here, scaled
- * down to at most 4096 pixels on its long side if it is bigger, and sent as a high-quality WebP, so no size or format
- * stops an upload and the page never has to load a huge file. Animated GIFs and SVGs are never touched.
+ * Gets a picture ready to send. One the server can read and that is within the limit goes as it is. Anything else that
+ * a browser can open (BMP, ICO, HEIC… or a layer taken from a Photoshop file) is re-encoded here as WebP (transparency
+ * kept), a little smaller each try, until it fits under the limit. Animated GIFs and SVGs are never touched, and a file
+ * that can't be made to fit is refused rather than uploaded.
  */
 export async function prepareImage(file: File): Promise<File> {
   const readable = SERVER_READS.test(file.name);
-  const keep = /\.(gif|svg)$/i.test(file.name);
-  if (keep || (readable && file.size <= SHRINK_ABOVE)) {
-    if (file.size > SERVER_MAX) throw new Error("This file is larger than 90 MB. Export it smaller and upload that.");
-    return file;
-  }
+  const tooBig = `This picture is over ${MAX_UPLOAD_MB} MB even after shrinking, so it wasn’t uploaded. Export it smaller and try again.`;
+  if (readable && file.size <= SERVER_MAX) return file;
+  if (/\.(gif|svg)$/i.test(file.name)) throw new Error(`This file is over ${MAX_UPLOAD_MB} MB, so it wasn’t uploaded.`);
   try {
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, LONGEST_SIDE / Math.max(bitmap.width, bitmap.height));
-    if (readable && scale === 1 && file.size <= SERVER_MAX) {
-      bitmap.close?.();
-      return file; // large in bytes but not in pixels, and the server can take it
+    const base = Math.min(1, LONGEST_SIDE / Math.max(bitmap.width, bitmap.height));
+    // Each try: a little less quality, then a little smaller, until it fits.
+    for (const [quality, shrink] of [[0.92, 1], [0.85, 1], [0.8, 0.85], [0.75, 0.7], [0.7, 0.55], [0.65, 0.4]] as const) {
+      const scale = base * shrink;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const g = canvas.getContext("2d");
+      if (!g) throw new Error("no canvas");
+      g.imageSmoothingQuality = "high";
+      g.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
+      canvas.width = canvas.height = 0; // let go of the pixels at once
+      if (blob && blob.size <= SERVER_MAX) {
+        bitmap.close?.();
+        return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: blob.type || "image/webp" });
+      }
     }
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const g = canvas.getContext("2d");
-    if (!g) throw new Error("no canvas");
-    g.imageSmoothingQuality = "high";
-    g.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     bitmap.close?.();
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.92));
-    if (!blob) throw new Error("no blob");
-    if (blob.size > SERVER_MAX) throw new Error("too big");
-    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: blob.type || "image/webp" });
-  } catch {
-    if (readable && file.size <= SERVER_MAX) return file; // couldn't be shrunk here, but the server can take it as it is
+    throw new Error(tooBig);
+  } catch (err) {
+    if (err instanceof Error && err.message === tooBig) throw err;
     const heic = /\.(heic|heif)$/i.test(file.name);
     throw new Error(
       heic
         ? "This browser can’t open HEIC photos. Export it as JPG first (on an iPhone: Settings → Camera → Formats → Most Compatible, or share it as JPG), then upload that."
-        : "This browser can’t open that picture, or it is still over 90 MB after shrinking. Save it as PNG or JPG and upload that.",
+        : `This browser can’t open that picture, or it is over ${MAX_UPLOAD_MB} MB. Save it as PNG or JPG under ${MAX_UPLOAD_MB} MB and upload that.`,
     );
   }
 }

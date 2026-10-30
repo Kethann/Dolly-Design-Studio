@@ -6,7 +6,7 @@ import { logActivity } from "@/lib/portal/activity";
 import { contentTypeOf, store } from "@/lib/storage";
 
 /** Upload a font file (TTF, OTF, WOFF or WOFF2) for use anywhere on the site (creator portal only). */
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES = 6 * 1024 * 1024;
 
 /** The first four bytes of each kind of font file, so a renamed image or script is not accepted as a font. */
 const text4 = (b: Uint8Array) => String.fromCharCode(b[0], b[1], b[2], b[3]);
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   } catch {}
   const ext = file?.name.split(".").pop()?.toLowerCase() ?? "";
   if (!file || !SIGNATURES[ext]) return NextResponse.json({ error: "Choose a font file: .ttf, .otf, .woff or .woff2." }, { status: 400 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: "That font file is over 10 MB." }, { status: 400 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: "That font file is over 6 MB, so it wasn’t uploaded." }, { status: 400 });
 
   try {
     const data = new Uint8Array(await file.arrayBuffer());

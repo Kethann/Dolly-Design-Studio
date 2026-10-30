@@ -2,7 +2,8 @@
 	// Cloudflare deployment (Workers + static assets, built by OpenNext). See DEPLOY.md.
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "dolly-design-studio",
-	"main": ".open-next/worker.js",
+	// cf-worker.mjs wraps the built site (.open-next/worker.js) with a kept copy of each public page (see that file)
+	"main": "cf-worker.mjs",
 	"compatibility_date": "2025-09-01",
 	"compatibility_flags": [
 		"nodejs_compat",
@@ -15,6 +16,10 @@
 	// Resizes pictures on the fly, so visitors' devices get ones the size of their screen (see lib/image-loader.ts)
 	"images": {
 		"binding": "IMAGES"
+	},
+	// Tells the Worker which deployed version it is (a kept page copy is only used by the version that made it)
+	"version_metadata": {
+		"binding": "CF_VERSION"
 	},
 	"observability": {
 		"enabled": true

@@ -1553,7 +1553,7 @@ export function MediaLibrary() {
             multiple
             state={uploads.state}
             title="Drop pictures here, or click to choose"
-            hint="PNG, JPG, WebP, AVIF, GIF, SVG, TIFF, BMP or ICO, up to 30 MB each. Photos are kept at up to 3200 px as high-quality WebP (GIFs stay animated, SVGs stay sharp), ready to pick in any picture field."
+            hint="PNG, JPG, WebP, AVIF, GIF, SVG, TIFF, BMP or ICO, up to 6 MB each (bigger files aren’t uploaded). Big photos are kept at up to 3200 px as high-quality WebP (GIFs stay animated, SVGs stay sharp), ready to pick in any picture field."
             onFiles={(files) => uploads.start(files, () => {})}
           />
           <input className={styles.input} placeholder="Search by name or folder" value={filter} onChange={(e) => setFilter(e.target.value)} />

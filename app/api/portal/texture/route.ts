@@ -9,7 +9,7 @@ import manifest from "@/content/generated/image-manifest.json";
 
 /** Pattern textures for the Sweep star: list them, upload new ones, delete unused ones (creator portal only). */
 const URL_BASE = "/images/textures/";
-const MAX_BYTES = 20 * 1024 * 1024;
+const MAX_BYTES = 6 * 1024 * 1024;
 
 const sameOrigin = (req: NextRequest) => {
   const origin = req.headers.get("origin");
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (!file || !/^image\/(png|webp|jpeg)$/.test(file.type)) {
     return NextResponse.json({ error: "Choose a PNG, JPG or WebP image." }, { status: 400 });
   }
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: "That image is over 20 MB." }, { status: 400 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: "That image is over 6 MB, so it wasn’t uploaded." }, { status: 400 });
 
   try {
     // A texture keeps all its colour and detail; 1024px is plenty on the star.
