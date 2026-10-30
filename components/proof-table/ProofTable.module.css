@@ -194,6 +194,7 @@
 @media (max-width: 767px) {
   .fbSlab {
     grid-template-columns: repeat(2, 1fr);
-    transform: translateY(18%) rotateX(48deg) rotateZ(-20deg);
+    /* lower on a phone, so the headline and its button above are not covered */
+    transform: translateY(40%) rotateX(48deg) rotateZ(-20deg) scale(0.92);
   }
 }

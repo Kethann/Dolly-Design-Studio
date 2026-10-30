@@ -145,14 +145,23 @@ export function ProofTable() {
       const { createProofScene } = await import("./scene");
       if (disposed) return;
       const look = lookRef.current;
-      scene = createProofScene(canvas, {
-        items: itemsRef.current,
-        cardSize: look.cardSize,
-        slab: { color: look.slabColor, opacity: look.slabOpacity },
-        glass: { color: look.glassColor, opacity: look.glassOpacity, frost: look.frost, reflection: look.reflection },
-        mobile,
-        stage: getComputedStyle(document.documentElement).getPropertyValue("--stage").trim() || "#410000",
-      });
+      try {
+        scene = createProofScene(canvas, {
+          items: itemsRef.current,
+          cardSize: look.cardSize,
+          slab: { color: look.slabColor, opacity: look.slabOpacity },
+          glass: { color: look.glassColor, opacity: look.glassOpacity, frost: look.frost, reflection: look.reflection },
+          mobile,
+          stage: getComputedStyle(document.documentElement).getPropertyValue("--stage").trim() || "#410000",
+        });
+      } catch (err) {
+        // The browser would not give this page another graphics context (many tabs open, or the graphics card is busy):
+        // show the simple version of the slate instead of a broken one.
+        console.warn("[slate] 3D unavailable, showing the simple version", err);
+        loading = false;
+        setMode("fallback");
+        return;
+      }
       sceneRef.current = scene;
       const r = canvas.getBoundingClientRect();
       scene.resize(r.width, r.height);
@@ -189,11 +198,18 @@ export function ProofTable() {
       const i = scene ? scene.hovered() : -1;
       if (i >= 0 && itemsRef.current[i]) router.push(`/work/${itemsRef.current[i].slug}`);
     };
+    // If the graphics card drops the 3D scene while the page is open, the simple version takes over rather than a frozen picture.
+    const onLost = (e: Event) => {
+      e.preventDefault();
+      setMode("fallback");
+    };
+    canvas.addEventListener("webglcontextlost", onLost);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerleave", onLeave);
     canvas.addEventListener("click", onClick);
 
     return () => {
+      canvas.removeEventListener("webglcontextlost", onLost);
       disposed = true;
       cancelAnimationFrame(raf);
       near.disconnect();
