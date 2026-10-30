@@ -1,7 +1,8 @@
 "use client";
 
 import { useConfirmDelete } from "./DeleteDialog";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import { useDialogFocus } from "./dialog-focus";
 import { FieldView, ProblemsProvider, getAt, moveItem, setAt, useEditor } from "./ContentEditor";
 import { findList, findSection, type Field } from "./content-schema";
 import type { Problem } from "./validate";
@@ -38,19 +39,7 @@ export function EditModal({
   const cancel = () => {
     if (!changed || window.confirm("Discard the changes you made here?")) onCancel();
   };
-  const cancelRef = useRef(cancel);
-  useEffect(() => {
-    cancelRef.current = cancel;
-  });
-
-  useEffect(() => {
-    box.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") cancelRef.current();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  useDialogFocus(box, cancel);
 
   const blocked = problems.length > 0;
   return (
@@ -88,12 +77,12 @@ export function EditModal({
         </div>
 
         <footer className={styles.foot}>
-          <span className={styles.footNote}>{changed ? "Showing live in the preview." : "No changes yet."}</span>
+          <span className={styles.footNote}>Changes stay in your preview until you use Save &amp; publish.</span>
           <button type="button" className={styles.cancel} onClick={cancel}>
             Cancel
           </button>
           <button type="button" className={styles.save} disabled={blocked} onClick={onSave} title={blocked ? "Fix the highlighted things first" : undefined}>
-            Save changes
+            Keep changes
           </button>
         </footer>
       </div>

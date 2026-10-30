@@ -7,12 +7,12 @@ import type { ClientEntry, CollaboratorEntry, Testimonial } from "./types";
 
 /** Production houses the studio has worked with, logos first. */
 export const clients: ClientEntry[] = [
-  { name: "Annapurna Studios", logo: "/images/clients/annapurna-studios.webp" },
-  { name: "Arka Media Works", logo: "/images/clients/arka-mediaworks.webp" },
-  { name: "Sree Venkateswara Cinemas", logo: "/images/clients/sree-venkateswara-cinemas.webp" },
-  { name: "People Media Factory", logo: "/images/clients/people-media-factory.webp" },
-  { name: "First Frame Entertainments", logo: "/images/clients/first-frame-entertainments.webp" },
-  { name: "UV Creations", logo: "/images/clients/uv-creations.webp" },
+  { name: "Annapurna Studios", logo: "" },
+  { name: "Arka Media Works", logo: "" },
+  { name: "Sree Venkateswara Cinemas", logo: "" },
+  { name: "People Media Factory", logo: "" },
+  { name: "First Frame Entertainments", logo: "" },
+  { name: "UV Creations", logo: "" },
   { name: "Abhishek Agarwal Arts", logo: "" },
   { name: "KVC Production", logo: "" },
   { name: "Navarasa Production", logo: "" },
@@ -20,11 +20,11 @@ export const clients: ClientEntry[] = [
 
 /** Filmmakers and actors the studio has collaborated with (shown after the clients). */
 export const collaborators: CollaboratorEntry[] = [
-  { name: "Adivi Sesh", photo: "/images/collaborators/adivi-sesh.webp" },
-  { name: "Varun Tej", photo: "/images/collaborators/varun-tej.webp" },
-  { name: "Shaneil Deo", photo: "/images/collaborators/shaneil-deo.webp" },
-  { name: "Vinay Kumar Sirigineedi", photo: "/images/collaborators/vinay-kumar-sirigineedi.webp" },
-  { name: "Merlapaka Gandhi", photo: "/images/collaborators/merlapaka-gandhi.webp" },
+  { name: "Adivi Sesh", photo: "" },
+  { name: "Varun Tej", photo: "" },
+  { name: "Shaneil Deo", photo: "" },
+  { name: "Vinay Kumar Sirigineedi", photo: "" },
+  { name: "Merlapaka Gandhi", photo: "" },
 ];
 
 /**

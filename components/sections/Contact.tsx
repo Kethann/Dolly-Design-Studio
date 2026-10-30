@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 import { useContent, tx } from "@/lib/content/context";
 import { edSection } from "@/lib/content/tx";
-import { Magnetic } from "@/components/Magnetic";
 import { CONTACT_LIMITS, validateContact, type ContactErrors, type ContactField } from "@/lib/contact/validate";
 import { renderFx } from "@/components/fx/render-fx";
 import { SocialLogo } from "@/components/SocialLogo";
@@ -264,11 +263,9 @@ export function Contact() {
               <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
             </div>
 
-            <Magnetic>
-              <button type="submit" className={styles.submit} disabled={status === "sending"} data-cursor="link">
-                {status === "sending" ? form.sendingButton : form.submitButton}
-              </button>
-            </Magnetic>
+            <button type="submit" className={styles.submit} disabled={status === "sending"} aria-busy={status === "sending"} data-cursor="link">
+              {status === "sending" ? form.sendingButton : form.submitButton}
+            </button>
 
             <div aria-live="polite">
               {status === "sent" && <p className={`${styles.status} ${styles.statusOk}`}>{form.successMessage}</p>}

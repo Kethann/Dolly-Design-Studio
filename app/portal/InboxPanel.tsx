@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Enquiry, EnquiryStatus } from "@/lib/contact/inbox";
 import styles from "./activity.module.css";
 import inbox from "./inbox.module.css";
+import { startVisiblePoll } from "@/lib/visible-poll";
+import { rollbackStatus } from "./list-state";
 
 type Filter = "" | "new" | "read" | "archived";
 
@@ -32,29 +34,45 @@ export function InboxPanel({ onCount }: { onCount?: (unread: number) => void }) 
   const [sending, setSending] = useState<string | null>(null);
   const [replyError, setReplyError] = useState("");
   const seq = useRef(0);
+  const mutation = useRef(false);
+  const replying = useRef(false);
+  const readRequest = useRef<AbortController | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
+    if (mutation.current || replying.current || readRequest.current || signal?.aborted) return;
+    const controller = new AbortController();
+    readRequest.current = controller;
+    const abort = () => controller.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    const timeout = setTimeout(abort, 20_000);
     const my = ++seq.current;
+    setRefreshing(true);
     try {
-      const res = await fetch("/api/portal/inbox", { cache: "no-store" });
+      const res = await fetch("/api/portal/inbox", { cache: "no-store", signal: controller.signal });
       const data = (await res.json().catch(() => ({}))) as { enquiries?: Enquiry[]; mailConfigured?: boolean; error?: string };
       if (!res.ok) throw new Error(data.error || "Couldn’t load the enquiries.");
-      if (my !== seq.current) return;
+      if (!Array.isArray(data.enquiries)) throw new Error("The inbox response was incomplete. Please refresh.");
+      if (my !== seq.current || signal?.aborted) return;
       setItems(data.enquiries ?? []);
       setMailOk(data.mailConfigured !== false);
       setState("ready");
       setError("");
     } catch (err) {
-      if (my !== seq.current) return;
+      if (my !== seq.current || signal?.aborted) return;
       setState("error");
       setError(err instanceof Error ? err.message : "Couldn’t load the enquiries.");
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", abort);
+      if (readRequest.current === controller) { readRequest.current = null; setRefreshing(false); }
     }
   }, []);
 
   useEffect(() => {
-    load(); // eslint-disable-line react-hooks/set-state-in-effect -- loads the list when the window opens
-    const t = setInterval(load, 30_000);
-    return () => clearInterval(t);
+    const stop = startVisiblePoll(load, 30_000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- invalidate the latest request generation when this panel closes.
+    return () => { seq.current++; stop(); readRequest.current?.abort(); readRequest.current = null; };
   }, [load]);
 
   const unread = items.filter((e) => e.status === "new").length;
@@ -63,6 +81,9 @@ export function InboxPanel({ onCount }: { onCount?: (unread: number) => void }) 
   }, [unread, onCount]);
 
   async function call(method: "PATCH" | "DELETE", id: string, body: Record<string, unknown>) {
+    mutation.current = true;
+    seq.current++;
+    readRequest.current?.abort();
     setBusy(id);
     setError("");
     try {
@@ -74,17 +95,21 @@ export function InboxPanel({ onCount }: { onCount?: (unread: number) => void }) 
       setError(err instanceof Error ? err.message : "That didn’t work. Try again.");
       return false;
     } finally {
+      mutation.current = false;
       setBusy(null);
     }
   }
 
   async function mark(id: string, status: EnquiryStatus) {
-    const before = items;
+    if (mutation.current || replying.current) return;
+    const original = items.find((item) => item.id === id)?.status;
+    if (!original) return;
     setItems((l) => l.map((e) => (e.id === id ? { ...e, status } : e)));
-    if (!(await call("PATCH", id, { status }))) setItems(before);
+    if (!(await call("PATCH", id, { status }))) setItems((current) => rollbackStatus(current, id, status, original));
   }
 
   async function remove(e: Enquiry) {
+    if (mutation.current || replying.current) return;
     if (!window.confirm(`Delete the enquiry from ${e.name}? This can’t be undone.`)) return;
     if (await call("DELETE", e.id, {})) setItems((l) => l.filter((x) => x.id !== e.id));
   }
@@ -92,19 +117,24 @@ export function InboxPanel({ onCount }: { onCount?: (unread: number) => void }) 
   /** Emails the typed words to the person, from the studio's account, and shows the answer under their message. */
   async function sendReply(e: Enquiry) {
     const message = (drafts[e.id] ?? "").trim();
-    if (!message || sending) return;
+    if (message.length < 2 || replying.current || mutation.current) return;
+    replying.current = true;
+    seq.current++;
+    readRequest.current?.abort();
     setSending(e.id);
     setReplyError("");
     try {
       const res = await fetch("/api/portal/inbox/reply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: e.id, message }) });
       const data = (await res.json().catch(() => ({}))) as { error?: string; enquiry?: Enquiry };
-      if (data.enquiry) setItems((l) => l.map((x) => (x.id === e.id ? (data.enquiry as Enquiry) : x)));
+      if (data.enquiry?.id === e.id) setItems((l) => l.map((x) => (x.id === e.id ? (data.enquiry as Enquiry) : x)));
       if (!res.ok) throw new Error(data.error || "The reply couldn’t be sent. Try again.");
+      if (!data.enquiry || data.enquiry.id !== e.id) throw new Error("The server did not confirm this reply. Refresh the conversation before trying again; your draft is still here.");
       setDrafts((d) => ({ ...d, [e.id]: "" }));
       setComposeId(null);
     } catch (err) {
       setReplyError(err instanceof Error ? err.message : "The reply couldn’t be sent. Try again.");
     } finally {
+      replying.current = false;
       setSending(null);
     }
   }
@@ -136,8 +166,8 @@ export function InboxPanel({ onCount }: { onCount?: (unread: number) => void }) 
       </div>
       <div className={styles.tools}>
         <input className={styles.search} placeholder="Search names, emails, projects…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search the enquiries" />
-        <button type="button" className={styles.refresh} onClick={load}>
-          ↻ Refresh
+        <button type="button" className={styles.refresh} disabled={refreshing || !!busy || !!sending} onClick={() => load()}>
+          {refreshing ? "Refreshing…" : "↻ Refresh"}
         </button>
       </div>
 
@@ -228,7 +258,7 @@ export function InboxPanel({ onCount }: { onCount?: (unread: number) => void }) 
                         </p>
                       )}
                       <div className={inbox.actions}>
-                        <button type="submit" className={inbox.reply} disabled={sending === e.id || !(drafts[e.id] ?? "").trim() || !mailOk}>
+                        <button type="submit" className={inbox.reply} disabled={!!sending || !!busy || (drafts[e.id] ?? "").trim().length < 2 || !mailOk}>
                           {sending === e.id ? "Sending…" : "Send reply"}
                         </button>
                         <button type="button" disabled={sending === e.id} onClick={() => setComposeId(null)}>
@@ -251,20 +281,20 @@ export function InboxPanel({ onCount }: { onCount?: (unread: number) => void }) 
                       </button>
                     )}
                     {e.status !== "new" && (
-                      <button type="button" disabled={busy === e.id} onClick={() => mark(e.id, "new")}>
+                      <button type="button" disabled={!!busy || !!sending} onClick={() => mark(e.id, "new")}>
                         Mark as new
                       </button>
                     )}
                     {e.status !== "archived" ? (
-                      <button type="button" disabled={busy === e.id} onClick={() => mark(e.id, "archived")}>
+                      <button type="button" disabled={!!busy || !!sending} onClick={() => mark(e.id, "archived")}>
                         Archive
                       </button>
                     ) : (
-                      <button type="button" disabled={busy === e.id} onClick={() => mark(e.id, "read")}>
+                      <button type="button" disabled={!!busy || !!sending} onClick={() => mark(e.id, "read")}>
                         Move back
                       </button>
                     )}
-                    <button type="button" className={inbox.danger} disabled={busy === e.id} onClick={() => remove(e)}>
+                    <button type="button" className={inbox.danger} disabled={!!busy || !!sending} onClick={() => remove(e)}>
                       Delete
                     </button>
                   </div>

@@ -2,10 +2,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 40px;
+  margin-bottom: var(--section-head-gap);
 }
 
 .chip {
+  min-height: 44px;
+  min-width: 44px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-family: var(--font-label);
   font-size: 11px;
   letter-spacing: 0.2em;
@@ -33,11 +37,12 @@
 
 .grid {
   display: grid;
-  grid-template-columns: var(--cols, repeat(auto-fill, minmax(230px, 1fr)));
+  grid-template-columns: var(--cols, repeat(auto-fill, minmax(min(100%, 230px), 1fr)));
   gap: clamp(20px, 3vw, 36px);
 }
 
 .empty {
+  overflow-wrap: anywhere;
   font-family: var(--font-label);
   letter-spacing: 0.2em;
   text-transform: uppercase;

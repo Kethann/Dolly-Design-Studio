@@ -1,3 +1,4 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/portal/auth";
 import { logActivity } from "@/lib/portal/activity";
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
   const me = await getPortalUser();
   if (!me) return NextResponse.json({ error: "Your session has ended. Sign in again." }, { status: 401 });
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  if (origin && !requestOriginMatches(req)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   if (me.role !== "owner" || me.setup) return NextResponse.json({ error: "Only owners can send a test email." }, { status: 403 });
   if (!me.email) return NextResponse.json({ error: "Add your email address first; the test is sent there." }, { status: 400 });
   if (!isMailConfigured()) return NextResponse.json({ error: "Email isn’t set up on this server yet." }, { status: 503 });

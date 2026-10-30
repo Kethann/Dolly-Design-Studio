@@ -1,8 +1,9 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { isRateLimited } from "@/lib/rate-limit";
 import { isPortalConfigured } from "@/lib/portal/auth";
 import { clientIp, logActivity } from "@/lib/portal/activity";
-import { CODE_MINUTES, issueCode } from "@/lib/portal/otp";
+import { CODE_MINUTES, discardCode, issueCode } from "@/lib/portal/otp";
 import { codeEmail, isMailConfigured, sendMail, studioMailboxes } from "@/lib/portal/mail";
 import { findUserByEmail, normalizeEmail, validateEmail } from "@/lib/portal/users";
 
@@ -13,7 +14,7 @@ import { findUserByEmail, normalizeEmail, validateEmail } from "@/lib/portal/use
  */
 export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin");
-  if (!origin || origin !== req.nextUrl.origin) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  if (!origin || !requestOriginMatches(req)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   if (!(await isPortalConfigured())) return NextResponse.json({ error: "The portal isn’t set up yet." }, { status: 503 });
   if (!isMailConfigured()) return NextResponse.json({ error: "Email isn’t set up on this server yet, so codes can’t be sent." }, { status: 503 });
 
@@ -37,7 +38,10 @@ export async function POST(req: NextRequest) {
       const name = user?.name ?? email.split("@")[0];
       const sent = await sendMail({ to: email, ...codeEmail({ name, code: issued.code, purpose: "login", minutes: CODE_MINUTES }) });
       await logActivity({ headers: req.headers, actor: user ?? { id: "unknown", username: email, name }, action: "code-sent", detail: "Sign-in code by email", ok: sent.ok });
-      if (!sent.ok) return NextResponse.json({ error: "Couldn’t send the code. Try again in a moment." }, { status: 502 });
+      if (!sent.ok) {
+        await discardCode("login", `mail:${email}`, issued.code);
+        return NextResponse.json({ error: "Couldn’t send the code. Try again in a moment." }, { status: 502 });
+      }
     }
   }
   return NextResponse.json({ ok: true });

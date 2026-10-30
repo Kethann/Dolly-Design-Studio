@@ -25,7 +25,7 @@ export const site = {
   social: [
     { label: "Instagram", href: "https://www.instagram.com/dollydstudio" },
     { label: "X", href: "https://x.com/dollydstudio" },
-    { label: "IMDb", href: "https://www.imdb.com/find/?q=Sasank%20Muppalla" },
+    { label: "LinkedIn", href: "https://www.linkedin.com/company/dolly-design-studio/" },
     // { label: "Behance", href: "" }, // [CLIENT TO PROVIDE]
   ],
 

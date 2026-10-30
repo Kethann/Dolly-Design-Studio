@@ -1,10 +1,13 @@
 "use client";
+import { renderFx, plainFx } from "@/components/fx/render-fx";
 
 import { useEffect, useState } from "react";
 import { PREVIEW_PARAM } from "@/lib/intro/preview-protocol";
 import Link from "next/link";
 import { useContent } from "@/lib/content/context";
 import { edItem, edSection } from "@/lib/content/tx";
+import { AddContent } from "./PreviewControls";
+import { VideoPlayer } from "./VideoPlayer";
 import { MAX_PROCESS_ITEMS, extraOf, type ProcessItem } from "@/lib/content/process";
 import { srcSetFor, versionedSrc } from "@/lib/images";
 import { freezeScroll, releaseScroll } from "@/lib/smooth-scroll";
@@ -116,7 +119,7 @@ export function ProcessView({ slug }: { slug: string }) {
   const card = cards[index];
   const page = pages[index];
   const listPath = `home.process.cards.${index}.items`;
-  const withPictures = page.items.map((it, i) => ({ it, index: i })).filter((x) => x.it.image);
+  const withPictures = page.items.map((it, i) => ({ it, index: i })).filter((x) => x.it.mediaType !== "video" && x.it.image);
   const next = pages[(index + 1) % pages.length];
   const prev = pages[(index - 1 + pages.length) % pages.length];
   const intro = page.pageIntro.trim() || card.body;
@@ -130,27 +133,36 @@ export function ProcessView({ slug }: { slug: string }) {
 
         <header className={styles.head} {...edItem("home.process.cards", index, "This page")}>
           <span className={styles.eyebrow}>
-            {String(index + 1).padStart(2, "0")} · {card.note}
+            {String(index + 1).padStart(2, "0")} · {renderFx(card.note)}
           </span>
-          <h1 className={styles.title}>{card.title}</h1>
-          {intro && <p className={styles.intro}>{intro}</p>}
+          <h1 className={styles.title}>{renderFx(card.title)}</h1>
+          {intro && <p className={styles.intro}>{renderFx(intro)}</p>}
         </header>
 
+        <AddContent list={listPath} label="Add a card" count={page.items.length} max={MAX_PROCESS_ITEMS} />
         <ul className={styles.grid} data-cols={page.cols} data-shape={page.shape}>
           {page.items.length === 0 && (
             <li className={styles.empty}>
               <strong>Nothing here yet</strong>
-              <span>Cards added to “{card.title}” will appear on this page.</span>
+              <span>Cards added to “{plainFx(card.title)}” will appear on this page.</span>
             </li>
           )}
           {page.items.map((it, j) => {
+            if (it.mediaType === "video") return (
+              <li key={j} className={styles.item} data-media="video" {...edItem(listPath, j, it.title || "Video card")}>
+                <div className={styles.itemButton}>
+                  {it.video ? <VideoPlayer key={it.video} src={it.video} poster={it.image} title={it.title || "Behind the scenes"} width={it.videoWidth} height={it.videoHeight} /> : <span className={styles.frame} style={{ aspectRatio: "16 / 9" }}><span className={styles.blank}>Video to follow</span></span>}
+                  {(it.title || it.note) && <span className={styles.caption}>{it.title && <strong>{it.title}</strong>}{it.note && <span>{it.note}</span>}</span>}
+                </div>
+              </li>
+            );
             const shown = withPictures.findIndex((x) => x.index === j);
             const body = (
               <>
                 <span className={styles.frame} data-fit={it.fit}>
                   {it.image ? (
                     // eslint-disable-next-line @next/next/no-img-element -- any picture format, not only the ones Next can resize
-                    <img src={versionedSrc(it.image)} srcSet={srcSetFor(it.image)} sizes="(max-width: 700px) 92vw, (max-width: 1100px) 46vw, 30vw" alt={it.title || ""} loading="lazy" decoding="async" style={pictureStyle(it)} />
+                    <img src={versionedSrc(it.image)} srcSet={srcSetFor(it.image)} sizes={`${page.shape === "natural" ? "" : "auto, "}(max-width: 860px) calc(100vw - 40px), 600px`} alt={it.title || ""} loading="lazy" decoding="async" style={pictureStyle(it)} />
                   ) : (
                     <span className={styles.blank}>{it.title || "No picture yet"}</span>
                   )}
@@ -185,7 +197,7 @@ export function ProcessView({ slug }: { slug: string }) {
               >
                 <span aria-hidden="true">＋</span>
                 <strong>Add a card</strong>
-                <em>Upload pictures, add a title</em>
+                <em>Add a photo or video and a title</em>
               </button>
             </li>
           )}

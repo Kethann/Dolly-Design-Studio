@@ -7,6 +7,8 @@ import { useDragMarquee } from "./useDragMarquee";
 import { adjustStyle } from "@/lib/content/adjust";
 import styles from "./Clients.module.css";
 import { renderFx } from "@/components/fx/render-fx";
+import { resizedSrc, srcSetFor } from "@/lib/images";
+import { AddContent } from "@/components/PreviewControls";
 
 interface Item {
   name: string;
@@ -19,7 +21,7 @@ interface Item {
 }
 
 /** The items repeated so one copy is always wider than a screen. */
-const fill = (items: Item[]) => Array.from({ length: Math.max(2, Math.ceil(14 / items.length)) }, () => items).flat();
+const fill = (items: Item[]) => items.length ? Array.from({ length: Math.max(2, Math.ceil(14 / items.length)) }, () => items).flat() : [];
 
 function Row({ items, label, reverse, shape, size, logoSize, list }: { items: Item[]; label: string; reverse?: boolean; shape?: string; size?: string; logoSize?: string; /** The content list this row shows (clients or collaborators), so each entry can be edited. */ list: string }) {
   const fillItems = fill(items);
@@ -29,9 +31,10 @@ function Row({ items, label, reverse, shape, size, logoSize, list }: { items: It
   const hasPictures = items.some((it) => it.logo || it.photo);
   return (
     <div className={styles.row}>
-      <span className={styles.rowLabel}>{label}</span>
-      <div ref={viewport} className={styles.viewport} data-shape={shape} data-size={size} data-logo={logoSize} aria-hidden="true">
-        <div ref={track} className={styles.track}>
+      <span className={styles.rowLabel}><span>{label}</span><span className={styles.dragHint} aria-hidden="true">Hold & drag ↔</span></span>
+      <AddContent list={list} label={list === "clients" ? "Add production house" : "Add collaborator"} count={items.length} />
+      <div ref={viewport} className={styles.viewport} data-marquee={list} data-shape={shape} data-size={size} data-logo={logoSize} tabIndex={0} role="region" aria-label={`${label}. Hold and drag sideways, or use the left and right arrow keys.`}>
+        <div ref={track} className={styles.track} aria-hidden="true">
           {[0, 1].map((copy) => (
             <div key={copy} className={styles.half}>
               {fillItems.map((it, i) =>
@@ -42,7 +45,9 @@ function Row({ items, label, reverse, shape, size, logoSize, list }: { items: It
                       {it.logo || it.photo ? (
                         // eslint-disable-next-line @next/next/no-img-element -- logos and portraits, sized by CSS
                         <img
-                          src={(it.logo || it.photo) as string}
+                          src={resizedSrc((it.logo || it.photo) as string, it.photo ? 384 : 640)}
+                          srcSet={srcSetFor((it.logo || it.photo) as string, [160, 320, 640, 1080])}
+                          sizes={it.photo ? "180px" : "320px"}
                           alt={it.alt || ""}
                           draggable={false}
                           style={it.photo ? adjustStyle(it, "photo") : undefined}

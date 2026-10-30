@@ -25,3 +25,8 @@
 .wrap[data-active="true"] .canvas {
   opacity: 1;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .wrap[data-active="true"] .ghost { opacity: 1; transition: none; }
+  .wrap .canvas { opacity: 0; transition: none; }
+}

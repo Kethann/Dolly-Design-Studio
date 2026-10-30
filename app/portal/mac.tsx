@@ -273,7 +273,12 @@ export function MenuBar({ menus, children }: { menus: MenuDef[]; children: React
     const away = (e: PointerEvent) => {
       if (!barRef.current?.contains(e.target as Node)) setOpenMenu(null);
     };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpenMenu(null);
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      barRef.current?.querySelector<HTMLButtonElement>('[aria-expanded="true"]')?.focus();
+      setOpenMenu(null);
+    };
     window.addEventListener("pointerdown", away);
     window.addEventListener("keydown", esc);
     return () => {
@@ -297,12 +302,26 @@ export function MenuBar({ menus, children }: { menus: MenuDef[]; children: React
             aria-haspopup="menu"
             aria-expanded={openMenu === i}
             onClick={() => setOpenMenu(openMenu === i ? null : i)}
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowDown") return;
+              event.preventDefault();
+              setOpenMenu(i);
+              requestAnimationFrame(() => barRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus());
+            }}
             onPointerEnter={() => openMenu !== null && setOpenMenu(i)}
           >
             {m.label}
           </button>
           {openMenu === i && (
-            <div className={styles.menuPanel} role="menu">
+            <div className={styles.menuPanel} role="menu" aria-label={m.label} onKeyDown={(event) => {
+              if (event.key === "Tab") { setOpenMenu(null); return; }
+              if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+              const index = items.indexOf(event.target as HTMLButtonElement);
+              const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+              items[next]?.focus();
+            }}>
               {m.items.map((it, j) => (
                 <div key={j}>
                   {it.divider && <hr className={styles.menuRule} />}

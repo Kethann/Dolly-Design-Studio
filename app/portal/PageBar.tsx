@@ -68,9 +68,21 @@ export function PageBar({
 }) {
   return (
     <div className={mac.pageBar} role="toolbar" aria-label="Pages">
-      <div className={mac.pageTabs} role="tablist" aria-label="Choose a page to edit">
+      <select className={`${mac.pageJump} ${mac.pageSelect}`} aria-label="Choose a page to edit" value={route} onChange={(event) => onRoute(event.target.value as PreviewRoute)}>
+        {PAGES.map((page) => <option key={page.key} value={page.key} disabled={(page.key === "project" && !projects.length) || (page.key === "step" && !steps.length)}>{page.label}</option>)}
+      </select>
+      <div className={mac.pageTabs} role="tablist" aria-label="Choose a page to edit" onKeyDown={(event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+        const at = buttons.indexOf(event.target as HTMLButtonElement);
+        if (at < 0) return;
+        event.preventDefault();
+        const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (at + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+        buttons[next]?.focus();
+        buttons[next]?.click();
+      }}>
         {PAGES.map((p) => (
-          <button key={p.key} type="button" role="tab" aria-selected={route === p.key} data-on={route === p.key} title={p.title} onClick={() => onRoute(p.key)}>
+          <button key={p.key} type="button" role="tab" aria-selected={route === p.key} data-on={route === p.key} disabled={(p.key === "project" && !projects.length) || (p.key === "step" && !steps.length)} title={p.key === "project" && !projects.length ? "Add a project on Work first" : p.key === "step" && !steps.length ? "Add a process card on Home first" : p.title} onClick={() => onRoute(p.key)}>
             {p.label}
           </button>
         ))}
@@ -138,8 +150,8 @@ export function PageBar({
         ↻
       </button>
 
-      <button type="button" className={mac.pageEdit} data-on={editing} aria-pressed={editing} onClick={() => onEditing(!editing)} title={editing ? "Switch to just looking at the page" : "Show the Edit buttons"}>
-        {editing ? "✎ Editing" : "👁 Viewing"}
+      <button type="button" className={mac.pageEdit} data-on={editing} aria-pressed={editing} onClick={() => onEditing(!editing)} title={editing ? "Edit buttons are visible. Cards still open normally. Click to hide editing controls." : "Show Edit and Add controls on the preview"}>
+        {editing ? "✎ Edit controls on" : "Preview only"}
       </button>
     </div>
   );

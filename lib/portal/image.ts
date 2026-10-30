@@ -7,6 +7,8 @@
 // re-encoded as high-quality WebP. On Cloudflare it isn't available, so the picture is stored exactly as sent, after
 // being checked by its first bytes.
 
+import { runImageWork } from "./image-work";
+
 export type ImageExt = "webp" | "png" | "jpg" | "avif" | "gif" | "svg" | "tiff";
 
 export interface ProcessedImage {
@@ -80,6 +82,13 @@ export async function processImage(
   input: Uint8Array,
   opts: { max: number; quality: number; trim?: boolean },
 ): Promise<ProcessedImage> {
+  return runImageWork(() => convertImage(input, opts));
+}
+
+async function convertImage(
+  input: Uint8Array,
+  opts: { max: number; quality: number; trim?: boolean },
+): Promise<ProcessedImage> {
   const kind = sniffImage(input);
   if (!kind) throw new Error("That file isn’t a picture this site can use. Use PNG, JPG, WebP, AVIF, GIF, SVG or TIFF.");
 
@@ -93,13 +102,19 @@ export async function processImage(
   const sharp = await loadSharp();
   if (sharp) {
     // An animated GIF becomes an animated WebP (same motion, far smaller); everything else becomes still WebP.
-    let img = sharp(input, { limitInputPixels: false, animated: kind === "gif" }).rotate();
+    let img = sharp(input, { limitInputPixels: 40_000_000, animated: kind === "gif" }).rotate();
     if (opts.trim && kind !== "gif") img = img.trim({ threshold: 1 });
     const out = await img
       .resize({ width: opts.max, height: opts.max, fit: "inside", withoutEnlargement: true })
       .webp({ quality: opts.quality, alphaQuality: 100, effort: 5, smartSubsample: true })
-      .toBuffer();
-    return { bytes: new Uint8Array(out), ext: "webp", contentType: TYPES.webp, encoded: true };
+      .toBuffer()
+      .catch((error: unknown) => {
+        if (error instanceof Error && /pixel limit/i.test(error.message)) {
+          throw new Error("This picture has too many pixels to process safely. Export a smaller copy (under 40 megapixels, counting all animation frames) and upload it again.");
+        }
+        throw error;
+      });
+    return { bytes: out, ext: "webp", contentType: TYPES.webp, encoded: true };
   }
   if (kind === "tiff") throw new Error("TIFF pictures can’t be read on this server. Save it as PNG or JPG and upload that.");
   return { bytes: input, ext: kind, contentType: TYPES[kind], encoded: false };

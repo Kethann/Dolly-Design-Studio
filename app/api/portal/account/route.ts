@@ -1,8 +1,9 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { noteFailure, tooManyFailures } from "@/lib/rate-limit";
 import { createSessionToken, getPortalUser, sessionCookie } from "@/lib/portal/auth";
 import { clientIp, logActivity } from "@/lib/portal/activity";
-import { CODE_MINUTES, checkCode, clearCodes, issueCode } from "@/lib/portal/otp";
+import { CODE_MINUTES, checkCode, clearCodes, discardCode, issueCode } from "@/lib/portal/otp";
 import { codeEmail, isMailConfigured, maskEmail, sendMail } from "@/lib/portal/mail";
 import {
   UserError,
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (!me) return fail("Your session has ended. Sign in again.", 401);
   if (me.setup) return fail("Create your owner account first.", 403);
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return fail("Forbidden.", 403);
+  if (origin && !requestOriginMatches(req)) return fail("Forbidden.", 403);
 
   let b: Record<string, unknown> = {};
   try {
@@ -76,7 +77,10 @@ export async function POST(req: NextRequest) {
         if ("wait" in issued) return fail(`A code was just sent. You can ask for another in ${issued.wait} seconds.`, 429);
         const sent = await sendMail({ to: email, ...codeEmail({ name: me.name, code: issued.code, purpose: "email", minutes: CODE_MINUTES }) });
         await logActivity({ headers: req.headers, actor: me, action: "code-sent", detail: "Email confirmation code", ok: sent.ok });
-        if (!sent.ok) return fail(sent.message, 502);
+        if (!sent.ok) {
+          await discardCode("email", me.id, issued.code);
+          return fail(sent.message, 502);
+        }
         return NextResponse.json({ ok: true, sentTo: maskEmail(email) });
       }
 
@@ -92,6 +96,7 @@ export async function POST(req: NextRequest) {
           );
         }
         const user = await setEmail(me.id, result.data ?? "");
+        await clearCodes(me.id, `mail:${me.email ?? ""}`, `mail:${user.email ?? ""}`);
         await logActivity({ headers: req.headers, actor: user, action: "email-changed", detail: `Now ${user.email}` });
         return NextResponse.json({ user });
       }
@@ -100,7 +105,7 @@ export async function POST(req: NextRequest) {
         const bad = await passwordOk();
         if (bad) return bad;
         const user = await setEmail(me.id, "");
-        await clearCodes(me.id);
+        await clearCodes(me.id, `mail:${me.email ?? ""}`);
         await logActivity({ headers: req.headers, actor: user, action: "email-changed", detail: "Email address removed (two-step sign-in is off)" });
         return NextResponse.json({ user });
       }

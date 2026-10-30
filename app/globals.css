@@ -1,7 +1,7 @@
-/* The space above and below a section of the home page: one value for all of them, so the gap between two sections is
-   even and comfortable (it was 120-140px each side, about 250px between sections). */
+/* Adjacent sections share a compact, fluid spacing scale. */
 :root {
-  --section-pad: clamp(40px, 5.5vw, 72px);
+  --section-pad: clamp(24px, 3vw, 40px);
+  --section-head-gap: clamp(24px, 3vw, 32px);
 }
 
 :root {
@@ -289,8 +289,8 @@ html.lenis {
   opacity: var(--glow-intensity);
 }
 
-/* The portal's live preview shows only the page itself: no loader, no header (logo and menu), no progress line, no section rail, no scrollbar, and links
-   that would scroll or navigate do nothing (the portal moves the preview itself). */
+/* The portal supplies its own navigation chrome. Page links remain interactive;
+   EditBridge keeps internal navigation inside the draft preview. */
 html.portal-preview .intro-loader,
 html.portal-preview nav[aria-label="Section progress"],
 html.portal-preview [data-chrome] {
@@ -305,11 +305,6 @@ html.portal-preview::-webkit-scrollbar {
   display: none;
 }
 
-html.portal-preview a[href^="/#"],
-html.portal-preview a[href="/work"],
-html.portal-preview a[href="/"] {
-  pointer-events: none;
-}
 
 /* Where the pointer is on a glass card (--mx, --my, set by GlassLight). */
 @property --mx {

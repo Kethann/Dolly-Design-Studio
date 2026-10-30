@@ -7,6 +7,8 @@ import { edItem, edSection } from "@/lib/content/tx";
 import { placeholderProps, versionedSrc } from "@/lib/images";
 import { adjustStyle } from "@/lib/content/adjust";
 import styles from "@/app/work/[slug]/page.module.css";
+import { MediaPlaceholder } from "./MediaPlaceholder";
+import { AddContent } from "./PreviewControls";
 
 /**
  * One project's own page. Reads the live content, so a change made in the portal's preview shows as it is made; and
@@ -33,16 +35,16 @@ export function ProjectView({ slug }: { slug: string }) {
 
         <div className={styles.layout} {...edItem("projects", index, project.title)}>
           <div className={styles.coverFrame} {...edItem(`projects.${index}.images`, 0, "Cover picture")}>
-            <Image
+            {cover?.src ? <Image
               style={adjustStyle(cover, "src")}
               src={versionedSrc(cover.src)}
               alt={cover.alt}
               fill
-              sizes="(max-width: 900px) 92vw, 46vw"
+              sizes="(max-width: 899px) 92vw, (max-width: 1360px) 45vw, 600px"
               quality={95}
               {...placeholderProps(cover.src)}
               priority
-            />
+            /> : <MediaPlaceholder />}
           </div>
 
           <div className={styles.meta}>
@@ -81,12 +83,15 @@ export function ProjectView({ slug }: { slug: string }) {
         </div>
       </div>
 
+      <div className="container">
+        <AddContent list={`projects.${index}.images`} label="Add image card" count={project.images.length} />
+      </div>
       {rest.length > 0 && (
         <div className="container">
           <div className={styles.restGrid}>
             {rest.map((img, k) => (
               <div key={`${img.src}-${k}`} className={styles.restFrame} {...edItem(`projects.${index}.images`, k + 1, "Picture")}>
-                <Image src={versionedSrc(img.src)} style={adjustStyle(img, "src")} alt={img.alt} fill sizes="(max-width: 700px) 92vw, 30vw" quality={90} {...placeholderProps(img.src)} />
+                {img.src ? <Image src={versionedSrc(img.src)} style={adjustStyle(img, "src")} alt={img.alt} fill sizes="auto, (max-width: 520px) 92vw, 440px" quality={90} {...placeholderProps(img.src)} /> : <MediaPlaceholder />}
               </div>
             ))}
           </div>

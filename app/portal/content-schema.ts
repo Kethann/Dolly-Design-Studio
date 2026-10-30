@@ -1,4 +1,5 @@
 import type { ArtSection } from "@/lib/intro/settings";
+import { plainFx } from "@/lib/content/text-effects";
 import { CARD_LINK_VALUES, CARD_OPENS_OWN_PAGE } from "@/lib/content/card-links";
 import { MAX_PROCESS_ITEMS, PROCESS_COLS, PROCESS_FITS, PROCESS_SHAPES } from "@/lib/content/process";
 import type { PageKey } from "@/lib/content/types";
@@ -9,6 +10,7 @@ import type { PageKey } from "@/lib/content/types";
  * those are exactly the texts the site tags with `data-t` (see lib/content/context.tsx).
  */
 export type Field =
+  | { kind: "process-media"; path: string; label: string }
   | { kind: "text" | "area"; path: string; label: string; style?: boolean; hint?: string; /** Offer the particle effect: words in [[double brackets]] (the page must show this text with renderFx). */ fx?: boolean }
   | { kind: "number"; path: string; label: string; min: number; max: number }
   | { kind: "bool"; path: string; label: string }
@@ -65,7 +67,7 @@ export interface SchemaPage {
   sections: SchemaSection[];
 }
 
-const str = (v: unknown, fallback: string) => (typeof v === "string" && v.trim() ? v : fallback);
+const str = (v: unknown, fallback: string) => (typeof v === "string" && v.trim() ? plainFx(v) : fallback);
 
 /** The look of one page on its own: its fonts, accent colour and a picture behind it. */
 const pageLook = (key: PageKey, name: string): SchemaSection => ({
@@ -275,9 +277,9 @@ const home: SchemaPage = {
               max: MAX_PROCESS_ITEMS,
               bulk: "image",
               title: (it, i) => str(it.title, `Card ${i + 1}`),
-              blank: () => ({ image: "", title: "New card", note: "", fit: "fit", imageZoom: 1, imageX: 50, imageY: 50 }),
+              blank: () => ({ mediaType: "image", image: "", video: "", videoWidth: 0, videoHeight: 0, title: "New card", note: "", fit: "fit", imageZoom: 1, imageX: 50, imageY: 50 }),
               fields: [
-                { kind: "image", path: "image", label: "Picture", hint: "Any picture format. Zoom and move it to choose what shows.", adjust: "image" },
+                { kind: "process-media", path: "image", label: "Photo or video" },
                 { kind: "select", path: "fit", label: "Picture in its frame (fit = the whole picture, fill = cover the frame)", options: PROCESS_FITS },
                 { kind: "text", path: "title", label: "Title" },
                 { kind: "area", path: "note", label: "Small text under it" },
@@ -303,7 +305,7 @@ const home: SchemaPage = {
           max: 10,
           title: (it) => str(it.name, "New service"),
           renumber: (i) => ({ number: String(i + 1).padStart(2, "0") }),
-          blank: () => ({ number: "", name: "New service", description: "", details: "", gallery: [], deliverables: [], sample: "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg" }),
+          blank: () => ({ number: "", name: "New service", description: "", details: "", gallery: [], deliverables: [], sample: "" }),
           fields: [
             { kind: "text", path: "name", label: "Name", style: true },
             { kind: "area", path: "description", label: "Description", style: true },
@@ -313,11 +315,12 @@ const home: SchemaPage = {
             {
               kind: "list",
               path: "gallery",
+              max: 12,
               label: "Inside the card: more pictures",
               add: "Add a picture",
               bulk: "src",
               title: (it, i) => `Picture ${i + 1}` + (it.alt ? ` — ${String(it.alt).slice(0, 24)}` : ""),
-              blank: () => ({ src: "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg", alt: "" }),
+              blank: () => ({ src: "", alt: "" }),
               fields: [
                 { kind: "image", path: "src", label: "Picture", adjust: "src" },
                 { kind: "text", path: "alt", label: "Description (for screen readers)" },
@@ -527,7 +530,7 @@ const projects: SchemaPage = {
             role: "",
             deliverables: [],
             brief: "",
-            images: [{ src: "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg", alt: "" }],
+            images: [{ src: "", alt: "" }],
           }),
           fields: [
             { kind: "text", path: "title", label: "Title" },
@@ -558,7 +561,7 @@ const projects: SchemaPage = {
               bulk: "src",
               min: 1,
               title: (it, i) => (i === 0 ? "Cover" : `Image ${i + 1}`) + (it.alt ? ` — ${String(it.alt).slice(0, 24)}` : ""),
-              blank: () => ({ src: "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg", alt: "" }),
+              blank: () => ({ src: "", alt: "" }),
               fields: [
                 { kind: "image", path: "src", label: "Picture", adjust: "src" },
                 { kind: "text", path: "alt", label: "Description (for screen readers)" },
@@ -579,7 +582,8 @@ const projects: SchemaPage = {
   const gallery = home.sections.find((x) => x.id === "gallery")!;
   const layout = gallery.fields.filter((x) => x.path === "categories" || x.path.startsWith("galleryLayout."));
   gallery.fields.push(projectsList);
-  work.sections.find((x) => x.id === "work-page")!.fields.push(...layout, projectsList);
+  const workGallery = work.sections.find((x) => x.id === "work-page")!;
+  workGallery.fields.push(...layout.filter((field) => !workGallery.fields.some((existing) => existing.path === field.path)), projectsList);
 }
 
 // The project page and the "page not found" page are templates, not pages you browse to: their wording is edited in the

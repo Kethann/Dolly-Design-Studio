@@ -6,8 +6,9 @@ import { placeholderProps, versionedSrc } from "@/lib/images";
 import { adjustStyle } from "@/lib/content/adjust";
 import { edItem } from "@/lib/content/tx";
 import styles from "./ProjectCard.module.css";
+import { MediaPlaceholder } from "./MediaPlaceholder";
 
-export function ProjectCard({ project, index, priority = false, showDetails = true }: { project: Project; /** Its place in the content's project list (the Edit button needs it). */ index?: number; priority?: boolean; showDetails?: boolean }) {
+export function ProjectCard({ project, index, priority = false, showDetails = true, sizes = "(max-width: 520px) 100vw, (max-width: 900px) 50vw, 400px" }: { project: Project; /** Its place in the content's project list (the Edit button needs it). */ index?: number; priority?: boolean; showDetails?: boolean; sizes?: string }) {
   const cover = project.images[0];
 
   return (
@@ -19,16 +20,16 @@ export function ProjectCard({ project, index, priority = false, showDetails = tr
       {...(index === undefined ? {} : edItem("projects", index, project.title))}
     >
       <div className={styles.frame} data-glow="poster">
-        <Image
+        {cover?.src ? <Image
           style={adjustStyle(cover, "src")}
           src={versionedSrc(cover.src)}
           alt={cover.alt}
           fill
-          sizes="(max-width: 700px) 92vw, (max-width: 1100px) 44vw, 28vw"
+          sizes={priority ? sizes : `auto, ${sizes}`}
           quality={90}
           {...placeholderProps(cover.src)}
           priority={priority}
-        />
+        /> : <MediaPlaceholder />}
         <span className={styles.corner} />
       </div>
       {showDetails && (

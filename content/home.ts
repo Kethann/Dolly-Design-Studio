@@ -33,15 +33,14 @@ export const home = {
     viewAllLink: "Open the full gallery →",
   },
 
-  // 4. HOW WE WORK — four simple cards in a single row, each with a line icon (sketch, camera, pipeline, layers).
+  // 4. HOW WE WORK — three cards with sketch, camera and layers icons.
   process: {
     label: "How We Work",
-    title: "From first sketch to final art",
-    intro: "Every project moves through the same four steps, so you always know what comes next.",
+    title: "Pipeline",
+    intro: "Explore how our artwork comes together, from early sketches to behind-the-scenes moments and final layers.",
     cards: [
       { title: "Sketchboards", note: "Ideas on paper", body: "We sketch layouts and lettering first, so you see the direction early.", icon: "sketch", opensBreakdowns: false },
-      { title: "Photoshoot / BTS", note: "On the shoot floor", body: "We direct the shoot for the artwork and share the behind-the-scenes moments.", icon: "camera", opensBreakdowns: false },
-      { title: "Pipelines", note: "Brief to release", body: "Every project follows clear steps, so feedback always lands in the right stage.", icon: "pipeline", opensBreakdowns: false },
+      { title: "BTS", slug: "photoshoot-bts", note: "On the shoot floor", body: "We direct the shoot for the artwork and share the behind-the-scenes moments.", icon: "camera", opensBreakdowns: false },
       { title: "Breakdowns", note: "Layers / Videos", body: "We show how the final art is built, layer by layer and in short videos.", icon: "layers", opensBreakdowns: true },
     ],
   },

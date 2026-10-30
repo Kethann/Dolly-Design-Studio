@@ -1,0 +1,10 @@
+.player { position: relative; width: 100%; min-width: 0; max-height: 78svh; overflow: hidden; border-radius: 16px; background: #140c15; border: 1px solid #ffffff2e; }
+.player video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.play { display: flex; position: absolute; inset: 0; width: 100%; height: 100%; align-items: center; justify-content: center; flex-direction: column; gap: 12px; border: 0; color: #fff1c0; background: radial-gradient(ellipse at center, #422739, #140c15); cursor: pointer; }
+.play img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.playIcon, .playLabel { z-index: 1; background: #100b0ecc; padding: 10px 16px; border-radius: 30px; }
+.playIcon { display: grid; place-items: center; min-width: 56px; min-height: 56px; border: 1px solid #e7c46b; font-size: 24px; }
+.playLabel { font: 600 13px/1.4 system-ui, sans-serif; }
+.play:focus-visible { outline: 3px solid #f4d17a; outline-offset: -5px; }
+.message { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 100%; padding: 16px; text-align: center; font: 14px/1.4 system-ui, sans-serif; overflow: auto; }
+.message a, .message button { color: #ffdc83; min-height: 44px; padding: 10px; background: transparent; border: 0; text-decoration: underline; cursor: pointer; }

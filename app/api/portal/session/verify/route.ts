@@ -1,3 +1,4 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { noteFailure, tooManyFailures } from "@/lib/rate-limit";
 import { createSessionToken, readChallengeToken, sessionCookie } from "@/lib/portal/auth";
@@ -8,7 +9,7 @@ import { getUserWithVersion } from "@/lib/portal/users";
 /** The second step of signing in: the code that was emailed after the password was right. */
 export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  if (origin && !requestOriginMatches(req)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
   let challenge = "";
   let code = "";

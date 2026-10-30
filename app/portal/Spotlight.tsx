@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Glyph } from "./mac";
+import { useDialogFocus } from "./dialog-focus";
 import styles from "./mac.module.css";
 
 export interface SpotEntry {
@@ -26,8 +27,8 @@ export function Spotlight({ entries, onPick, onClose }: { entries: SpotEntry[]; 
   const [index, setIndex] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
-
-  useEffect(() => input.current?.focus(), []);
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(box, onClose);
 
   const results = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -54,12 +55,14 @@ export function Spotlight({ entries, onPick, onClose }: { entries: SpotEntry[]; 
   return (
     <div className={styles.spotBackdrop} onPointerDown={onClose}>
       <div
+        ref={box}
         className={styles.spot}
         role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
         aria-label="Search settings"
         onPointerDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          if (e.key === "Escape") onClose();
           if (e.key === "ArrowDown") {
             e.preventDefault();
             setIndex(Math.min(results.length - 1, current + 1));
@@ -68,7 +71,10 @@ export function Spotlight({ entries, onPick, onClose }: { entries: SpotEntry[]; 
             e.preventDefault();
             setIndex(Math.max(0, current - 1));
           }
-          if (e.key === "Enter" && results[current]) onPick(results[current]);
+          if (e.key === "Enter" && e.target === input.current && results[current]) {
+            e.preventDefault();
+            onPick(results[current]);
+          }
         }}
       >
         <div className={styles.spotField}>
@@ -78,6 +84,8 @@ export function Spotlight({ entries, onPick, onClose }: { entries: SpotEntry[]; 
           </svg>
           <input
             ref={input}
+            aria-label="Search settings"
+            data-dialog-initial-focus
             value={q}
             placeholder="Search settings — try “password”, “font”, “logo”, “cards”…"
             onChange={(e) => {

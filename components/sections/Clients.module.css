@@ -16,24 +16,31 @@
 }
 
 .title {
+  overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: clamp(28px, 4vw, 44px);
-  margin: 0 0 56px;
+  margin: 0 0 var(--section-head-gap);
 }
 
 .rows {
   display: grid;
-  gap: 40px;
+  gap: var(--section-head-gap);
 }
 
 .row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 
 /* The caption above each row lines up exactly with the heading (same left edge as the page's container). */
 .rowLabel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   padding-inline: calc(max(0px, (100vw - 1360px) / 2) + clamp(20px, 5vw, 64px));
   font-family: var(--font-label);
   font-size: 10px;
@@ -45,6 +52,7 @@
 .viewport {
   /* Height of the picture zone: every logo and portrait is centred in it, and the stars sit on its middle line. */
   --media-h: clamp(112px, 12vw, 180px);
+  min-width: 0;
   overflow: hidden;
   padding-block: 22px;
   border-block: 1px solid var(--smoke);
@@ -81,7 +89,6 @@
 .track {
   display: flex;
   width: max-content;
-  will-change: transform; /* moved by useDragMarquee: it drifts on its own and can be held and dragged */
 }
 
 /* Hold and drag either way; up-and-down touches still scroll the page. */
@@ -95,6 +102,8 @@
 .viewport[data-drag="true"] {
   cursor: grabbing;
 }
+.viewport:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
+.dragHint { letter-spacing: .08em; font-size: 10px; white-space: nowrap; }
 
 .viewport img {
   -webkit-user-drag: none;
@@ -252,6 +261,7 @@
 /* While editing in the portal, a row shows only its real entries, still, in one line: it can still be held and dragged
    sideways (see useDragMarquee) to reach every entry, and each entry keeps its Edit button. */
 :global(html[data-dds-edit]) .viewport {
+  padding-top: 76px; /* Separate touch-sized Edit/Move controls from the draggable names and pictures. */
   -webkit-mask-image: none;
   mask-image: none;
 }

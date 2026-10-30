@@ -4,7 +4,7 @@
 }
 
 .head {
-  margin-bottom: 56px;
+  margin-bottom: var(--section-head-gap);
   max-width: 640px;
 }
 
@@ -19,6 +19,7 @@
 }
 
 .title {
+  overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: clamp(28px, 4vw, 44px);
@@ -26,14 +27,15 @@
 }
 
 .body {
+  margin: 0;
   opacity: 0.75;
   line-height: 1.7;
 }
 
-/* Four cards in a single row; two on a tablet, one on a phone. */
+/* Three cards fill the desktop row; two on a tablet, one on a phone. */
 .steps {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(14px, 1.8vw, 24px);
 }
 
@@ -200,8 +202,10 @@
 
 .stepTitle {
   width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-family: var(--font-display);
-  font-size: clamp(20px, 2vw, 28px);
+  font-size: clamp(20px, 1.8vw, 26px);
   line-height: 1.15;
   text-align: center;
   text-wrap: balance;
@@ -229,6 +233,7 @@
 }
 
 .stepBody {
+  overflow-wrap: anywhere;
   margin: 4px 0 0;
   font-size: 14.5px;
   color: var(--gold-bright); /* the text under the heading is yellow */

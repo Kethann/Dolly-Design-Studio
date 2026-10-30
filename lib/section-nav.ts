@@ -18,8 +18,8 @@ export function goToSection(id?: string): boolean {
   if (id && !el) return false;
   glideLock.id = id ?? "top";
   glideLock.until = performance.now() + GLIDE_LOCK_MS;
-  const url = id ? `/#${id}` : "/";
-  if (window.location.pathname + window.location.hash !== url) window.history.pushState(window.history.state, "", url);
+  const url = `/${window.location.search}${id ? `#${id}` : ""}`;
+  if (window.location.pathname + window.location.search + window.location.hash !== url) window.history.pushState(window.history.state, "", url);
   glideTo(el ?? 0);
   return true;
 }

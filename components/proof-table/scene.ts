@@ -372,6 +372,7 @@ export function createProofScene(
     slab: SlabLook;
     mobile: boolean;
     stage: string;
+    invalidate?: () => void;
   },
 ): ProofScene {
   const { mobile } = opts;
@@ -547,11 +548,12 @@ export function createProofScene(
   // Titles are decoded off the main thread (ImageBitmap) and capped at 2048px wide: sharp on the cards at any size
   // they're shown, a quarter of the upload work of the full files, and no decode stall while scrolling.
   const textures = new Map<string, Promise<THREE.Texture | null>>();
+  const textureRequests = new AbortController();
   const loadTexture = (src: string) => {
     if (!textures.has(src))
       textures.set(
         src,
-        fetch(src)
+        fetch(src, { signal: textureRequests.signal })
           .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(String(res.status)))))
           .then(async (blob) => {
             const probe = await createImageBitmap(blob);
@@ -565,6 +567,8 @@ export function createProofScene(
             });
           })
           .then((bitmap) => {
+            if (disposed) { bitmap.close(); return null; }
+            track({ dispose: () => bitmap.close() });
             const tex = new THREE.Texture(bitmap);
             tex.flipY = false; // already flipped while decoding
             tex.colorSpace = THREE.SRGBColorSpace;
@@ -808,6 +812,7 @@ export function createProofScene(
       plates = next;
       for (const pl of plates) scene.add(pl.pivot, pl.shadow, pl.ripple);
       dirty = true;
+      opts.invalidate?.();
     });
   }
 
@@ -833,25 +838,21 @@ export function createProofScene(
     for (const t of texs) {
       if (disposed) return;
       await idle();
+      if (disposed) return;
       renderer.initTexture(t);
     }
     if (disposed) return;
     await idle();
-    // Compile with every card visible (they start hidden until they drop), then let update() set visibility again.
-    const hidden: THREE.Object3D[] = [];
-    scene.traverse((o) => {
-      if (!o.visible) {
-        hidden.push(o);
-        o.visible = true;
-      }
-    });
+    if (disposed) return;
+    // Never toggle live visibility while async compilation overlaps the first visible frame.
     try {
       await Promise.race([renderer.compileAsync(scene, camera), new Promise((done) => setTimeout(done, 3000))]);
     } catch {
       // A failed warm-up only means the first frame compiles instead.
     }
-    for (const o of hidden) o.visible = false;
+    if (disposed) return;
     dirty = true;
+    opts.invalidate?.();
   }
 
   function setSlab(next: SlabLook) {
@@ -863,12 +864,14 @@ export function createProofScene(
     slabSheenMat.color.copy(edgeTint(next.color));
     (frame.material as THREE.MeshBasicMaterial).color.set(next.color);
     dirty = true;
+    opts.invalidate?.();
   }
 
   function setGlass(next: GlassLook) {
     glass = next;
     for (const pl of plates) styleGlass(pl.glass.material);
     dirty = true;
+    opts.invalidate?.();
   }
 
   // --- Per-frame -----------------------------------------------------------------------------
@@ -1090,7 +1093,7 @@ export function createProofScene(
     if (busy || dirty || p !== lastP) renderer.render(scene, camera);
     dirty = false;
     lastP = p;
-    return busy;
+    return busy || (hoverLostAt > 0 && hovered >= 0);
   }
 
   function resize(w: number, h: number) {
@@ -1100,16 +1103,19 @@ export function createProofScene(
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     dirty = true;
+    opts.invalidate?.();
   }
 
   function pointer(x: number | null, y: number) {
     pointerIn = x !== null;
     if (x !== null) ndc.set((x / width) * 2 - 1, -(y / height) * 2 + 1);
     dirty = true;
+    opts.invalidate?.();
   }
 
   function dispose() {
     disposed = true;
+    textureRequests.abort();
     for (const pl of plates) for (const o of pl.own) o.dispose();
     for (const d of disposables) d.dispose();
     renderer.dispose();

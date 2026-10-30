@@ -24,7 +24,8 @@ Other useful commands:
 ```bash
 npm run build      # production build (also used by `npm run check`)
 npm run start      # run the production build locally
-npm run check      # images + typecheck + lint + build, all in one
+npm run check      # typecheck + lint + regression tests + production build
+npm test           # automated regression tests; no real email or publishing
 npm run typecheck  # TypeScript only
 npm run lint       # ESLint only
 npm run images     # after adding/replacing images in public/images
@@ -46,12 +47,13 @@ site/
 └── scripts/          build-image-manifest.mjs (run by `npm run images`)
 ```
 
-**To change any wording, link, image or project, you only need `content/` and
-`public/images/` — the step-by-step guide is in
-[`content/README.md`](content/README.md).**
+**Use `/portal` for current wording, media and project changes.** The files in
+`content/` provide defaults and local saved content; see
+[`content/README.md`](content/README.md) for the distinction.
 
 For an overall guide to the site's features, animation, performance choices,
 and technology keywords, see [`PROJECT-NOTES.md`](PROJECT-NOTES.md).
+For the cleanup results and before/after comparison, see [`CLEANUP-REPORT.md`](CLEANUP-REPORT.md).
 
 ## The intro (V1)
 
@@ -88,7 +90,8 @@ in `lib/intro/timeline.ts`, the big star's path and the wave in
 
 ## The creator portal
 
-The studio controls the intro from **`/portal`** — no code needed:
+The studio manages content, media, accounts and visual settings from **`/portal`**.
+The intro and appearance controls include:
 
 - background colour of the page and intro, and the dark tinted glass over the
   background stars (tint colour, opacity, blur)
@@ -113,14 +116,14 @@ visitors until **Save & publish**.
 Settings are stored in `content/intro-settings.json` (it can also be edited
 by hand).
 
-**Setting it up:** set `PORTAL_PASSWORD` in the server's environment (locally
-in `.env.local`, see `.env.example`). Without it the portal stays switched off.
+**Setting it up:** configure `PORTAL_SECRET` for session signing and the account
+setup/recovery settings in `.env.example`. Existing accounts do not require the
+setup password to remain present when a signing secret is configured. Keep the
+studio mailbox settings intact for recovery and enquiries.
 
-**Hosting note:** publishing writes `content/intro-settings.json` on the
-server, which works locally and on any host with a writable disk (a VPS,
-Render, Railway…). On hosts with read-only files, such as Vercel, saving
-needs a storage service (e.g. Vercel KV / Upstash) to be wired into
-`lib/portal/settings-store.ts`; until then, edit the JSON file and redeploy.
+**Storage:** local development uses files; the configured Cloudflare deployment
+uses R2 for content, accounts and uploaded media. The storage adapter is in
+`lib/storage.ts`. See `DEPLOY.md` for the deployment configuration.
 
 ## Versions and undoing changes
 

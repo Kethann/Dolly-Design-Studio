@@ -8,7 +8,6 @@ import { edSection } from "@/lib/content/tx";
 import { useMotion } from "@/lib/motion";
 import styles from "./Manifesto.module.css";
 import { renderFx } from "@/components/fx/render-fx";
-import { ParticleText } from "@/components/fx/ParticleText";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
@@ -21,21 +20,21 @@ function renderStatement(statement: string) {
       wordIndex += 1;
       return (
         <span key={i} className={styles.gold}>
-          {seg}
+          {renderFx(seg)}
         </span>
       );
     }
     return (
       <Fragment key={i}>
-        {seg.split(" ").map((w, j) => {
+        {seg.match(/\[\[[^\[\]]+?\]\]|(?:(?!\[\[)\S)+|\s+/g)?.map((w, j) => {
           if (!w) return null;
+          if (/^\s+$/.test(w)) return <Fragment key={j}>{w}</Fragment>;
           // A [[word]] keeps its place in the line as the particle word (it is always lit; the rest light up as you scroll).
-          const fx = /^\[\[(.+)\]\]([.,!?;:]*)$/.exec(w);
+          const fx = /^\[\[([^\[\]]+)\]\]$/.test(w);
           if (fx) {
             return (
               <Fragment key={j}>
-                <ParticleText>{fx[1]}</ParticleText>
-                {fx[2]}{" "}
+                {renderFx(w)}
               </Fragment>
             );
           }
@@ -44,7 +43,7 @@ function renderStatement(statement: string) {
             <Fragment key={j}>
               <span className={styles.word} data-word={wordIndex}>
                 {w}
-              </span>{" "}
+              </span>
             </Fragment>
           );
         })}

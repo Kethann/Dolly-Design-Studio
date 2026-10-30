@@ -10,7 +10,7 @@ import worker from "./.open-next/worker.js";
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
 
 const CONTENT_KEYS = ["content/site-content.json", "content/intro-settings.json"];
-const SKIP = /^\/(portal|api|_next|images|fonts|cdn-cgi)(\/|$)|\.[a-z0-9]{2,5}$/i;
+const SKIP = /^\/(portal|api|_next|images|fonts|media|cdn-cgi)(\/|$)|\.[a-z0-9]{2,5}$/i;
 /** Copies are kept this long at most (a changed version makes a new copy anyway; this only clears out old ones). */
 const KEEP_SECONDS = 600;
 
@@ -37,7 +37,7 @@ function cacheable(request, url) {
   return true;
 }
 
-export default {
+const cachedWorker = {
   async fetch(request, env, ctx) {
     let key = null;
     let cache = null;
@@ -78,3 +78,5 @@ export default {
     return response;
   },
 };
+
+export default cachedWorker;

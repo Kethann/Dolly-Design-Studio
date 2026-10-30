@@ -1,6 +1,8 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionToken, getPortalUser, sessionCookie } from "@/lib/portal/auth";
-import { logActivity } from "@/lib/portal/activity";
+import { clientIp, logActivity } from "@/lib/portal/activity";
+import { noteFailure, tooManyFailures } from "@/lib/rate-limit";
 import { canRecoverByMail } from "@/lib/portal/mail";
 import { clearCodes } from "@/lib/portal/otp";
 import {
@@ -24,7 +26,7 @@ async function guard(req: NextRequest, mutating: boolean): Promise<PortalUser | 
   const me = await getPortalUser();
   if (!me) return fail("Your session has ended. Sign in again.", 401);
   const origin = req.headers.get("origin");
-  if (mutating && origin && origin !== req.nextUrl.origin) return fail("Forbidden.", 403);
+  if (mutating && origin && !requestOriginMatches(req)) return fail("Forbidden.", 403);
   return me;
 }
 
@@ -81,8 +83,13 @@ export async function PATCH(req: NextRequest) {
   const self = id === me.id;
   if (!self && me.role !== "owner") return fail("Only owners can change other accounts.", 403);
   const password = text(b.password, 200);
-  if (self && password !== undefined && !(await checkOwnPassword(me.id, text(b.currentPassword, 200) ?? ""))) {
-    return fail("Your current password isn’t right.");
+  if (self && password !== undefined) {
+    const keys = [`own-pw:${me.id}`, `own-pw-ip:${clientIp(req.headers)}`];
+    if (keys.some(tooManyFailures)) return fail("Too many wrong passwords. Try again in a few minutes.", 429);
+    if (!(await checkOwnPassword(me.id, text(b.currentPassword, 200) ?? ""))) {
+      keys.forEach(noteFailure);
+      return fail("Your current password isn’t right.");
+    }
   }
   if (self && role(b.role) && role(b.role) !== me.role) return fail("Ask another owner to change your role.");
   try {
@@ -92,7 +99,7 @@ export async function PATCH(req: NextRequest) {
     // Your own password change signs out your other devices, but keeps this one signed in.
     if (self && password !== undefined) res.cookies.set(sessionCookie(createSessionToken(user.id, version)));
     if (password !== undefined) {
-      await clearCodes(user.id);
+      await clearCodes(user.id, `mail:${user.email ?? ""}`);
       await logActivity(
         self
           ? { headers: req.headers, actor: me, action: "password-changed", detail: "Other devices were signed out" }
@@ -118,11 +125,9 @@ export async function DELETE(req: NextRequest) {
   const id = text((await body(req)).id, 64) ?? "";
   // Everyone, even the last owner or yourself, can be removed when the studio's mailbox can bring the owner back in.
   const recovery = canRecoverByMail();
-  if (id === me.id && !recovery) return fail("You can’t remove your own account. (Set up email first, so you can always get back in with a code.)");
   try {
     const gone = (await listUsers()).find((u) => u.id === id);
     await removeUser(id, { allowLastOwner: recovery });
-    await clearCodes(id);
     if (gone) await logActivity({ headers: req.headers, actor: me, action: "person-removed", detail: `${gone.name} (${gone.username})` });
     const res = NextResponse.json({ ok: true, signedOut: id === me.id });
     if (id === me.id) res.cookies.delete("dds_portal");

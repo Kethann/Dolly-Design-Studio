@@ -1,7 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { reconcileSaved, saveDraft, SaveError, type SaveJob } from "./save-draft";
+import { readMediaLibrary } from "./media-library";
+import { reorderContent } from "./reorder-content";
+import { plainFx } from "@/lib/content/text-effects";
+import { requestPreviewRoute, finishPreviewLoad } from "./preview-frame";
 import {
   DEFAULT_INTRO_SETTINGS,
   ART_STYLES,
@@ -27,6 +33,7 @@ import { PageBar } from "./PageBar";
 import { EditModal, ItemEditor, ItemTools, SectionEditor, sectionPaths } from "./EditModal";
 import type { PreviewRoute } from "./PageBar";
 import { extraOf } from "@/lib/content/process";
+import { MAX_BREAKDOWNS } from "@/lib/content/limits";
 import { contentProblems, problemsUnder } from "./validate";
 import edit from "./edit.module.css";
 import type { PageKey, SiteContent } from "@/lib/content/types";
@@ -38,6 +45,7 @@ import { ActivityPanel } from "./ActivityPanel";
 import { InboxPanel } from "./InboxPanel";
 import { BreakdownsEditor } from "./BreakdownsEditor";
 import { SweepEditor } from "./SweepEditor";
+import { MediaResetPanel } from "./MediaResetPanel";
 import type { PortalUser } from "@/lib/portal/users";
 import styles from "./portal.module.css";
 
@@ -240,7 +248,7 @@ const ITEM_LISTS: ReadonlySet<string> = new Set(["projects", "services", "home.s
 
 const HOME_ONLY = ["slate", "glass", "intro", "playback", "background"] as const;
 
-type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
+type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string; operation?: "signOut" };
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -286,51 +294,91 @@ export function PortalEditor({
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
+  const [publishing, setPublishing] = useState(false);
+  const publishLock = useRef(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
   // A first-run (setup) sign-in goes straight to creating the owner account.
   const [dotsPage, setDotsPage] = useState<ColourTarget>("top");
 
   // Content (text, lists, projects, images, fonts) is saved separately from the design settings.
   const [contentSaved, setContentSaved] = useState(initialContent);
   const [contentDraft, setContentDraft] = useState(initialContent);
+  const previewContent = useMemo(() => sanitizeContent(contentDraft), [contentDraft]);
   const [images, setImages] = useState<string[]>([]);
   const [removable, setRemovable] = useState<string[]>([]);
+  const [libraryAttempt, setLibraryAttempt] = useState(0);
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [libraryError, setLibraryError] = useState("");
+  const mediaRevision = useRef(0);
   const contentRef = useRef(contentDraft);
   const sentContentRef = useRef<SiteContent | null>(null);
   useEffect(() => {
     contentRef.current = contentDraft;
   }, [contentDraft]);
   useEffect(() => {
-    fetch("/api/portal/media")
-      .then((r) => (r.ok ? r.json() : { images: [] }))
-      .then((d: { images?: string[]; removable?: string[] }) => {
-        setImages(d.images ?? []);
-        setRemovable(d.removable ?? []);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    const revision = mediaRevision.current;
+    let active = true;
+    readMediaLibrary(controller.signal)
+      .then((data) => {
+        if (!active) return;
+        // An upload or deletion during this request makes the old listing stale.
+        if (mediaRevision.current !== revision) { setLibraryAttempt((n) => n + 1); return; }
+        setImages(data.images);
+        setRemovable(data.removable);
+        setLibraryError("");
+        setLibraryLoading(false);
       })
-      .catch(() => {});
-  }, []);
+      .catch((error) => {
+        if (!active) return;
+        setLibraryLoading(false);
+        setLibraryError(controller.signal.aborted ? "Loading the library took too long. Please retry." : error instanceof Error ? error.message : "Couldn’t load the image library. Please retry.");
+      })
+      .finally(() => clearTimeout(timer));
+    return () => { active = false; controller.abort(); clearTimeout(timer); };
+  }, [libraryAttempt]);
   const media: MediaApi = {
     images,
     removable,
+    loading: libraryLoading,
+    error: libraryError,
+    reload: () => { setLibraryLoading(true); setLibraryError(""); setLibraryAttempt((n) => n + 1); },
     remove: async (src) => {
       // "/images/uploads/x.webp" is stored as uploads/images/x.webp; a slate title "/images/proof-table/x.webp" as uploads/proof/x.webp.
       const key = src.startsWith("/images/uploads/") ? "uploads/images/" + src.slice("/images/uploads/".length) : "uploads/proof/" + src.slice("/images/proof-table/".length);
       const res = await fetch("/api/portal/storage", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, confirmed: true }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Couldn’t delete that picture.");
+      mediaRevision.current++;
       setImages((list) => list.filter((x) => x !== src));
       setRemovable((list) => list.filter((x) => x !== src));
     },
-    add: (src) => setImages((list) => (list.includes(src) ? list : [src, ...list])),
+    add: (src) => {
+      mediaRevision.current++;
+      setImages((list) => (list.includes(src) ? list : [src, ...list]));
+      if (/^\/images\/(uploads|proof-table)\//.test(src)) {
+        setRemovable((list) => (list.includes(src) ? list : [src, ...list]));
+      }
+    },
     upload: async (file, onProgress) => {
       const data = await postFile<{ src?: string }>("/api/portal/media", await prepareImage(file), onProgress);
       if (!data.src) throw new Error("Upload failed.");
+      mediaRevision.current++;
       setImages((list) => (list.includes(data.src!) ? list : [data.src!, ...list]));
+      setRemovable((list) => (list.includes(data.src!) ? list : [data.src!, ...list]));
       return data.src;
     },
   };
   // Undo and redo for content edits. A burst of typing is one step; the state before the burst is what Undo returns to.
   const [history, setHistory] = useState({ past: [] as SiteContent[], future: [] as SiteContent[] });
+  const historyRef = useRef(history);
+  useEffect(() => { historyRef.current = history; }, [history]);
   const historyAt = useRef(0);
   const updateContent = (fn: (c: SiteContent) => SiteContent) => {
     const before = contentRef.current;
@@ -370,21 +418,42 @@ export function PortalEditor({
   /** The editing window that is open, and the content as it was when it opened (Cancel returns to it). */
   const [modal, setModal] = useState<ModalState | null>(null);
   const [modalSnap, setModalSnap] = useState<SiteContent | null>(null);
+  const [modalSettingsSnap, setModalSettingsSnap] = useState<IntroSettings | null>(null);
+  const modalHistorySnap = useRef(history);
   const openModal = (m: ModalState) => {
     setModalSnap(contentRef.current);
+    setModalSettingsSnap(draftRef.current);
+    modalHistorySnap.current = historyRef.current;
     setModal(m);
   };
 
   /** The "＋ Add" button under a list on the page: adds a new, blank item to that list and opens it to fill in (Cancel takes it away again). */
   const addItemRef = useRef<(list: string) => void>(() => {});
+  const reorderRef = useRef<(list: string, from: number, to: number) => void>(() => {});
+  useEffect(() => {
+    reorderRef.current = (list, from, to) => {
+      if (!editRef.current || modal || sheetOpen) return;
+      if (reorderContent(contentRef.current, list, from, to) === contentRef.current) return;
+      historyAt.current = 0; // Each completed drag is a separate Undo step.
+      updateContent((content) => reorderContent(content, list, from, to));
+      historyAt.current = 0;
+    };
+  });
   useEffect(() => {
     addItemRef.current = (list) => {
+      if (list === "breakdowns") {
+        const index = contentRef.current.breakdowns.length;
+        if (index >= MAX_BREAKDOWNS) return;
+        openModal({ kind: "section", page: "breakdowns", id: "all", index });
+        updateContent((c) => ({ ...c, breakdowns: [...c.breakdowns, { title: "New breakdown", note: "", description: "", layers: [], spread: "normal", turn: "side", labels: true, textPosition: "left" }] }));
+        return;
+      }
       const def = findList(list);
-      const items = getAt(contentRef.current, list) as unknown[] | undefined;
+      const items = (getAt(contentRef.current, list) ?? []) as unknown[];
       if (!def || !Array.isArray(items) || (def.max && items.length >= def.max)) return;
       const index = items.length;
       openModal({ kind: "item", list, index });
-      updateContent((c) => setAt(c, list, [...((getAt(c, list) as unknown[]) ?? []), def.blank()]));
+      updateContent((c) => setAt(c, list, [...((getAt(c, list) as unknown[]) ?? []), { ...def.blank(), ...def.renumber?.(index) }]));
     };
   });
 
@@ -412,25 +481,20 @@ export function PortalEditor({
   const [previewRoute, setPreviewRoute] = useState<PreviewRoute>("home");
   /** The "How we work" card whose own page the preview shows when you go inside one. */
   const [previewStep, setPreviewStep] = useState("");
-  const stepList = contentSaved.home.process.cards.map((c) => ({ slug: extraOf(c).slug, title: c.title }));
+  const stepList = previewContent.home.process.cards.map((c) => ({ slug: extraOf(c).slug, title: plainFx(c.title) }));
   const stepSlug = stepList.some((s) => s.slug === previewStep) ? previewStep : (stepList[0]?.slug ?? "");
   /** The project whose own page the preview shows when you go inside one. */
   const [previewProject, setPreviewProject] = useState("");
-  const projectSlug = contentSaved.projects.some((p) => p.slug === previewProject) ? previewProject : (contentSaved.projects[0]?.slug ?? "");
+  const projectSlug = previewContent.projects.some((p) => p.slug === previewProject) ? previewProject : (previewContent.projects[0]?.slug ?? "");
   const previewPath =
-    previewRoute === "work" ? "/work" : previewRoute === "breakdowns" ? "/breakdowns" : previewRoute === "project" ? `/work/${projectSlug}` : previewRoute === "step" ? `/process/${stepSlug}` : previewRoute === "notFound" ? "/page-not-found-preview" : "/";
+    previewRoute === "work" ? "/work" : previewRoute === "breakdowns" ? "/breakdowns" : previewRoute === "project" ? (projectSlug ? `/work/${projectSlug}` : "/work") : previewRoute === "step" ? (stepSlug ? `/process/${stepSlug}` : "/") : previewRoute === "notFound" ? "/page-not-found-preview" : "/";
   const breakdownsOpen = previewRoute === "breakdowns";
   /** The preview's first address. It is not changed after that (that would reload the page): moving to another page is done below. */
   const [firstFrameSrc] = useState(`${previewPath}?${PREVIEW_PARAM}`);
+  const pendingPreviewPath = useRef<string | null>(null);
   useEffect(() => {
     // Go to the chosen page only if the preview is not already there (it may have gone there by itself, when a card was pressed).
-    const w = frameRef.current?.contentWindow;
-    if (!w) return;
-    let here = "";
-    try {
-      here = w.location.pathname;
-    } catch {}
-    if (here.startsWith("/") && here !== previewPath) w.location.assign(`${previewPath}?${PREVIEW_PARAM}`);
+    requestPreviewRoute(frameRef.current, previewPath, pendingPreviewPath);
   }, [previewPath]);
   const undoRef = useRef(() => {});
   const redoRef = useRef(() => {});
@@ -441,6 +505,7 @@ export function PortalEditor({
   const [goto] = useState<{ tab: Tab; section: string; n: number } | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (document.querySelector('dialog[open], [role="dialog"][aria-modal="true"], [role="alertdialog"]')) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setSpotlight((v) => !v);
@@ -475,11 +540,6 @@ export function PortalEditor({
   const runRef = useRef<PreviewRun>({ key: 0, at: 0, paused: false, seed: 7 });
   const sentRef = useRef<IntroSettings | null>(null);
   const playheadRef = useRef(0);
-  const draftRef = useRef(draft);
-  useEffect(() => {
-    draftRef.current = draft;
-  }, [draft]);
-
   const send = useCallback((msg: PortalToSite) => {
     frameRef.current?.contentWindow?.postMessage(msg, window.location.origin);
   }, []);
@@ -523,6 +583,7 @@ export function PortalEditor({
       const msg = e.data as SiteToPortal;
       if (msg?.source !== "dds-site") return;
       if (msg.type === "ready") {
+        if (pendingPreviewPath.current && frameRef.current?.contentWindow?.location.pathname !== pendingPreviewPath.current) return;
         sentRef.current = draftRef.current;
         send({
           source: "dds-portal",
@@ -531,7 +592,14 @@ export function PortalEditor({
         });
         sentContentRef.current = contentRef.current;
         send({ source: "dds-portal", type: "content", content: contentRef.current });
-        startRun(T.end, false); // the preview opens on the page itself: the logo and the stars, no opening animation
+        if (frameRef.current?.contentWindow?.location.pathname === "/") {
+          startRun(T.end, false); // Home opens after its intro; replay remains available in Playback.
+        } else {
+          // Inner pages have already revealed themselves. Starting another intro here can cover them while 3D loads.
+          playheadRef.current = T.end;
+          setPlayhead(T.end);
+          setHolding(false);
+        }
         send({ source: "dds-portal", type: "edit-mode", on: editRef.current });
         setReady(true);
       }
@@ -540,9 +608,12 @@ export function PortalEditor({
         setPlayhead(msg.t);
       }
       if (msg.type === "edit-add") addItemRef.current(msg.list);
+      if (msg.type === "edit-reorder") reorderRef.current(msg.list, msg.from, msg.to);
       if (msg.type === "route") {
         // The preview went to another page by itself (a card was pressed): the page tabs follow it.
         const path = msg.path;
+        if (pendingPreviewPath.current && path !== pendingPreviewPath.current) return;
+        pendingPreviewPath.current = null;
         const project = /^\/work\/([^/]+)$/.exec(path)?.[1];
         const step = /^\/process\/([^/]+)$/.exec(path)?.[1];
         if (path === "/") setPreviewRoute("home");
@@ -724,51 +795,63 @@ export function PortalEditor({
   }
 
   async function publish() {
+    if (publishLock.current || !dirty) return;
+    const problem = contentDirty ? contentProblems(contentDraft)[0] : undefined;
+    if (problem) {
+      setSave({ kind: "error", message: `Before saving: ${problem.message}` });
+      setSessionExpired(false);
+      const item = /^(.*)\.(\d+)(?:\.|$)/.exec(problem.path);
+      if (problem.path.startsWith("breakdowns.") && item) openModal({ kind: "section", page: "breakdowns", id: "breakdowns", index: Number(item[2]) });
+      else if (item && findList(item[1])) openModal({ kind: "item", list: item[1], index: Number(item[2]) });
+      else if (problem.path.startsWith("categories")) openModal({ kind: "section", page: "work", id: "work-page" });
+      return;
+    }
+    publishLock.current = true;
+    setPublishing(true);
+    setSessionExpired(false);
     setSave({ kind: "saving" });
     try {
-      if (settingsDirty) {
-        const res = await fetch("/api/portal/settings", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(draft),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          if (res.status === 401) router.refresh();
-          setSave({ kind: "error", message: body.error ?? "Couldn’t save. Try again." });
-          return;
-        }
-        const next = sanitizeIntroSettings(body.settings);
-        if (same(next, draft)) sentRef.current = next; // the preview already shows exactly this
+      const jobs: SaveJob[] = [];
+      if (settingsDirty) jobs.push({ label: "Design settings", url: "/api/portal/settings", body: draft, responseKey: "settings", accept: (value) => {
+        const next = sanitizeIntroSettings(value);
         setSaved(next);
-        setDraft(next);
-      }
-      if (contentDirty) {
-        const res = await fetch("/api/portal/content", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(contentDraft),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          if (res.status === 401) router.refresh();
-          setSave({ kind: "error", message: body.error ?? "Couldn’t save the content. Try again." });
-          return;
-        }
-        const next = sanitizeContent(body.content);
-        sentContentRef.current = null; // let the preview pick up any tidying the server did
+        setDraft((current) => reconcileSaved(current, draft, next));
+      } });
+      if (contentDirty) jobs.push({ label: "Content", url: "/api/portal/content", body: contentDraft, responseKey: "content", accept: (value) => {
+        const next = sanitizeContent(value);
         setContentSaved(next);
-        setContentDraft(next);
-      }
+        setContentDraft((current) => reconcileSaved(current, contentDraft, next));
+      } });
+      await saveDraft(jobs);
       setSave({ kind: "saved" });
-    } catch {
-      setSave({ kind: "error", message: "Couldn’t reach the server. Check the connection and try again." });
+    } catch (error) {
+      setSessionExpired(error instanceof SaveError && error.status === 401);
+      setSave({ kind: "error", message: error instanceof Error ? error.message : "Couldn’t save. Your edits are still here." });
+    } finally {
+      publishLock.current = false;
+      setPublishing(false);
     }
   }
 
+  function discard() {
+    if (publishLock.current || !dirty || !window.confirm("Discard all unsaved content and design changes?")) return;
+    setDraft(saved);
+    setContentDraft(contentSaved);
+    setHistory({ past: [], future: [] });
+    historyAt.current = 0;
+    setSave({ kind: "idle" });
+  }
+
   async function signOut() {
-    await fetch("/api/portal/session", { method: "DELETE" });
-    router.refresh();
+    if (publishLock.current || (dirty && !window.confirm("Sign out and lose your unsaved changes?"))) return;
+    setSessionExpired(false);
+    try {
+      const response = await fetch("/api/portal/session", { method: "DELETE" });
+      if (!response.ok) throw new Error();
+      router.refresh();
+    } catch {
+      setSave({ kind: "error", operation: "signOut", message: "Couldn’t sign out. Check your connection and try again." });
+    }
   }
 
   const fractions = colorFractions(draft.colors);
@@ -1824,7 +1907,30 @@ export function PortalEditor({
             </>
           )}
 
-          {tab === "media" && <MediaLibrary />}
+          {tab === "media" && <>
+            <MediaLibrary />
+            {user.role === "owner" && !user.setup && <MediaResetPanel
+              disabled={settingsDirty || contentDirty || publishing}
+              onReset={(content, settings) => {
+                const nextContent = sanitizeContent(content);
+                const nextSettings = sanitizeIntroSettings(settings);
+                setContentSaved(nextContent);
+                setContentDraft(nextContent);
+                contentRef.current = nextContent;
+                setHistory({ past: [], future: [] });
+                historyAt.current = 0;
+                setSaved(nextSettings);
+                setDraft(nextSettings);
+                sentContentRef.current = null;
+                sentRef.current = null;
+                setSave({ kind: "saved" });
+                void fetch("/api/portal/media").then((r) => r.json()).then((d) => {
+                  setImages(d.images ?? []);
+                  setRemovable(d.removable ?? []);
+                }).catch(() => {});
+              }}
+            />}
+          </>}
           {tab === "type" && <TypographyEditor />}
           {tab === "theme" && <ThemeEditor />}
           {tab === "playback" && (
@@ -1933,6 +2039,10 @@ export function PortalEditor({
     {
       label: "Portal",
       items: [
+        { label: `Signed in as ${user.name || user.username}`, disabled: true },
+        { label: "People & passwords", onClick: () => selectTab("account") },
+        { label: "View site", onClick: () => window.open("/", "_blank", "noopener,noreferrer") },
+        { label: "Discard unsaved changes", disabled: !dirty || publishing, onClick: discard },
         { label: "Randomize the look", disabled: !!user.setup, onClick: () => update(randomLook(draft)) },
         {
           label: "Reset design to defaults",
@@ -1943,7 +2053,7 @@ export function PortalEditor({
             }
           },
         },
-        { label: "Sign out", divider: true, onClick: signOut },
+        { label: "Sign out", divider: true, disabled: publishing, onClick: signOut },
       ],
     },
   ];
@@ -1957,10 +2067,13 @@ export function PortalEditor({
   let modalEl: React.ReactNode = null;
   if (modal) {
     const snap = modalSnap;
-    const changed = !same(snap, contentDraft);
+    const changed = !same(snap, contentDraft) || !same(modalSettingsSnap, draft);
     const closeModal = () => setModal(null);
     const cancelModal = () => {
       if (snap) setContentDraft(snap); // the preview follows, back to how it was
+      if (modalSettingsSnap) setDraft(modalSettingsSnap);
+      setHistory(modalHistorySnap.current);
+      historyAt.current = 0;
       setSave({ kind: "idle" });
       setModal(null);
     };
@@ -1971,15 +2084,18 @@ export function PortalEditor({
       if (hit || isBreakdowns) {
         modalEl = (
           <EditModal
-            title={isBreakdowns ? "Breakdowns" : hit!.section.title}
-            hint={isBreakdowns ? "Add, edit, reorder and remove the layered designs on the Breakdowns page." : hit!.page.name}
-            problems={problemsUnder(all, isBreakdowns ? ["breakdowns"] : sectionPaths(modal.page, modal.id))}
+            title={isBreakdowns ? (modal.index === undefined ? "Breakdowns" : contentDraft.breakdowns[modal.index]?.title || "Breakdown") : hit!.section.title}
+            hint={isBreakdowns ? (modal.index === undefined ? "Add, edit, reorder and remove the layered designs on the Breakdowns page." : "Edit this breakdown and its layers.") : hit!.page.name}
+            problems={problemsUnder(all, isBreakdowns ? [modal.index === undefined ? "breakdowns" : `breakdowns.${modal.index}`] : sectionPaths(modal.page, modal.id))}
             changed={changed}
             onCancel={cancelModal}
             onSave={closeModal}
           >
             {isBreakdowns ? (
-              <BreakdownsEditor initialOpen={modal.index} onShow={(index) => send({ source: "dds-portal", type: "breakdown", index })} />
+              <BreakdownsEditor initialOpen={modal.index} onDeleted={modal.index === undefined ? undefined : closeModal} onShow={(index) => {
+                if (modal.index !== undefined && index !== null) setModal({ ...modal, index });
+                send({ source: "dds-portal", type: "breakdown", index });
+              }} />
             ) : (
               <ListModeProvider value={{ compact: ITEM_LISTS, openItem: (list, index) => setModal({ kind: "item", list, index }) }}>
                 <SectionEditor pageKey={modal.page} sectionId={modal.id} extra={artExtra} />
@@ -1999,13 +2115,13 @@ export function PortalEditor({
             hint={`${def.label.split(" — ")[0]} · ${modal.index + 1} of ${items!.length}`}
             headerExtra={
               <>
-                {modal.list === "projects" && contentSaved.projects.some((p) => p.slug === (item as { slug?: string }).slug) && (
+                {modal.list === "projects" && previewContent.projects[modal.index] && (
                   <button
                     type="button"
                     className={edit.cancel}
                     title="Go inside this project: its own page, with Edit buttons on its cover and pictures"
                     onClick={() => {
-                      setPreviewProject((item as { slug: string }).slug);
+                      setPreviewProject(previewContent.projects[modal.index].slug);
                       setPreviewRoute("project");
                       setEditMode(true);
                       closeModal();
@@ -2014,13 +2130,13 @@ export function PortalEditor({
                     Open its page ›
                   </button>
                 )}
-                {modal.list === "home.process.cards" && contentSaved.home.process.cards[modal.index] && (
+                {modal.list === "home.process.cards" && previewContent.home.process.cards[modal.index] && (
                   <button
                     type="button"
                     className={edit.cancel}
                     title="Go inside this card: its own page, with the cards in it and an Add button"
                     onClick={() => {
-                      setPreviewStep(extraOf(contentSaved.home.process.cards[modal.index]).slug);
+                      setPreviewStep(extraOf(previewContent.home.process.cards[modal.index]).slug);
                       setPreviewRoute("step");
                       setEditMode(true);
                       closeModal();
@@ -2057,7 +2173,8 @@ export function PortalEditor({
     <EditorProvider value={{ content: contentDraft, update: updateContent, media }}>
       <div className={`${styles.shell} ${mac.desktop}`} data-editing={editMode}>
         <div ref={stageRef} className={mac.wallpaper} data-framed="true" data-device={device}>
-          <iframe ref={frameRef} title="Live preview of the site" src={firstFrameSrc} />
+          <iframe ref={frameRef} title="Live preview of the site" src={firstFrameSrc} onLoad={() => finishPreviewLoad(frameRef.current, pendingPreviewPath)} />
+          {!ready && <div className={mac.loading} role="status">Loading the site preview…</div>}
         </div>
 
         <MenuBar menus={menus}>
@@ -2068,16 +2185,16 @@ export function PortalEditor({
             </svg>
             <span className={mac.menuSearchText}>Search settings</span> <kbd>Ctrl K</kbd>
           </button>
-          <span className={mac.menuStatus} data-kind={dirty ? "dirty" : save.kind} role="status">
-            {save.kind === "saving"
+          <span className={mac.menuStatus} data-kind={save.kind === "error" ? "error" : dirty ? "dirty" : save.kind} role="status">
+            {publishing
               ? "Publishing…"
               : save.kind === "error"
-                ? save.message
+                ? "Action needs attention"
                 : dirty
                   ? "Unsaved changes"
                   : save.kind === "saved"
-                    ? "Published — live"
-                    : "Everything is live"}
+                    ? "Changes saved"
+                    : "No unsaved changes"}
           </span>
           <a className={mac.menuPill} href="/" target="_blank" rel="noreferrer">
             <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -2087,22 +2204,28 @@ export function PortalEditor({
           </a>
           <button
             type="button"
-            className={mac.menuBtn}
-            disabled={!dirty}
-            onClick={() => {
-              setDraft(saved);
-              setContentDraft(contentSaved);
-            }}
+            className={`${mac.menuBtn} ${mac.menuDiscard}`}
+            disabled={!dirty || publishing}
+            onClick={discard}
           >
             Discard
           </button>
-          <button type="button" className={mac.menuPublish} disabled={!dirty || save.kind === "saving"} onClick={publish}>
-            Save &amp; publish
+          <button type="button" className={mac.menuPublish} disabled={!dirty || publishing} onClick={publish}>
+            {publishing ? "Saving…" : "Save & publish"}
           </button>
           <span className={mac.avatar} title={user.name} aria-label={user.name}>
             {(user.name || user.username).slice(0, 1).toUpperCase()}
           </span>
         </MenuBar>
+
+        {(save.kind === "error" || save.kind === "saved") && !publishing && (
+          <div className={mac.saveNotice} data-kind={save.kind} role={save.kind === "error" ? "alert" : "status"}>
+            <span>{save.kind === "error" ? save.message : dirty ? "Earlier changes saved. Your newer edits are still unsaved." : "Your changes are saved to the site."}</span>
+            {save.kind === "error" && sessionExpired && <Link href="/portal" target="_blank" rel="noopener noreferrer">Sign in again ↗</Link>}
+            {save.kind === "error" && (save.operation === "signOut" ? <button type="button" onClick={signOut}>Retry sign out</button> : dirty && <button type="button" onClick={publish}>Retry save</button>)}
+            <button type="button" aria-label="Dismiss save message" onClick={() => setSave({ kind: "idle" })}>×</button>
+          </div>
+        )}
 
         {/* The screen: one at a time, a normal pane down the left with its own heading, hint and scrolling. */}
         <PageBar
@@ -2126,10 +2249,10 @@ export function PortalEditor({
           onUndo={undo}
           onRedo={redo}
           onReload={() => frameRef.current?.contentWindow?.location.reload()}
-          projects={contentSaved.projects.map((p) => ({ slug: p.slug, title: p.title }))}
+          projects={previewContent.projects.map((p) => ({ slug: p.slug, title: p.title }))}
           projectSlug={projectSlug}
           onProject={setPreviewProject}
-          onPageLook={() => openModal({ kind: "section", page: previewRoute === "breakdowns" ? "work" : previewRoute === "work" ? "work" : "home", id: `look-${previewRoute === "work" || previewRoute === "breakdowns" ? previewRoute : "home"}` })}
+          onPageLook={() => openModal({ kind: "section", page: previewRoute === "project" || previewRoute === "notFound" ? "site" : previewRoute === "breakdowns" || previewRoute === "work" ? "work" : "home", id: `look-${previewRoute === "step" ? "home" : previewRoute}` })}
         />
 
         {/* The sheet: stars, colours, fonts, account… shown over the bottom of the preview, so what changes stays in view. */}

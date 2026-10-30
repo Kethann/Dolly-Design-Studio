@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { bindPreviewNavigation } from "@/lib/content/preview-navigation";
+import { bindPreviewReorder, itemPosition } from "@/lib/content/preview-reorder";
+import "./EditBridge.css";
 import { PREVIEW_PARAM, type PortalToSite, type SiteToPortal } from "@/lib/intro/preview-protocol";
 
 /** A list's container, and where its "＋ Add" button goes (below it, centred). */
@@ -24,15 +27,19 @@ interface Box {
   left: number;
   width: number;
   height: number;
+  marquee: boolean;
 }
 
 /** The element's rectangle after every clipping ancestor (overflow hidden / clip) has cut it, or null if it is cut away entirely. */
-function visibleRect(el: HTMLElement): DOMRect | null {
+function visibleRect(el: HTMLElement, clips: Map<HTMLElement, DOMRect | null>): DOMRect | null {
   let r = el.getBoundingClientRect();
   for (let p = el.parentElement; p && p !== document.documentElement; p = p.parentElement) {
-    const o = getComputedStyle(p);
-    if (/(hidden|clip|auto|scroll)/.test(o.overflowX + o.overflowY)) {
-      const c = p.getBoundingClientRect();
+    if (!clips.has(p)) {
+      const o = getComputedStyle(p);
+      clips.set(p, /(hidden|clip|auto|scroll)/.test(o.overflowX + o.overflowY) ? p.getBoundingClientRect() : null);
+    }
+    const c = clips.get(p);
+    if (c) {
       const left = Math.max(r.left, c.left);
       const right = Math.min(r.right, c.right);
       const top = Math.max(r.top, c.top);
@@ -49,7 +56,7 @@ const post = (m: SiteToPortal) => window.parent.postMessage(m, window.location.o
 /**
  * Only inside the portal's live preview, and only while the portal's Edit mode is on: puts a visible ✎ Edit button on
  * every section and every item (poster, service, card…) of the page, outlines what the pointer is over, and keeps the
- * page from doing its usual things (opening links, sending the form) so it can be clicked about freely.
+ * keeps ordinary card clicks, links and filters working. Only explicit Edit buttons open editors; form submission is blocked.
  *
  * The buttons live in the page's own coordinate space, one frame per element placed exactly over it. They therefore
  * scroll with the page natively (no script runs while scrolling, so nothing lags or jumps), and a section's button
@@ -60,8 +67,27 @@ export function EditBridge() {
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [lists, setLists] = useState<ListBox[]>([]);
   const [hover, setHover] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
   const frame = useRef(0);
   const pathname = usePathname();
+  const router = useRouter();
+  const listCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const box of boxes) {
+      const position = box.kind === "item" ? itemPosition(box.key) : null;
+      if (position) counts.set(position.list, (counts.get(position.list) ?? 0) + 1);
+    }
+    return counts;
+  }, [boxes]);
+
+  useEffect(() => {
+    if (on) return bindPreviewReorder(post, setAnnouncement);
+  }, [on]);
+
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has(PREVIEW_PARAM) || window.parent === window) return;
+    return bindPreviewNavigation((href) => router.push(href));
+  }, [router]);
 
   // Tell the portal which page the preview is on, so its page tabs always match what is shown (even after a card was pressed).
   useEffect(() => {
@@ -90,20 +116,29 @@ export function EditBridge() {
 
     const measure = () => {
       frame.current = 0;
+      if (document.hidden) return;
+      const clips = new Map<HTMLElement, DOMRect | null>();
       const sx = window.scrollX;
       const sy = window.scrollY;
       const next: Box[] = [];
+      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]');
+      const dialog = dialogs[dialogs.length - 1];
       document.querySelectorAll<HTMLElement>("[data-ed-section],[data-ed-item]").forEach((el) => {
-        const r = visibleRect(el);
+        if (dialog && !dialog.contains(el)) return;
+        const r = visibleRect(el, clips);
         if (!r || r.width < 24 || r.height < 24) return;
         const section = el.dataset.edSection;
-        next.push({ key: section ?? el.dataset.edItem!, kind: section ? "section" : "item", label: el.dataset.edLabel ?? "", top: r.top + sy, left: r.left + sx, width: r.width, height: r.height });
+        if (!section && r.width < 82) return; // A clipped sliver cannot fit a usable Edit button.
+        next.push({ key: section ?? el.dataset.edItem!, kind: section ? "section" : "item", label: el.dataset.edLabel ?? "", top: r.top + sy, left: r.left + sx, width: r.width, height: r.height, marquee: !!el.closest("[data-marquee]") });
       });
       const nextLists: ListBox[] = [];
+      const explicitAdds = new Set(Array.from(document.querySelectorAll<HTMLElement>("[data-ed-add-list]"), (control) => control.dataset.edAddList));
       document.querySelectorAll<HTMLElement>("[data-ed-list]").forEach((el) => {
+        if (dialog && !dialog.contains(el)) return;
         const r = el.getBoundingClientRect();
         if (r.width < 24 || r.height < 24) return;
         const list = el.dataset.edList!;
+        if (explicitAdds.has(list)) return;
         nextLists.push({
           list,
           label: el.dataset.edListLabel ?? "item",
@@ -113,29 +148,18 @@ export function EditBridge() {
           max: Number(el.dataset.edListMax) || 0,
         });
       });
-      setLists((old) => (old.length === nextLists.length && old.every((o, i) => o.list === nextLists[i].list && o.count === nextLists[i].count && Math.abs(o.top - nextLists[i].top) < 1 && Math.abs(o.left - nextLists[i].left) < 1) ? old : nextLists));
+      setLists((old) => (old.length === nextLists.length && old.every((o, i) => o.list === nextLists[i].list && o.count === nextLists[i].count && o.label === nextLists[i].label && o.max === nextLists[i].max && Math.abs(o.top - nextLists[i].top) < 1 && Math.abs(o.left - nextLists[i].left) < 1) ? old : nextLists));
       // Only when something moved or resized: an unchanged page needs no redraw.
-      setBoxes((old) => (old.length === next.length && old.every((o, i) => o.key === next[i].key && Math.abs(o.top - next[i].top) < 1 && Math.abs(o.left - next[i].left) < 1 && Math.abs(o.width - next[i].width) < 1 && Math.abs(o.height - next[i].height) < 1) ? old : next));
+      setBoxes((old) => (old.length === next.length && old.every((o, i) => o.key === next[i].key && o.label === next[i].label && o.kind === next[i].kind && Math.abs(o.top - next[i].top) < 1 && Math.abs(o.left - next[i].left) < 1 && Math.abs(o.width - next[i].width) < 1 && Math.abs(o.height - next[i].height) < 1) ? old : next));
     };
     const schedule = () => {
-      if (!frame.current) frame.current = requestAnimationFrame(measure);
+      if (!document.hidden && !frame.current) frame.current = requestAnimationFrame(measure);
     };
+    let hoverKey: string | null = null;
     const onMove = (e: PointerEvent) => {
       const el = (e.target as Element | null)?.closest?.("[data-ed-item],[data-ed-section]") as HTMLElement | null;
       const key = el ? (el.dataset.edItem ?? el.dataset.edSection ?? null) : null;
-      setHover((h) => (h === key ? h : key));
-    };
-    // Nothing on the page does its usual job while editing; pressing a poster opens its editor.
-    const onClick = (e: MouseEvent) => {
-      const t = e.target as Element | null;
-      if (t?.closest("[data-ed-ui]")) return;
-      // A card that opens a page (data-ed-open) does just that when pressed; its own Edit button is what edits it.
-      if (t?.closest("[data-ed-open]")) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (root.dataset.ddsDragged) return; // the end of a drag along a track is not a click
-      const item = t?.closest<HTMLElement>("[data-ed-item]");
-      if (item?.dataset.edItem) post({ source: "dds-site", type: "edit-open", item: item.dataset.edItem });
+      if (key !== hoverKey) { hoverKey = key; setHover(key); }
     };
     const onSubmit = (e: Event) => e.preventDefault();
 
@@ -144,13 +168,16 @@ export function EditBridge() {
     window.addEventListener("load", schedule);
     window.addEventListener("dds-track-moved", schedule); // a track was dragged: the Edit buttons follow it
     window.addEventListener("pointermove", onMove, { passive: true });
-    document.addEventListener("click", onClick, true);
     document.addEventListener("submit", onSubmit, true);
+    document.addEventListener("visibilitychange", schedule);
     const ro = new ResizeObserver(schedule);
     ro.observe(document.body);
-    const mo = new MutationObserver(schedule);
+    const mo = new MutationObserver((records) => {
+      // Overlay labels and buttons do not change the content's layout.
+      if (records.some((record) => !(record.target instanceof Element && record.target.closest("[data-ed-ui]")))) schedule();
+    });
     mo.observe(document.body, { childList: true, subtree: true });
-    const tick = setInterval(schedule, 1200); // catches reveal animations and images that finish loading
+    const tick = setInterval(() => { if (!document.hidden) schedule(); }, 1200); // catches reveal animations and images that finish loading
     return () => {
       delete root.dataset.ddsEdit;
       cancelAnimationFrame(frame.current);
@@ -162,8 +189,8 @@ export function EditBridge() {
       window.removeEventListener("load", schedule);
       window.removeEventListener("dds-track-moved", schedule);
       window.removeEventListener("pointermove", onMove);
-      document.removeEventListener("click", onClick, true);
       document.removeEventListener("submit", onSubmit, true);
+      document.removeEventListener("visibilitychange", schedule);
     };
   }, [on]);
 
@@ -171,9 +198,12 @@ export function EditBridge() {
 
   return (
     <div data-ed-ui style={{ position: "absolute", left: 0, top: 0, width: 0, height: 0, zIndex: 2147483000, fontFamily: "system-ui, sans-serif" }}>
+      <span role="status" className="dds-reorder-status">{announcement}</span>
       {boxes.map((b) => {
         const hovered = hover === b.key;
         const isSection = b.kind === "section";
+        const position = !isSection ? itemPosition(b.key) : null;
+        const reorderable = position && (listCounts.get(position.list) ?? 0) > 1;
         return (
           <div
             key={b.key}
@@ -192,6 +222,12 @@ export function EditBridge() {
               transition: "box-shadow 0.15s ease, border-color 0.15s ease",
             }}
           >
+            {reorderable && (b.width >= 130 || b.height >= 110) && <button type="button" className="dds-reorder-handle" data-ed-ui data-ed-reorder={b.key}
+              style={b.marquee ? { top: -52 } : b.width < 130 ? { top: 58 } : undefined}
+              aria-label={`Reorder ${b.label || "card"}. Drag to a card, or use arrow keys.`}
+              title="Drag onto a card to change the order. Arrow keys also move the card."
+              onClick={(event) => { event.preventDefault(); event.stopPropagation(); }}
+            >{b.width < 155 ? "⠿" : "⠿ Move"}</button>}
             <button
               type="button"
               data-ed-ui
@@ -203,11 +239,12 @@ export function EditBridge() {
               }}
               style={{
                 pointerEvents: "auto",
+                minHeight: 44,
                 // A section's button stays in view as the section scrolls (sticky, below the site's menu bar);
                 // an item's sits in its top-right corner.
                 ...(isSection
                   ? { position: "sticky", top: 84, display: "block", marginLeft: "auto", marginRight: 14, marginTop: 14, padding: "8px 14px" }
-                  : { position: "absolute", top: 8, right: 8, padding: "6px 11px" }),
+                  : { position: "absolute", top: b.marquee ? -52 : 8, right: 8, padding: "6px 11px" }),
                 borderRadius: 999,
                 border: "1px solid rgba(255,255,255,0.35)",
                 background: "linear-gradient(180deg,#ffe9a6,#e8b04b)",

@@ -1,16 +1,17 @@
 # Editing the website's content
 
-Everything you can read on the website lives in this folder. Change the text
-between the quotes `"…"`, save, and the site updates (instantly with
-`npm run dev`; after `npm run build` for the live site). You never need to
-touch the `components/` or `app/` folders to change wording, images or links.
+Use `/portal` to edit current content, upload media, and reorder cards. The active
+saved content is `content/site-content.json` locally and the content document in
+R2 on Cloudflare. The TypeScript files below supply defaults; changing them alone
+does not override an existing saved document. No component changes are needed
+for routine content editing.
 
 ## Which file changes what
 
 | What you want to change | File | Look for |
 | --- | --- | --- |
 | Studio name, email, phone, WhatsApp, location | `site.ts` | `contact` |
-| Instagram / X / IMDb / Behance links | `site.ts` | `social` |
+| Studio social links (Instagram / X / LinkedIn) | `site.ts` | `social` |
 | Top menu labels | `site.ts` | `navItems` |
 | Google / WhatsApp share preview text | `site.ts` | `description`, `seo` |
 | Words under the logo at the top of the home page | `home.ts` | `hero` |
@@ -22,7 +23,7 @@ touch the `components/` or `app/` folders to change wording, images or links.
 | The services list (names, descriptions, hover poster) | `services.ts` | |
 | Client and collaborator names, testimonials | `clients.ts` | |
 | "About us" text and the numbers (4+ years…) | `home.ts` | `about` |
-| Behind-the-scenes / making stills | `bts.ts` | `stills` |
+| Photos and BTS images or videos | Portal → How we work → Photos & BTS | Inside cards |
 | A project's language (Telugu / Kannada filter) | `projects.ts` | `languages` |
 | Projects: titles, credits, descriptions, images, order, featured | `projects.ts` | |
 | Work page heading, filter "All" label | `pages.ts` | `workPage` |

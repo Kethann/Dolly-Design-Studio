@@ -1,3 +1,4 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { noteFailure, tooManyFailures } from "@/lib/rate-limit";
 import { clientIp, logActivity } from "@/lib/portal/activity";
@@ -8,7 +9,7 @@ import { UserError, ensureOwnerForMailbox, findUserByLogin, updateUser, validate
 /** "Forgot password", step two: the emailed code plus a new password. Every device is signed out afterwards. */
 export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  if (origin && !requestOriginMatches(req)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
   let identifier = "";
   let code = "";
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
     console.error("[portal] password reset failed", err);
     return NextResponse.json({ error: "Couldn’t save the new password on this server." }, { status: 500 });
   }
-  await clearCodes(user.id);
+  await clearCodes(user.id, `mail:${user.email ?? ""}`);
   await logActivity({ headers: req.headers, actor: user, action: "password-reset", detail: "With an emailed code; signed out everywhere" });
   return NextResponse.json({ ok: true });
 }

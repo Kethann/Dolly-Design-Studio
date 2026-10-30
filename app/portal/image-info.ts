@@ -4,3 +4,8 @@ export function fileSizeLabel(src: string): string {
   const names: Record<string, string> = { jpg: "JPG", jpeg: "JPG", png: "PNG", webp: "WebP", avif: "AVIF", gif: "GIF", svg: "SVG" };
   return names[ext] ?? ext.toUpperCase();
 }
+/** A readable filename even when a legacy URL contains an invalid percent escape. */
+export function fileName(src: string): string {
+  const name = src.split(/[?#]/)[0].split("/").pop() ?? "";
+  try { return decodeURIComponent(name); } catch { return name; }
+}

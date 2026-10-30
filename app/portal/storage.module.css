@@ -111,6 +111,9 @@
 }
 
 .dialog {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-width: 0;
+  overscroll-behavior: contain;
   display: grid;
   gap: 16px;
   width: min(560px, 100%);
@@ -280,6 +283,7 @@
 }
 
 .fileInfo small {
+  overflow-wrap: anywhere;
   font-size: 11.5px;
   line-height: 1.35;
   opacity: 0.7;
@@ -312,6 +316,15 @@
   gap: 6px;
   max-width: 220px;
   font-size: 11.5px;
+}
+
+@media (max-width: 600px) {
+  .dialog { padding: 16px; gap: 12px; }
+  .dialogHead button { width: 44px; height: 44px; }
+  .file { flex-wrap: wrap; }
+  .fileInfo { flex-basis: calc(100% - 60px); }
+  .delete, .confirm button, .banner button { min-height: 44px; }
+  .confirm { max-width: 100%; margin-left: auto; }
 }
 
 .confirm span {
@@ -360,6 +373,8 @@
 
 /* The banner when it is nearly full. */
 .banner {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  flex-wrap: wrap;
   position: fixed;
   top: 96px;
   left: 50%;
@@ -385,6 +400,8 @@
 }
 
 .banner > div {
+  min-width: 0;
+  flex-basis: 240px;
   display: grid;
   gap: 2px;
   flex: 1;
@@ -404,3 +421,4 @@
   font: inherit;
   cursor: pointer;
 }
+.error button { display: block; min-height: 44px; margin-top: 8px; padding: 9px 14px; border: 1px solid currentColor; border-radius: 8px; color: inherit; background: transparent; cursor: pointer; }

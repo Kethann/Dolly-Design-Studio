@@ -1,3 +1,4 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { getPortalUser } from "@/lib/portal/auth";
@@ -15,7 +16,7 @@ export async function PUT(req: NextRequest) {
   }
   // Defence in depth on top of the SameSite=Strict cookie: only accept saves from this site's own pages.
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) {
+  if (origin && !requestOriginMatches(req)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 

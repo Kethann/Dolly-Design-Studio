@@ -47,6 +47,7 @@
 
 .search,
 .person {
+  max-width: 100%;
   padding: 8px 10px;
   font: inherit;
   font-size: 13px;
@@ -77,6 +78,13 @@
 
 .refresh:hover {
   background: rgba(255, 255, 255, 0.1);
+}
+
+.refresh:disabled, .more:disabled { opacity: 0.55; cursor: wait; }
+
+@media (max-width: 700px) {
+  .chips button, .refresh, .more { min-height: 44px; }
+  .search, .person { min-width: 0; width: 100%; flex-basis: 100%; }
 }
 
 .empty {

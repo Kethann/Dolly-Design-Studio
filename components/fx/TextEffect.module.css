@@ -1,0 +1,25 @@
+.word { display: inline; }
+.glow { transition: text-shadow 180ms ease; }
+.glow:hover, .glow:active { text-shadow: 0 0 5px currentColor, 0 0 12px currentColor; }
+.sheen { position: relative; display: inline-block; max-width: 100%; }
+.shine {
+  position: absolute; inset: 0; pointer-events: none;
+  color: transparent;
+  background: linear-gradient(110deg, transparent 38%, white 49%, transparent 60%) 130% 0 / 260% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  opacity: 0;
+}
+.sheen:hover .shine, .sheen:active .shine { animation: sweep 800ms ease-out 1; }
+@keyframes sweep {
+  0% { background-position: 130% 0; opacity: 0; }
+  20% { opacity: .9; }
+  100% { background-position: -30% 0; opacity: 0; }
+}
+@supports (-webkit-text-stroke: 1px currentColor) {
+  .outline { -webkit-text-stroke: .75px currentColor; -webkit-text-fill-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glow { transition: none; }
+  .sheen:hover .shine, .sheen:active .shine { animation: none; }
+}

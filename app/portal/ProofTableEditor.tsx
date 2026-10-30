@@ -43,8 +43,7 @@ export function ProofTableEditor({
   const addCard = (src?: string) => {
     if (full) return;
     const unused = images.find((im) => !items.some((it) => it.src === im));
-    const image = src ?? unused ?? images[0] ?? items[0]?.src;
-    if (!image) return;
+    const image = src ?? unused ?? images[0] ?? "";
     setItems([
       ...items,
       {
@@ -166,14 +165,13 @@ export function ProofTableEditor({
             <div className={styles.slotHead}>
               {reGrip(i, items.length)}
               {/* eslint-disable-next-line @next/next/no-img-element -- a small preview of the chosen title */}
-              <img className={styles.slotThumb} src={resizedSrc(it.src, 240)} alt="" />
+              {it.src && <img className={styles.slotThumb} src={resizedSrc(it.src, 240)} alt="" />}
               <span className={styles.slotIndex}>{String(i + 1).padStart(2, "0")}</span>
               <span className={styles.slotActions}>
                 <button
                   type="button"
                   className={styles.iconButton}
                   aria-label={`Remove ${it.film}`}
-                  disabled={items.length <= 1}
                   onClick={() =>
                     askDelete({
                       what: `the slate title “${it.film}”`,
@@ -231,8 +229,8 @@ export function ProofTableEditor({
                 <span>Image</span>
                 <button type="button" className={styles.picture} onClick={() => setPicking(picking === i ? null : i)} aria-expanded={picking === i} title="Choose a different picture for this card">
                   {/* eslint-disable-next-line @next/next/no-img-element -- the card's current picture */}
-                  <img src={resizedSrc(it.src, 480)} alt="" />
-                  <span>{picking === i ? "Close the pictures" : "Change the picture"}</span>
+                  {it.src && <img src={resizedSrc(it.src, 480)} alt="" />}
+                  <span>{picking === i ? "Close the pictures" : it.src ? "Change the picture" : "Upload or choose a picture"}</span>
                 </button>
                 {picking === i && <ImagePicker value={it.src} onPick={(src) => patchItem(i, { src })} onClose={() => setPicking(null)} />}
               </div>

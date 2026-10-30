@@ -6,6 +6,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useContent, tx } from "@/lib/content/context";
 import { edItem, edList, edSection } from "@/lib/content/tx";
+import { AddContent } from "@/components/PreviewControls";
 import { useMotion } from "@/lib/motion";
 import { CARD_LINKS } from "@/lib/content/card-links";
 import { extraOf } from "@/lib/content/process";
@@ -16,7 +17,7 @@ import { renderFx } from "@/components/fx/render-fx";
 
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
-const ICON_ORDER = ["sketch", "camera", "pipeline", "layers"];
+const ICON_ORDER = ["sketch", "camera", "layers"];
 
 /** A two-tone line illustration for each step: the strokes in gold, soft fills for depth. */
 function StepIcon({ name }: { name: string }) {
@@ -138,6 +139,7 @@ export function Process() {
           <p className={styles.body} {...tx("home.process.intro")}>{renderFx(copy.intro)}</p>
         </div>
 
+        <AddContent list="home.process.cards" label="Add process card" count={copy.cards.length} max={8} />
         <div className={styles.steps} ref={ref} {...edList("home.process.cards", "card", 8)}>
           {copy.cards.map((card, i) => {
             // "Click to view": a card can take the visitor to the Breakdowns page, the gallery, or a part of this page. (A card that

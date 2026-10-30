@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { useDialogFocus } from "./dialog-focus";
 import { createPortal } from "react-dom";
 import { resizedSrc } from "@/lib/images";
 import { useEditor } from "./ContentEditor";
@@ -40,6 +41,8 @@ export function useConfirmDelete(): { ask: (a: DeleteAsk) => void; dialog: React
   const [alsoPictures, setAlso] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const deleting = useRef(false);
+  const box = useRef<HTMLDivElement>(null);
 
   const siteJson = JSON.stringify(content);
   const mine = open ? JSON.stringify(open.item) : "";
@@ -53,35 +56,43 @@ export function useConfirmDelete(): { ask: (a: DeleteAsk) => void; dialog: React
     setAlso(false);
     setError("");
   };
+  useDialogFocus(box, () => { if (!busy) close(); }, !!open);
   async function confirm() {
-    if (!open) return;
+    if (!open || deleting.current) return;
+    deleting.current = true;
     setBusy(true);
     setError("");
-    open.onDelete();
-    if (alsoPictures) {
-      const failed: string[] = [];
-      for (const src of deletable) {
-        try {
-          await media.remove(src);
-        } catch {
-          failed.push(src);
+    try {
+      if (alsoPictures) {
+        const failed: string[] = [];
+        for (const src of deletable) {
+          try {
+            await media.remove(src);
+          } catch {
+            failed.push(src);
+          }
+        }
+        if (failed.length) {
+          setError(`${failed.length} picture${failed.length === 1 ? "" : "s"} couldn’t be removed. The item is still in your draft. Some pictures may already have been deleted. Retry, or delete only the item and manage the remaining pictures in the image library.`);
+          return;
         }
       }
-      if (failed.length) {
-        setBusy(false);
-        setError(`Deleted, but ${failed.length} picture${failed.length === 1 ? "" : "s"} couldn’t be removed from the library (you can delete ${failed.length === 1 ? "it" : "them"} in the pictures window).`);
-        return;
-      }
+      // Removing the item may unmount this editor. Finish library work and show failures first.
+      open.onDelete();
+      close();
+    } catch {
+      setError("Couldn’t delete this item. Please retry.");
+    } finally {
+      deleting.current = false;
+      setBusy(false);
     }
-    setBusy(false);
-    close();
   }
 
   const dialog =
     open && typeof document !== "undefined"
       ? createPortal(
           <div className={styles.delBackdrop} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && !busy && close()}>
-            <div className={styles.delDialog} role="alertdialog" aria-modal="true" aria-label={`Delete ${open.what}?`} onKeyDown={(e) => e.key === "Escape" && !busy && close()}>
+            <div ref={box} className={styles.delDialog} role="alertdialog" aria-modal="true" aria-label={`Delete ${open.what}?`} tabIndex={-1}>
               <h3>Delete {open.what}?</h3>
               <p>{open.note ?? "It only disappears from the site when you publish."}</p>
               {deletable.length > 0 && !error && (
@@ -111,14 +122,13 @@ export function useConfirmDelete(): { ask: (a: DeleteAsk) => void; dialog: React
                 </p>
               )}
               <span className={styles.delActions}>
-                <button type="button" onClick={close} disabled={busy}>
+                <button type="button" onClick={close} disabled={busy} data-dialog-initial-focus>
                   {error ? "Close" : "Cancel"}
                 </button>
-                {!error && (
-                  <button type="button" data-danger="true" onClick={confirm} disabled={busy} autoFocus>
-                    {busy ? "Deleting…" : alsoPictures ? "Delete with pictures" : "Delete"}
-                  </button>
-                )}
+                {error && alsoPictures && <button type="button" disabled={busy} onClick={() => { open.onDelete(); close(); }}>Delete item only</button>}
+                <button type="button" data-danger="true" onClick={confirm} disabled={busy}>
+                  {busy ? "Deleting…" : error ? "Retry delete" : alsoPictures ? "Delete with pictures" : "Delete"}
+                </button>
               </span>
             </div>
           </div>,

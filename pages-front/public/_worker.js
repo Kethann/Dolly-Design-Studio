@@ -2,7 +2,7 @@
 // (the "dolly-design-studio" Worker), through a service binding. See DEPLOY.md.
 const ORIGIN = "https://dolly-design-studio.dollydesignstudios.workers.dev";
 
-export default {
+const frontWorker = {
   async fetch(request, env) {
     const url = new URL(request.url);
     const target = new URL(url.pathname + url.search, ORIGIN);
@@ -27,3 +27,5 @@ export default {
     return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: out });
   },
 };
+
+export default frontWorker;

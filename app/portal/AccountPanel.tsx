@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PortalUser, Role } from "@/lib/portal/users";
 import { StorageMeter } from "./StorageWatch";
@@ -39,28 +39,48 @@ export function AccountPanel({ me }: { me: PortalUser }) {
   /** True when email can always bring the owner back in, so even your own account can be removed. */
   const [emailRecovery, setEmailRecovery] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const inFlight = useRef(false);
 
-  const refresh = useCallback(() => {
-    call("GET")
-      .then((d) => {
-        setUsers(d.users ?? []);
-        setEmailRecovery(!!d.emailRecovery);
-      })
-      .catch(() => {});
+  const refresh = useCallback(async () => {
+    const d = await call("GET");
+    setUsers(d.users ?? []);
+    setEmailRecovery(!!d.emailRecovery);
   }, []);
-  useEffect(refresh, [refresh]);
+  useEffect(() => {
+    let active = true;
+    call("GET").then((d) => {
+      if (!active) return;
+      setUsers(d.users ?? []);
+      setEmailRecovery(!!d.emailRecovery);
+    }).catch(() => {
+      if (active) setStatus({ kind: "error", message: "Couldn’t load the account list. Reopen People & passwords to try again." });
+    });
+    return () => { active = false; };
+  }, []);
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
+    if (inFlight.current) return false;
+    inFlight.current = true;
     setStatus({ kind: "busy" });
     try {
-      await fn();
-      setStatus({ kind: "ok", message: ok });
-      refresh();
+      const result = await fn();
+      if (result && typeof result === "object" && "signedOut" in result && result.signedOut) {
+        router.refresh();
+        return true;
+      }
+      try {
+        await refresh();
+        setStatus({ kind: "ok", message: ok });
+      } catch {
+        setStatus({ kind: "error", message: `${ok} Reopen this panel to refresh the account list.` });
+      }
       router.refresh(); // your own name, username and email as the portal shows them
       return true;
     } catch (err) {
       setStatus({ kind: "error", message: err instanceof Error ? err.message : "Something went wrong." });
       return false;
+    } finally {
+      inFlight.current = false;
     }
   };
 
@@ -89,18 +109,21 @@ export function AccountPanel({ me }: { me: PortalUser }) {
         </p>
       )}
 
-      {me.setup ? (
-        <SetupCard
-          onCreate={(u) => run(() => call("POST", { ...u, role: "owner" }), "Owner account created. Sign in with it now.")}
-        />
-      ) : (
-        <>
-          <MyAccount me={me} run={run} />
-          {owner && <EmailSetup me={me} />}
-          {owner && <Team me={me} users={users} run={run} emailRecovery={emailRecovery} />}
-          <SecurityNotes />
-        </>
-      )}
+      {status.kind === "busy" && <p className={styles.notice} role="status">Updating your account…</p>}
+      <fieldset className={styles.accountFields} disabled={status.kind === "busy"} aria-label="Account settings" aria-busy={status.kind === "busy"}>
+        {me.setup ? (
+          <SetupCard
+            onCreate={(u) => run(() => call("POST", { ...u, role: "owner" }), "Owner account created. Sign in with it now.")}
+          />
+        ) : (
+          <>
+            <MyAccount me={me} run={run} />
+            {owner && <EmailSetup me={me} />}
+            {owner && <Team me={me} users={users} run={run} emailRecovery={emailRecovery} />}
+            <SecurityNotes />
+          </>
+        )}
+      </fieldset>
     </div>
   );
 }
@@ -248,7 +271,7 @@ function EmailCard({ me, run }: { me: PortalUser; run: Run }) {
             Now: <strong>{me.email}</strong>.
           </>
         ) : (
-          "You haven’t added one yet."
+          "Add and confirm an email address to enable password recovery."
         )}
       </p>
       {sentTo ? (
@@ -265,13 +288,16 @@ function EmailCard({ me, run }: { me: PortalUser; run: Run }) {
           <p className={styles.controlHint}>
             We sent a 6-digit code to <strong>{sentTo}</strong>. It lasts 10 minutes.
           </p>
-          <Field label="Code from the email" value={form.code} onChange={(code) => setForm({ ...form, code: code.replace(/[^0-9 ]/g, "") })} autoComplete="one-time-code" />
+          <Field label="Code from the email" value={form.code} onChange={(code) => setForm({ ...form, code: code.replace(/\D/g, "").slice(0, 6) })} autoComplete="one-time-code" />
           <div className={styles.formRow}>
             <button type="submit" className={styles.primaryButton} disabled={form.code.replace(/\s/g, "").length < 6}>
               Confirm
             </button>
             <button type="button" className={styles.linkButton} onClick={() => setSentTo(null)}>
               Use a different address
+            </button>
+            <button type="button" className={styles.linkButton} onClick={() => run(() => account({ action: "email-code", email: form.email, currentPassword: form.current }), "A new code was sent. Check your inbox and spam folder.")}>
+              Resend code
             </button>
           </div>
         </form>
@@ -288,7 +314,7 @@ function EmailCard({ me, run }: { me: PortalUser; run: Run }) {
             if (ok) setSentTo(masked);
           }}
         >
-          <Field label={me.email ? "New email address" : "Email address"} value={form.email} onChange={(email) => setForm({ ...form, email })} autoComplete="email" />
+          <Field label={me.email ? "New email address" : "Email address"} type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} autoComplete="email" />
           <Field label="Current password" type="password" value={form.current} onChange={(current) => setForm({ ...form, current })} autoComplete="current-password" />
           <div className={styles.formRow}>
             <button type="submit" className={styles.ghostButton} disabled={!form.email.includes("@") || !form.current}>
@@ -574,17 +600,17 @@ function Team({
               {u.id === me.id ? (
                 <>
                   <RoleBadge role={u.role} />
-                  {emailRecovery && me.role === "owner" && (
+                  {(emailRecovery || users.some((other) => other.id !== me.id && other.role === "owner")) && me.role === "owner" && (
                     <button
                       type="button"
                       className={styles.dangerButton}
-                      title="Removes this account. You can still sign in later with a code sent to the studio’s email."
+                      title="Permanently removes this account, its saved credentials and pending codes."
                       onClick={async () => {
-                        if (!window.confirm("Remove your own account? You will be signed out. You can still sign in again with a code sent to the studio’s email address, which makes a fresh owner account.")) return;
-                        if (await run(() => call("DELETE", { id: u.id }), "Your account was removed.")) window.location.reload();
+                        if (!window.confirm(`Permanently delete your account and its saved credentials? You will be signed out. ${emailRecovery ? "The studio mailbox can still create a fresh owner account using an email code." : "Another owner will need to invite you again."}`)) return;
+                        await run(() => call("DELETE", { id: u.id }), "Your account was deleted.");
                       }}
                     >
-                      Remove my account
+                      Delete my account
                     </button>
                   )}
                 </>
@@ -612,12 +638,12 @@ function Team({
                     type="button"
                     className={styles.dangerButton}
                     onClick={() => {
-                      if (window.confirm(`Remove ${u.name} (${u.username})? They’ll be signed out at once.`)) {
-                        run(() => call("DELETE", { id: u.id }), `${u.username} was removed.`);
+                      if (window.confirm(`Permanently delete ${u.name} (${u.username}), including saved account credentials and pending codes? They’ll be signed out at once.`)) {
+                        run(() => call("DELETE", { id: u.id }), `${u.username} was deleted.`);
                       }
                     }}
                   >
-                    Remove
+                    Delete user
                   </button>
                 </>
               )}
@@ -693,7 +719,7 @@ function Field({
   label: string;
   value: string;
   onChange: (v: string) => void;
-  type?: "text" | "password";
+  type?: "text" | "password" | "email";
   hint?: string;
   error?: string;
   autoComplete?: string;

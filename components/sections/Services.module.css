@@ -13,10 +13,11 @@
 }
 
 .title {
+  overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: clamp(28px, 4vw, 44px);
-  margin: 0 0 48px;
+  margin: 0 0 var(--section-head-gap);
 }
 
 /* Cards side by side, as many as fit: four across on a wide screen, then two, then one. */
@@ -29,6 +30,7 @@
 /* Each card is a pane of glass: a pale sheen, a bright rim, and the picture set into it. */
 .card {
   --icon-bg: #1a0a10;
+  min-width: 0;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -131,6 +133,8 @@
 .body {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-width: 0;
   gap: 8px;
   padding: 18px 10px 12px;
 }
@@ -158,6 +162,7 @@
 
 .name,
 .desc {
+  overflow-wrap: anywhere;
   text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55);
 }
 
@@ -171,6 +176,8 @@
 }
 
 .chips li {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 4px 10px;
   border-radius: 999px;
   font-family: var(--font-label);
@@ -190,44 +197,63 @@
   }
 }
 
-/* "＋ Open" at the foot of each card: the cards open into their own full view. */
+/* A clear action at the foot of the clickable card, without a nested button. */
 .card {
   cursor: pointer;
 }
 .more {
   margin-top: auto;
-  padding-top: 12px;
+  position: relative;
+  top: 8px;
+  padding: 6px 6px 6px 14px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(232, 176, 75, 0.5);
+  border-radius: 999px;
+  background: linear-gradient(120deg, rgba(232, 176, 75, 0.14), rgba(232, 176, 75, 0.03));
   font-family: var(--font-label);
   font-size: 10px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--gold-bright);
-  opacity: 0.8;
-  transition: opacity 0.25s ease;
+  transition: border-color 0.2s ease;
 }
-.more i {
-  font-style: normal;
-  width: 22px;
-  height: 22px;
+.moreArrow {
+  flex: none;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  font-size: 14px;
-  line-height: 1;
   color: #2b1503;
   background: linear-gradient(180deg, #ffe9a6, #e8b04b);
-  transition: transform 0.3s ease;
+}
+.moreArrow svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.2s ease;
 }
 .card:hover .more,
 .card:focus-visible .more {
-  opacity: 1;
+  border-color: var(--gold-bright);
 }
-.card:hover .more i,
-.card:focus-visible .more i {
-  transform: rotate(90deg);
+.card:hover .moreArrow svg,
+.card:focus-visible .moreArrow svg {
+  transform: translateX(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .more,
+  .moreArrow svg {
+    transition: none;
+  }
+  .card:hover .moreArrow svg,
+  .card:focus-visible .moreArrow svg {
+    transform: none;
+  }
 }
 
 /* ── an opened service ─────────────────────────────────────────────────────────────────────────────────────── */

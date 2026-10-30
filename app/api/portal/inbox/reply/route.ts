@@ -1,3 +1,4 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/portal/auth";
 import { clientIp, logActivity } from "@/lib/portal/activity";
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
   if (!me) return fail("Your session has ended. Sign in again.", 401);
   if (me.setup) return fail("Create your own account first (Account), then you can reply from here.", 403);
   const origin = req.headers.get("origin");
-  if (!origin || origin !== req.nextUrl.origin) return fail("Forbidden.", 403);
+  if (!origin || !requestOriginMatches(req)) return fail("Forbidden.", 403);
   const big = tooLarge(req, 64 * 1024);
   if (big) return big;
   if (isRateLimited(`reply:${me.id}`) || isRateLimited(`reply-ip:${clientIp(req.headers)}`)) return fail("You are sending a lot of replies. Try again in a few minutes.", 429);

@@ -6,28 +6,23 @@ import { onCloudflare, readJson, writeJsonSafely } from "@/lib/storage";
 
 const KEY = "content/intro-settings.json";
 
-let remembered: { at: number; value: IntroSettings } | null = null;
-const REMEMBER_MS = 4000;
-
 /** What was saved from the portal; until something is saved there, the settings that came with the site. */
 export async function readIntroSettings(): Promise<IntroSettings> {
   if (onCloudflare()) {
     try {
       await connection();
     } catch {}
-    if (remembered && Date.now() - remembered.at < REMEMBER_MS) return remembered.value;
   }
+  // Read fresh on a page-cache miss; another Worker may have just changed the saved design.
   let value: IntroSettings;
   try {
     value = sanitizeIntroSettings((await readJson<unknown>(KEY)) ?? bundledSettings);
   } catch {
     value = sanitizeIntroSettings(DEFAULT_INTRO_SETTINGS);
   }
-  if (onCloudflare()) remembered = { at: Date.now(), value };
   return value;
 }
 
 export async function writeIntroSettings(settings: IntroSettings): Promise<void> {
   await writeJsonSafely(KEY, settings, "design");
-  remembered = null;
 }

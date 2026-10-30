@@ -1,6 +1,6 @@
 .hero {
-  padding-top: calc(var(--nav-h) + 40px);
-  padding-bottom: 60px;
+  padding-top: calc(var(--nav-h) + var(--section-pad));
+  padding-bottom: var(--section-pad);
 }
 
 .backLink {
@@ -9,8 +9,11 @@
   letter-spacing: 0.2em;
   text-transform: uppercase;
   opacity: 0.6;
-  display: inline-block;
-  margin-bottom: 24px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-block: 8px;
+  margin-bottom: 16px;
 }
 
 .backLink:hover {
@@ -19,13 +22,13 @@
 
 .layout {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 40px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--section-head-gap);
 }
 
 @media (min-width: 900px) {
   .layout {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
   }
 }
@@ -44,6 +47,8 @@
 }
 
 .meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
   position: sticky;
   top: calc(var(--nav-h) + 24px);
 }
@@ -86,7 +91,7 @@
 
 .creditRow {
   display: grid;
-  grid-template-columns: 110px 1fr;
+  grid-template-columns: minmax(0, 110px) minmax(0, 1fr);
   gap: 12px;
   font-size: 14px;
 }
@@ -119,9 +124,9 @@
 
 .restGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   gap: 24px;
-  padding-block: 20px 100px;
+  padding-block: 0 var(--section-pad);
 }
 
 .restFrame {
@@ -141,7 +146,9 @@
   display: flex;
   justify-content: space-between;
   border-top: 1px solid var(--smoke);
-  padding-block: 32px 100px;
+  padding-block: var(--section-pad);
+  gap: 16px 24px;
+  flex-wrap: wrap;
   font-family: var(--font-label);
   font-size: 12px;
   letter-spacing: 0.2em;
@@ -149,6 +156,9 @@
 }
 
 .nav a {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   opacity: 0.7;
   transition: opacity 0.2s ease;
 }

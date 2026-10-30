@@ -1,4 +1,5 @@
 "use client";
+import { plainFx } from "@/lib/content/text-effects";
 
 import { useState } from "react";
 import Image from "next/image";
@@ -9,14 +10,32 @@ import { adjustStyle } from "@/lib/content/adjust";
 import { ServiceDialog } from "./ServiceDialog";
 import styles from "./Services.module.css";
 import { renderFx } from "@/components/fx/render-fx";
+import { MediaPlaceholder } from "@/components/MediaPlaceholder";
+import { AddContent } from "@/components/PreviewControls";
 
-/** The line icons from the portfolio: pen nib (posters), framed T (titles), text box (typography), round logo. */
+/** Lightweight line icons for each service category. */
 function Icon({ name }: { name: string }) {
   const n = name.toLowerCase();
   const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinecap: "round", strokeLinejoin: "round" } as const;
   return (
     <svg viewBox="0 0 48 48" className={styles.icon} aria-hidden="true" {...common}>
-      {n.includes("poster") ? (
+      {n.includes("ott") || n.includes("television") ? (
+        <>
+          <rect x="7" y="10" width="34" height="25" rx="4" />
+          <path d="m21 17 10 6-10 6zM18 41h12M24 35v6" />
+        </>
+      ) : n.includes("film") ? (
+        <>
+          <rect x="9" y="8" width="30" height="32" rx="3" />
+          <path d="M16 8v32M32 8v32M9 16h7M9 24h7M9 32h7M32 16h7M32 24h7M32 32h7m-18-14 8 6-8 6z" />
+        </>
+      ) : n.includes("music") ? (
+        <>
+          <path d="M20 33V13l18-4v20M20 19l18-4" />
+          <ellipse cx="15" cy="34" rx="5" ry="4" />
+          <ellipse cx="33" cy="30" rx="5" ry="4" />
+        </>
+      ) : n.includes("poster") ? (
         <>
           <path d="M24 8 L30 24 L24 34 L18 24 Z" />
           <circle cx="24" cy="24" r="1.6" />
@@ -74,6 +93,7 @@ export function Services() {
           {renderFx(home.services.title)}
         </h2>
 
+        <AddContent list="services" label="Add service card" count={services.length} max={10} />
         <div className={styles.cards} {...edList("services", "service", 10)}>
           {services.map((s, i) => (
             <article
@@ -82,7 +102,7 @@ export function Services() {
               tabIndex={0}
               role="button"
               aria-haspopup="dialog"
-              aria-label={`${s.name}: open`}
+              aria-label={`${plainFx(s.name)}: open`}
               data-cursor="link"
               onClick={() => setOpenAt(i)}
               onKeyDown={(e) => {
@@ -94,7 +114,7 @@ export function Services() {
               {...edItem("services", i, "Service")}
             >
               <div className={styles.media} data-fit={s.sample.includes("/proof-table/") || s.sample.includes("/title-designs/") ? "contain" : "cover"}>
-                <Image
+                {s.sample ? <Image
                   style={adjustStyle(s, "sample")}
                   src={versionedSrc(s.sample)}
                   alt=""
@@ -102,9 +122,9 @@ export function Services() {
                   sizes="(max-width: 700px) 90vw, (max-width: 1100px) 45vw, 24vw"
                   quality={90}
                   {...placeholderProps(s.sample)}
-                />
+                /> : <MediaPlaceholder />}
                 <span className={styles.badge}>
-                  <Icon name={s.name} />
+                  <Icon name={plainFx(s.name)} />
                 </span>
               </div>
               <div className={styles.body}>
@@ -123,7 +143,12 @@ export function Services() {
                   </ul>
                 )}
                 <span className={styles.more} aria-hidden="true">
-                  <i>＋</i> Open
+                  <span>Explore service</span>
+                  <span className={styles.moreArrow}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12h14m-6-6 6 6-6 6" />
+                    </svg>
+                  </span>
                 </span>
               </div>
             </article>

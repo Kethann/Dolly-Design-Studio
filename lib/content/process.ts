@@ -1,8 +1,14 @@
 // The "inside" page of each "How we work" card: its own address (/process/<slug>) and a list of cards of its own.
 // Kept apart from the home page's card text so the home page's content shape does not change.
 import { ZOOM_MAX, ZOOM_MIN } from "./adjust";
+import { plainFx } from "./text-effects";
+import { VIDEO_URL } from "../video";
 
 export interface ProcessItem {
+  mediaType: "image" | "video";
+  video: string;
+  videoWidth: number;
+  videoHeight: number;
   /** A picture from the library or an upload ("" = none yet: the card shows its title on a plain tile). */
   image: string;
   title: string;
@@ -33,7 +39,7 @@ export const PROCESS_FITS = ["fit", "fill"] as const;
 export const MAX_PROCESS_ITEMS = 40;
 
 export const slugify = (title: string) =>
-  title
+  plainFx(title)
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[^a-z0-9]+/g, "-")
@@ -50,6 +56,10 @@ export function cleanItem(raw: unknown): ProcessItem | null {
   if (!isObj(raw)) return null;
   const image = str(raw.image, 300);
   return {
+    mediaType: raw.mediaType === "video" ? "video" : "image",
+    video: typeof raw.video === "string" && VIDEO_URL.test(raw.video) ? raw.video : "",
+    videoWidth: num(raw.videoWidth, 0, 8192, 0),
+    videoHeight: num(raw.videoHeight, 0, 8192, 0),
     image: image.startsWith("/images/") ? image : "",
     title: str(raw.title, 120).trim(),
     note: str(raw.note, 400).trim(),

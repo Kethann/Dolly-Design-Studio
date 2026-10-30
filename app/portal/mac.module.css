@@ -2,12 +2,16 @@
    windows and a dock of dark glass tiles with neon line icons. */
 
 .desktop {
+  --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-label: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   position: fixed;
   inset: 0;
   overflow: hidden;
   background: #0b090c;
   color: var(--p-text);
   font-family: var(--font-body);
+  height: 100dvh;
 }
 
 /* The live preview fills the whole desktop. */
@@ -95,8 +99,10 @@
 }
 
 .pageBar::-webkit-scrollbar {
-  display: none;
+  height: 4px;
 }
+
+.pageBar::-webkit-scrollbar-thumb { background: var(--p-line-strong); border-radius: 4px; }
 
 .pageBar button,
 .pageBar select {
@@ -138,6 +144,8 @@
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(0, 0, 0, 0.3);
 }
+
+.pageSelect { display: none; }
 
 .pageGroup {
   flex: none;
@@ -194,6 +202,8 @@
   place-items: center;
   font-size: 13px;
   color: var(--p-muted);
+  background: #171116;
+  pointer-events: none;
 }
 
 /* ── menu bar ───────────────────────────────────────────────────────────── */
@@ -308,6 +318,10 @@
 }
 
 .menuStatus {
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin: 0 6px;
   font-size: 12px;
   color: var(--p-muted);
@@ -354,6 +368,7 @@
 }
 
 .menuPublish {
+  flex: none;
   margin-left: 4px;
   padding: 5px 14px;
   border-radius: 8px;
@@ -865,6 +880,10 @@
 
 /* Phones: the bar has room for the essentials only. Save & publish must always be on screen and reachable. */
 @media (max-width: 700px) {
+  .avatar,
+  .menuDiscard {
+    display: none;
+  }
   .menuSearch kbd,
   .menuPill,
   .menuTitle:not([data-first="true"]) {
@@ -885,4 +904,90 @@
     gap: 4px;
     padding-inline: 8px;
   }
+}
+
+@media (max-width: 1180px) {
+  .menuSearchText,
+  .menuSearch kbd {
+    display: none;
+  }
+}
+
+.saveNotice {
+  position: absolute;
+  z-index: 11000;
+  bottom: 124px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(680px, calc(100% - 24px));
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--p-gold);
+  border-radius: 12px;
+  background: #211a20;
+  color: var(--p-text);
+  font: 14px/1.5 system-ui, sans-serif;
+  box-shadow: 0 12px 32px #0006;
+}
+
+.saveNotice[data-kind="error"] {
+  border-color: var(--p-danger);
+}
+
+.saveNotice span {
+  flex: 1 1 240px;
+  overflow-wrap: anywhere;
+}
+
+.saveNotice button,
+.saveNotice a {
+  min-height: 40px;
+  padding: 6px 10px;
+  color: var(--p-gold-bright);
+}
+
+.pageTabs button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pageBar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--p-line-strong) transparent;
+}
+
+/* Keep editing controls above browser chrome and touch targets large enough to use. */
+@media (max-width: 1000px) {
+  .desktop {
+    --portal-sheet-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+    --portal-sheet-height: calc(100dvh - 236px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+  .menubar {
+    height: calc(52px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    box-sizing: border-box;
+    gap: 4px;
+  }
+  .menuLogo { margin-right: 0; }
+  .menuTitle, .menuSearch, .menuPublish { min-height: 44px; }
+  .pageBar { top: calc(56px + env(safe-area-inset-top, 0px)); height: 52px; left: 6px; right: 6px; }
+  .pageBar button, .pageBar select { min-height: 44px; }
+  .pageTabs { padding-block: 0; }
+  .pageJump { max-width: 240px; }
+  .wallpaper[data-framed="true"] { inset: calc(116px + env(safe-area-inset-top, 0px)) 6px var(--portal-sheet-bottom) 6px; }
+  .dockWrap { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .dock { padding: 6px 10px; border-radius: 18px; background-color: rgba(26, 18, 22, 0.94); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .dockItem { min-width: 48px; }
+  .saveNotice { bottom: var(--portal-sheet-bottom); max-height: calc(100dvh - 240px); overflow-y: auto; }
+}
+
+@media (max-width: 700px) {
+  .desktop input:not([type="range"]):not([type="checkbox"]):not([type="color"]), .desktop select, .desktop textarea { font-size: 16px; }
+  .pageTabs { display: none; }
+  .pageSelect { display: block; width: 170px; }
+  .menuLogo { display: none; }
+  .menuTitle { padding-inline: 8px; }
 }

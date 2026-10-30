@@ -1,9 +1,11 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { getPortalUser } from "@/lib/portal/auth";
-import { tooLarge } from "@/lib/portal/body-limit";
+import { tooLarge, readUploadForm, UploadTooLargeError } from "@/lib/portal/body-limit";
 import { logActivity } from "@/lib/portal/activity";
 import { processImage } from "@/lib/portal/image";
+import { isImageBusyError } from "@/lib/portal/image-work";
 import { store } from "@/lib/storage";
 import manifest from "@/content/generated/image-manifest.json";
 
@@ -13,7 +15,7 @@ const MAX_BYTES = 6 * 1024 * 1024;
 
 const sameOrigin = (req: NextRequest) => {
   const origin = req.headers.get("origin");
-  return !origin || origin === req.nextUrl.origin;
+  return !origin || requestOriginMatches(req);
 };
 
 export async function GET() {
@@ -33,9 +35,11 @@ export async function POST(req: NextRequest) {
 
   let file: File | null = null;
   try {
-    const f = (await req.formData()).get("file");
+    const f = (await readUploadForm(req, MAX_BYTES)).get("file");
     file = f instanceof File ? f : null;
-  } catch {}
+  } catch (error) {
+    if (error instanceof UploadTooLargeError) return NextResponse.json({ error: error.message }, { status: 413 });
+  }
   if (!file || !/^image\/(png|webp|jpeg)$/.test(file.type)) {
     return NextResponse.json({ error: "Choose a PNG, JPG or WebP image." }, { status: 400 });
   }
@@ -56,6 +60,7 @@ export async function POST(req: NextRequest) {
     await logActivity({ headers: req.headers, actor: me, action: "uploaded-texture", detail: file.name });
     return NextResponse.json({ src: URL_BASE + name });
   } catch (err) {
+    if (isImageBusyError(err)) return NextResponse.json({ error: err.message }, { status: 503, headers: { "Retry-After": "2" } });
     console.error("[portal] texture upload failed", err);
     return NextResponse.json({ error: "Couldn’t read that image, or save it on this server." }, { status: 500 });
   }

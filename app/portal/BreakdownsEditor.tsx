@@ -40,7 +40,7 @@ function LayerRows({ b, i, patch }: { b: Breakdown; i: number; patch: (i: number
                       <span className={bd.num}>{k + 1}</span>
                       <span className={bd.thumb}>
                         {/* eslint-disable-next-line @next/next/no-img-element -- small preview of a library picture */}
-                        <img src={resizedSrc(l.image, 160)} alt="" loading="lazy" decoding="async" />
+                        {l.image && <img src={resizedSrc(l.image, 160)} alt="" loading="lazy" decoding="async" />}
                       </span>
                       <input
                         className={bd.name}
@@ -69,7 +69,7 @@ function LayerRows({ b, i, patch }: { b: Breakdown; i: number; patch: (i: number
  * Breakdowns: layered artworks that fall apart into their layers when someone hovers them on the site. Each breakdown
  * is one finished image made of as many transparent PNG layers as the design file has, each with its own label.
  */
-export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: number | null) => void; /** Open this breakdown first (the Edit button on one of the page's entries). */ initialOpen?: number }) {
+export function BreakdownsEditor({ onShow, initialOpen, onDeleted }: { onShow: (index: number | null) => void; /** Edit only this breakdown when opened from its Edit button. */ initialOpen?: number; onDeleted?: () => void }) {
   const { content, update, media } = useEditor();
   const { ask: askDelete, dialog: deleteDialog } = useConfirmDelete();
   const items = content.breakdowns;
@@ -92,6 +92,7 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
   return (
     <div className={styles.page} ref={attach}>
       {deleteDialog}
+      {initialOpen === undefined && <>
       <section className={styles.section} data-open="true">
         <div className={styles.sectionHeadStatic}>How it works</div>
         <div className={styles.sectionBody}>
@@ -128,11 +129,12 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
         </div>
       </section>
 
-      {items.map((b, i) => (
+      </>}
+      {items.map((b, i) => initialOpen !== undefined && i !== open ? null : (
         <section key={i} className={styles.section} data-open={open === i} {...reItem(i)}>
           <div className={styles.cardHead}>
-            {reGrip(i, items.length)}
-            <button type="button" className={styles.sectionHead} aria-expanded={open === i} onClick={() => choose(open === i ? null : i)}>
+            {initialOpen === undefined && reGrip(i, items.length)}
+            <button type="button" className={styles.sectionHead} aria-expanded={open === i} onClick={() => choose(initialOpen === undefined && open === i ? null : i)}>
               <span className={styles.chev} aria-hidden="true">
                 ›
               </span>
@@ -150,6 +152,7 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
                     onDelete: () => {
                       update((c) => ({ ...c, breakdowns: c.breakdowns.filter((_, j) => j !== i) }));
                       choose(null);
+                      onDeleted?.();
                     },
                   })
                 }
@@ -329,19 +332,23 @@ function usePsdImport(room: number, upload: (file: File, onProgress?: (percent: 
   return useUploads<{ layers: BreakdownLayer[]; message: string }>("psd", async (file, progress) => {
     progress(1);
     const psd = await readPsdLayers(file);
-    if (!psd.layers.length) throw new Error("No visible pixel layers were found in this file.");
-    const take = psd.layers.slice(0, room);
-    const out: BreakdownLayer[] = [];
-    for (let k = 0; k < take.length; k++) {
-      const name = take[k].name || `Layer ${k + 1}`;
-      const png = await canvasToPng(take[k].draw(), `${String(k + 1).padStart(2, "0")}-${name.replace(/[^\w\- ]+/g, "").trim() || "layer"}.png`);
-      const src = await upload(png, (p) => progress(Math.round(((k + p / 100) / take.length) * 100)));
-      out.push({ image: src, label: name.slice(0, 60) });
+    try {
+      if (!psd.layers.length) throw new Error("No visible pixel layers were found in this file.");
+      const take = psd.layers.slice(0, room);
+      const out: BreakdownLayer[] = [];
+      for (let k = 0; k < take.length; k++) {
+        const name = take[k].name || `Layer ${k + 1}`;
+        const png = await canvasToPng(take[k].draw(), `${String(k + 1).padStart(2, "0")}-${name.replace(/[^\w\- ]+/g, "").trim() || "layer"}.png`);
+        const src = await upload(png, (p) => progress(Math.round(((k + p / 100) / take.length) * 100)));
+        out.push({ image: src, label: name.slice(0, 60) });
+      }
+      const parts = [`Added ${out.length} layer${out.length === 1 ? "" : "s"} from ${file.name}.`];
+      if (psd.skipped) parts.push(`${psd.skipped} hidden or empty layer${psd.skipped === 1 ? " was" : "s were"} left out.`);
+      if (psd.layers.length > take.length) parts.push(`A breakdown holds ${MAX_BREAKDOWN_LAYERS} layers, so the last ${psd.layers.length - take.length} were skipped.`);
+      return { layers: out, message: parts.join(" ") };
+    } finally {
+      psd.dispose();
     }
-    const parts = [`Added ${out.length} layer${out.length === 1 ? "" : "s"} from ${file.name}.`];
-    if (psd.skipped) parts.push(`${psd.skipped} hidden or empty layer${psd.skipped === 1 ? " was" : "s were"} left out.`);
-    if (psd.layers.length > take.length) parts.push(`A breakdown holds ${MAX_BREAKDOWN_LAYERS} layers, so the last ${psd.layers.length - take.length} were skipped.`);
-    return { layers: out, message: parts.join(" ") };
   });
 }
 

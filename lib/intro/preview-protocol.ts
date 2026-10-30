@@ -35,6 +35,8 @@ export type SiteToPortal =
   | { source: "dds-site"; type: "edit-open"; item: string }
   /** The "＋ Add" button under a list was pressed: add a new item to that list ("home.process.cards") and open it. */
   | { source: "dds-site"; type: "edit-add"; list: string }
+  /** A handle moved a card within its own list. Positions refer to the full, unfiltered draft. */
+  | { source: "dds-site"; type: "edit-reorder"; list: string; from: number; to: number }
   /** The preview moved to another page by itself (a card was pressed, a link followed): this is where it is now. */
   | { source: "dds-site"; type: "route"; path: string };
 

@@ -31,6 +31,7 @@ export type ActivityAction =
   | "published-content"
   | "published-design"
   | "uploaded-image"
+  | "uploaded-video"
   | "uploaded-font"
   | "uploaded-texture"
   | "deleted-file"
@@ -57,7 +58,7 @@ export interface ActivityEntry {
 export const ACTION_GROUPS: Record<string, ActivityAction[]> = {
   "sign-ins": ["sign-in", "sign-in-failed", "sign-out", "code-sent", "code-failed", "signed-out-everywhere"],
   changes: ["published-content", "published-design", "replied-enquiry"],
-  uploads: ["uploaded-image", "uploaded-font", "uploaded-texture"],
+  uploads: ["uploaded-image", "uploaded-video", "uploaded-font", "uploaded-texture"],
   account: [
     "password-changed",
     "password-reset",

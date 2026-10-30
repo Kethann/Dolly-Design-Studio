@@ -1,12 +1,11 @@
 .section {
-  min-height: min(64vh, 560px);
   display: flex;
   align-items: center;
-  padding-block: var(--section-pad);
+  padding-block: var(--section-pad) 24px;
 }
 
 .inner {
-  max-width: 980px;
+  max-width: 1360px;
   margin: 0 auto;
 }
 
@@ -16,7 +15,7 @@
   letter-spacing: 0.35em;
   text-transform: uppercase;
   color: var(--gold);
-  margin-bottom: 28px;
+  margin-bottom: 20px;
   display: block;
 }
 
@@ -25,7 +24,8 @@
   font-weight: 700;
   font-size: clamp(28px, 5vw, 56px);
   line-height: 1.25;
-  margin: 0 0 32px;
+  max-width: 980px;
+  margin: 0 0 20px;
 }
 
 .word {
@@ -46,6 +46,7 @@
 }
 
 .body {
+  margin: 0;
   font-family: var(--font-body);
   font-size: clamp(15px, 1.6vw, 19px);
   line-height: 1.7;

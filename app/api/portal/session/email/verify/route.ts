@@ -1,3 +1,4 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { noteFailure, tooManyFailures } from "@/lib/rate-limit";
 import { createSessionToken, isPortalConfigured, sessionCookie } from "@/lib/portal/auth";
@@ -12,7 +13,7 @@ import { ensureOwnerForMailbox, findUserByEmail, normalizeEmail } from "@/lib/po
  */
 export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin");
-  if (!origin || origin !== req.nextUrl.origin) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  if (!origin || !requestOriginMatches(req)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   if (!(await isPortalConfigured())) return NextResponse.json({ error: "The portal isn’t set up yet." }, { status: 503 });
 
   let email = "";

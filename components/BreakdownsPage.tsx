@@ -5,9 +5,12 @@ import Link from "next/link";
 import { ExplodeStage } from "@/components/BreakdownStage";
 import { useContent, tx } from "@/lib/content/context";
 import { edItem, edSection } from "@/lib/content/tx";
+import { AddContent } from "./PreviewControls";
+import { MAX_BREAKDOWNS } from "@/lib/content/limits";
 import { glideTo, topOf } from "@/lib/smooth-scroll";
 import styles from "./BreakdownsPage.module.css";
 import { renderFx } from "@/components/fx/render-fx";
+import { MediaPlaceholder } from "./MediaPlaceholder";
 
 /**
  * Moving between breakdowns: on a wide screen a slim column at the right edge (previous, next, and a scrolling list of
@@ -179,6 +182,7 @@ export function BreakdownsPage() {
         </div>
       )}
 
+      <div className="container"><AddContent list="breakdowns" label="Add breakdown card" count={items.length} max={MAX_BREAKDOWNS} /></div>
       <div className={styles.list}>
         {items.map((item, i) => (
           <article
@@ -214,8 +218,12 @@ export function BreakdownsPage() {
                 <span className={styles.layerCount}>{item.layers.length} {item.layers.length === 1 ? "layer" : "layers"}</span>
               </div>
               <div className={styles.visual}>
-                <ExplodeStage item={item} index={i} openSignal={signals[i] ?? 0} onOpenChange={setOpen} />
-              {item.layers.length > 1 && (
+                {item.layers.some((layer) => layer.image) ? (
+                  <ExplodeStage item={{ ...item, layers: item.layers.filter((layer) => layer.image) }} index={i} openSignal={signals[i] ?? 0} onOpenChange={setOpen} />
+                ) : (
+                  <div style={{ position: "relative", aspectRatio: "4 / 3" }}><MediaPlaceholder /></div>
+                )}
+              {item.layers.filter((layer) => layer.image).length > 1 && (
                 <p className={styles.hint} {...tx(touch ? "breakdownsPage.hintTouch" : "breakdownsPage.hintMouse")}>
                   {touch ? t.hintTouch : t.hintMouse}
                 </p>

@@ -721,33 +721,64 @@
 /* --- sign in ------------------------------------------------------------------ */
 
 .loginShell {
+  --p-muted: #b7afb9;
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px 16px;
+  padding: 40px 16px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background:
-    radial-gradient(ellipse at 50% 30%, rgba(232, 176, 75, 0.1), transparent 55%),
+    radial-gradient(ellipse at 20% 0%, rgba(232, 176, 75, 0.12), transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(103, 47, 91, 0.16), transparent 55%),
     var(--p-bg);
 }
 
 .loginCard {
-  width: min(380px, 100%);
+  width: min(460px, 100%);
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 32px 28px;
-  border-radius: 18px;
-  background: var(--p-card);
+  gap: 28px;
+  padding: clamp(24px, 6vw, 40px);
+  border-radius: 24px;
+  background: linear-gradient(155deg, #201b22, var(--p-card) 60%);
   border: 1px solid var(--p-line);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
   text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.loginBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.loginBrand small {
+  display: block;
+  margin-top: 4px;
+  color: var(--p-gold);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.loginHeading {
+  display: grid;
+  gap: 10px;
 }
 
 .loginTitle {
-  margin: 4px 0 0;
-  font-family: var(--font-display);
-  font-size: 30px;
-  font-weight: 700;
+  margin: 0;
+  font-family: inherit;
+  font-size: clamp(26px, 7vw, 34px);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
 }
 
 .loginLead {
@@ -763,8 +794,12 @@
 }
 
 .loginInput {
-  padding: 11px 12px;
-  font-size: 15px;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 16px;
   color: var(--p-text);
   background: var(--p-raised);
   border: 1px solid var(--p-line-strong);
@@ -772,7 +807,8 @@
 }
 
 .loginInput:focus {
-  outline: none;
+  outline: 2px solid rgba(232, 176, 75, 0.3);
+  outline-offset: 2px;
   border-color: var(--p-gold);
 }
 
@@ -780,6 +816,109 @@
   margin: 0;
   font-size: 13px;
   color: var(--p-danger);
+}
+
+.loginCard .loginError {
+  padding: 12px;
+  border: 1px solid rgba(255, 143, 122, 0.25);
+  border-radius: 9px;
+  background: rgba(255, 143, 122, 0.06);
+  line-height: 1.5;
+}
+
+.loginCard .loginNote {
+  padding: 12px;
+  border-left: 2px solid var(--p-gold);
+  background: rgba(232, 176, 75, 0.06);
+}
+
+.loginCard .controlLabel {
+  margin-top: 4px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.loginCard .primaryButton,
+.loginCard .linkButton,
+.loginAlternative {
+  min-height: 44px;
+  font: inherit;
+  font-size: 14px;
+  white-space: normal;
+}
+
+.loginCard .primaryButton {
+  min-height: 48px;
+  margin-top: 6px;
+  font-weight: 650;
+}
+
+.loginAlternative {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--p-line-strong);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--p-text);
+  cursor: pointer;
+}
+
+.loginAlternative:hover:not(:disabled) {
+  border-color: var(--p-gold);
+  background: rgba(232, 176, 75, 0.04);
+}
+
+.passwordField {
+  position: relative;
+  min-width: 0;
+}
+
+.passwordField .loginInput {
+  padding-right: 70px;
+}
+
+.passwordToggle {
+  position: absolute;
+  inset: 2px 2px 2px auto;
+  min-width: 62px;
+  border-radius: 7px;
+  color: var(--p-gold-bright);
+  font: inherit;
+  font-size: 12px;
+}
+
+.loginCard button:focus-visible,
+.loginFooter a:focus-visible {
+  outline: 2px solid var(--p-gold);
+  outline-offset: 3px;
+}
+
+.loginFooter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--p-line);
+  text-align: center;
+  font-size: 12px;
+  color: var(--p-muted);
+}
+
+.loginFooter a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--p-text);
+}
+
+@media (max-height: 650px) {
+  .loginShell {
+    padding-block: 16px;
+  }
 }
 
 /* --- small screens: preview on top, controls below, the page scrolls ------------------- */
@@ -1384,11 +1523,19 @@
   scrollbar-width: thin;
 }
 
-.account {
+.account,
+.accountFields {
   max-width: 760px;
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.accountFields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .accountHead h2 {
@@ -1693,10 +1840,23 @@
 }
 
 /* --- sign-in steps: code entry, links, hints ------------------------------------------------------ */
+.loginFields,
 .loginForm {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+}
+
+.loginFields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.loginFields:disabled button {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 .codeInput {

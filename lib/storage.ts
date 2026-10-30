@@ -8,8 +8,12 @@
 //     no disk to write to.
 //
 // Everything is addressed by a "key" like "data/portal-users.json" or "uploads/images/logo-3fa2c1.webp".
-import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { createReadStream } from "node:fs";
+import { Readable } from "node:stream";
+import { randomUUID } from "node:crypto";
+import { uploadImageQuality } from "./image-quality";
 
 export interface Store {
   readonly kind: "fs" | "r2";
@@ -17,8 +21,11 @@ export interface Store {
   putText(key: string, text: string, contentType?: string): Promise<void>;
   getBytes(key: string): Promise<{ bytes: Uint8Array; contentType?: string } | null>;
   /** The same file as a stream, without copying it into the Worker's memory first (R2 only; costs the Worker almost no work). */
-  getStream?(key: string): Promise<{ body: ReadableStream<Uint8Array>; contentType?: string } | null>;
+  getStream?(key: string, range?: { offset: number; length: number }): Promise<{ body: ReadableStream<Uint8Array>; contentType?: string } | null>;
+  size(key: string): Promise<number | null>;
   putBytes(key: string, bytes: Uint8Array, contentType?: string): Promise<void>;
+  /** Copy into a recovery archive without buffering the whole file in the Worker. */
+  copy(key: string, destination: string): Promise<void>;
   /** Every key that starts with the prefix, in alphabetical order. */
   list(prefix: string): Promise<string[]>;
   remove(key: string): Promise<void>;
@@ -36,6 +43,7 @@ const DISK_FOLDERS: [string, string[]][] = [
   ["content/", ["content"]],
   ["uploads/images/", ["public", "images", "uploads"]],
   ["uploads/fonts/", ["public", "fonts", "uploads"]],
+  ["uploads/videos/", [".media", "videos"]],
   ["uploads/proof/", ["public", "images", "proof-table"]],
   ["uploads/textures/", ["public", "images", "textures"]],
 ];
@@ -52,10 +60,21 @@ function diskPath(key: string): string {
 
 const files: Store = {
   kind: "fs",
+  async size(key) {
+    // Mutable storage is read at runtime, not copied into the server bundle.
+    try { const info = await stat(/*turbopackIgnore: true*/ diskPath(key)); return info.isFile() ? info.size : null; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; return null; }
+  },
+  async getStream(key, range) {
+    if (await files.size(key) === null) return null;
+    const stream = createReadStream(/*turbopackIgnore: true*/ diskPath(key), range ? { start: range.offset, end: range.offset + range.length - 1 } : undefined);
+    return { body: Readable.toWeb(stream) as ReadableStream<Uint8Array> };
+  },
   async getText(key) {
     try {
-      return await readFile(diskPath(key), "utf8");
-    } catch {
+      return await readFile(/*turbopackIgnore: true*/ diskPath(key), "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       return null;
     }
   },
@@ -64,8 +83,9 @@ const files: Store = {
   },
   async getBytes(key) {
     try {
-      return { bytes: new Uint8Array(await readFile(diskPath(key))) };
-    } catch {
+      return { bytes: new Uint8Array(await readFile(/*turbopackIgnore: true*/ diskPath(key))) };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       return null;
     }
   },
@@ -73,9 +93,14 @@ const files: Store = {
     const file = diskPath(key);
     await mkdir(path.dirname(file), { recursive: true });
     // Written to a temporary file first, then renamed, so a crash never leaves a half-written file.
-    const tmp = `${file}.${process.pid}.tmp`;
+    const tmp = `${file}.${process.pid}.${randomUUID()}.tmp`;
     await writeFile(tmp, bytes, { mode: 0o600 });
     await rename(tmp, file);
+  },
+  async copy(key, destination) {
+    const target = diskPath(destination);
+    await mkdir(path.dirname(target), { recursive: true });
+    await copyFile(diskPath(key), target);
   },
   async list(prefix) {
     try {
@@ -86,12 +111,15 @@ const files: Store = {
         .filter((e) => e.isFile() && !e.name.endsWith(".tmp") && e.name.startsWith(stem))
         .map((e) => base + e.name)
         .sort();
-    } catch {
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       return [];
     }
   },
   async remove(key) {
-    await unlink(diskPath(key)).catch(() => {});
+    await unlink(diskPath(key)).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== "ENOENT") throw error;
+    });
   },
   async usedBytes() {
     return (await files.sizes()).reduce((n, f) => n + f.size, 0);
@@ -117,8 +145,9 @@ const files: Store = {
 
 /** The parts of an R2 bucket this file uses. */
 interface R2Bucket {
-  get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer>; text(): Promise<string>; body: ReadableStream<Uint8Array>; httpMetadata?: { contentType?: string } } | null>;
-  put(key: string, value: ArrayBuffer | Uint8Array | string, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
+  get(key: string, options?: { range: { offset: number; length: number } }): Promise<{ etag: string; arrayBuffer(): Promise<ArrayBuffer>; text(): Promise<string>; body: ReadableStream<Uint8Array>; httpMetadata?: { contentType?: string } } | null>;
+  head(key: string): Promise<{ size: number } | null>;
+  put(key: string, value: ArrayBuffer | Uint8Array | string | ReadableStream<Uint8Array>, options?: { httpMetadata?: { contentType?: string }; onlyIf?: Headers }): Promise<unknown | null>;
   delete(key: string): Promise<void>;
   list(options: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string; size?: number }[]; truncated: boolean; cursor?: string }>;
 }
@@ -126,6 +155,7 @@ interface R2Bucket {
 function r2(bucket: R2Bucket): Store {
   return {
     kind: "r2",
+    async size(key) { return (await bucket.head(key))?.size ?? null; },
     async getText(key) {
       return (await bucket.get(key))?.text() ?? null;
     },
@@ -136,12 +166,17 @@ function r2(bucket: R2Bucket): Store {
       const obj = await bucket.get(key);
       return obj ? { bytes: new Uint8Array(await obj.arrayBuffer()), contentType: obj.httpMetadata?.contentType } : null;
     },
-    async getStream(key) {
-      const obj = await bucket.get(key);
+    async getStream(key, range) {
+      const obj = await bucket.get(key, range ? { range } : undefined);
       return obj ? { body: obj.body, contentType: obj.httpMetadata?.contentType } : null;
     },
     async putBytes(key, bytes, contentType) {
       await bucket.put(key, bytes, contentType ? { httpMetadata: { contentType } } : undefined);
+    },
+    async copy(key, destination) {
+      const obj = await bucket.get(key);
+      if (!obj) throw new Error(`Cannot archive missing file: ${key}`);
+      await bucket.put(destination, obj.body, { httpMetadata: obj.httpMetadata });
     },
     async list(prefix) {
       const keys: string[] = [];
@@ -213,6 +248,43 @@ export async function writeJson(key: string, value: unknown, pretty = false): Pr
   await (await store()).putText(key, JSON.stringify(value, null, pretty ? 2 : undefined) + "\n", "application/json");
 }
 
+type JsonChange<T, R> = { value?: T; result: R };
+const atomicRuntime = globalThis as typeof globalThis & { __ddsJsonWrites?: Map<string, Promise<void>> };
+const jsonWrites = atomicRuntime.__ddsJsonWrites ??= new Map<string, Promise<void>>();
+
+/** Conditional R2 writes serialize changes across Workers; the local server queues changes per document. */
+export async function updateJsonAtomically<T, R>(key: string, initial: T, change: (current: T) => JsonChange<T, R>): Promise<R> {
+  const bucket = cloudflareBucket();
+  if (bucket) {
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const obj = await bucket.get(key);
+      const next = change(obj ? JSON.parse(await obj.text()) as T : structuredClone(initial));
+      if (next.value === undefined) return next.result;
+      const onlyIf = new Headers(obj ? { "If-Match": JSON.stringify(obj.etag) } : { "If-None-Match": "*" });
+      const written = await bucket.put(key, JSON.stringify(next.value) + "\n", { onlyIf, httpMetadata: { contentType: "application/json" } });
+      if (written !== null) return next.result;
+      // Another Worker won. Re-read before checking or changing the code again.
+      await new Promise(resolve => setTimeout(resolve, 10 + Math.random() * 30));
+    }
+    throw new Error("Verification storage is busy. Please try again.");
+  }
+  const previous = jsonWrites.get(key) ?? Promise.resolve();
+  let unlock!: () => void;
+  const turn = new Promise<void>(resolve => { unlock = resolve; });
+  const tail = previous.then(() => turn);
+  jsonWrites.set(key, tail);
+  await previous;
+  try {
+    const text = await files.getText(key);
+    const next = change(text === null ? structuredClone(initial) : JSON.parse(text) as T);
+    if (next.value !== undefined) await files.putText(key, JSON.stringify(next.value) + "\n");
+    return next.result;
+  } finally {
+    unlock();
+    if (jsonWrites.get(key) === tail) jsonWrites.delete(key);
+  }
+}
+
 /** How many earlier versions of each saved document are kept. */
 const BACKUPS_KEPT = 20;
 
@@ -255,7 +327,7 @@ const CONTENT_TYPES: Record<string, string> = {
 export const contentTypeOf = (name: string) => CONTENT_TYPES[name.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream";
 
 /** Serves one stored upload with long-lived caching (every upload's name carries a fingerprint of its bytes). */
-export async function serveUpload(prefix: string, name: string, width?: number): Promise<Response> {
+export async function serveUpload(prefix: string, name: string, width?: number, quality?: number): Promise<Response> {
   if (!/^[\w.-]{1,120}\.(webp|png|jpe?g|avif|gif|svg|ttf|otf|woff2?)$/i.test(name) || name.includes("..")) return new Response("Not found", { status: 404 });
   const kept = { "Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" };
   const s = await store();
@@ -264,8 +336,9 @@ export async function serveUpload(prefix: string, name: string, width?: number):
   const images = width && /\.(webp|png|jpe?g|avif)$/i.test(name) ? cloudflareImages() : null;
   if (images && width && s.getStream) {
     const w = Math.min(3840, Math.max(16, Math.round(width)));
+    const q = uploadImageQuality(quality);
     const cache = (globalThis as { caches?: { default?: { match(r: Request): Promise<Response | undefined>; put(r: Request, v: Response): Promise<void> } } }).caches?.default;
-    const cacheKey = new Request(`https://resized.invalid/${prefix}${name}?w=${w}`);
+    const cacheKey = new Request(`https://resized.invalid/${prefix}${name}?w=${w}&q=${q}`);
     try {
       const hit = await cache?.match(cacheKey);
       if (hit) return hit;
@@ -273,7 +346,7 @@ export async function serveUpload(prefix: string, name: string, width?: number):
     try {
       const src = await s.getStream(prefix + name);
       if (!src) return new Response("Not found", { status: 404 });
-      const out = await images.input(src.body).transform({ width: w, fit: "scale-down" }).output({ format: "image/webp", quality: 82 });
+      const out = await images.input(src.body).transform({ width: w, fit: "scale-down" }).output({ format: "image/webp", quality: q });
       const res = new Response(out.image(), { headers: { "Content-Type": out.contentType(), ...kept } });
       if (cache) {
         const copy = res.clone();

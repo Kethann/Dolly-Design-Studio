@@ -1,3 +1,4 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { noteFailure, tooManyFailures } from "@/lib/rate-limit";
 import {
@@ -10,7 +11,7 @@ import {
 } from "@/lib/portal/auth";
 import { logActivity } from "@/lib/portal/activity";
 import { clientIp } from "@/lib/portal/activity";
-import { CODE_MINUTES, issueCode } from "@/lib/portal/otp";
+import { CODE_MINUTES, discardCode, issueCode } from "@/lib/portal/otp";
 import { codeEmail, isMailConfigured, maskEmail, sendMail } from "@/lib/portal/mail";
 import { normalizeUsername, verifyLogin } from "@/lib/portal/users";
 
@@ -23,13 +24,14 @@ export async function POST(req: NextRequest) {
     );
   }
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  if (origin && !requestOriginMatches(req)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
   let username = "";
   let password = "";
   try {
     const body = await req.json();
-    username = typeof body?.username === "string" ? body.username.slice(0, 64) : "";
+    // Account emails may be up to 120 characters, even though usernames are shorter.
+    username = typeof body?.username === "string" ? body.username.trim().slice(0, 120) : "";
     password = typeof body?.password === "string" ? body.password.slice(0, 200) : "";
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest) {
       const sent = await sendMail({ to: user.email, ...codeEmail({ name: user.name, code: issued.code, purpose: "login", minutes: CODE_MINUTES }) });
       await logActivity({ headers: req.headers, actor: user, action: "code-sent", detail: "Sign-in code", ok: sent.ok });
       if (!sent.ok) {
+        await discardCode("login", user.id, issued.code);
         return NextResponse.json({ error: "Couldn’t send your sign-in code. Try again in a moment." }, { status: 502 });
       }
     } else {

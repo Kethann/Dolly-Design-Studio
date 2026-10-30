@@ -8,7 +8,7 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 48px;
+  margin-bottom: var(--section-head-gap);
 }
 
 .label {
@@ -22,6 +22,7 @@
 }
 
 .title {
+  overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: clamp(28px, 4vw, 44px);

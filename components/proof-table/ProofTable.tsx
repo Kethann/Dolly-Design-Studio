@@ -11,13 +11,17 @@ import type { ProofScene } from "./scene";
 import { STAGES } from "./stages";
 import styles from "./ProofTable.module.css";
 import { renderFx } from "@/components/fx/render-fx";
+import { createFrameLoop } from "./frame-loop";
 
 type Mode = "pinned" | "static" | "fallback";
 const MOBILE_ITEMS = 24; // phones show every card (the grid fits any number to the glass); this only guards against an absurd count
 
 function hasWebGL() {
   try {
-    return !!document.createElement("canvas").getContext("webgl2");
+    const gl = document.createElement("canvas").getContext("webgl2");
+    if (!gl) return false;
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+    return true;
   } catch {
     return false;
   }
@@ -32,7 +36,7 @@ function hasWebGL() {
 export function ProofTable() {
   const router = useRouter();
   const { settings } = useIntroSettings();
-  const { slate } = useContent();
+  const { slate, projects } = useContent();
   const pt = settings.proofTable;
   const [mode, setMode] = useState<Mode>("pinned");
   const [mobile, setMobile] = useState(false);
@@ -40,21 +44,29 @@ export function ProofTable() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ProofScene | null>(null);
-  const items = mobile ? pt.items.slice(0, MOBILE_ITEMS) : pt.items;
+  const slots = mobile ? pt.items.slice(0, MOBILE_ITEMS) : pt.items;
+  const populated = slots.filter((it) => it.src);
+  const hasArtwork = populated.length > 0;
+  const items = hasArtwork ? populated : slots;
   const itemsRef = useRef(items);
   const lookRef = useRef(pt);
+  const projectSlugsRef = useRef(projects.map((project) => project.slug));
+  useEffect(() => { projectSlugsRef.current = projects.map((project) => project.slug); }, [projects]);
 
   useEffect(() => {
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     // Phones, and tablets held upright, get the stacked layout (headline above, the whole table below it).
-    const stacked = window.matchMedia("(max-width: 767px), (orientation: portrait) and (max-width: 1100px)");
+    const stacked = window.matchMedia("(max-width: 1000px), (orientation: portrait) and (max-width: 1100px)");
     /* eslint-disable react-hooks/set-state-in-effect -- one-time client capability checks */
     setMobile(stacked.matches);
-    setMode(!hasWebGL() ? "fallback" : reduced ? "static" : "pinned");
+    const webgl = hasWebGL();
+    setMode(!webgl ? "fallback" : reduced.matches ? "static" : "pinned");
     /* eslint-enable react-hooks/set-state-in-effect */
     const follow = () => setMobile(stacked.matches);
+    const followMotion = () => setMode(!webgl ? "fallback" : reduced.matches ? "static" : "pinned");
     stacked.addEventListener("change", follow); // turning the tablet over switches layout
-    return () => stacked.removeEventListener("change", follow);
+    reduced.addEventListener("change", followMotion);
+    return () => { stacked.removeEventListener("change", follow); reduced.removeEventListener("change", followMotion); };
   }, []);
 
   // Live from the portal: new / removed slots and card size swap the cards; the glass restyles in place.
@@ -75,23 +87,21 @@ export function ProofTable() {
   }, [pt.glassColor, pt.glassOpacity, pt.frost, pt.reflection]);
 
   useEffect(() => {
-    if (mode === "fallback" || !pt.enabled) return;
+    if (mode === "fallback" || mobile || !pt.enabled || !hasArtwork) return;
     const section = sectionRef.current!;
     const canvas = canvasRef.current!;
     const stage = stageRef.current!;
     let scene: ProofScene | null = null;
-    let raf = 0;
     let visible = false;
     let shown = 0; // smoothed progress
     let held = 0; // where the scroll says the story is (the shown value eases towards it)
-    let last = performance.now();
     let disposed = false;
     let loading = false;
 
     const progress = () => {
       if (mode === "static") return 1;
       const r = section.getBoundingClientRect();
-      const span = r.height - window.innerHeight;
+      const span = r.height - stage.clientHeight;
       return span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0;
     };
 
@@ -107,12 +117,8 @@ export function ProofTable() {
       }
     }
 
-    function frame(now: number) {
-      raf = 0;
-      if (disposed || !scene || !visible) return;
-      // A frame's timestamp can be a hair earlier than the clock read when the loop started: never a negative step.
-      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
-      last = now;
+    const loop = createFrameLoop((dt) => {
+      if (!scene) return false;
       // The story follows the scroll, down and up alike: scrolling back up winds it back, and the page never jumps.
       if (mode === "pinned" && section.getBoundingClientRect().top >= window.innerHeight) held = shown = 0;
       held = progress();
@@ -120,25 +126,21 @@ export function ProofTable() {
       if (Math.abs(held - shown) < 0.0004) shown = held;
       shown = Math.min(1, Math.max(0, shown));
       setVars(shown);
-      scene.update(shown, dt);
+      const moving = scene.update(shown, dt);
       canvas.style.cursor = scene.hovered() >= 0 ? "pointer" : "";
-      raf = requestAnimationFrame(frame);
-    }
-    const run = () => {
-      if (!raf && scene && visible && !disposed) {
-        last = performance.now();
-        raf = requestAnimationFrame(frame);
-      }
-    };
+      return moving || shown !== held;
+    }, () => !!scene && visible && !disposed && !document.hidden);
+    const run = loop.wake;
 
     async function init() {
       if (loading) return;
       loading = true;
-      const { createProofScene } = await import("./scene");
-      if (disposed) return;
-      const look = lookRef.current;
       try {
+        const { createProofScene } = await import("./scene");
+        if (disposed) return;
+        const look = lookRef.current;
         scene = createProofScene(canvas, {
+          invalidate: run,
           items: itemsRef.current,
           cardSize: look.cardSize,
           slab: { color: look.slabColor, opacity: look.slabOpacity },
@@ -147,6 +149,7 @@ export function ProofTable() {
           stage: getComputedStyle(document.documentElement).getPropertyValue("--stage").trim() || "#410000",
         });
       } catch (err) {
+        if (disposed) return;
         // The browser would not give this page another graphics context (many tabs open, or the graphics card is busy):
         // show the simple version of the slate instead of a broken one.
         console.warn("[slate] 3D unavailable, showing the simple version", err);
@@ -157,14 +160,13 @@ export function ProofTable() {
       sceneRef.current = scene;
       const r = canvas.getBoundingClientRect();
       scene.resize(r.width, r.height);
-      // The story always starts from its beginning and catches up to where the scroll is: if the scene finishes loading while the
-      // visitor is already part-way through the section, it plays forward quickly instead of appearing half-done.
+      // Resume at the current scroll position without replaying a rapid catch-up after a resize.
       held = progress();
-      shown = 0;
+      shown = held;
       setVars(shown);
       // Off screen: don't draw yet (that would upload everything at once); warm the GPU up in idle moments instead.
       if (visible) scene.update(shown, 0);
-      else void scene.warmUp();
+      else void scene.warmUp().catch(() => {});
       run();
     }
 
@@ -172,6 +174,7 @@ export function ProofTable() {
     near.observe(section);
     const inView = new IntersectionObserver(([e]) => {
       visible = e.isIntersecting;
+      if (!visible) loop.stop();
       // Left behind above (scrolled back up past its start): rewind, so coming down again replays the drop.
       if (!visible && mode === "pinned" && e.boundingClientRect.top > 0) held = shown = 0;
       run();
@@ -182,16 +185,34 @@ export function ProofTable() {
       scene?.resize(r.width, r.height);
     });
     ro.observe(canvas);
+    const onVisibility = () => { if (document.hidden) loop.stop(); else run(); };
+    window.addEventListener("scroll", run, { passive: true });
+    document.addEventListener("visibilitychange", onVisibility);
 
     // At the end the cards can be touched: hover stands a card up and it follows the cursor; click opens it.
     const onMove = (e: PointerEvent) => {
+      if (e.pointerType === "touch" || mode === "static") return;
       const r = canvas.getBoundingClientRect();
       scene?.pointer(e.clientX - r.left, e.clientY - r.top);
     };
     const onLeave = () => scene?.pointer(null, 0);
-    const onClick = () => {
+    let press: { x: number; y: number } | null = null;
+    const onDown = (event: PointerEvent) => { press = { x: event.clientX, y: event.clientY }; };
+    const onClick = (event: MouseEvent) => {
+      if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8) { press = null; return; }
+      press = null;
+      const rect = canvas.getBoundingClientRect();
+      scene?.pointer(null, 0);
+      scene?.update(shown, 0);
+      scene?.pointer(event.clientX - rect.left, event.clientY - rect.top);
+      scene?.update(shown, 0);
       const i = scene ? scene.hovered() : -1;
-      if (i >= 0 && itemsRef.current[i]) router.push(`/work/${itemsRef.current[i].slug}`);
+      const item = itemsRef.current[i];
+      if (i >= 0 && item && projectSlugsRef.current.includes(item.slug)) {
+        const preview = new URLSearchParams(window.location.search).has("portal-preview") ? "?portal-preview" : "";
+        router.push(`/work/${item.slug}${preview}`);
+      }
+      if (mode === "static") scene?.pointer(null, 0);
     };
     // If the graphics card drops the 3D scene while the page is open, the simple version takes over rather than a frozen picture.
     const onLost = (e: Event) => {
@@ -202,21 +223,25 @@ export function ProofTable() {
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerleave", onLeave);
     canvas.addEventListener("click", onClick);
+    canvas.addEventListener("pointerdown", onDown, { passive: true });
 
     return () => {
       canvas.removeEventListener("webglcontextlost", onLost);
       disposed = true;
-      cancelAnimationFrame(raf);
+      loop.dispose();
+      window.removeEventListener("scroll", run);
+      document.removeEventListener("visibilitychange", onVisibility);
       near.disconnect();
       inView.disconnect();
       ro.disconnect();
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerleave", onLeave);
       canvas.removeEventListener("click", onClick);
+      canvas.removeEventListener("pointerdown", onDown);
       scene?.dispose();
       sceneRef.current = null;
     };
-  }, [mode, mobile, router, pt.enabled]);
+  }, [mode, mobile, router, pt.enabled, hasArtwork]);
 
   if (!pt.enabled) return null;
 
@@ -246,16 +271,16 @@ export function ProofTable() {
     </div>
   );
 
-  if (mode === "fallback") {
+  if (mode === "fallback" || mobile || !hasArtwork) {
     return (
       <section id={proofTable.id} className={styles.section}>
-        <ProofTableFallback items={items}>{copy}</ProofTableFallback>
+        <ProofTableFallback items={items} projectSlugs={projects.map((project) => project.slug)} look={pt}>{copy}</ProofTableFallback>
       </section>
     );
   }
 
   // Pinned for `length` screens of scrolling (a bit shorter on phones).
-  const pinned = mode === "pinned" ? { height: `${Math.round((1 + pt.length * (mobile ? 0.75 : 1)) * 100)}vh` } : undefined;
+  const pinned = mode === "pinned" ? { height: `${Math.round((1 + pt.length * (mobile ? 0.75 : 1)) * 100)}svh` } : undefined;
   return (
     <section
       id={proofTable.id}

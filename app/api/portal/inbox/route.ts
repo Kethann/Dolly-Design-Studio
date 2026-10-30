@@ -1,3 +1,4 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/portal/auth";
 import { deleteEnquiry, listEnquiries, setEnquiryStatus, type EnquiryStatus } from "@/lib/contact/inbox";
@@ -19,7 +20,7 @@ async function guard(req: NextRequest) {
   const me = await getPortalUser();
   if (!me) return NextResponse.json({ error: "Your session has ended. Sign in again." }, { status: 401 });
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  if (origin && !requestOriginMatches(req)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   return null;
 }
 

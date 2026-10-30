@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ActivityEntry } from "@/lib/portal/activity";
 import type { PortalUser } from "@/lib/portal/users";
 import styles from "./activity.module.css";
+import { startVisiblePoll } from "@/lib/visible-poll";
+import { appendUnique } from "./list-state";
 
 type Group = "" | "sign-ins" | "changes" | "uploads" | "account";
 
@@ -56,6 +58,8 @@ function what(e: ActivityEntry): string {
       return "published design changes to";
     case "uploaded-image":
       return "uploaded the image";
+    case "uploaded-video":
+      return "uploaded the video";
     case "uploaded-font":
       return "uploaded the font";
     case "uploaded-texture":
@@ -84,6 +88,7 @@ const ICON: Record<string, string> = {
   "published-design": "✦",
   "replied-enquiry": "✉",
   "uploaded-image": "▣",
+  "uploaded-video": "▶",
   "uploaded-font": "Aa",
   "uploaded-texture": "▣",
 };
@@ -113,27 +118,46 @@ export function ActivityPanel({ me }: { me: PortalUser }) {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [, tick] = useState(0);
   const seq = useRef(0);
+  const request = useRef<AbortController | null>(null);
+  const browsingOlder = useRef(false);
+  const [olderOpen, setOlderOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const load = useCallback(
-    async (append = false, before?: string) => {
+    async (append = false, before?: string, signal?: AbortSignal) => {
+      if (signal?.aborted || (append && request.current)) return;
+      request.current?.abort();
+      const controller = new AbortController();
+      request.current = controller;
+      const abort = () => controller.abort();
+      signal?.addEventListener("abort", abort, { once: true });
+      const timeout = setTimeout(abort, 20_000);
       const my = ++seq.current;
+      setLoading(true);
       const params = new URLSearchParams();
       if (group) params.set("group", group);
       if (person) params.set("user", person);
       if (q.trim()) params.set("q", q.trim());
       if (before) params.set("before", before);
       try {
-        const res = await fetch(`/api/portal/activity?${params}`);
+        const res = await fetch(`/api/portal/activity?${params}`, { signal: controller.signal, cache: "no-store" });
         if (!res.ok) throw new Error();
         const data = (await res.json()) as { entries: ActivityEntry[]; more: boolean; people: typeof people; scope: "everyone" | "you" };
-        if (my !== seq.current) return; // a newer search has taken over
-        setEntries((old) => (append ? [...old, ...data.entries] : data.entries));
+        if (!Array.isArray(data.entries) || !Array.isArray(data.people)) throw new Error("Incomplete activity response");
+        if (my !== seq.current || signal?.aborted) return; // a newer search has taken over
+        setEntries((old) => (append ? appendUnique(old, data.entries) : data.entries));
+        browsingOlder.current = append;
+        setOlderOpen(append);
         setMore(data.more);
         setPeople(data.people);
         setScope(data.scope);
         setState("ready");
       } catch {
-        if (my === seq.current) setState("error");
+        if (my === seq.current && !signal?.aborted) setState("error");
+      } finally {
+        clearTimeout(timeout);
+        signal?.removeEventListener("abort", abort);
+        if (request.current === controller) { request.current = null; setLoading(false); }
       }
     },
     [group, person, q],
@@ -141,15 +165,18 @@ export function ActivityPanel({ me }: { me: PortalUser }) {
 
   // Reload when a filter changes (typing in the search waits a moment), and every 30 seconds.
   useEffect(() => {
+    browsingOlder.current = false;
     const t = setTimeout(() => load(), q ? 250 : 0);
-    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seq is a request generation counter, not a DOM ref; cleanup must invalidate the latest generation.
+    return () => { clearTimeout(t); seq.current++; request.current?.abort(); request.current = null; };
   }, [load, q]);
   useEffect(() => {
-    const t = setInterval(() => {
-      load();
+    return startVisiblePoll(async (signal) => {
+      if (request.current || browsingOlder.current) return;
+      await load(false, undefined, signal);
+      if (signal.aborted) return;
       tick((n) => n + 1);
-    }, 30_000);
-    return () => clearInterval(t);
+    }, 30_000, false);
   }, [load]);
 
   return (
@@ -167,7 +194,7 @@ export function ActivityPanel({ me }: { me: PortalUser }) {
       </div>
 
       <div className={styles.tools}>
-        <input className={styles.search} placeholder="Search names, what they did, devices…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className={styles.search} placeholder="Search names, what they did, devices…" aria-label="Search activity" value={q} onChange={(e) => setQ(e.target.value)} />
         {scope === "everyone" && (
           <select className={styles.person} value={person} onChange={(e) => setPerson(e.target.value)} aria-label="Show one person">
             <option value="">Everyone</option>
@@ -178,16 +205,17 @@ export function ActivityPanel({ me }: { me: PortalUser }) {
             ))}
           </select>
         )}
-        <button type="button" className={styles.refresh} onClick={() => load()}>
-          ↻ Refresh
+        <button type="button" className={styles.refresh} disabled={loading} onClick={() => load()}>
+          {loading ? "Loading…" : "↻ Refresh"}
         </button>
       </div>
 
-      {state === "error" && <p className={styles.empty}>Couldn’t load the activity. Try Refresh.</p>}
+      {state === "error" && <p className={styles.empty} role="alert">Couldn’t load the activity. Try Refresh.</p>}
+      {olderOpen && <p className={styles.lead}>Older activity stays open while you read. Refresh to return to the latest entries.</p>}
       {state === "loading" && <p className={styles.empty}>Loading…</p>}
       {state === "ready" && entries.length === 0 && <p className={styles.empty}>Nothing here yet{q || group || person ? " for those filters" : ""}.</p>}
 
-      <ol className={styles.list}>
+      <ol className={styles.list} aria-busy={loading}>
         {entries.map((e) => (
           <li key={e.id} className={styles.item} data-ok={e.ok}>
             <span className={styles.icon} aria-hidden="true">
@@ -211,8 +239,8 @@ export function ActivityPanel({ me }: { me: PortalUser }) {
       </ol>
 
       {more && (
-        <button type="button" className={styles.more} onClick={() => load(true, entries[entries.length - 1]?.id)}>
-          Show older activity
+        <button type="button" className={styles.more} disabled={loading} onClick={() => load(true, entries[entries.length - 1]?.id)}>
+          {loading ? "Loading…" : "Show older activity"}
         </button>
       )}
     </div>

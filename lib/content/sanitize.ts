@@ -100,15 +100,15 @@ export function sanitizeContent(input: unknown): SiteContent {
   merged.categories = cats.length && !migrate ? cats : [...CATEGORIES];
   const typeOf = (raw: string) => (migrate ? (LEGACY_CATEGORIES[raw.toLowerCase()] ?? raw) : raw);
 
-  // Projects: each needs a title, an address and at least one image; the address stays unique.
+  // Empty picture slots are valid templates; keep their captions and project records for later uploads.
   const seen = new Set<string>();
   merged.projects = (merged.projects as unknown[]).flatMap((raw, i) => {
     if (!isObj(raw)) return [];
     const title = str(raw.title).trim();
     const images = (Array.isArray(raw.images) ? raw.images : []).filter(
-      (im): im is { src: string; alt: string } => isObj(im) && typeof im.src === "string" && im.src.startsWith("/images/"),
+      (im): im is { src: string; alt: string } => isObj(im) && typeof im.src === "string" && (im.src === "" || im.src.startsWith("/images/")),
     );
-    if (!title || !images.length) return [];
+    if (!title) return [];
     let slug = slugify(str(raw.slug) || title) || `project-${i + 1}`;
     while (seen.has(slug)) slug += "-2";
     seen.add(slug);
@@ -146,11 +146,11 @@ export function sanitizeContent(input: unknown): SiteContent {
         name: str(raw.name),
         description: str(raw.description),
         deliverables: strs(raw.deliverables),
-        sample: str(raw.sample).startsWith("/images/") ? str(raw.sample) : def.services[0].sample,
+        sample: str(raw.sample).startsWith("/images/") ? str(raw.sample) : "",
         ...cleanAdjust(raw, "sample"),
         details: str(raw.details).slice(0, 4000),
         gallery: (Array.isArray(raw.gallery) ? raw.gallery : []).slice(0, 12).flatMap((g: unknown) => {
-          if (!isObj(g) || !str(g.src).startsWith("/images/")) return [];
+          if (!isObj(g) || typeof g.src !== "string" || (g.src !== "" && !g.src.startsWith("/images/"))) return [];
           return [{ src: str(g.src), alt: str(g.alt).slice(0, 200), ...cleanAdjust(g, "src") }];
         }),
       },
@@ -290,11 +290,11 @@ export function sanitizeContent(input: unknown): SiteContent {
   merged.home.clients.logoSize = oneOf(merged.home.clients.logoSize, SIZES, "large");
   if (merged.home.founder.photo && !merged.home.founder.photo.startsWith("/images/")) merged.home.founder.photo = "";
 
-  // Breakdowns: a title, and layers that are pictures from the library (a layer without one is left out).
+  // Keep empty layers and their labels so cleared artwork can be replaced in the same slots.
   merged.breakdowns = (Array.isArray(src.breakdowns) ? src.breakdowns : []).slice(0, MAX_BREAKDOWNS).flatMap((raw): Breakdown[] => {
     if (!isObj(raw)) return [];
     const layers = (Array.isArray(raw.layers) ? raw.layers : []).slice(0, MAX_BREAKDOWN_LAYERS).flatMap((l) => {
-      if (!isObj(l) || typeof l.image !== "string" || !l.image.startsWith("/images/")) return [];
+      if (!isObj(l) || typeof l.image !== "string" || (l.image !== "" && !l.image.startsWith("/images/"))) return [];
       return [{ image: l.image, label: str(l.label).trim().slice(0, 60) }];
     });
     return [

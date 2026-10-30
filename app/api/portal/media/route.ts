@@ -1,13 +1,17 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import manifest from "@/content/generated/image-manifest.json";
 import { getPortalUser } from "@/lib/portal/auth";
-import { tooLarge } from "@/lib/portal/body-limit";
+import { tooLarge, readUploadForm, UploadTooLargeError } from "@/lib/portal/body-limit";
 import { logActivity } from "@/lib/portal/activity";
 import { processImage } from "@/lib/portal/image";
+import { isImageBusyError } from "@/lib/portal/image-work";
 import { store } from "@/lib/storage";
+import { protectedMedia } from "@/lib/content/reset-media";
+import { readIntroSettings } from "@/lib/portal/settings-store";
 
 /** The image library: every picture the site has, plus uploads (creator portal only). */
 const ROOT = path.join(process.cwd(), "public", "images");
@@ -35,11 +39,12 @@ export async function GET() {
   const built: string[] = [];
   if (s.kind === "fs") await walk(ROOT, "/images", built);
   else for (const src of Object.keys(manifest)) if (src.startsWith("/images/") && !HIDDEN.has(src.split("/")[2]) && IMAGE.test(src)) built.push(src);
-  const images = [...new Set([...built, ...uploaded])];
   // Pictures uploaded through the portal (the library's own uploads and the slate's titles) can be deleted again; the
   // ones that came with the site are part of its files and can't.
   const slate = (await s.list("uploads/proof/")).map((k) => "/images/proof-table/" + k.slice("uploads/proof/".length));
-  const removable = [...uploaded, ...slate];
+  const images = [...new Set([...built, ...uploaded, ...slate])];
+  const protectedUrls = protectedMedia(await readIntroSettings());
+  const removable = [...uploaded, ...slate].filter((src) => !protectedUrls.has(src));
   // Newest uploads first, then the rest by folder.
   images.sort((a, b) => Number(b.startsWith("/images/uploads/")) - Number(a.startsWith("/images/uploads/")) || a.localeCompare(b));
   return NextResponse.json({ images, removable });
@@ -49,17 +54,19 @@ export async function POST(req: NextRequest) {
   const me = await getPortalUser();
   if (!me) return NextResponse.json({ error: "Your session has ended. Sign in again." }, { status: 401 });
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  if (origin && !requestOriginMatches(req)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
   const big = tooLarge(req, MAX_BYTES);
   if (big) return big;
 
   let file: File | null = null;
   try {
-    const form = await req.formData();
+    const form = await readUploadForm(req, MAX_BYTES);
     const f = form.get("file");
     file = f instanceof File ? f : null;
-  } catch {}
+  } catch (error) {
+    if (error instanceof UploadTooLargeError) return NextResponse.json({ error: error.message }, { status: 413 });
+  }
   // The kind of picture is decided from its bytes (below), not from what the browser says it is.
   if (!file) return NextResponse.json({ error: "Choose a picture to upload." }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "That image is over 6 MB, so it wasn’t uploaded." }, { status: 400 });
@@ -79,8 +86,9 @@ export async function POST(req: NextRequest) {
     await logActivity({ headers: req.headers, actor: me, action: "uploaded-image", detail: file.name });
     return NextResponse.json({ src: `/images/uploads/${name}` });
   } catch (err) {
+    if (isImageBusyError(err)) return NextResponse.json({ error: err.message }, { status: 503, headers: { "Retry-After": "2" } });
     console.error("[portal] image upload failed", err);
-    const known = err instanceof Error && /isn.t a picture|SVG|TIFF/.test(err.message);
+    const known = err instanceof Error && /isn.t a picture|SVG|TIFF|too many pixels/.test(err.message);
     return NextResponse.json({ error: known ? (err as Error).message : "Couldn’t save the image on this server." }, { status: known ? 400 : 500 });
   }
 }

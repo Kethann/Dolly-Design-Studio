@@ -1,9 +1,11 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { getContent } from "@/lib/content/store";
 import { logActivity } from "@/lib/portal/activity";
 import { getPortalUser } from "@/lib/portal/auth";
 import { readIntroSettings } from "@/lib/portal/settings-store";
 import { store } from "@/lib/storage";
+import { canResetMediaFile, protectedMedia } from "@/lib/content/reset-media";
 
 /** What the site's storage holds, against its allowance, and a way to remove files nobody needs (portal only). */
 const GB = 1024 * 1024 * 1024;
@@ -26,6 +28,7 @@ interface GroupDef {
 }
 
 const GROUPS: GroupDef[] = [
+  { id: "videos", label: "Videos", prefix: "uploads/videos/", url: "/media/videos/", deletable: true },
   { id: "pictures", label: "Pictures", prefix: "uploads/images/", url: "/images/uploads/", deletable: true },
   { id: "fonts", label: "Fonts", prefix: "uploads/fonts/", url: "/fonts/uploads/", deletable: true },
   { id: "proof", label: "Slate pictures", prefix: "uploads/proof/", url: "/images/proof-table/", deletable: true },
@@ -115,16 +118,25 @@ export async function DELETE(req: NextRequest) {
   const me = await getPortalUser();
   if (!me) return NextResponse.json({ error: "Your session has ended. Sign in again." }, { status: 401 });
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  if (origin && !requestOriginMatches(req)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   const body = (await req.json().catch(() => ({}))) as { key?: unknown; confirmed?: unknown };
   const key = typeof body.key === "string" ? body.key : "";
   if (body.confirmed !== true) return NextResponse.json({ error: "Confirm the deletion first." }, { status: 400 });
   // Only uploaded pictures, fonts and textures can be removed here: never content, accounts, enquiries or the log.
-  if (!/^uploads\/(images|fonts|proof|textures)\/[\w.-]+$/.test(key) || key.includes("..")) {
+  if (!/^uploads\/(images|fonts|proof|textures|videos)\/[\w.-]+$/.test(key) || key.includes("..")) {
     return NextResponse.json({ error: "That file can’t be deleted here." }, { status: 400 });
   }
   try {
-    await (await store()).remove(key);
+    const s = await store();
+    if (/^uploads\/(images|proof)\//.test(key)) {
+      // Check again at deletion time, including for stale library lists and other open tabs.
+      const saved = await s.getText("content/intro-settings.json");
+      const settings = saved === null ? await readIntroSettings() : JSON.parse(saved);
+      if (!canResetMediaFile(key, protectedMedia(settings))) {
+        return NextResponse.json({ error: "This picture is used by the intro or background and is protected." }, { status: 409 });
+      }
+    }
+    await s.remove(key);
     await logActivity({ headers: req.headers, actor: me, action: "deleted-file", detail: key.slice(key.lastIndexOf("/") + 1) });
     return NextResponse.json({ ok: true });
   } catch (err) {

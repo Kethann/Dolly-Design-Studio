@@ -1,0 +1,25 @@
+.placeholder {
+  display: grid;
+  position: absolute;
+  inset: 0;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--gold) 8%, transparent), transparent 70%),
+    linear-gradient(145deg, color-mix(in srgb, var(--gold) 4%, transparent), transparent 65%);
+  color: color-mix(in srgb, var(--ivory) 72%, transparent);
+  text-align: center;
+  font-family: var(--font-label);
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: 0.12em;
+}
+
+.placeholder::before {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 1px solid color-mix(in srgb, var(--gold) 16%, transparent);
+  border-radius: inherit;
+  pointer-events: none;
+}

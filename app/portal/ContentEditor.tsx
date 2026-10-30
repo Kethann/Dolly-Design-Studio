@@ -1,8 +1,11 @@
 "use client";
 
 import { useConfirmDelete } from "./DeleteDialog";
+import { EffectChoices } from "./EffectChoices";
+import { VideoField, type VideoValue } from "./VideoField";
 import { createPortal } from "react-dom";
 import { resizedSrc } from "@/lib/images";
+import { editableFx, selectedEffect, applyTextEffect, markEffectWords, plainFx, type TextEffect } from "@/lib/content/text-effects";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { allFonts } from "@/lib/content/fonts";
 import { fontFaceCss, glassVars } from "@/lib/content/css";
@@ -13,14 +16,21 @@ import { moveTo, useReorder } from "./reorder";
 import { styledTexts, type Field, type SchemaPage, type SchemaSection } from "./content-schema";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "@/lib/content/limits";
 import type { Problem } from "./validate";
-import { checkFile, postFile, UPLOAD_KINDS, type UploadKind } from "./upload";
-import { fileSizeLabel } from "./image-info";
+import { postFile, UPLOAD_KINDS, type UploadKind } from "./upload";
+import { fileSizeLabel, fileName } from "./image-info";
+import { useUploads, type UploadState } from "./use-uploads";
+export { useUploads } from "./use-uploads";
+import { librarySelection } from "./media-selection";
+import { useDialogFocus } from "./dialog-focus";
 import styles from "./content.module.css";
 
 // ── shared state: the draft content, and the image library ───────────────────────────────────────────────────────
 
 export interface MediaApi {
   images: string[];
+  loading?: boolean;
+  error?: string;
+  reload?: () => void;
   /** The pictures that were uploaded in the portal, and so can be deleted for good. */
   removable: string[];
   /** Deletes an uploaded picture from the storage completely (the caller has already asked "are you sure?"). */
@@ -82,7 +92,7 @@ export function setAt<T>(obj: T, path: string, value: unknown): T {
 /** "home.process.cards.2.title" → "home.process.cards.title": the key a text's style is stored under. */
 const styleKey = (path: string) => path.replace(/\.\d+(?=\.|$)/g, "");
 
-/** Texts that are not drawn with the particle effect (they also appear in page titles, search results or as lists of words). */
+/** Branding and intro text retain their established presentation. */
 const NO_FX = new Set(["home.hero.disciplines", "site.founder.name", "site.founder.role"]);
 
 export const moveItem = <T,>(list: T[], i: number, by: number) => {
@@ -191,47 +201,12 @@ export function StyleControls({ value, onChange }: { value: TextStyle; onChange:
 
 // ── uploading: drag a file in or click, see it go, get told clearly if something is wrong ──────────────────────────
 
-interface UploadState {
-  busy: boolean;
-  /** Which file of how many, and how far through it is. */
-  index: number;
-  total: number;
-  percent: number;
-  errors: string[];
-}
-
 /** What an upload is doing right now, in words: getting the file ready, sending it (with a percentage), or the server saving it. */
 export function uploadLabel(s: UploadState) {
   const of = s.total > 1 ? ` ${s.index} of ${s.total}` : "";
   if (s.percent <= 0) return `Preparing${of}…`;
   if (s.percent >= 100) return `Saving${of}…`;
   return `Uploading${of}… ${s.percent}%`;
-}
-
-const IDLE: UploadState = { busy: false, index: 0, total: 0, percent: 0, errors: [] };
-
-/** Uploads a batch of files one after another, with progress and a plain message for each that can't be sent. */
-export function useUploads<T>(kind: UploadKind, send: (file: File, onProgress: (percent: number) => void) => Promise<T>) {
-  const [state, setState] = useState<UploadState>(IDLE);
-  async function start(files: File[], onEach: (result: T, file: File) => void) {
-    const errors: string[] = [];
-    const ok = files.filter((f) => {
-      const problem = checkFile(f, kind);
-      if (problem) errors.push(problem);
-      return !problem;
-    });
-    setState({ busy: ok.length > 0, index: 0, total: ok.length, percent: 0, errors });
-    for (let i = 0; i < ok.length; i++) {
-      setState((st) => ({ ...st, index: i + 1, percent: 0 }));
-      try {
-        onEach(await send(ok[i], (percent) => setState((st) => ({ ...st, percent }))), ok[i]);
-      } catch (err) {
-        errors.push(`“${ok[i].name}”: ${err instanceof Error ? err.message : "Upload failed."}`);
-      }
-    }
-    setState({ ...IDLE, errors });
-  }
-  return { state, start, clearErrors: () => setState((st) => ({ ...st, errors: [] })) };
 }
 
 /** A drop target that is also a button: drag files onto it, or click to choose them. */
@@ -329,16 +304,24 @@ export function DropZone({
 
 /** A readable name for a picture from its file name: no folder, no ending, no random tail, dashes as spaces. */
 export const prettyName = (src: string) =>
-  decodeURIComponent(src.split("/").pop() ?? src)
+  fileName(src)
     .replace(/\.[a-z0-9]+$/i, "")
     .replace(/-[0-9a-f]{8}$/i, "")
     .replace(/[-_]+/g, " ")
     .trim();
 
+function LibraryStatus({ media }: { media: MediaApi }) {
+  if (media.loading) return <p className={styles.hint} role="status">Loading your image library…</p>;
+  if (media.error) return <div className={styles.error} role="alert"><p>{media.error}</p><button type="button" className={styles.link} onClick={media.reload}>Retry loading library</button></div>;
+  return null;
+}
+
 export function ImagePicker({ value, onPick, onClose }: { value: string; onPick: (src: string) => void; onClose: () => void }) {
   const { media } = useEditor();
   const [filter, setFilter] = useState("");
   const [over, setOver] = useState(false);
+  const [showNames, setShowNames] = useState(false);
+  const [limit, setLimit] = useState(48);
   const input = useRef<HTMLInputElement>(null);
   const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
   const busy = uploads.state.busy;
@@ -358,11 +341,16 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
   };
   return (
     <div className={styles.picker}>
+      <LibraryStatus media={media} />
       <div className={styles.pickerHead}>
-        <input className={styles.input} placeholder="Search your pictures by name" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Search your pictures by name" />
-        <button type="button" className={styles.link} onClick={onClose}>
+        <input className={styles.input} placeholder="Find a picture…" value={filter} onChange={(e) => { setFilter(e.target.value); setLimit(48); }} aria-label="Search your pictures by name" />
+        <button type="button" className={styles.link} disabled={busy} onClick={onClose}>
           Close
         </button>
+      </div>
+      <div className={styles.pickerTools}>
+        <span role="status">{shown.length} {shown.length === 1 ? "picture" : "pictures"} · Tap to choose</span>
+        <button type="button" aria-pressed={showNames} onClick={() => setShowNames((current) => !current)}>Names</button>
       </div>
       <div className={styles.pickerGrid}>
         {/* The first box is always the upload box (click it, or drop a file on it); then the pictures you already have. */}
@@ -399,12 +387,14 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
             </>
           )}
         </button>
-        {shown.map((src) => (
+        {shown.slice(0, limit).map((src) => (
           <button
             key={src}
             type="button"
             className={styles.pickerTile}
             data-on={src === value}
+            aria-pressed={src === value}
+            disabled={busy}
             title={src.replace("/images/", "")}
             aria-label={`Use ${prettyName(src)}`}
             onClick={() => {
@@ -414,13 +404,16 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
           >
             <span className={styles.pickerThumb}>
               {/* eslint-disable-next-line @next/next/no-img-element -- library thumbnails */}
-              <img src={resizedSrc(src, 320)} alt="" loading="lazy" decoding="async" />
+              <img src={resizedSrc(src, 256)} alt="" loading="lazy" decoding="async" />
             </span>
-            <span className={styles.pickerName}>{prettyName(src)}</span>
+            {src === value && <span className={styles.pickerSelected} aria-hidden="true">✓</span>}
+            {showNames && <span className={styles.pickerName}>{prettyName(src)}</span>}
           </button>
         ))}
-        {shown.length === 0 && filter && <p className={styles.hint}>No picture matches “{filter}”.</p>}
+        {shown.length === 0 && filter && !media.loading && !media.error && <p className={styles.hint}>No picture matches “{filter}”.</p>}
+        {shown.length === 0 && !filter && !media.loading && !media.error && <p className={styles.hint}>Upload a picture to start your library.</p>}
       </div>
+      {shown.length > limit && <button type="button" className={styles.link} onClick={() => setLimit((current) => current + 48)}>Show more pictures ({shown.length - limit} remaining)</button>}
       {uploads.state.errors.map((m, i) => (
         <p key={i} className={styles.error} role="alert">
           {m}
@@ -443,14 +436,11 @@ export function ImagePicker({ value, onPick, onClose }: { value: string; onPick:
 
 /** The same chooser in a window of its own, for places with no room for it inline. */
 export function PickerDialog({ title, value, onPick, onClose }: { title: string; value: string; onPick: (src: string) => void; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(box, onClose);
   return (
     <div className={styles.pickerBackdrop} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={styles.pickerDialog} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={box} className={styles.pickerDialog} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1}>
         <h3>{title}</h3>
         <ImagePicker value={value} onPick={onPick} onClose={onClose} />
       </div>
@@ -473,6 +463,31 @@ const SIZE_CHOICES = [
  * One picture, all in one place: a preview, Upload (or drop a file on it), pick from the library, Remove, a
  * description, and (where the page has them) its shape and size.
  */
+function ProcessMediaField({ path }: { path: string }) {
+  const { content, update } = useEditor();
+  const base = path.replace(/[^.]+$/, "");
+  const isVideo = getAt(content, base + "mediaType") === "video";
+  const videoValue: VideoValue = {
+    video: String(getAt(content, base + "video") || ""),
+    videoWidth: Number(getAt(content, base + "videoWidth")) || 0,
+    videoHeight: Number(getAt(content, base + "videoHeight")) || 0,
+  };
+  return <>
+    <div className={styles.field}>
+      <span className={styles.label}>Card media</span>
+      <div className={styles.mediaActions} role="group" aria-label="Card media type">
+        {(["image", "video"] as const).map(type => <button type="button" key={type} aria-pressed={isVideo === (type === "video")} onClick={() => update(c => setAt(c, base + "mediaType", type))}>{type === "image" ? "Photo" : "Video"}</button>)}
+      </div>
+    </div>
+    {isVideo && <VideoField key={base} value={videoValue} onChange={value => update(c => {
+      let next = c;
+      for (const [key, val] of Object.entries(value)) next = setAt(next, base + key, val);
+      return next;
+    })} />}
+    <ImageField path={path} field={{ kind: "image", path: "image", label: isVideo ? "Cover photo (optional)" : "Photo", hint: isVideo ? "Shown before Play. It does not crop the video." : "Choose a photo from the library or upload one.", ...(isVideo ? {} : { adjust: "image" }) }} />
+  </>;
+}
+
 function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>; path: string }) {
   const { content, update, media } = useEditor();
   const value = (getAt(content, path) as string) || "";
@@ -506,7 +521,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
     const f = Array.from(list ?? [])[0];
     if (f && !uploads.state.busy) void uploads.start([f], (src) => set(src)); // the new picture is used straight away
   };
-  const name = value ? decodeURIComponent(value.split("/").pop() ?? "") : "";
+  const name = value ? fileName(value) : "";
   const busy = uploads.state.busy;
 
   return (
@@ -518,13 +533,15 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
           data-over={over}
           data-shape={shapePath ? shape : undefined}
           role="button"
-          tabIndex={0}
+          tabIndex={busy ? -1 : 0}
+          aria-disabled={busy}
           title="Click to choose or upload a picture"
-          onClick={() => setOpen(true)}
+          aria-label={`${value ? "Change" : "Choose"} ${field.label}`}
+          onClick={() => { if (!busy) setOpen(true); }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              setOpen(true);
+              if (!busy) setOpen(true);
             }
           }}
           onDragOver={(e) => {
@@ -542,7 +559,8 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
             // eslint-disable-next-line @next/next/no-img-element -- a preview of the chosen picture
             <img
               key={value}
-              src={resizedSrc(value, 1280)}
+              src={resizedSrc(value, 640)}
+              decoding="async"
               alt={alt || ""}
               onLoad={() => setShownSrc(value)}
               onError={() => setBroken(value)}
@@ -563,20 +581,19 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
         <div className={styles.imageSide}>
           <div className={styles.imageButtons}>
             <button type="button" className={styles.primary} disabled={busy} onClick={() => input.current?.click()}>
-              ⬆ {value ? "Upload a new picture" : "Upload a picture"}
+              ↑ Upload
             </button>
-            <button type="button" className={styles.pill} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-              Choose a picture
+            <button type="button" className={styles.pill} disabled={busy} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+              Browse images
             </button>
             {value && (
-              <button type="button" className={styles.link} onClick={() => set("")}>
+              <button type="button" className={styles.link} disabled={busy} onClick={() => set("")}>
                 Remove
               </button>
             )}
           </div>
-          <p className={styles.imageName}>
-            {value ? name : "Drop a file on the preview, or press Upload."} <em>{value ? fileSizeLabel(value) : ""}</em>
-          </p>
+          {value ? <details className={styles.imageDetails}><summary>File details</summary><p className={styles.imageName}>{name} <em>{fileSizeLabel(value)}</em></p></details>
+            : <p className={styles.hint}>Tap the preview to choose, or drop an image here.</p>}
           {field.hint && <p className={styles.hint}>{field.hint}</p>}
         </div>
         <input
@@ -606,7 +623,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
         </label>
       )}
       {field.adjust && value && (
-        <div className={styles.imageAdjust}>
+        <details className={styles.imageDetails}><summary>Crop & position</summary><div className={styles.imageAdjust}>
           <Slider label="Zoom out ↔ in" hint="100% is the middle. Slide left to make the picture smaller, right to make it bigger." value={zoomToPos(zoom)} min={0} max={100} step={1} format={() => `${Math.round(zoom * 100)}%`} onChange={(p) => setNum("Zoom", posToZoom(p))} />
           <Slider label="Left ↔ right" value={posX} min={0} max={100} step={1} format={(v) => `${v}%`} onChange={(v) => setNum("X", v)} />
           <Slider label="Up ↕ down" value={posY} min={0} max={100} step={1} format={(v) => `${v}%`} onChange={(v) => setNum("Y", v)} />
@@ -617,7 +634,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
           >
             Reset zoom and position
           </button>
-        </div>
+        </div></details>
       )}
       {(shapePath || sizePath) && (
         <div className={styles.imageOptions}>
@@ -627,6 +644,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
               <div className={styles.choices}>
                 {SHAPE_CHOICES.map(([v, text]) => (
                   <button key={v} type="button" className={styles.pill} data-on={shape === v} aria-pressed={shape === v} onClick={() => setSibling(shapePath, v)}>
+                    <span className={styles.shapeSample} data-shape={v} aria-hidden="true" />
                     {text}
                   </button>
                 ))}
@@ -639,6 +657,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
               <div className={styles.choices}>
                 {SIZE_CHOICES.map(([v, text]) => (
                   <button key={v} type="button" className={styles.pill} data-on={size === v} aria-pressed={size === v} onClick={() => setSibling(sizePath, v)}>
+                    <span className={styles.sizeSample} data-size={v} aria-hidden="true" />
                     {text}
                   </button>
                 ))}
@@ -656,43 +675,40 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
 
 function TextInput({ field, path }: { field: Extract<Field, { kind: "text" | "area" }>; path: string }) {
   const { content, update } = useEditor();
-  const value = (getAt(content, path) as string | undefined) ?? "";
-  const set = (v: string) => update((c) => setAt(c, path, v));
-  const box = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
-  const hasFx = /\[\[.+?\]\]/.test(value);
-  /** The effect is offered on every text the site can draw with it: all the headings, small headings and paragraphs (not names, which also sit in page titles, or lists of words). */
+  const raw = (getAt(content, path) as string | undefined) ?? "";
   const fxOn = field.fx ?? (!!field.style && !NO_FX.has(styleKey(path)));
-  /** Particle effect on or off: the selected words get [[brackets]]; with nothing selected, the last word does; pressed again, they go. */
-  const toggleFx = () => {
+  const effect = selectedEffect(raw);
+  const value = fxOn ? editableFx(raw) : raw;
+  const set = (v: string, nextEffect: TextEffect = effect) => update((c) => setAt(c, path, fxOn ? applyTextEffect(v, nextEffect) : v));
+  const box = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  const hasFx = /\[\[[^\[\]]+?\]\]/.test(value);
+  const markWords = () => {
     const el = box.current;
-    const sel = el ? value.slice(el.selectionStart ?? 0, el.selectionEnd ?? 0) : "";
-    if (sel.trim() && !/\[\[|\]\]/.test(sel)) {
-      const start = (el!.selectionStart ?? 0) + (sel.length - sel.trimStart().length);
-      set(value.slice(0, start) + "[[" + sel.trim() + "]]" + value.slice(start + sel.trim().length));
-    } else if (hasFx) {
-      set(value.replace(/\[\[(.+?)\]\]/g, "$1"));
-    } else {
-      const m = /([^\s.,!?:;]+)([\s.,!?:;]*)$/.exec(value);
-      if (m) set(value.slice(0, m.index) + "[[" + m[1] + "]]" + m[2]);
-    }
+    set(markEffectWords(value, el?.selectionStart ?? 0, el?.selectionEnd ?? 0));
   };
   return (
     <div className={styles.field}>
       <div className={styles.labelRow}>
         <span className={styles.label}>{field.label}</span>
-        {fxOn && (
-          <button type="button" className={styles.aa} data-on={hasFx} aria-pressed={hasFx} title="Select some words first, or it uses the last word. Press again to remove." onMouseDown={(e) => e.preventDefault()} onClick={toggleFx}>
-            ✦ Particles
-          </button>
-        )}
         {field.style && <StyleToggleButtonSlot path={path} />}
       </div>
       {field.kind === "area" ? (
-        <textarea ref={box} className={styles.input} rows={Math.min(14, Math.max(3, Math.ceil(value.length / 48) + 1))} value={value} onChange={(e) => set(e.target.value)} />
+        <textarea ref={box} aria-label={field.label} className={styles.input} rows={Math.min(14, Math.max(3, Math.ceil(value.length / 48) + 1))} value={value} onChange={(e) => set(e.target.value)} />
       ) : (
-        <input ref={box} className={styles.input} value={value} onChange={(e) => set(e.target.value)} />
+        <input ref={box} aria-label={field.label} className={styles.input} value={value} onChange={(e) => set(e.target.value)} />
       )}
-      {fxOn && <p className={styles.hint}>Words inside [[double brackets]] turn into dots that scatter from the cursor. Select words and press “✦ Particles”.</p>}
+      {fxOn && <div className={styles.textEffects} role="group" aria-label={`Text effects for ${field.label}`}>
+        <span className={styles.effectLabel}>Text effect</span>
+          <EffectChoices value={effect} disabled={!value.trim()} onChange={(nextEffect) => {
+            const marked = hasFx ? value : markEffectWords(value, box.current?.selectionStart ?? 0, box.current?.selectionEnd ?? 0);
+            set(marked, nextEffect);
+          }} />
+        <div className={styles.effectActions}>
+          <button type="button" disabled={!value.trim()} aria-label="Mark selected words" title="Select words first. Without a selection, the final word is marked." onMouseDown={(e) => e.preventDefault()} onClick={markWords}>Mark words</button>
+          <button type="button" disabled={!hasFx} aria-label="Clear marked words" onClick={() => set(plainFx(value))}>Clear</button>
+        </div>
+        <p className={styles.hint}>Use [[words]] or Mark words. Only this heading changes.</p>
+      </div>}
       {field.hint && <p className={styles.hint}>{field.hint}</p>}
       {field.style && <StyleToggleBody path={path} />}
     </div>
@@ -756,7 +772,7 @@ function Stringlist({ field, path }: { field: Extract<Field, { kind: "strings" }
           {list.map((item, i) => (
             <div key={i} className={styles.stringRow} {...reItem(i)}>
               {reGrip(i, list.length)}
-              {field.area ? (
+              {field.style && !NO_FX.has(styleKey(path)) ? <TextInput path={`${path}.${i}`} field={{kind: field.area ? "area" : "text", path: `${path}.${i}`, label: `${field.label} ${i + 1}`, fx: true}} /> : field.area ? (
                 <textarea
                   className={styles.input}
                   rows={Math.min(10, Math.max(3, Math.ceil(item.length / 48) + 1))}
@@ -846,7 +862,7 @@ function CategoriesField({ field }: { field: Extract<Field, { kind: "categories"
 
 /** The first picture an item has (its own image field, or the first of an "images" list), for a small preview. */
 function thumbOf(item: Record<string, unknown>, field: Extract<Field, { kind: "list" }>): string {
-  const imageField = field.fields.find((f) => f.kind === "image");
+  const imageField = field.fields.find((f) => f.kind === "image" || f.kind === "process-media");
   if (imageField && typeof item[imageField.path] === "string") return item[imageField.path] as string;
   const first = Array.isArray(item.images) ? (item.images[0] as { src?: string } | undefined) : undefined;
   return typeof first?.src === "string" ? first.src : "";
@@ -919,6 +935,7 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
                     ›
                   </span>
                   <span className={styles.cardIndex}>{String(i + 1).padStart(2, "0")}</span>
+                  {item.mediaType === "video" && !thumbOf(item, field) && <span className={styles.videoThumb} aria-label="Video card">▶</span>}
                   {thumbOf(item, field) && (
                     // eslint-disable-next-line @next/next/no-img-element -- a small preview of the item's picture
                     <img className={styles.cardThumb} src={resizedSrc(thumbOf(item, field), 240)} alt="" />
@@ -990,7 +1007,7 @@ export function FieldView({ field, base = "" }: { field: Field; base?: string })
   const mine = problems.filter((p) => p.path === path);
   return (
     <>
-      <FieldInner field={field} base={base} />
+      <FieldInner key={path} field={field} base={base} />
       {mine.map((p, i) => (
         <p key={i} className={styles.error} role="alert">
           {p.message}
@@ -1004,6 +1021,8 @@ function FieldInner({ field, base = "" }: { field: Field; base?: string }) {
   const { content, update } = useEditor();
   const path = base + field.path;
   switch (field.kind) {
+    case "process-media":
+      return <ProcessMediaField path={path} />;
     case "text":
     case "area":
       return (
@@ -1035,6 +1054,7 @@ function FieldInner({ field, base = "" }: { field: Field; base?: string }) {
         </label>
       );
     case "select": {
+      if (field.path === "fit" && getAt(content, base + "mediaType") === "video") return null;
       const options = field.optionsFrom ? ((getAt(content, field.optionsFrom) as string[] | undefined) ?? []) : field.options;
       return (
         <label className={styles.field}>
@@ -1504,6 +1524,7 @@ export function ThemeEditor() {
 export function MediaLibrary() {
   const { media, content } = useEditor();
   const [filter, setFilter] = useState("");
+  const [showNames, setShowNames] = useState(false);
   /** Select-many mode: tapping a picture ticks it, then one Delete removes all that are ticked. */
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
@@ -1511,9 +1532,18 @@ export function MediaLibrary() {
   const [asking, setAsking] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [progress, setProgress] = useState(0);
+  const deleting = useRef(false);
+  const deleteDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = deleteDialog.current;
+    if (!asking || !dialog) return;
+    dialog.showModal();
+    return () => dialog.close();
+  }, [asking]);
   const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
-  const shown = media.images.filter((s) => s.toLowerCase().includes(filter.toLowerCase()));
-  const shownRemovable = shown.filter((s) => media.removable.includes(s));
+  const { shown, shownRemovable, selected, allShownSelected, hiddenSelected } = librarySelection(media.images, media.removable, picked, filter);
   const siteJson = JSON.stringify(content);
   const used = (src: string) => siteJson.includes(src);
   const toggle = (src: string) => setPicked((p) => (p.includes(src) ? p.filter((x) => x !== src) : [...p, src]));
@@ -1521,8 +1551,24 @@ export function MediaLibrary() {
     setSelecting(false);
     setPicked([]);
   };
+  const selectShown = () => {
+    if (busy || !shownRemovable.length) return;
+    setSelecting(true);
+    setPicked([...new Set([...selected, ...shownRemovable])]);
+    setError("");
+    setNotice("");
+  };
+  const askDelete = (list: string[]) => {
+    if (busy || !list.length) return;
+    setError("");
+    setNotice("");
+    setAsking([...list]);
+  };
   async function removeAll(list: string[]) {
+    if (deleting.current) return;
+    deleting.current = true;
     setBusy(true);
+    setProgress(0);
     setError("");
     const failed: string[] = [];
     const done: string[] = [];
@@ -1533,7 +1579,9 @@ export function MediaLibrary() {
       } catch (err) {
         failed.push(err instanceof Error ? err.message : "Couldn’t delete that picture.");
       }
+      setProgress(done.length + failed.length);
     }
+    deleting.current = false;
     setBusy(false);
     setPicked((p) => p.filter((x) => !done.includes(x)));
     if (failed.length) {
@@ -1541,52 +1589,73 @@ export function MediaLibrary() {
     } else if (selecting) {
       stopSelecting();
     }
+    if (!failed.length) setNotice(`${done.length} ${done.length === 1 ? "picture deleted" : "pictures deleted"}.`);
     setAsking(null);
   }
   const askingUsed = asking ? asking.filter(used).length : 0;
   return (
-    <div className={styles.page}>
+    <div className={styles.page} role="region" aria-label="Image library" tabIndex={0} onKeyDown={(e) => {
+      if (asking || busy) return;
+      const target = e.target as HTMLElement;
+      if (target.isContentEditable || target.closest("textarea, select, input:not([type='checkbox'])")) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        e.stopPropagation();
+        selectShown();
+      } else if (selecting && e.key === "Delete" && selected.length) {
+        e.preventDefault();
+        e.stopPropagation();
+        askDelete(selected);
+      } else if (selecting && e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        stopSelecting();
+      }
+    }}>
       <section className={styles.section} data-open="true">
         <div className={styles.sectionBody}>
+          <LibraryStatus media={media} />
           <DropZone
             kind="image"
             multiple
             state={uploads.state}
             title="Drop pictures here, or click to choose"
-            hint="PNG, JPG, WebP, AVIF, GIF, SVG, TIFF, BMP or ICO, up to 6 MB each (bigger files aren’t uploaded). Big photos are kept at up to 3200 px as high-quality WebP (GIFs stay animated, SVGs stay sharp), ready to pick in any picture field."
+            hint="PNG, JPG and JPEG are supported, up to 6 MB each. You can also use WebP, AVIF, GIF, SVG, TIFF, BMP or ICO. Large photos are optimized for the site (GIFs stay animated, SVGs stay sharp), ready to pick in any picture field."
             onFiles={(files) => uploads.start(files, () => {})}
           />
-          <input className={styles.input} placeholder="Search by name or folder" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input className={styles.input} aria-label="Search images by name or folder" placeholder="Search by name or folder" value={filter} disabled={busy} onChange={(e) => setFilter(e.target.value)} />
           <div className={styles.libBar}>
-            <span className={styles.grow}>
+            <span className={styles.grow} role="status">
               {selecting
-                ? `${picked.length} selected`
+                ? `${selected.length} selected${hiddenSelected ? ` (${hiddenSelected} hidden by search)` : ""}`
                 : `${media.images.length} pictures${filter ? ` — ${shown.length} match` : ""}`}
             </span>
-            {selecting ? (
+            <button type="button" onClick={selectShown} aria-keyshortcuts="Control+A Meta+A" disabled={busy || shownRemovable.length === 0 || allShownSelected}>
+              Select all{filter.trim() ? " shown" : ""}
+            </button>
+            <button type="button" aria-pressed={showNames} data-on={showNames} onClick={() => setShowNames((current) => !current)}>Names</button>
+            <button type="button" aria-pressed={selecting} data-on={selecting} onClick={() => { setError(""); setNotice(""); setSelecting(true); }} disabled={busy || shownRemovable.length === 0}>
+              Custom select
+            </button>
+            {selecting && (
               <>
-                <button type="button" onClick={() => setPicked(shownRemovable)} disabled={shownRemovable.length === 0 || picked.length === shownRemovable.length}>
-                  Select all{filter ? " shown" : ""}
+                <button type="button" onClick={() => setPicked([])} disabled={busy || selected.length === 0}>
+                  Clear selection
                 </button>
-                <button type="button" onClick={() => setPicked([])} disabled={picked.length === 0}>
-                  Clear
+                <button type="button" data-danger="true" aria-keyshortcuts="Delete" onClick={() => askDelete(selected)} disabled={selected.length === 0 || busy}>
+                  Delete selected{selected.length ? ` (${selected.length})` : ""}
                 </button>
-                <button type="button" data-danger="true" onClick={() => { setError(""); setAsking(picked); }} disabled={picked.length === 0 || busy}>
-                  Delete{picked.length ? ` (${picked.length})` : ""}
-                </button>
-                <button type="button" onClick={stopSelecting}>
+                <button type="button" onClick={stopSelecting} disabled={busy}>
                   Done
                 </button>
               </>
-            ) : (
-              <button type="button" onClick={() => { setError(""); setSelecting(true); }} disabled={shownRemovable.length === 0}>
-                Select several
-              </button>
             )}
           </div>
-          <p className={styles.hint}>
-            {selecting ? "Tap the pictures you want to remove, then press Delete. Pictures that came with the site can’t be deleted." : "Pictures you uploaded can be deleted for good: use the ✕ on one, or Select several."}
+          <details className={styles.effectHelp}><summary>Selection tips</summary><p className={styles.hint}>
+            Choose all uploaded pictures or pick individual pictures with Custom select. Search limits Select all to the results shown. Studio assets and images used by the intro are protected.
           </p>
+          <p className={styles.hint}>With the library focused: Ctrl/Cmd+A selects all shown, Space toggles a focused checkbox, Delete reviews the selection, and Esc cancels selection.</p></details>
+          {notice && <p className={styles.hint} role="status">{notice}</p>}
           {error && (
             <p className={styles.error} role="alert">
               {error}
@@ -1595,17 +1664,18 @@ export function MediaLibrary() {
           <div className={styles.libraryGrid}>
             {shown.map((src) => {
               const canRemove = media.removable.includes(src);
-              const on = picked.includes(src);
+              const on = selected.includes(src);
               return (
                 <figure
                   key={src}
                   className={styles.libraryTile}
                   title={src}
+                  aria-label={prettyName(src)}
                   data-selecting={selecting && canRemove}
                   data-picked={on}
                   style={selecting && !canRemove ? { opacity: 0.45 } : undefined}
-                  onClick={selecting && canRemove ? () => toggle(src) : undefined}
                 >
+                  {selecting && canRemove && <input type="checkbox" className={styles.librarySelect} aria-label={`Select ${src.replace("/images/", "")}`} checked={on} disabled={busy} onChange={() => toggle(src)} />}
                   <span className={styles.libraryPic}>
                     {/* eslint-disable-next-line @next/next/no-img-element -- library thumbnails */}
                     <img src={resizedSrc(src, 320)} alt="" loading="lazy" decoding="async" />
@@ -1615,12 +1685,12 @@ export function MediaLibrary() {
                       </span>
                     )}
                     {!selecting && canRemove && (
-                      <button type="button" className={styles.libraryX} aria-label={`Delete ${src.replace("/images/", "")}`} title="Delete this picture" onClick={() => { setError(""); setAsking([src]); }}>
+                      <button type="button" className={styles.libraryX} aria-label={`Delete ${src.replace("/images/", "")}`} title="Delete this picture" disabled={busy} onClick={() => askDelete([src])}>
                         ✕
                       </button>
                     )}
                   </span>
-                  <figcaption>{src.replace("/images/", "")}</figcaption>
+                  {showNames && <figcaption>{prettyName(src)}</figcaption>}
                 </figure>
               );
             })}
@@ -1630,13 +1700,12 @@ export function MediaLibrary() {
       {asking &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className={styles.delBackdrop} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && !busy && setAsking(null)}>
-            <div className={styles.delDialog} role="alertdialog" aria-modal="true" aria-label="Delete for good?" onKeyDown={(e) => e.key === "Escape" && !busy && setAsking(null)}>
+            <dialog ref={deleteDialog} className={`${styles.delDialog} ${styles.libraryDeleteDialog}`} role="alertdialog" aria-label="Delete for good?" data-lenis-prevent onCancel={(e) => { e.preventDefault(); if (!busy) setAsking(null); }}>
               <h3>Delete {asking.length === 1 ? "this picture" : `${asking.length} pictures`} for good?</h3>
               <p>
                 {askingUsed
-                  ? `${askingUsed === asking.length && asking.length === 1 ? "It is" : `${askingUsed} of them ${askingUsed === 1 ? "is" : "are"}`} used on the site: ${askingUsed === 1 ? "that spot" : "those spots"} will be left empty.`
-                  : "If a card or page uses it, that spot will be left empty."}{" "}
+                  ? `${askingUsed === asking.length && asking.length === 1 ? "It is" : `${askingUsed} of them ${askingUsed === 1 ? "is" : "are"}`} used on the site. Replace or clear those image slots to avoid missing pictures.`
+                  : "Any page that still references these files may show missing pictures until its image slots are updated."}{" "}
                 This can’t be undone.
               </p>
               <span className={styles.delThumbs} aria-hidden="true">
@@ -1647,15 +1716,14 @@ export function MediaLibrary() {
                 {asking.length > 10 && <em>+{asking.length - 10}</em>}
               </span>
               <span className={styles.delActions}>
-                <button type="button" onClick={() => setAsking(null)} disabled={busy}>
+                <button type="button" onClick={() => setAsking(null)} disabled={busy} autoFocus>
                   Cancel
                 </button>
-                <button type="button" data-danger="true" onClick={() => removeAll(asking)} disabled={busy} autoFocus>
-                  {busy ? "Deleting…" : asking.length === 1 ? "Delete" : `Delete ${asking.length}`}
+                <button type="button" data-danger="true" onClick={() => removeAll(asking)} disabled={busy}>
+                  {busy ? `Deleting ${progress} / ${asking.length}…` : asking.length === 1 ? "Delete" : `Delete ${asking.length}`}
                 </button>
               </span>
-            </div>
-          </div>,
+            </dialog>,
           document.body,
         )}
     </div>

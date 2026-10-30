@@ -7,24 +7,19 @@ import type { SiteContent } from "./types";
 
 const KEY = "content/site-content.json";
 
-/** On Cloudflare, a short memory per worker saves a storage read on every single page view. */
-let remembered: { at: number; value: SiteContent } | null = null;
-const REMEMBER_MS = 4000;
-
 export async function getContent(): Promise<SiteContent> {
   if (onCloudflare()) {
     // Pages there are built fresh for each visit from what is saved now (never frozen at build time).
     try {
       await connection();
     } catch {}
-    if (remembered && Date.now() - remembered.at < REMEMBER_MS) return remembered.value;
   }
+  // The outer Worker caches HTML by document etag. A miss must use fresh data, or old content
+  // could be cached under the new etag after another Worker publishes.
   const value = sanitizeContent((await readJson<unknown>(KEY)) ?? {});
-  if (onCloudflare()) remembered = { at: Date.now(), value };
   return value;
 }
 
 export async function writeContent(content: SiteContent): Promise<void> {
   await writeJsonSafely(KEY, content, "content");
-  remembered = null;
 }

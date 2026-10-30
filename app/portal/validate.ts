@@ -11,7 +11,7 @@ export interface Problem {
 const blank = (v: unknown) => typeof v !== "string" || !v.trim();
 
 /**
- * The things the site would otherwise quietly drop or break on: a project with no title or picture, a client with no
+ * The things the site would otherwise quietly drop or break on: a project with no title, a client with no
  * name, two project types with the same name. Checked while editing so each one is shown beside its field.
  */
 export function contentProblems(c: SiteContent): Problem[] {
@@ -19,8 +19,6 @@ export function contentProblems(c: SiteContent): Problem[] {
 
   c.projects.forEach((p, i) => {
     if (blank(p.title)) out.push({ path: `projects.${i}.title`, message: "Give this project a title." });
-    if (!p.images?.length || p.images.every((im) => blank(im.src))) out.push({ path: `projects.${i}.images`, message: "Add at least one picture (the first is the cover)." });
-    if (p.images?.some((im) => blank(im.src))) out.push({ path: `projects.${i}.images`, message: "Every image needs a picture. Upload one or remove the empty row." });
     if (!c.categories.includes(p.category) && p.category) out.push({ path: `projects.${i}.category`, message: "Choose one of the project types." });
   });
 

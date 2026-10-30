@@ -234,7 +234,7 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
     ? src.items
         .slice(0, PROOF_LIMITS.items)
         .filter((it): it is Record<string, unknown> => !!it && typeof it === "object")
-        .filter((it) => typeof it.src === "string" && /^\/images\/[\w\-./]+$/.test(it.src) && !it.src.includes(".."))
+        .filter((it) => typeof it.src === "string" && (it.src === "" || (/^\/images\/[\w\-./]+$/.test(it.src) && !it.src.includes(".."))))
         .map((it): ProofItem => ({
           src: it.src as string,
           type: it.type === "poster" ? "poster" : "title-png",

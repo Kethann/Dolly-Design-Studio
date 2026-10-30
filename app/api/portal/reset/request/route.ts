@@ -1,7 +1,8 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { isRateLimited } from "@/lib/rate-limit";
 import { clientIp, logActivity } from "@/lib/portal/activity";
-import { CODE_MINUTES, issueCode } from "@/lib/portal/otp";
+import { CODE_MINUTES, discardCode, issueCode } from "@/lib/portal/otp";
 import { codeEmail, isMailConfigured, sendMail, studioMailboxes } from "@/lib/portal/mail";
 import { findUserByLogin } from "@/lib/portal/users";
 
@@ -11,7 +12,7 @@ import { findUserByLogin } from "@/lib/portal/users";
  */
 export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  if (origin && !requestOriginMatches(req)) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
   let identifier = "";
   try {
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
       const issued = await issueCode("reset", user.id);
       if ("code" in issued) {
         const sent = await sendMail({ to: user.email, ...codeEmail({ name: user.name, code: issued.code, purpose: "reset", minutes: CODE_MINUTES }) });
+        if (!sent.ok) await discardCode("reset", user.id, issued.code);
         await logActivity({ headers: req.headers, actor: user, action: "code-sent", detail: "Password reset code", ok: sent.ok });
       }
     }
@@ -47,6 +49,7 @@ export async function POST(req: NextRequest) {
     if ("code" in issued) {
       const name = mailbox.split("@")[0];
       const sent = await sendMail({ to: mailbox, ...codeEmail({ name, code: issued.code, purpose: "reset", minutes: CODE_MINUTES }) });
+      if (!sent.ok) await discardCode("reset", `mail:${mailbox}`, issued.code);
       await logActivity({ headers: req.headers, actor: { id: "unknown", username: mailbox, name }, action: "code-sent", detail: "Password reset code (studio mailbox)", ok: sent.ok });
     }
   }

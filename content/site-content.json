@@ -25,8 +25,8 @@
         "href": "https://x.com/dollydstudio"
       },
       {
-        "label": "IMDb",
-        "href": "https://www.imdb.com/find/?q=Sasank%20Muppalla"
+        "label": "LinkedIn",
+        "href": "https://www.linkedin.com/company/dolly-design-studio/"
       }
     ],
     "description": "Dolly Design Studio is a creative collection specializing in film publicity and title design. We blend artistry with strategy to craft unforgettable identities that elevate films and leave a lasting mark.",
@@ -100,8 +100,8 @@
     },
     "process": {
       "label": "How We Work",
-      "title": "From first sketch to final art",
-      "intro": "Every project moves through the same four steps, so you always know what comes next.",
+      "title": "Pipeline",
+      "intro": "Explore how our artwork comes together, from early sketches to behind-the-scenes moments and final layers.",
       "cards": [
         {
           "title": "Sketchboards",
@@ -111,18 +111,12 @@
           "opensBreakdowns": false
         },
         {
-          "title": "Photoshoot / BTS",
+          "title": "BTS",
           "note": "On the shoot floor",
           "body": "We direct the shoot for the artwork and share the behind-the-scenes moments.",
           "icon": "camera",
-          "opensBreakdowns": false
-        },
-        {
-          "title": "Pipelines",
-          "note": "Brief to release",
-          "body": "Every project follows clear steps, so feedback always lands in the right stage.",
-          "icon": "pipeline",
-          "opensBreakdowns": false
+          "opensBreakdowns": false,
+          "slug": "photoshoot-bts"
         },
         {
           "title": "Breakdowns",
@@ -237,17 +231,50 @@
   "services": [
     {
       "number": "01",
-      "name": "Poster Designs",
+      "name": "Theatrical Films",
       "description": "Theatrical one-sheets, first-look and character posters, and release art built to stop a scroll and fill a hoarding.",
       "deliverables": [
         "Key art",
         "First looks",
         "Character & release posters"
       ],
-      "sample": "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg"
+      "sample": ""
     },
     {
-      "number": "02",
+      "name": "OTT/Television",
+      "description": "Key art and promotional designs for streaming releases, series and television.",
+      "deliverables": [
+        "Series key art",
+        "Episode promotions",
+        "Platform artwork"
+      ],
+      "sample": "",
+      "number": "02"
+    },
+    {
+      "name": "Indie Films",
+      "description": "Distinctive posters and campaign artwork shaped around independent stories.",
+      "deliverables": [
+        "Film posters",
+        "Festival artwork",
+        "Digital promotions"
+      ],
+      "sample": "",
+      "number": "03"
+    },
+    {
+      "name": "Music Videos",
+      "description": "Cover art and release visuals that bring the mood of your music to the screen.",
+      "deliverables": [
+        "Cover artwork",
+        "Release posters",
+        "Social artwork"
+      ],
+      "sample": "",
+      "number": "04"
+    },
+    {
+      "number": "05",
       "name": "Title Designs",
       "description": "Hand-built title logos in Telugu, Kannada, Hindi and English that carry the film’s voice in a single word.",
       "deliverables": [
@@ -255,21 +282,10 @@
         "Lock-ups",
         "Animated references"
       ],
-      "sample": "/images/proof-table/korean-kanakaraju.webp"
+      "sample": ""
     },
     {
-      "number": "03",
-      "name": "Typographies",
-      "description": "Custom lettering, credit blocks and billing typography, drawn to sit with the art and read at any size.",
-      "deliverables": [
-        "Custom lettering",
-        "Billing blocks",
-        "Credit titles"
-      ],
-      "sample": "/images/proof-table/oka-manchi-prema-katha.webp"
-    },
-    {
-      "number": "04",
+      "number": "06",
       "name": "Logo Designs",
       "description": "Identity marks for productions, banners and brands — simple, memorable and ready for every screen.",
       "deliverables": [
@@ -277,33 +293,44 @@
         "Banner marks",
         "Brand identities"
       ],
-      "sample": "/images/posters/premante/01-premante-poster.jpg"
+      "sample": ""
+    },
+    {
+      "name": "Musical Tours/Brand Promotions",
+      "description": "Visual identities and promotional artwork for musical tours, live events and brand campaigns.",
+      "deliverables": [
+        "Tour posters",
+        "Event artwork",
+        "Brand campaigns"
+      ],
+      "sample": "",
+      "number": "07"
     }
   ],
   "clients": [
     {
       "name": "Annapurna Studios",
-      "logo": "/images/clients/annapurna-studios.webp"
+      "logo": ""
     },
     {
       "name": "Arka Media Works",
-      "logo": "/images/clients/arka-mediaworks.webp"
+      "logo": ""
     },
     {
       "name": "Sree Venkateswara Cinemas",
-      "logo": "/images/clients/sree-venkateswara-cinemas.webp"
+      "logo": ""
     },
     {
       "name": "People Media Factory",
-      "logo": "/images/clients/people-media-factory.webp"
+      "logo": ""
     },
     {
       "name": "First Frame Entertainments",
-      "logo": "/images/clients/first-frame-entertainments.webp"
+      "logo": ""
     },
     {
       "name": "UV Creations",
-      "logo": "/images/clients/uv-creations.webp"
+      "logo": ""
     },
     {
       "name": "Abhishek Agarwal Arts",
@@ -321,23 +348,23 @@
   "collaborators": [
     {
       "name": "Adivi Sesh",
-      "photo": "/images/collaborators/adivi-sesh.webp"
+      "photo": ""
     },
     {
       "name": "Varun Tej",
-      "photo": "/images/collaborators/varun-tej.webp"
+      "photo": ""
     },
     {
       "name": "Shaneil Deo",
-      "photo": "/images/collaborators/shaneil-deo.webp"
+      "photo": ""
     },
     {
       "name": "Vinay Kumar Sirigineedi",
-      "photo": "/images/collaborators/vinay-kumar-sirigineedi.webp"
+      "photo": ""
     },
     {
       "name": "Merlapaka Gandhi",
-      "photo": "/images/collaborators/merlapaka-gandhi.webp"
+      "photo": ""
     }
   ],
   "testimonials": [],
@@ -388,19 +415,19 @@
       ],
       "images": [
         {
-          "src": "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg",
+          "src": "",
           "alt": "Dacoit theatrical poster — Adivi Sesh and Mrunal Thakur with Anurag Kashyap behind them"
         },
         {
-          "src": "/images/posters/dacoit/02-dacoit-character-poster.jpg",
+          "src": "",
           "alt": "Dacoit character poster — a scarred close-up of Adivi Sesh smoking"
         },
         {
-          "src": "/images/posters/dacoit/03-dacoit-in-cinemas-now-poster.jpg",
+          "src": "",
           "alt": "Dacoit ‘In cinemas now’ poster — Adivi Sesh handcuffed inside a police van"
         },
         {
-          "src": "/images/posters/dacoit/04-dacoit-release-banner.jpg",
+          "src": "",
           "alt": "Dacoit release banner — the leads inside a car, gun drawn, ‘April 10th worldwide’"
         }
       ],
@@ -426,19 +453,19 @@
       "brief": "A run of song-launch posters — Rubaroo, Chichu Buddi, Touch Buddy — each with its own mood while staying unmistakably part of the Dacoit world.",
       "images": [
         {
-          "src": "/images/posters/dacoit-song-campaign/01-rubaroo-song-poster.jpg",
+          "src": "",
           "alt": "Rubaroo song poster — the leads in a warm, intimate embrace"
         },
         {
-          "src": "/images/posters/dacoit-song-campaign/02-dacoit-song-poster.jpg",
+          "src": "",
           "alt": "Dacoit song poster — split portrait of the two leads"
         },
         {
-          "src": "/images/posters/dacoit-song-campaign/03-chichu-buddi-full-video-song-poster.jpg",
+          "src": "",
           "alt": "Chichu Buddi full video song poster — the leads dancing"
         },
         {
-          "src": "/images/posters/dacoit-song-campaign/04-touch-buddy-song-poster.jpg",
+          "src": "",
           "alt": "Touch Buddy song poster — colourful dance number with the cast"
         }
       ],
@@ -490,19 +517,19 @@
       ],
       "images": [
         {
-          "src": "/images/posters/goodachari-2/01-g2-poster.jpg",
+          "src": "",
           "alt": "G2 poster — Adivi Sesh aiming through shattered glass"
         },
         {
-          "src": "/images/posters/goodachari-2/02-g2-release-poster.jpg",
+          "src": "",
           "alt": "G2 release poster — red-tinted faces, ‘May 1st 2026 worldwide release’"
         },
         {
-          "src": "/images/posters/goodachari-2/03-g2-poster-leads-walking-european.jpg",
+          "src": "",
           "alt": "G2 poster — the leads walking in a European city square at sunset"
         },
         {
-          "src": "/images/posters/goodachari-2/04-g2-character-poster.jpg",
+          "src": "",
           "alt": "G2 character poster — Emraan Hashmi in dark glasses"
         }
       ],
@@ -555,15 +582,15 @@
       ],
       "images": [
         {
-          "src": "/images/posters/baahubali-the-epic/01-baahubali-the-epic-ensemble-poster.jpg",
+          "src": "",
           "alt": "Baahubali: The Epic ensemble poster with the kingdom’s characters"
         },
         {
-          "src": "/images/posters/baahubali-the-epic/02-baahubali-the-epic-poster.jpg",
+          "src": "",
           "alt": "Baahubali: The Epic poster — Prabhas crowned, ‘31 October 2025’"
         },
         {
-          "src": "/images/posters/baahubali-the-epic/03-baahubali-the-epic-poster-warrior-battle-armour.jpg",
+          "src": "",
           "alt": "Baahubali: The Epic poster — warrior in battle armour, ‘Oct 31 2025’"
         }
       ],
@@ -616,19 +643,19 @@
       ],
       "images": [
         {
-          "src": "/images/posters/premante/01-premante-poster.jpg",
+          "src": "",
           "alt": "Premante poster — the couple close together under a warm sky"
         },
         {
-          "src": "/images/posters/premante/02-premante-release-poster.jpg",
+          "src": "",
           "alt": "Premante release poster — the cast with a vintage car, ‘In cinemas 21st Nov 2025’"
         },
         {
-          "src": "/images/posters/premante/03-premante-poster-leads-police-officer.jpg",
+          "src": "",
           "alt": "Premante poster — the leads with a police officer holding a file"
         },
         {
-          "src": "/images/posters/premante/04-premante-releasing-nov-21st-poster.jpg",
+          "src": "",
           "alt": "Premante ‘Releasing Nov 21st’ poster — the couple under the night sky"
         }
       ],
@@ -675,19 +702,19 @@
       ],
       "images": [
         {
-          "src": "/images/posters/korean-kanakaraju/01-korean-kanakaraju-happy-ugadi-festival-poster.jpg",
+          "src": "",
           "alt": "Korean Kanakaraju ‘Happy Ugadi’ festival poster — Varun Tej with a boombox"
         },
         {
-          "src": "/images/posters/korean-kanakaraju/02-korean-kanakaraju-poster.jpg",
+          "src": "",
           "alt": "Korean Kanakaraju poster — Varun Tej mid-action over the Telugu title"
         },
         {
-          "src": "/images/posters/korean-kanakaraju/03-korean-kanakaraju-poster-cast-airport.jpg",
+          "src": "",
           "alt": "Korean Kanakaraju poster — the cast at an airport"
         },
         {
-          "src": "/images/posters/korean-kanakaraju/04-korean-kanakaraju-kamsahamnida-lyrical-video-poster.jpg",
+          "src": "",
           "alt": "Korean Kanakaraju ‘Kamsahamnida’ lyrical video poster"
         }
       ],
@@ -735,19 +762,19 @@
       ],
       "images": [
         {
-          "src": "/images/posters/brindhavihari/01-brindhavihari-poster.jpg",
+          "src": "",
           "alt": "Brindhavihari poster — a figure drawing a bow against a festival crowd"
         },
         {
-          "src": "/images/posters/brindhavihari/02-brindhavihari-character-poster.jpg",
+          "src": "",
           "alt": "Brindhavihari character poster — Devika Bhat as Radha in yellow"
         },
         {
-          "src": "/images/posters/brindhavihari/03-brindhavihari-radha-radha-song-poster.jpg",
+          "src": "",
           "alt": "Brindhavihari ‘Radha Radha’ song poster — dancer leaping in a landscape"
         },
         {
-          "src": "/images/posters/brindhavihari/04-brindhavihari-character-poster-malvika-sharma-red.jpg",
+          "src": "",
           "alt": "Brindhavihari character poster — Malvika Sharma in a red sari"
         }
       ],
@@ -794,11 +821,11 @@
       ],
       "images": [
         {
-          "src": "/images/posters/romeo-juliet/01-romeo-juliet-poster.jpg",
+          "src": "",
           "alt": "Romeo Juliet poster — the hero floating against a heart-shaped moon over a city"
         },
         {
-          "src": "/images/posters/romeo-juliet/02-romeo-juliet-release-poster.jpg",
+          "src": "",
           "alt": "Romeo Juliet release poster — a dancer in a neon-lit club, ‘31.07.26’"
         }
       ],
@@ -849,11 +876,11 @@
       ],
       "images": [
         {
-          "src": "/images/posters/oka-manchi-prema-katha/01-oka-manchi-prema-katha-poster.jpg",
+          "src": "",
           "alt": "Oka Manchi Prema Katha poster — an elderly mother with her grandchildren"
         },
         {
-          "src": "/images/posters/oka-manchi-prema-katha/02-oka-manchi-prema-katha-family-poster.jpg",
+          "src": "",
           "alt": "Oka Manchi Prema Katha family poster — three generations smiling together"
         }
       ],
@@ -876,23 +903,23 @@
       "brief": "Posters for independent and short films — small budgets, big ideas, and a lot of freedom.",
       "images": [
         {
-          "src": "/images/posters/independent-films/01-fragments-of-us-poster.jpg",
+          "src": "",
           "alt": "Fragments of Us poster — a couple standing apart in a desert landscape"
         },
         {
-          "src": "/images/posters/independent-films/02-independent-film-poster.jpg",
+          "src": "",
           "alt": "Independent film poster — a couple and a vintage record player on teal"
         },
         {
-          "src": "/images/posters/independent-films/03-inkosaari-poster.jpg",
+          "src": "",
           "alt": "Inkosaari! poster — a group of friends on a couch under a neon title"
         },
         {
-          "src": "/images/posters/independent-films/04-head-over-heels-poster.jpg",
+          "src": "",
           "alt": "Head Over Heels poster — a couple walking past a city tram"
         },
         {
-          "src": "/images/posters/independent-films/05-demons-poster.jpg",
+          "src": "",
           "alt": "Demons poster — a man standing in a shadowed room"
         }
       ],
@@ -917,43 +944,43 @@
       "brief": "A film’s name is its first piece of art. Every title is drawn by hand for its story — distressed, neon, carved, calligraphic.",
       "images": [
         {
-          "src": "/images/title-designs/01-dacoit-telugu-title-logo.jpg",
+          "src": "",
           "alt": "Dacoit Telugu title logo, distressed letters with a red slash"
         },
         {
-          "src": "/images/title-designs/02-isakapatnam-title-logo.jpg",
+          "src": "",
           "alt": "Isakapatnam title logo in weathered orange caps"
         },
         {
-          "src": "/images/title-designs/03-korean-kanakaraju-telugu-title-logo.jpg",
+          "src": "",
           "alt": "Korean Kanakaraju Telugu title logo in gold"
         },
         {
-          "src": "/images/title-designs/04-korean-kanakaraju-english-title-logo.jpg",
+          "src": "",
           "alt": "Korean Kanakaraju English title logo in gold"
         },
         {
-          "src": "/images/title-designs/05-brindhavihari-kannada-title-logo.jpg",
+          "src": "",
           "alt": "Brindhavihari Kannada title logo in carved blue metal"
         },
         {
-          "src": "/images/title-designs/06-romeo-juliet-title-logo.jpg",
+          "src": "",
           "alt": "Romeo Juliet title logo in bold red block letters"
         },
         {
-          "src": "/images/title-designs/07-inkosaari-neon-script-title-logo.jpg",
+          "src": "",
           "alt": "Inkosaari! neon script title logo"
         },
         {
-          "src": "/images/title-designs/08-inkosaari-telugu-neon-title-logo.jpg",
+          "src": "",
           "alt": "Inkosaari! Telugu neon title logo"
         },
         {
-          "src": "/images/title-designs/09-oka-manchi-prema-katha-telugu-handwritten-title.jpg",
+          "src": "",
           "alt": "Oka Manchi Prema Katha Telugu handwritten title logo"
         },
         {
-          "src": "/images/title-designs/10-naukari-brush-script-title-logo.jpg",
+          "src": "",
           "alt": "Naukari brush-script title logo in yellow"
         }
       ],
@@ -1042,15 +1069,15 @@
       "description": "",
       "layers": [
         {
-          "image": "/images/uploads/fire-flame-with-sparkle-black-background-c337fa2c.webp",
+          "image": "",
           "label": "Fire flame with sparkle black background 84443 7785"
         },
         {
-          "image": "/images/uploads/cinematic-glowing-ember-sparks-dabbbf0a.webp",
+          "image": "",
           "label": "Cinematic Glowing Ember Sparks"
         },
         {
-          "image": "/images/uploads/xsmbmxbjqlgyljzgwxaye28ywu5-91b9f639.webp",
+          "image": "",
           "label": "XsmBMxBjQLgYLJZGWxAyE28YWU5"
         }
       ],
@@ -1065,47 +1092,47 @@
       "description": "",
       "layers": [
         {
-          "image": "/images/uploads/01-grain-4-f8333b4b.webp",
+          "image": "",
           "label": "Grain 4"
         },
         {
-          "image": "/images/uploads/02-constable-right-b315ec2d.webp",
+          "image": "",
           "label": "CONSTABLE RIGHT"
         },
         {
-          "image": "/images/uploads/03-constable-left-36053e99.webp",
+          "image": "",
           "label": "CONSTABLE LEFT"
         },
         {
-          "image": "/images/uploads/04-right-38af4a71.webp",
+          "image": "",
           "label": "RIGHT"
         },
         {
-          "image": "/images/uploads/05-left-70dc4921.webp",
+          "image": "",
           "label": "LEFT"
         },
         {
-          "image": "/images/uploads/06-hero-d88f08f5.webp",
+          "image": "",
           "label": "HERO"
         },
         {
-          "image": "/images/uploads/07-table-52291b18.webp",
+          "image": "",
           "label": "TABLE"
         },
         {
-          "image": "/images/uploads/08-head-6028b91d.webp",
+          "image": "",
           "label": "HEAD"
         },
         {
-          "image": "/images/uploads/09-rudravanam-2c884979.webp",
+          "image": "",
           "label": "RUDRAVANAM"
         },
         {
-          "image": "/images/uploads/10-group-16-424507da.webp",
+          "image": "",
           "label": "Group 16"
         },
         {
-          "image": "/images/uploads/11-telugu-zee-5-original-9f8449e0.webp",
+          "image": "",
           "label": "TELUGU ZEE 5 ORIGINAL"
         }
       ],

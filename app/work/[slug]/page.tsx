@@ -4,6 +4,8 @@ import { getContent } from "@/lib/content/store";
 import { versionedSrc } from "@/lib/images";
 import { ProjectView } from "@/components/ProjectView";
 import { jsonLdText } from "@/lib/json-ld";
+import { PREVIEW_PARAM } from "@/lib/intro/preview-protocol";
+import { getPortalUser } from "@/lib/portal/auth";
 
 export async function generateStaticParams() {
   const { projects } = await getContent();
@@ -17,15 +19,19 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: project.title,
     description: project.brief,
-    openGraph: { title: project.title, description: project.brief, images: [{ url: versionedSrc(project.images[0].src) }] },
+    openGraph: { title: project.title, description: project.brief, images: [{ url: versionedSrc(project.images[0]?.src || "/images/brand/og-image.jpg") }] },
   };
 }
 
-export default async function ProjectPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function ProjectPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { slug } = await params;
   const { projects, site } = await getContent();
   const project = projects.find((p) => p.slug === slug);
-  if (!project) notFound();
+  if (!project) {
+    // Only an authenticated preview can open a newly added, unpublished card.
+    if (Object.hasOwn(await searchParams, PREVIEW_PARAM) && await getPortalUser()) return <ProjectView slug={slug} />;
+    notFound();
+  }
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -34,7 +40,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
     about: project.film,
     creator: { "@type": "Organization", name: site.name },
     datePublished: String(project.year),
-    image: project.images.map((i) => versionedSrc(i.src)),
+    image: project.images.filter((i) => i.src).map((i) => versionedSrc(i.src)),
     description: project.brief,
   };
 

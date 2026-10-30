@@ -137,7 +137,7 @@ export const ExplodeStage = memo(function ExplodeStage({
     return () => document.removeEventListener("fullscreenchange", on);
   }, []);
 
-  // Keep the pictures only while the breakdown is on or near the screen (and always while it is open or full screen).
+  // Open artwork can be zoomed or panned outside its original bounds; keep it mounted until closed.
   useEffect(() => {
     const el = wrap.current;
     if (!el || typeof IntersectionObserver === "undefined") {
@@ -163,11 +163,16 @@ export const ExplodeStage = memo(function ExplodeStage({
     img.onload = () => {
       if (!img.naturalWidth) return;
       shapes.set(first, img.naturalWidth / img.naturalHeight);
+      if (shapes.size > 300) shapes.delete(shapes.keys().next().value!);
       setAspect(img.naturalWidth / img.naturalHeight);
     };
     img.src = resizedSrc(first, 64); // only its proportions are needed, not the whole picture
+    return () => {
+      img.onload = null;
+      img.removeAttribute("src");
+    };
   }, [first, near]);
-  const mounted = near || open || fullscreen;
+  const mounted = near || open || fullscreen || dragging;
 
   // The layers fan out sideways (the stack is turned nearly edge-on). How far is worked out from the width of the
   // whole column, not the stage: a tall poster makes a narrow stage, and the layers must still be free to spread out
@@ -262,7 +267,7 @@ export const ExplodeStage = memo(function ExplodeStage({
 
   // Turning by itself: written straight to the page every frame; the state catches up when it stops.
   useEffect(() => {
-    if (!spinning || !open) return;
+    if (!spinning || !open || !mounted) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setSpinning(false);
       return;
@@ -271,17 +276,28 @@ export const ExplodeStage = memo(function ExplodeStage({
     let raf = 0;
     let last = performance.now();
     const step = (now: number) => {
-      live.current.yaw += ((now - last) / 1000) * SPIN_SPEED;
+      raf = 0;
+      live.current.yaw += Math.min(0.05, Math.max(0, (now - last) / 1000)) * SPIN_SPEED;
       last = now;
       if (stack.current) stack.current.style.transform = transformFor(true, live.current);
       raf = requestAnimationFrame(step);
     };
-    raf = requestAnimationFrame(step);
+    const visibility = () => {
+      cancelAnimationFrame(raf);
+      raf = 0;
+      if (!document.hidden) {
+        last = performance.now();
+        raf = requestAnimationFrame(step);
+      }
+    };
+    document.addEventListener("visibilitychange", visibility);
+    visibility();
     return () => {
       cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", visibility);
       setView({ ...live.current });
     };
-  }, [spinning, open, transformFor]);
+  }, [spinning, open, mounted, transformFor]);
 
   // ── hover: the whole viewer (controls and stage) is one zone, and closing waits a moment, so crossing the gap
   //    between the controls and the picture never makes it flicker ───────────────────────────────────────────────

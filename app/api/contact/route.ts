@@ -1,3 +1,4 @@
+import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
 import { isRateLimited } from "@/lib/rate-limit";
 import { home } from "@/content/home";
@@ -19,7 +20,7 @@ const MAX_BODY = 20_000;
 export async function POST(req: NextRequest) {
   // Only from this site's own contact form (a browser always says where a post comes from).
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: errors.badRequest }, { status: 403 });
+  if (origin && !requestOriginMatches(req)) return NextResponse.json({ error: errors.badRequest }, { status: 403 });
   // Refused from the declared size, before any of it is read.
   if (Number(req.headers.get("content-length")) > MAX_BODY) return NextResponse.json({ error: errors.badRequest }, { status: 413 });
   let body: Record<string, unknown>;

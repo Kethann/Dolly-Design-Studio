@@ -7,7 +7,8 @@
 // First run: while no account exists, sign in as "admin" with PORTAL_PASSWORD (from the server's environment) and
 // create your own owner account. From then on PORTAL_PASSWORD no longer signs anyone in.
 import { randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual, createHash } from "node:crypto";
-import { readJson, writeJsonSafely } from "@/lib/storage";
+import { store, writeJson, writeJsonSafely } from "@/lib/storage";
+import { clearCodes } from "./otp";
 import { promisify } from "node:util";
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
@@ -70,8 +71,11 @@ const SETUP_USER: PortalUser = {
 };
 
 async function load(): Promise<StoredUser[]> {
-  const data = await readJson<{ users?: StoredUser[] }>(KEY);
-  return Array.isArray(data?.users) ? data.users : [];
+  const text = await (await store()).getText(KEY);
+  if (text === null) return [];
+  const data = JSON.parse(text) as { users?: StoredUser[] };
+  if (!data || !Array.isArray(data.users)) throw new Error("Account storage could not be read. No accounts were changed.");
+  return data.users;
 }
 
 /** Saved as a whole file at a time (to disk, or to the R2 bucket on Cloudflare). */
@@ -302,11 +306,28 @@ export async function bumpVersion(id: string): Promise<number> {
 export async function removeUser(id: string, opts: { allowLastOwner?: boolean } = {}) {
   const users = await load();
   const user = users.find((u) => u.id === id);
-  if (!user) return;
-  if (!opts.allowLastOwner && user.role === "owner" && users.filter((u) => u.role === "owner").length === 1) {
+  if (!opts.allowLastOwner && user?.role === "owner" && users.filter((u) => u.role === "owner").length === 1) {
     throw new UserError("You can’t remove the last owner.");
   }
-  await save(users.filter((u) => u.id !== id));
+  const storage = await store();
+  // Validate every snapshot before changing it. A permanent deletion must not leave a restorable password hash.
+  const snapshots: { key: string; data: { users: StoredUser[] } }[] = [];
+  const codeKeys = new Set([id, ...(user?.email ? [`mail:${user.email}`] : [])]);
+  for (const key of await storage.list("data/backups/people/")) {
+    if (!key.endsWith(".json")) continue;
+    const text = await storage.getText(key);
+    if (text === null) continue;
+    const data = JSON.parse(text) as { users: StoredUser[] };
+    if (!data || !Array.isArray(data.users)) throw new Error("An account backup could not be read. Deletion was stopped.");
+    for (const old of data.users.filter((u) => u.id === id)) {
+      if (old.email && !users.some((u) => u.id !== id && u.email === old.email)) codeKeys.add(`mail:${old.email}`);
+    }
+    if (data.users.some((u) => u.id === id)) snapshots.push({ key, data: { ...data, users: data.users.filter((u) => u.id !== id) } });
+  }
+  await clearCodes(id, ...codeKeys);
+  for (const snapshot of snapshots) await storage.putText(snapshot.key, JSON.stringify(snapshot.data, null, 2) + "\n", "application/json");
+  // Do not archive the removed credentials again.
+  if (user) await writeJson(KEY, { users: users.filter((u) => u.id !== id) }, true);
 }
 
 export async function checkOwnPassword(id: string, password: string) {

@@ -1,0 +1,40 @@
+.dds-reorder-handle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid #ffe9a6;
+  border-radius: 12px;
+  background: #261b17;
+  color: #ffe9a6;
+  font: 700 12px/1.2 system-ui, sans-serif;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.dds-reorder-handle:hover { background: #443023; box-shadow: 0 3px 10px #0003; }
+.dds-reorder-handle:active { cursor: grabbing; }
+.dds-reorder-handle:focus-visible { outline: 3px solid white; outline-offset: 3px; }
+html[data-dds-edit] [data-ed-dragging] { opacity: .6; }
+html[data-dds-edit] [data-ed-drop] { outline: 3px solid #ffd36a; outline-offset: -3px; }
+.dds-reorder-badge {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 2147483100;
+  padding: 10px;
+  max-width: 150px;
+  border-radius: 8px;
+  background: #ffe9a6;
+  color: #2b1503;
+  font: 700 12px/1.4 system-ui, sans-serif;
+  pointer-events: none;
+}
+.dds-reorder-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (prefers-reduced-motion: reduce) {
+  .dds-reorder-handle { transition: none; }
+}

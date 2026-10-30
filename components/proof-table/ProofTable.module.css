@@ -128,73 +128,215 @@
 /* ---- No-WebGL fallback: the table in CSS 3D ---------------------------------------------------- */
 .fbStage {
   position: relative;
-  min-height: 100vh;
-  min-height: 100svh;
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr);
+  grid-template-areas: "copy table";
+  align-items: center;
+  gap: clamp(24px, 4vw, 56px);
+  height: auto;
+  min-height: 0;
+  padding: var(--section-pad) calc(max(0px, (100% - 1360px) / 2) + clamp(20px, 5vw, 64px));
+}
+
+.fbStage .copy {
+  grid-area: copy;
+  position: relative;
+  inset: auto;
+  transform: none;
+  width: 100%;
+  min-width: 0;
+  max-width: 440px;
+  justify-self: start;
+}
+
+.fbStage .headline {
+  font-size: clamp(28px, 3.2vw, 46px);
+  letter-spacing: 0.025em;
+  overflow-wrap: anywhere;
+}
+
+.fbStage .body {
+  max-width: 42ch;
+}
+
+.fbStage .overline,
+.fbStage .line,
+.fbStage .body,
+.fbStage .cta {
+  will-change: auto;
 }
 
 .fbScene {
-  position: absolute;
-  inset: 0;
+  grid-area: table;
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  max-width: 720px;
+  justify-self: center;
+  padding-block: 24px;
   perspective: 1600px;
   display: grid;
   place-items: center;
 }
 
 .fbSlab {
-  width: min(900px, 80vw);
-  padding: 32px;
+  --table-pitch: 20deg;
+  --table-yaw: 38deg;
+  --table-scale: 0.9;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: clamp(14px, 2vw, 28px);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(8px, 1.2vw, 16px);
   border-radius: 18px;
   /* A slim pane of clear glass: faint tint, bright edge, a soft sheen across it. */
   background:
     linear-gradient(115deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, 0.07) 70%),
-    rgba(95, 211, 230, 0.2);
+    color-mix(in srgb, var(--slab-tint, #5fd3e6) var(--slab-opacity, 20%), transparent);
   border: 1px solid rgba(160, 235, 245, 0.7);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.12),
     0 40px 90px rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  transform: translateX(22%) rotateX(52deg) rotateZ(-28deg);
+  transform: rotateX(var(--table-pitch)) rotateY(var(--table-yaw)) scale(var(--table-scale));
+  transform-origin: center;
+}
+
+.fbScene[data-assembly="ready"] .fbPlate {
+  opacity: 0;
+  transform: translate(var(--insert-x), -20px) scale(0.96);
+}
+
+.fbScene[data-assembly="playing"] .fbSlab {
+  animation: tableStraighten var(--assembly-duration, 1.8s) cubic-bezier(0.4, 0, 0.6, 1) both;
+  will-change: transform;
+}
+
+.fbScene[data-assembly="playing"] .fbPlate {
+  animation: glassInsert var(--insert-duration, 0.5s) cubic-bezier(0.25, 0.1, 0.25, 1) var(--insert-delay) both;
+  will-change: transform, opacity;
+}
+
+.fbScene[data-paused="true"] .fbSlab,
+.fbScene[data-paused="true"] .fbPlate {
+  animation-play-state: paused;
+}
+
+.fbScene[data-assembly="done"] .fbSlab {
+  transform: none;
+}
+
+@keyframes tableStraighten {
+  from {
+    transform: rotateX(var(--table-pitch)) rotateY(var(--table-yaw)) scale(var(--table-scale));
+  }
+  to {
+    transform: rotateX(0deg) rotateY(0deg) scale(1);
+  }
+}
+
+@keyframes glassInsert {
+  from {
+    opacity: 0;
+    transform: translate(var(--insert-x), -20px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
 }
 
 .fbPlate {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px;
+  padding: clamp(8px, 1vw, 12px);
   border-radius: 8px;
-  background: rgba(43, 35, 71, 0.5);
+  background: linear-gradient(125deg, rgba(255, 255, 255, var(--glass-sheen, 0.1)), transparent 60%), linear-gradient(rgba(255, 255, 255, var(--glass-frost, 0)), rgba(255, 255, 255, var(--glass-frost, 0))), color-mix(in srgb, var(--glass-tint, #2b2347) var(--glass-opacity, 50%), transparent);
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
+  height: 100%;
+  box-sizing: border-box;
+  transition: transform 220ms ease-out, border-color 220ms ease-out;
+}
+
+.fbSlot { display: block; min-width: 0; width: var(--card-width, 100%); justify-self: center; perspective: 700px; border-radius: 8px; }
+.fbSlot:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 4px; }
+.fbScene[data-assembly="done"] .fbSlot[data-floating="true"] .fbPlate,
+.fbScene[data-assembly="done"] .fbSlot:focus-visible .fbPlate {
+  transform: translateY(-7px) rotateX(var(--glass-rx, 0deg)) rotateY(var(--glass-ry, 0deg));
+  border-color: rgba(255, 231, 177, 0.8);
 }
 
 .fbSmoky {
-  background: rgba(43, 35, 71, 0.4);
+  border-color: rgba(255, 255, 255, 0.32);
 }
 
 .fbPlate img {
   width: 100%;
-  height: 90px;
+  height: clamp(48px, 6vw, 80px);
   object-fit: contain;
+}
+
+.fbEmpty {
+  display: block;
+  height: clamp(48px, 6vw, 80px);
 }
 
 .fbPlate span {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 8px;
-  letter-spacing: 0.2em;
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
   text-transform: uppercase;
   color: rgba(244, 237, 225, 0.75);
 }
 
-@media (max-width: 767px) {
-  .fbSlab {
-    grid-template-columns: repeat(2, 1fr);
-    /* lower on a phone, so the headline and its button above are not covered */
-    transform: translateY(40%) rotateX(48deg) rotateZ(-20deg) scale(0.92);
+@media (max-width: 1000px), (orientation: portrait) and (max-width: 1100px) {
+  .fbStage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "copy" "table";
+    gap: 24px;
   }
+
+  .fbStage .copy {
+    max-width: 640px;
+  }
+
+  .fbSlab {
+    --table-pitch: 16deg;
+    --table-yaw: 26deg;
+    --table-scale: 0.92;
+  }
+}
+
+@media (max-width: 520px) {
+  .fbStage {
+    gap: 12px;
+  }
+
+  .fbScene {
+    padding-block: 8px;
+  }
+
+  .fbSlab {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    --table-pitch: 10deg;
+    --table-yaw: 16deg;
+    --table-scale: 0.95;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fbScene .fbSlab,
+  .fbScene[data-assembly] .fbSlab,
+  .fbScene[data-assembly] .fbPlate {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+  .fbScene[data-assembly="done"] .fbSlot .fbPlate { transform: none; transition: none; }
 }
