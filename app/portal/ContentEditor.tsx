@@ -6,6 +6,7 @@ import { fontFaceCss, glassVars } from "@/lib/content/css";
 import { DEFAULT_GLASS, DEFAULT_MENU_TONES, GLASS_COLOR_COUNT, GLASS_EFFECTS, GLASS_PRESETS, type GlassLook, type PageKey, type SiteContent, type TextStyle } from "@/lib/content/types";
 import { Choice, ColorRow, Slider } from "./controls";
 import { posToZoom, zoomToPos } from "@/lib/content/adjust";
+import { moveTo, useReorder } from "./reorder";
 import { styledTexts, type Field, type SchemaPage, type SchemaSection } from "./content-schema";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "@/lib/content/limits";
 import type { Problem } from "./validate";
@@ -732,6 +733,7 @@ function Stringlist({ field, path }: { field: Extract<Field, { kind: "strings" }
   const { content, update } = useEditor();
   const list = ((getAt(content, path) as string[] | undefined) ?? []).map((s) => (typeof s === "string" ? s : ""));
   const set = (next: string[]) => update((c) => setAt(c, path, next));
+  const { attach: reAttach, item: reItem, grip: reGrip } = useReorder((from, to) => set(moveTo(list, from, to)));
   return (
     <WithStyleState>
       <div className={styles.field}>
@@ -742,9 +744,10 @@ function Stringlist({ field, path }: { field: Extract<Field, { kind: "strings" }
           {field.style && <StyleToggleButtonSlot path={path} />}
         </div>
         {field.style && <StyleToggleBody path={path} />}
-        <div className={styles.stack}>
+        <div className={styles.stack} ref={reAttach}>
           {list.map((item, i) => (
-            <div key={i} className={styles.stringRow}>
+            <div key={i} className={styles.stringRow} {...reItem(i)}>
+              {reGrip(i, list.length)}
               {field.area ? (
                 <textarea
                   className={styles.input}
@@ -756,12 +759,6 @@ function Stringlist({ field, path }: { field: Extract<Field, { kind: "strings" }
                 <input className={styles.input} value={item} onChange={(e) => set(list.map((s, j) => (j === i ? e.target.value : s)))} />
               )}
               <span className={styles.mini}>
-                <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => set(moveItem(list, i, -1))}>
-                  ↑
-                </button>
-                <button type="button" aria-label="Move down" disabled={i === list.length - 1} onClick={() => set(moveItem(list, i, 1))}>
-                  ↓
-                </button>
                 <button type="button" aria-label="Delete" disabled={list.length <= (field.min ?? 0)} onClick={() => set(list.filter((_, j) => j !== i))}>
                   ×
                 </button>
@@ -783,6 +780,7 @@ function CategoriesField({ field }: { field: Extract<Field, { kind: "categories"
   const cats = content.categories;
   const count = (name: string) => content.projects.filter((p) => p.category === name).length;
   const set = (next: string[], projects = content.projects) => update((c) => ({ ...c, categories: next, projects }));
+  const { attach: reAttach, item: reItem, grip: reGrip } = useReorder((from, to) => set(moveTo(cats, from, to)));
 
   function rename(i: number, name: string) {
     const old = cats[i];
@@ -814,20 +812,15 @@ function CategoriesField({ field }: { field: Extract<Field, { kind: "categories"
           {field.label} <em>{cats.length} of {MAX_CATEGORIES}</em>
         </span>
       </div>
-      <div className={styles.stack}>
+      <div className={styles.stack} ref={reAttach}>
         {cats.map((name, i) => (
-          <div key={i} className={styles.stringRow}>
+          <div key={i} className={styles.stringRow} {...reItem(i)}>
+            {reGrip(i, cats.length)}
             <input className={styles.input} value={name} maxLength={MAX_CATEGORY_LENGTH} aria-label={`Project type ${i + 1}`} onChange={(e) => rename(i, e.target.value)} />
             <span className={styles.badge} title="Projects of this type">
               {count(name)}
             </span>
             <span className={styles.mini}>
-              <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => set(moveItem(cats, i, -1))}>
-                ↑
-              </button>
-              <button type="button" aria-label="Move down" disabled={i === cats.length - 1} onClick={() => set(moveItem(cats, i, 1))}>
-                ↓
-              </button>
               <button type="button" aria-label={`Remove ${name}`} disabled={cats.length <= 1} onClick={() => remove(i)}>
                 ×
               </button>
@@ -890,8 +883,14 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const mode = useContext(ListModeCtx);
   const compact = !!mode?.compact.has(path);
-  const set = (next: unknown[]) => update((c) => setAt(c, path, next));
+  /** Saves the list; where cards carry a number or an order (services "01", projects), they are renumbered to match their places. */
+  const set = (next: unknown[]) => update((c) => setAt(c, path, field.renumber ? (next as Record<string, unknown>[]).map((it, i) => ({ ...it, ...field.renumber!(i) })) : next));
   const atMax = field.max !== undefined && list.length >= field.max;
+  const { attach: reAttach, item: reItem, grip: reGrip } = useReorder((from, to) => {
+    set(moveTo(list, from, to));
+    // The card that was open stays the open one, wherever it lands.
+    setOpenIndex((o) => (o === null ? o : o === from ? to : from < to && o > from && o <= to ? o - 1 : from > to && o >= to && o < from ? o + 1 : o));
+  });
   return (
     <div className={styles.field}>
       <div className={styles.labelRow}>
@@ -899,12 +898,13 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
           {field.label} <em>{list.length}</em>
         </span>
       </div>
-      <div className={styles.stack}>
+      <div className={styles.stack} ref={reAttach}>
         {list.map((item, i) => {
           const open = openIndex === i;
           return (
-            <div key={i} className={styles.card} data-open={open}>
+            <div key={i} className={styles.card} data-open={open} {...reItem(i)}>
               <div className={styles.cardHead}>
+                {!field.fixed && reGrip(i, list.length)}
                 <button type="button" className={styles.cardTitle} aria-expanded={compact ? undefined : open} onClick={() => (compact ? mode!.openItem(path, i) : setOpenIndex(open ? null : i))}>
                   <span className={styles.chev} aria-hidden="true">
                     ›
@@ -923,12 +923,6 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
                         ✎
                       </button>
                     )}
-                    <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => set(moveItem(list, i, -1))}>
-                      ↑
-                    </button>
-                    <button type="button" aria-label="Move down" disabled={i === list.length - 1} onClick={() => set(moveItem(list, i, 1))}>
-                      ↓
-                    </button>
                     <button
                       type="button"
                       aria-label="Delete"

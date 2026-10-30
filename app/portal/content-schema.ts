@@ -42,6 +42,8 @@ export type Field =
       max?: number;
       /** Offer "upload many pictures at once": each picture becomes an item, with it stored in this field. */
       bulk?: string;
+      /** Fields kept in step with an item's place in the list (a service's "01", a project's order): given the new place, returns them. */
+      renumber?: (index: number) => Record<string, unknown>;
     };
 
 export interface SchemaSection {
@@ -289,6 +291,7 @@ const home: SchemaPage = {
           add: "Add a service",
           max: 10,
           title: (it) => str(it.name, "New service"),
+          renumber: (i) => ({ number: String(i + 1).padStart(2, "0") }),
           blank: () => ({ number: "", name: "New service", description: "", details: "", gallery: [], deliverables: [], sample: "/images/posters/dacoit/01-dacoit-theatrical-poster.jpg" }),
           fields: [
             { kind: "text", path: "name", label: "Name", style: true },
@@ -500,6 +503,7 @@ const projects: SchemaPage = {
           add: "Add a project",
           max: 100,
           min: 1,
+          renumber: (i) => ({ order: i + 1 }),
           title: (it) => str(it.title, "New project"),
           blank: () => ({
             title: "New project",

@@ -1,0 +1,47 @@
+/* The handle you press to drag a card, row or picture into a new place. */
+.grip {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--p-muted, #a89d8e);
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: -3px;
+  cursor: grab;
+  touch-action: none; /* a finger drags the card instead of scrolling the window */
+  user-select: none;
+  -webkit-user-select: none;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.grip:hover,
+.grip:focus-visible {
+  color: #e8b04b;
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+}
+
+.grip:active {
+  cursor: grabbing;
+}
+
+.grip[data-disabled="true"] {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* What the list shows while one is being dragged: it fades, and a gold line marks where it will land. */
+:global([data-reorder-state="dragging"]) {
+  opacity: 0.4;
+}
+
+:global([data-reorder-state="before"]) {
+  box-shadow: 0 -3px 0 0 #e8b04b !important;
+}
+
+:global([data-reorder-state="after"]) {
+  box-shadow: 0 3px 0 0 #e8b04b !important;
+}

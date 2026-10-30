@@ -9,7 +9,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 22px 52px minmax(0, 1fr) auto;
+  grid-template-columns: 20px 22px 52px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 7px 8px;

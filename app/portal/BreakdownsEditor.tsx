@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { BreakdownLayer } from "@/lib/content/types";
+import type { Breakdown, BreakdownLayer } from "@/lib/content/types";
 import { MAX_BREAKDOWNS, MAX_BREAKDOWN_LAYERS } from "@/lib/content/limits";
 import { DropZone, FieldView, PickerDialog, useEditor, useUploads } from "./ContentEditor";
 import type { Field } from "./content-schema";
 import { canvasToPng, readPsdLayers } from "./psd";
 import styles from "./content.module.css";
 import bd from "./breakdowns.module.css";
+import { moveTo, useReorder } from "./reorder";
 
 /** "0003-Speaker cone.png" → "Speaker cone": a readable first label from a layer's file name. */
 const labelFrom = (name: string) =>
@@ -26,6 +27,42 @@ const PAGE_FIELDS: Field[] = [
   { kind: "text", path: "breakdownsPage.backLink", label: "Back link" },
 ];
 
+/** The layers of one breakdown, bottom first. Drag a layer by its handle to put it elsewhere in the stack (the numbers follow). */
+function LayerRows({ b, i, patch }: { b: Breakdown; i: number; patch: (i: number, fn: (x: Breakdown) => Breakdown) => void }) {
+  const { attach, item: reItem, grip: reGrip } = useReorder((from, to) => patch(i, (x) => ({ ...x, layers: moveTo(x.layers, from, to) })));
+  return (
+    <div className={bd.layers} ref={attach}>
+      {b.layers.map((l, k) => (
+                    <div key={`${l.image}-${k}`} className={bd.row} {...reItem(k)}>
+                      {reGrip(k, b.layers.length)}
+                      <span className={bd.num}>{k + 1}</span>
+                      <span className={bd.thumb}>
+                        {/* eslint-disable-next-line @next/next/no-img-element -- small preview of a library picture */}
+                        <img src={l.image} alt="" />
+                      </span>
+                      <input
+                        className={bd.name}
+                        value={l.label}
+                        maxLength={60}
+                        placeholder={`Name layer ${k + 1}`}
+                        aria-label={`Label for layer ${k + 1}`}
+                        onChange={(e) => patch(i, (x) => ({ ...x, layers: x.layers.map((y, j) => (j === k ? { ...y, label: e.target.value } : y)) }))}
+                      />
+                      <ReplaceLayer
+                        current={l.image}
+                        onDone={(src) => patch(i, (x) => ({ ...x, layers: x.layers.map((y, j) => (j === k ? { ...y, image: src } : y)) }))}
+                      />
+                      <span className={styles.mini}>
+                        <button type="button" aria-label="Remove this layer" onClick={() => patch(i, (x) => ({ ...x, layers: x.layers.filter((_, j) => j !== k) }))}>
+                          ×
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+    </div>
+  );
+}
+
 /**
  * Breakdowns: layered artworks that fall apart into their layers when someone hovers them on the site. Each breakdown
  * is one finished image made of as many transparent PNG layers as the design file has, each with its own label.
@@ -39,29 +76,18 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
 
   const patch = (i: number, fn: (b: (typeof items)[number]) => (typeof items)[number]) =>
     update((c) => ({ ...c, breakdowns: c.breakdowns.map((b, j) => (j === i ? fn(b) : b)) }));
-  const move = (i: number, by: number) =>
-    update((c) => {
-      const j = i + by;
-      if (j < 0 || j >= c.breakdowns.length) return c;
-      const next = [...c.breakdowns];
-      [next[i], next[j]] = [next[j], next[i]];
-      return { ...c, breakdowns: next };
-    });
-  const moveLayer = (i: number, k: number, by: number) =>
-    patch(i, (x) => {
-      const j = k + by;
-      if (j < 0 || j >= x.layers.length) return x;
-      const layers = [...x.layers];
-      [layers[k], layers[j]] = [layers[j], layers[k]];
-      return { ...x, layers };
-    });
   const choose = (i: number | null) => {
     setOpen(i);
     onShow(i);
   };
+  /** Drag a breakdown to another place on the page (they are numbered by place). */
+  const { attach, item: reItem, grip: reGrip } = useReorder((from, to) => {
+    update((c) => ({ ...c, breakdowns: moveTo(c.breakdowns, from, to) }));
+    choose(null);
+  });
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} ref={attach}>
       <section className={styles.section} data-open="true">
         <div className={styles.sectionHeadStatic}>How it works</div>
         <div className={styles.sectionBody}>
@@ -99,8 +125,9 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
       </section>
 
       {items.map((b, i) => (
-        <section key={i} className={styles.section} data-open={open === i}>
+        <section key={i} className={styles.section} data-open={open === i} {...reItem(i)}>
           <div className={styles.cardHead}>
+            {reGrip(i, items.length)}
             <button type="button" className={styles.sectionHead} aria-expanded={open === i} onClick={() => choose(open === i ? null : i)}>
               <span className={styles.chev} aria-hidden="true">
                 ›
@@ -108,12 +135,6 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
               {i + 1}. {b.title || "Breakdown"} <em className={styles.badge}>{b.layers.length} layers</em>
             </button>
             <span className={styles.mini}>
-              <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>
-                ↑
-              </button>
-              <button type="button" aria-label="Move down" disabled={i === items.length - 1} onClick={() => move(i, 1)}>
-                ↓
-              </button>
               <button
                 type="button"
                 aria-label="Delete this breakdown"
@@ -196,40 +217,7 @@ export function BreakdownsEditor({ onShow, initialOpen }: { onShow: (index: numb
               {b.layers.length === 0 ? (
                 <p className={bd.empty}>No layers yet. Drop your PNG layers above.</p>
               ) : (
-                <div className={bd.layers}>
-                  {b.layers.map((l, k) => (
-                    <div key={`${l.image}-${k}`} className={bd.row}>
-                      <span className={bd.num}>{k + 1}</span>
-                      <span className={bd.thumb}>
-                        {/* eslint-disable-next-line @next/next/no-img-element -- small preview of a library picture */}
-                        <img src={l.image} alt="" />
-                      </span>
-                      <input
-                        className={bd.name}
-                        value={l.label}
-                        maxLength={60}
-                        placeholder={`Name layer ${k + 1}`}
-                        aria-label={`Label for layer ${k + 1}`}
-                        onChange={(e) => patch(i, (x) => ({ ...x, layers: x.layers.map((y, j) => (j === k ? { ...y, label: e.target.value } : y)) }))}
-                      />
-                      <ReplaceLayer
-                        current={l.image}
-                        onDone={(src) => patch(i, (x) => ({ ...x, layers: x.layers.map((y, j) => (j === k ? { ...y, image: src } : y)) }))}
-                      />
-                      <span className={styles.mini}>
-                        <button type="button" aria-label="Move this layer down (towards the bottom)" disabled={k === 0} onClick={() => moveLayer(i, k, -1)}>
-                          ↑
-                        </button>
-                        <button type="button" aria-label="Move this layer up (towards the top)" disabled={k === b.layers.length - 1} onClick={() => moveLayer(i, k, 1)}>
-                          ↓
-                        </button>
-                        <button type="button" aria-label="Remove this layer" onClick={() => patch(i, (x) => ({ ...x, layers: x.layers.filter((_, j) => j !== k) }))}>
-                          ×
-                        </button>
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <LayerRows b={b} i={i} patch={patch} />
               )}
 
               <Choice

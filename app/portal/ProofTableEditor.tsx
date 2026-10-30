@@ -6,6 +6,7 @@ import { PROOF_LIMITS, type ProofTableSettings } from "@/lib/intro/settings";
 import { ColorRow, Section, Slider, Toggle, percent } from "./controls";
 import { ImagePicker, useMedia } from "./ContentEditor";
 import styles from "./portal.module.css";
+import { moveTo, useReorder } from "./reorder";
 
 /**
  * Portal controls for the Proof Table (the 3D collaborations section): the cards (add, remove, reorder, upload a
@@ -34,13 +35,7 @@ export function ProofTableEditor({
   const setItems = (next: ProofItem[]) => onChange({ items: next });
   const patchItem = (i: number, patch: Partial<ProofItem>) =>
     setItems(items.map((it, j) => (j === i ? { ...it, ...patch } : it)));
-  const move = (i: number, by: number) => {
-    const j = i + by;
-    if (j < 0 || j >= items.length) return;
-    const next = [...items];
-    [next[i], next[j]] = [next[j], next[i]];
-    setItems(next);
-  };
+  const { attach, item: reItem, grip: reGrip } = useReorder((from, to) => setItems(moveTo(items, from, to)));
   const full = items.length >= PROOF_LIMITS.items;
   const addCard = (src?: string) => {
     if (full) return;
@@ -161,31 +156,15 @@ export function ProofTableEditor({
         scope="Page"
         hint="They drop in this order. Phones show the first six."
       >
+        <div ref={attach} style={{ display: "contents" }}>
         {items.map((it, i) => (
-          <div key={i} className={styles.slot}>
+          <div key={i} className={styles.slot} {...reItem(i)}>
             <div className={styles.slotHead}>
+              {reGrip(i, items.length)}
               {/* eslint-disable-next-line @next/next/no-img-element -- a small preview of the chosen title */}
               <img className={styles.slotThumb} src={it.src} alt="" />
               <span className={styles.slotIndex}>{String(i + 1).padStart(2, "0")}</span>
               <span className={styles.slotActions}>
-                <button
-                  type="button"
-                  className={styles.iconButton}
-                  aria-label="Move up"
-                  disabled={i === 0}
-                  onClick={() => move(i, -1)}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className={styles.iconButton}
-                  aria-label="Move down"
-                  disabled={i === items.length - 1}
-                  onClick={() => move(i, 1)}
-                >
-                  ↓
-                </button>
                 <button
                   type="button"
                   className={styles.iconButton}
@@ -295,6 +274,7 @@ export function ProofTableEditor({
         </div>
         {upload.kind === "error" && <p className={styles.controlHint}>{upload.message}</p>}
         <p className={styles.controlHint}>Transparent PNGs work best; the empty margin is trimmed automatically.</p>
+        </div>
       </Section>
     </>
   );
