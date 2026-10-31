@@ -43,17 +43,18 @@ export function sectorSize(count: number, gapDegrees: number) {
   return { step, width: step - Math.min(gapDegrees * Math.PI / 180, step * 0.3) };
 }
 
-/** Separate plaques leave silver between images, even with only one or two titles. */
+/** Separate rectangular cards leave silver between images, even with only one or two titles. */
 export function discPanelLayout(count: number, gapDegrees: number, size: number) {
   const { step, width } = sectorSize(count, gapDegrees);
   const center = 0.67, halfHeight = 0.24 * size;
   const inner = center - halfHeight, outer = center + halfHeight;
-  // Fill most of each title's angular allocation, retaining a narrow silver separator.
+  // Keep both sides parallel: the artwork is a real rectangular card, not a stretched sector.
+  // The angular allocation still limits its width so neighbouring cards cannot overlap.
   const halfAngle = Math.min(0.6, width * 0.48) * size;
-  const innerHalfWidth = Math.min(0.28 * size, inner * Math.tan(halfAngle));
-  const outerHalfWidth = Math.min(0.36 * size, outer * Math.tan(halfAngle));
+  const halfWidth = Math.min((outer - inner) * 0.39, 0.28 * size, inner * Math.tan(halfAngle));
+  const innerHalfWidth = halfWidth, outerHalfWidth = halfWidth;
   return { step, inner, outer, innerHalfWidth, outerHalfWidth,
-    aspect: (innerHalfWidth + outerHalfWidth) / (outer - inner) };
+    aspect: halfWidth * 2 / (outer - inner) };
 }
 
 /** A fixed, slot-sized projector window. Spread may soften/widen it, never spill beyond the plaque. */

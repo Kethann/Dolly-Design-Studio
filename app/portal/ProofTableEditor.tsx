@@ -14,7 +14,7 @@ import { moveTo, useReorder } from "./reorder";
 const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: string; hint?: string }[] }[] = [
   { title: "Disc motion", fields: [
     { key: "spinSpeed", label: "Spin speed", hint: "Zero stops rotation. Negative reverses direction. Reduced-motion devices keep the disc still." },
-    { key: "discTilt", label: "Disc tilt" },
+    { key: "discTilt", label: "Disc tilt", hint: "The disc is automatically reframed on phones and tablets so this angle stays inside the screen." },
     { key: "discRoll", label: "Disc angle", hint: "Rotates the whole disc's presentation. −65° gives the upright diagonal reference pose." },
   ] },
   { title: "Projector & light", fields: [
@@ -23,13 +23,13 @@ const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: st
     { key: "rayIntensity", label: "Projector brightness", hint: "The beam, haze and landing reflection automatically follow the focused artwork's colour." },
     { key: "beamGlow", label: "Beam glow", hint: "The soft haze filling the beam. 100% is the normal look; up to 300%." },
     { key: "rayStrength", label: "Ray strength", hint: "How bright and defined the moving streaks inside the beam are." },
-    { key: "surfaceReflection", label: "Surface reflection", hint: "The soft light where the beam lands on the disc, plus the highlight on the silver and rim." },
+    { key: "surfaceReflection", label: "Surface reflection", hint: "A subtle artwork-coloured glow on the focused image plus the light touching the silver disc. It does not brighten the other cards." },
     { key: "rayStyle", label: "Ray style" },
     { key: "rayMotion", label: "Ray movement", hint: "Gentle, irregular motion with steady brightness. Zero keeps the beam still. Pause and reduced motion stop animation." },
     { key: "rayElevation", label: "Ray height", hint: "Raises or lowers the source on the selected side." },
     { key: "raySpread", label: "Ray spread", hint: "The landing area automatically fits the slot. Increase to fill the panel; decrease for a narrower beam." },
     { key: "rayPrism", label: "Prism colour separation", hint: "Adds fine spectral streaks to Prismatic fan. The main colour still follows the highlighted artwork." },
-    { key: "rayLength", label: "Projector distance", hint: "Adjusts the distance from the chosen edge toward the disc." },
+    { key: "rayLength", label: "Off-screen beam distance", hint: "Moves the hidden projector farther beyond the selected screen edge. The source itself always remains outside the visible page." },
     { key: "focusAngle", label: "Projector focus angle", hint: "−25° places the landing light on the lower-right front face; −180° moves it back to the left rim." },
     { key: "focusRadius", label: "Focus radius" },
   ] },
@@ -44,8 +44,8 @@ const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: st
     { key: "desaturation", label: "Silver desaturation", hint: "Mutes the disc's iridescence without changing the artwork." },
   ] },
   { title: "Slot appearance", fields: [
-    { key: "slotSize", label: "Slot size" },
-    { key: "slotGap", label: "Gap between slots", hint: "Spacing adjusts automatically to the number of slots." },
+    { key: "slotSize", label: "Card size", hint: "Controls the clean rectangular artwork cards. Responsive fitting remains automatic." },
+    { key: "slotGap", label: "Gap between cards", hint: "Spacing adjusts automatically to the number of cards without changing them into wedge shapes." },
     { key: "slotOpacity", label: "Artwork opacity" },
     { key: "slotBlur", label: "Far-side softness", hint: "Only artwork on the far side of the disc softens, capped at a mild blur. Front-facing and hovered titles stay sharp. Zero removes all blur." },
     { key: "unfocusedBrightness", label: "Unfocused image brightness" },
@@ -121,11 +121,11 @@ export function ProofTableEditor({
   return (
     <>
       {deleteDialog}
-      <Section title="Title disc" scope="Page" hint="Your titles rotate through a fixed cinema-projector beam. Movement pauses off-screen and respects reduced motion.">
+      <Section title="Title disc" scope="Page" hint="Uploaded title artwork rotates on rectangular cards through a fixed cinema-projector beam. The projector stays outside the viewport, mobile framing is automatic, and movement respects reduced motion.">
         <Toggle label="Show the section" checked={value.enabled} onChange={(enabled) => onChange({ enabled })} />
         <div className={styles.control}>
           <button type="button" className={styles.ghostButton} onClick={onShow}>Show it in the preview ↓</button>
-          <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, discRoll: -65, discTilt: -65, focusAngle: -25, focusRadius: 0.67, rayStyle: 1, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.65 } })}>Use reference angle & ray</button>
+          <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, discRoll: -65, discTilt: -65, focusAngle: -25, focusRadius: 0.67, projectorSide: -1, rayLength: 5, rayStyle: 1, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.65, slotSize: 1, slotGap: 3 } })}>Use responsive cinema setup</button>
         </div>
         <div className={styles.control}>
           <button type="button" className={styles.ghostButton} disabled={full} onClick={() => addCard()}>+ Add title</button>

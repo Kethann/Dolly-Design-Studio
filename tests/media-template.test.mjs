@@ -227,6 +227,7 @@ test("disc plaques stay separated inside the silver ring", () => {
   for (const count of [1, 2, 5, 6, 8, 12, 16]) for (const gap of [0.5, 12]) for (const size of [0.7, 1]) {
     const panel = discPanelLayout(count, gap, size);
     assert.ok(panel.inner > 0.22);
+    assert.equal(panel.innerHalfWidth, panel.outerHalfWidth, "Every title uses a true rectangular card");
     assert.ok(Math.hypot(panel.outer, panel.outerHalfWidth) < 1, "Plaque corners stay inside the rim");
     assert.ok(Math.atan2(panel.innerHalfWidth, panel.inner) < panel.step / 2, "Adjacent plaques cannot overlap");
     assert.ok(Math.abs(panel.step * count - Math.PI * 2) < 1e-10, "Adding titles redistributes them equally");

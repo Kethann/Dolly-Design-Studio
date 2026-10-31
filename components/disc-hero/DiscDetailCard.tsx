@@ -8,6 +8,16 @@ import { resizedSrc } from "@/lib/images";
 import { freezeScroll, releaseScroll } from "@/lib/smooth-scroll";
 import styles from "./DiscHero.module.css";
 
+function actualMovieTitle(itemTitle: string, projectTitle?: string) {
+  const clean = (value: string) => value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const item = clean(itemTitle), project = clean(projectTitle ?? "");
+  // Generic collection links are not movie names. Prefer a fuller project name only when
+  // it clearly describes the same title as the selected disc artwork.
+  return projectTitle?.trim() && item && project && (project.includes(item) || item.includes(project))
+    ? projectTitle.trim()
+    : itemTitle.trim();
+}
+
 /** One DOM card, not another WebGL scene. Native dialog traps focus and handles Escape. */
 export function DiscDetailCard({ item, project, suffix, origin, onClose }: {
   item: ProofItem; project?: Project; suffix: string;
@@ -43,6 +53,7 @@ export function DiscDetailCard({ item, project, suffix, origin, onClose }: {
     return x < rect.left || x > rect.right || y < rect.top || y > rect.bottom;
   };
   const meta = [item.tag, item.year || null].filter(Boolean).join(" · ");
+  const movieTitle = actualMovieTitle(item.film, project?.film);
   return <dialog ref={dialog} className={styles.detailDialog} data-closing={closing || undefined}
     style={style} aria-labelledby="disc-detail-title" data-lenis-prevent
     onCancel={e => { e.preventDefault(); close(); }}
@@ -53,12 +64,12 @@ export function DiscDetailCard({ item, project, suffix, origin, onClose }: {
       <div className={styles.detailArtwork}>
         {item.src && !failed
           // eslint-disable-next-line @next/next/no-img-element -- bounded CDN asset; one image loaded only while open
-          ? <img src={resizedSrc(item.src, 1024)} alt={item.alt || item.film} decoding="async" onError={() => setFailed(true)} />
-          : <span className={styles.detailPlaceholder} aria-hidden="true">{item.film}</span>}
+          ? <img src={resizedSrc(item.src, 1024)} alt={item.alt || movieTitle} decoding="async" onError={() => setFailed(true)} />
+          : <span className={styles.detailPlaceholder} aria-hidden="true">{movieTitle}</span>}
       </div>
       <div className={styles.detailInfo}>
         {meta && <p className={styles.detailMeta}>{meta}</p>}
-        <h3 id="disc-detail-title">{item.film}</h3>
+        <h3 id="disc-detail-title">{movieTitle}</h3>
         {project && <>
           <dl>{[["Category", project.category], ["Client", project.client], ["Role", project.role]].filter(([, value]) => value?.trim()).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
           {project.brief && <p className={styles.detailBrief}>{project.brief}</p>}

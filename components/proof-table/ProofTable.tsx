@@ -18,6 +18,7 @@ export function ProofTable() {
   const { slate, projects } = useContent();
   const pt = settings.proofTable;
   const stage = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null);
+  const headline = useRef<HTMLHeadingElement>(null), body = useRef<HTMLParagraphElement>(null);
   const scene = useRef<DiscScene | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "fallback">("loading");
   const [paused, setPaused] = useState(false);
@@ -43,6 +44,15 @@ export function ProofTable() {
     if (!pt.enabled) return;
     const host = stage.current!, surface = canvas.current!;
     let disposed = false, loading = false, visible = false;
+    const syncBeamOrigin = () => {
+      const titleBounds = headline.current?.getBoundingClientRect(), bodyBounds = body.current?.getBoundingClientRect();
+      const stageBounds = host.getBoundingClientRect();
+      if (!titleBounds || !bodyBounds || stageBounds.height <= 0) return;
+      // Aim from the visual pause between the title and its film description. On stacked mobile
+      // layouts the scene clamps this point to its nearest edge, keeping the lamp off screen.
+      const gapCentre = (titleBounds.bottom + bodyBounds.top) / 2;
+      scene.current?.setBeamOrigin((gapCentre - stageBounds.top) / stageBounds.height);
+    };
     // eslint-disable-next-line react-hooks/set-state-in-effect -- browser-only preview URL
     setPreview(new URLSearchParams(location.search).has("portal-preview"));
     async function init() {
@@ -55,6 +65,7 @@ export function ProofTable() {
         scene.current = createDiscScene(surface, visibleDiscItems(data.pt.items).map(it => ({ src: it.src ? resizedSrc(it.src, 768) : "", label: it.film, tint: it.tint })),
           sanitizeDisc(data.pt.disc), () => { scene.current?.dispose(); scene.current = null; if (!disposed) setState("fallback"); });
         scene.current.resize(host.clientWidth, host.clientHeight);
+        syncBeamOrigin();
         scene.current.setPaused(data.paused); scene.current.setActive(visible);
         setState("ready");
       } catch {
@@ -65,7 +76,10 @@ export function ProofTable() {
     const near = new IntersectionObserver(([e]) => { if (e.isIntersecting) { void init(); near.disconnect(); } }, { rootMargin: "250px" });
     near.observe(host);
     const observer = new IntersectionObserver(([e]) => { visible = e.isIntersecting; scene.current?.setActive(visible); }); observer.observe(host);
-    const resize = new ResizeObserver(() => scene.current?.resize(host.clientWidth, host.clientHeight)); resize.observe(host);
+    const resize = new ResizeObserver(() => { scene.current?.resize(host.clientWidth, host.clientHeight); syncBeamOrigin(); });
+    resize.observe(host);
+    if (headline.current) resize.observe(headline.current);
+    if (body.current) resize.observe(body.current);
     let press: { x: number; y: number } | null = null;
     const down = (e: PointerEvent) => { press = { x: e.clientX, y: e.clientY }; };
     const click = (e: MouseEvent) => {
@@ -109,15 +123,14 @@ export function ProofTable() {
       <div className={`container ${styles.layout}`}>
       <div className={styles.copy}>
         <span className={styles.overline}>{renderFx(slate.overline)}</span>
-        <h2 id="disc-slate-title" className={styles.headline}>{slate.headline.map((line, i) => <span key={i}>{renderFx(line)}</span>)}</h2>
-        <p className={styles.body}>{renderFx(slate.body)}</p>
+        <h2 ref={headline} id="disc-slate-title" className={styles.headline}>{slate.headline.map((line, i) => <span key={i}>{renderFx(line)}</span>)}</h2>
+        <p ref={body} className={styles.body}>{renderFx(slate.body)}</p>
         <Link href={`/work${suffix}`} className={styles.cta}>{slate.ctaLabel} <span aria-hidden="true">↗</span></Link>
       </div>
       <div className={styles.visual}>
         <div ref={stage} className={styles.stage} data-disc-state={state} tabIndex={-1}
           onPointerLeave={e => { if (e.pointerType === "mouse") scene.current?.setHover(-1); }}>
           <canvas ref={canvas} className={styles.canvas} aria-hidden="true" />
-          {state !== "ready" && <div className={styles.staticDisc} aria-hidden="true" style={{ transform: `translate(-50%,-50%) rotate(${-viewControls.discRoll * viewControls.projectorSide}deg) scaleY(${Math.cos(viewControls.discTilt * Math.PI / 180)})` }} />}
           {state === "fallback" && <p className={styles.status}>Explore the title collection below.</p>}
         </div>
         {state === "ready" && <div className={styles.sceneControls}><button type="button" className={styles.pause} onClick={() => setPaused(v => !v)} aria-pressed={paused}>{paused ? "Resume disc" : "Pause disc"}</button></div>}
