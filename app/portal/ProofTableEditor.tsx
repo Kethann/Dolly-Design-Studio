@@ -26,13 +26,27 @@ const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: st
     { key: "surfaceReflection", label: "Surface reflection", hint: "A subtle artwork-coloured glow on the focused title plus the light touching the silver disc. It does not brighten other titles." },
     { key: "rayStyle", label: "Ray style" },
     { key: "rayMotion", label: "Ray movement", hint: "Gentle, irregular motion with steady brightness. Zero keeps the beam still. Pause and reduced motion stop animation." },
-    { key: "originOffsetX", label: "Origin — horizontal", hint: "Moves the cyan origin marker left or right from its responsive position beneath the heading." },
-    { key: "originOffsetY", label: "Origin — vertical", hint: "Moves the cyan origin marker up or down. Negative lifts it; positive lowers it. Zero keeps it directly beneath “STARTS.”" },
-    { key: "raySpread", label: "Ray spread", hint: "The landing area automatically fits the title region. Increase for a wider beam; decrease for a narrower beam." },
+    { key: "raySpread", label: "Ray spread", hint: "Includes a soft overscan so the outer letters are illuminated. Increase for more surrounding light; decrease for a tighter beam." },
     { key: "rayPrism", label: "Prism colour separation", hint: "Adds fine spectral streaks to Prismatic fan. The main colour still follows the highlighted artwork." },
     { key: "rayLength", label: "Off-screen beam distance", hint: "Moves the hidden projector farther beyond the selected screen edge. The source itself always remains outside the visible page." },
-    { key: "focusAngle", label: "Landing — angle", hint: "Moves the gold landing marker around the disc. −18° places it slightly above the lower-right reflection." },
-    { key: "focusRadius", label: "Landing — distance", hint: "Moves the gold landing marker between the centre and outer rim." },
+  ] },
+  { title: "Desktop beam position · 1025px+", fields: [
+    { key: "originOffsetX", label: "Origin — horizontal", hint: "Moves the cyan origin marker left or right on desktop." },
+    { key: "originOffsetY", label: "Origin — vertical", hint: "Negative lifts the cyan marker; positive lowers it." },
+    { key: "focusAngle", label: "Landing — angle", hint: "Moves the gold landing marker around the desktop disc." },
+    { key: "focusRadius", label: "Landing — distance", hint: "Moves the gold marker between the centre and outer rim." },
+  ] },
+  { title: "Tablet beam position · 641–1024px", fields: [
+    { key: "tabletOriginOffsetX", label: "Origin — horizontal" },
+    { key: "tabletOriginOffsetY", label: "Origin — vertical" },
+    { key: "tabletFocusAngle", label: "Landing — angle" },
+    { key: "tabletFocusRadius", label: "Landing — distance" },
+  ] },
+  { title: "Mobile beam position · up to 640px", fields: [
+    { key: "mobileOriginOffsetX", label: "Origin — horizontal", hint: "The base source remains outside the mobile screen; this fine-tunes its direction." },
+    { key: "mobileOriginOffsetY", label: "Origin — vertical" },
+    { key: "mobileFocusAngle", label: "Landing — angle" },
+    { key: "mobileFocusRadius", label: "Landing — distance" },
   ] },
   { title: "Glow", fields: [
     { key: "bloom", label: "Glow strength", hint: "Zero switches bloom off." },
@@ -75,6 +89,9 @@ export function ProofTableEditor({
   const fileRef = useRef<HTMLInputElement>(null);
   /** The card whose picture is being chosen. */
   const [picking, setPicking] = useState<number | null>(null);
+  const [openDiscGroups, setOpenDiscGroups] = useState<ReadonlySet<string>>(
+    () => new Set(DISC_GROUPS.filter(group => group.title === "Disc motion" || group.title.startsWith("Desktop beam")).map(group => group.title)),
+  );
 
   const items = value.items;
   const latestItems = useRef(items);
@@ -126,7 +143,7 @@ export function ProofTableEditor({
         <Toggle label="Show the section" checked={value.enabled} onChange={(enabled) => onChange({ enabled })} />
         <div className={styles.control}>
           <button type="button" className={styles.ghostButton} onClick={onShow}>Show it in the preview ↓</button>
-          <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, discRoll: -65, discTilt: -65, focusAngle: -18, focusRadius: 0.67, projectorSide: -1, rayLength: 5, rayStyle: 1, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.65, originOffsetX: 0, originOffsetY: 0, slotSize: 1, slotGap: 3 } })}>Use responsive cinema setup</button>
+          <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, discRoll: -65, discTilt: -65, focusAngle: -18, focusRadius: 0.67, tabletFocusAngle: -16, tabletFocusRadius: 0.66, mobileFocusAngle: -12, mobileFocusRadius: 0.64, projectorSide: -1, rayLength: 5, rayStyle: 1, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.65, originOffsetX: 0, originOffsetY: 0, tabletOriginOffsetX: 0, tabletOriginOffsetY: 0, mobileOriginOffsetX: 0, mobileOriginOffsetY: 0, slotSize: 1, slotGap: 3 } })}>Use responsive cinema setup</button>
           <p className={styles.controlHint}>In the portal preview, cyan marks the beam origin and gold marks its landing point. These guides are never shown on the public site.</p>
         </div>
         <div className={styles.control}>
@@ -136,7 +153,16 @@ export function ProofTableEditor({
           <p className={styles.controlHint}>Reset restores the disc controls; your images and slot order stay as they are.</p>
         </div>
       </Section>
-      {DISC_GROUPS.map(group => <details key={group.title} className={styles.discControls} open={group.title === "Disc motion" || undefined}>
+      {DISC_GROUPS.map(group => <details key={group.title} className={styles.discControls} open={openDiscGroups.has(group.title)}
+        onToggle={event => {
+          const isOpen = event.currentTarget.open;
+          setOpenDiscGroups(current => {
+            if (current.has(group.title) === isOpen) return current;
+            const next = new Set(current);
+            if (isOpen) next.add(group.title); else next.delete(group.title);
+            return next;
+          });
+        }}>
         <summary>{group.title}<span>{group.fields.length} controls</span></summary>
         <div className={styles.sectionBody}>
         {group.fields.map(({ key, label, hint }) => {
@@ -156,7 +182,7 @@ export function ProofTableEditor({
           </div>;
           const [min, max, step] = DISC_RANGES[key];
           return <Slider key={key} label={label} hint={hint} value={disc[key]} min={min} max={max} step={step}
-            format={n => key === "discTilt" || key === "discRoll" || key === "focusAngle" || key === "slotGap" ? `${n}°` : key === "spinSpeed" ? `${Number(n.toFixed(2))} rad/s` : ["slotBlur", "rayLength", "rayElevation", "glowThreshold"].includes(key) ? String(Number(n.toFixed(2))) : `${Math.round(n * 100)}%`}
+            format={n => key === "discTilt" || key === "discRoll" || key.endsWith("FocusAngle") || key === "focusAngle" || key === "slotGap" ? `${n}°` : key === "spinSpeed" ? `${Number(n.toFixed(2))} rad/s` : ["slotBlur", "rayLength", "rayElevation", "glowThreshold"].includes(key) ? String(Number(n.toFixed(2))) : `${Math.round(n * 100)}%`}
             onChange={next => onChange({ disc: { ...disc, [key]: next } })} />;
         })}
         </div>

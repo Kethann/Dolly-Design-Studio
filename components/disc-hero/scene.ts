@@ -6,12 +6,14 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
 import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
-import { DISC_DEFAULTS, sanitizeDisc, discPanelLayout, discProjectionWindow, discProjectionCoverage, discProjectionMask, discImageBands, visibleDiscItems, type DiscControls } from "../../lib/content/disc";
+import { DISC_DEFAULTS, sanitizeDisc, discAimProfileForWidth, discPanelLayout, discProjectionWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, type DiscControls } from "../../lib/content/disc";
 
 export type DiscImage = { src: string; label: string; titleColor?: string; glowColor?: string; glowIntensity?: number };
 export type DiscScene = ReturnType<typeof createDiscScene>;
 const TAU = Math.PI * 2;
 const R = 2.35;
+const SILVER_BASE = 0xcbd0d5;
+const COLOUR_GRID = 8;
 // The one description of the light. The volume and every surface read these same rays,
 // so a ray always brightens the exact spot it lands on.
 const rayShader = (count: number) => `
@@ -99,7 +101,26 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   // Portal-only calibration markers. They are never enabled on the public page.
   const originGuide = makeAimGuide(0x5be7ff), landingGuide = makeAimGuide(0xffd45b);
   let destroyed = false, active = false, paused = false, aimGuides = false, raf = 0, last = 0, elapsed = 0, firstPose = true;
-  let width = 1, height = 1, quality = 1, slowFrames = 0, time = 0, hovered = -1, opened = -1, hoverSettling = false;
+  let width = 1, height = 1, quality = 1, slowFrames = 0, time = 0, hovered = -1, opened = -1, hoverSettling = false, controlsSettling = false;
+  // Portal sliders can emit much faster than a frame. Keep one small render-side state so
+  // geometry, aiming, lighting and bloom ease together instead of jumping or flickering.
+  // Reduced-motion users get the requested value immediately.
+  const renderedControls = {
+    discTilt: controls.discTilt, discRoll: controls.discRoll,
+    spinSpeed: controls.spinSpeed,
+    focusAngle: controls.focusAngle, focusRadius: controls.focusRadius,
+    originX: controls.originOffsetX, originY: controls.originOffsetY,
+    raySpread: controls.raySpread, glowRadius: controls.glowRadius,
+    rayIntensity: controls.rayIntensity, bloom: controls.bloom,
+    lightIntensity: controls.lightIntensity, glowThreshold: controls.glowThreshold,
+    beamGlow: controls.beamGlow, rayStrength: controls.rayStrength,
+    surfaceReflection: controls.surfaceReflection, rayPrism: controls.rayPrism,
+    rayLength: controls.rayLength, rayElevation: controls.rayElevation,
+    rayMotion: controls.rayMotion, saturation: controls.saturation,
+    vibrance: controls.vibrance, desaturation: controls.desaturation,
+    slotOpacity: controls.slotOpacity, slotBlur: controls.slotBlur,
+    unfocusedBrightness: controls.unfocusedBrightness,
+  };
   let beamOriginXFraction: number | null = null, beamOriginYFraction: number | null = null;
   const saturation = { value: controls.desaturation };
   const imageSaturation = { value: controls.saturation }, vibrance = { value: controls.vibrance };
@@ -111,8 +132,12 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const projectorSoftness = { value: controls.glowRadius };
   const projectorPower = { value: controls.rayIntensity };
   const projectorFrame = new THREE.Matrix4();
-  const beamColor = new THREE.Color(0x808080), targetColor = new THREE.Color();
-  const imageBands = { value: new THREE.Vector4(.55, .55, .55, .55) };
+  // Empty brushed silver produces neutral, slightly cool projector light. It must never retain
+  // the hue of the previous title after that title has left the landing window.
+  const neutralBeamColor = new THREE.Color(SILVER_BASE).multiplyScalar(.72);
+  const beamColor = neutralBeamColor.clone(), targetColor = new THREE.Color(), sampledColor = new THREE.Color();
+  const neutralBands = new THREE.Vector4(.55, .55, .55, .55);
+  const imageBands = { value: neutralBands.clone() };
   const targetBands = new THREE.Vector4();
   const contactColour = { value: beamColor }, contactStrength = { value: 0 }, contactPrism = { value: controls.rayPrism };
   // Few rays and few volume steps: this runs per covered pixel, so phones get the smaller budget.
@@ -149,7 +174,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   }
   const brushed = own(new THREE.DataTexture(data, 256, 256));
   brushed.minFilter = brushed.magFilter = THREE.LinearFilter; brushed.needsUpdate = true;
-  const silver = own(new THREE.MeshPhysicalMaterial({ color: 0xcbd0d5, metalness: 1, roughness: 0.25, iridescence: 1,
+  const silver = own(new THREE.MeshPhysicalMaterial({ color: SILVER_BASE, metalness: 1, roughness: 0.25, iridescence: 1,
     iridescenceIOR: 1.3, iridescenceThicknessRange: [120, 360], anisotropy: 0.85, anisotropyMap: brushed, side: THREE.DoubleSide }));
   silver.onBeforeCompile = shader => {
     shader.uniforms.uDesaturation = saturation;
@@ -281,21 +306,26 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
           float grey=dot(c,vec3(.2126,.7152,.0722));
           float chroma=max(c.r,max(c.g,c.b))-min(c.r,min(c.g,c.b));
           c=max(vec3(0.),mix(vec3(grey),c,imageSaturation*(1.+vibrance*(1.-chroma))));
+          vec3 artworkCore=c;
           // Emission comes from the artwork itself, only where the fixed projector window overlaps it.
           vec2 lightWindow=discWindow(vProjector);
           float shafts=rayField(lightWindow);
           // Rays visibly travel across the print: lit where one lands, a little dimmer between them.
-          c=mix(vec3(grey)*dimBrightness,c*(1.+slotGlow*.65)*(.84+shafts*.6),focus);
+          c=mix(vec3(grey)*dimBrightness,c*(1.+slotGlow*.3)*(.9+shafts*.32),focus);
           c=mix(c,mix(tex.rgb,titleColour*sourcePeak,useTitleColour),hover*.85);
           // Extract the visible title ink from the uploaded artwork. There is deliberately no
           // baseline card emission: only bright/coloured title pixels cross the bloom threshold.
           vec3 titlePigment=c/max(max(c.r,max(c.g,c.b)),.12);
           vec3 automaticGlow=mix(contactColour,titlePigment,.68);
           vec3 titleLight=mix(automaticGlow,titleGlowColour,useTitleGlowColour);
-          float titleGlow=titleInk*focus*(1.-hover)*(.18+.34*shafts)
+          float titleGlow=titleInk*focus*(1.-hover)*(.08+.16*shafts)
             *contactReflection(lightWindow,shafts)*titleGlowIntensity;
           c+=titleLight*titleGlow*(.9+slotGlow*.45);
-          gl_FragColor=vec4(c,tex.a*imageOpacity); }` });
+          // Bloom reads the emission, while this core blend keeps the uploaded logo's real
+          // colour and detail visible instead of letting the glow bleach it into a white patch.
+          c=mix(c,artworkCore*(1.+slotGlow*.1),titleInk*focus*.5);
+          float outputAlpha=max(tex.a*imageOpacity,titleInk*focus*.92);
+          gl_FragColor=vec4(c,outputAlpha); }` });
       const group = new THREE.Group(); group.rotation.z = i * step; panels.add(group);
       // Only the transparent PNG is mounted: no glass rectangle, border or opaque backing.
       const image = new THREE.Mesh(imageGeometry, material); image.position.z = 0.041; group.add(image);
@@ -330,17 +360,19 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
           slot.bands.fromArray(discImageBands(pixels, 24));
           slot.imageAspect = bitmap.width / bitmap.height;
           slot.samples = [];
-          for (let row = 0; row < 5; row++) for (let col = 0; col < 5; col++) {
+          // Eight cells per axis keep transparent title edges spatially accurate without a GPU
+          // readback or a per-frame texture scan (at most 512 tiny samples across eight titles).
+          for (let row = 0; row < COLOUR_GRID; row++) for (let col = 0; col < COLOUR_GRID; col++) {
             let sr = 0, sg = 0, sb = 0, total = 0;
-            const x0 = Math.floor(col * 24 / 5), x1 = Math.floor((col + 1) * 24 / 5);
-            const y0 = Math.floor(row * 24 / 5), y1 = Math.floor((row + 1) * 24 / 5);
+            const x0 = Math.floor(col * 24 / COLOUR_GRID), x1 = Math.floor((col + 1) * 24 / COLOUR_GRID);
+            const y0 = Math.floor(row * 24 / COLOUR_GRID), y1 = Math.floor((row + 1) * 24 / COLOUR_GRID);
             for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
               const p = (y * 24 + x) * 4, red = pixels[p] / 255, green = pixels[p + 1] / 255, blue = pixels[p + 2] / 255;
               const peak = Math.max(red, green, blue), chroma = peak - Math.min(red, green, blue);
               const weight = pixels[p + 3] / 255 * peak * (.12 + chroma * 3);
               sr += red * weight; sg += green * weight; sb += blue * weight; total += weight;
             }
-            if (total > .0001) slot.samples.push({ u: (col + .5) / 5, v: (row + .5) / 5,
+            if (total > .0001) slot.samples.push({ u: (col + .5) / COLOUR_GRID, v: (row + .5) / COLOUR_GRID,
               colour: new THREE.Color(sr / total, sg / total, sb / total).convertSRGBToLinear(), weight: total / Math.max(1, (x1 - x0) * (y1 - y0)) });
           }
           // WebGL textures cannot change size after first upload; replace and release the placeholder.
@@ -456,7 +488,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     return t < 1 ? THREE.MathUtils.lerp(b.x, b.y, t) : t < 2 ? THREE.MathUtils.lerp(b.y, b.z, t - 1) : THREE.MathUtils.lerp(b.z, b.w, t - 2);
   }
   function updateRays(dt: number) {
-    const amount = controls.rayMotion, style = controls.rayStyle;
+    const amount = renderedControls.rayMotion, style = controls.rayStyle;
     const widthScale = style === 2 ? 1.45 : style === 0 ? .82 : 1, peakScale = style === 2 ? .68 : style === 0 ? 1.15 : 1;
     rayStates.forEach((ray, i) => {
       ray.age += dt * amount * 1.8;
@@ -517,31 +549,77 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     // Fit the entire tilted disc plus its left offset in narrow portrait viewports.
     camera.position.z = Math.max(8.7, 6.5 / camera.aspect); camera.updateProjectionMatrix(); camera.updateMatrixWorld(); wake();
   }
+  function settleControl(current: number, target: number, dt: number, rate = 14) {
+    if (motion.matches || firstPose) return target;
+    const next = THREE.MathUtils.damp(current, target, rate, Math.max(dt, 1 / 60));
+    if (Math.abs(next - target) <= .0005) return target;
+    controlsSettling = true;
+    return next;
+  }
   function draw(dt: number) {
     if (lastGap !== controls.slotGap || lastSize !== controls.slotSize) { lastGap = controls.slotGap; lastSize = controls.slotSize; updateGap(); }
-    imageSaturation.value = controls.saturation; vibrance.value = controls.vibrance;
-    imageOpacity.value = controls.slotOpacity; blur.value = controls.slotBlur; dimBrightness.value = controls.unfocusedBrightness;
-    slotGlow.value = controls.bloom * controls.rayIntensity;
-    projectorSoftness.value = controls.glowRadius; projectorPower.value = controls.rayIntensity;
-    studioLights.forEach(({ light, base }) => { light.intensity = base * controls.lightIntensity; });
-    scene.environmentIntensity = controls.lightIntensity;
     const side = controls.projectorSide;
-    // Centre narrow screens; gently offset on wide layouts to leave the heading readable.
-    tilt.position.x = -side * 1.15 * THREE.MathUtils.smoothstep(camera.aspect, 1.35, 1.9);
-    tilt.rotation.set(THREE.MathUtils.degToRad(controls.discTilt), 0, THREE.MathUtils.degToRad(controls.discRoll * side), "ZYX");
+    const aimProfile = discAimProfileForWidth(width);
+    // Breakpoint-specific aim values are read without creating objects in the animation loop.
+    const aimFocusAngle = aimProfile === "mobile" ? controls.mobileFocusAngle
+      : aimProfile === "tablet" ? controls.tabletFocusAngle : controls.focusAngle;
+    const aimFocusRadius = aimProfile === "mobile" ? controls.mobileFocusRadius
+      : aimProfile === "tablet" ? controls.tabletFocusRadius : controls.focusRadius;
+    const aimOriginX = aimProfile === "mobile" ? controls.mobileOriginOffsetX
+      : aimProfile === "tablet" ? controls.tabletOriginOffsetX : controls.originOffsetX;
+    const aimOriginY = aimProfile === "mobile" ? controls.mobileOriginOffsetY
+      : aimProfile === "tablet" ? controls.tabletOriginOffsetY : controls.originOffsetY;
+    controlsSettling = false;
+    renderedControls.discTilt = settleControl(renderedControls.discTilt, controls.discTilt, dt, 12);
+    renderedControls.discRoll = settleControl(renderedControls.discRoll, controls.discRoll, dt, 12);
+    renderedControls.spinSpeed = settleControl(renderedControls.spinSpeed, controls.spinSpeed, dt, 12);
+    renderedControls.focusAngle = settleControl(renderedControls.focusAngle, aimFocusAngle, dt, 15);
+    renderedControls.focusRadius = settleControl(renderedControls.focusRadius, aimFocusRadius, dt, 15);
+    renderedControls.originX = settleControl(renderedControls.originX, aimOriginX, dt, 15);
+    renderedControls.originY = settleControl(renderedControls.originY, aimOriginY, dt, 15);
+    renderedControls.raySpread = settleControl(renderedControls.raySpread, controls.raySpread, dt, 15);
+    renderedControls.glowRadius = settleControl(renderedControls.glowRadius, controls.glowRadius, dt, 12);
+    renderedControls.rayIntensity = settleControl(renderedControls.rayIntensity, controls.rayIntensity, dt, 12);
+    renderedControls.bloom = settleControl(renderedControls.bloom, controls.bloom, dt, 12);
+    renderedControls.lightIntensity = settleControl(renderedControls.lightIntensity, controls.lightIntensity, dt, 12);
+    renderedControls.glowThreshold = settleControl(renderedControls.glowThreshold, controls.glowThreshold, dt, 12);
+    renderedControls.beamGlow = settleControl(renderedControls.beamGlow, controls.beamGlow, dt, 12);
+    renderedControls.rayStrength = settleControl(renderedControls.rayStrength, controls.rayStrength, dt, 12);
+    renderedControls.surfaceReflection = settleControl(renderedControls.surfaceReflection, controls.surfaceReflection, dt, 12);
+    renderedControls.rayPrism = settleControl(renderedControls.rayPrism, controls.rayPrism, dt, 12);
+    renderedControls.rayLength = settleControl(renderedControls.rayLength, controls.rayLength, dt);
+    renderedControls.rayElevation = settleControl(renderedControls.rayElevation, controls.rayElevation, dt);
+    renderedControls.rayMotion = settleControl(renderedControls.rayMotion, controls.rayMotion, dt, 12);
+    renderedControls.saturation = settleControl(renderedControls.saturation, controls.saturation, dt, 12);
+    renderedControls.vibrance = settleControl(renderedControls.vibrance, controls.vibrance, dt, 12);
+    renderedControls.desaturation = settleControl(renderedControls.desaturation, controls.desaturation, dt, 12);
+    renderedControls.slotOpacity = settleControl(renderedControls.slotOpacity, controls.slotOpacity, dt, 12);
+    renderedControls.slotBlur = settleControl(renderedControls.slotBlur, controls.slotBlur, dt, 12);
+    renderedControls.unfocusedBrightness = settleControl(renderedControls.unfocusedBrightness, controls.unfocusedBrightness, dt, 12);
+    imageSaturation.value = renderedControls.saturation; vibrance.value = renderedControls.vibrance;
+    imageOpacity.value = renderedControls.slotOpacity; blur.value = renderedControls.slotBlur;
+    dimBrightness.value = renderedControls.unfocusedBrightness;
+    slotGlow.value = renderedControls.bloom * renderedControls.rayIntensity;
+    projectorSoftness.value = renderedControls.glowRadius; projectorPower.value = renderedControls.rayIntensity;
+    studioLights.forEach(({ light, base }) => { light.intensity = base * renderedControls.lightIntensity; });
+    scene.environmentIntensity = renderedControls.lightIntensity;
+    // Centre narrow screens; on wide layouts use the open right-hand space more evenly while
+    // retaining a safe gap from the heading. The beam target follows this same transform.
+    tilt.position.x = -side * 1.42 * THREE.MathUtils.smoothstep(camera.aspect, 1.35, 1.9);
+    tilt.rotation.set(THREE.MathUtils.degToRad(renderedControls.discTilt), 0, THREE.MathUtils.degToRad(renderedControls.discRoll * side), "ZYX");
     if (!motion.matches && !paused && opened < 0) {
       time += dt;
       // Hold the selected plaque still while inspecting it; the projector continues moving softly.
-      if (hovered < 0 && !hoverSettling) disc.rotation.z = (disc.rotation.z + controls.spinSpeed * dt) % TAU;
+      if (hovered < 0 && !hoverSettling) disc.rotation.z = (disc.rotation.z + renderedControls.spinSpeed * dt) % TAU;
     }
     tilt.updateMatrixWorld(true);
-    const focus = THREE.MathUtils.degToRad(controls.focusAngle), dx = Math.cos(focus), dy = Math.sin(focus);
+    const focus = THREE.MathUtils.degToRad(renderedControls.focusAngle), dx = Math.cos(focus), dy = Math.sin(focus);
     const m = tilt.matrixWorld.elements, det = m[0] * m[5] - m[1] * m[4];
     const localFocus = Math.atan2((m[0] * dy - m[1] * dx) / det, (m[5] * dx - m[4] * dy) / det);
     // The still/reduced-motion view should also begin with a title under the projector.
     if (firstPose) { firstPose = false; disc.rotation.z = localFocus; tilt.updateMatrixWorld(true); }
-    if (projectionLayout !== layout || projectionRadius !== controls.focusRadius || projectionSpread !== controls.raySpread) {
-      projectionLayout = layout; projectionRadius = controls.focusRadius; projectionSpread = controls.raySpread;
+    if (projectionLayout !== layout || projectionRadius !== renderedControls.focusRadius || projectionSpread !== renderedControls.raySpread) {
+      projectionLayout = layout; projectionRadius = renderedControls.focusRadius; projectionSpread = renderedControls.raySpread;
       projection = discProjectionWindow(layout, projectionRadius, projectionSpread);
     }
     projectorFrame.makeRotationZ(localFocus).premultiply(tilt.matrixWorld);
@@ -578,61 +656,67 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       slot.image.material.uniforms.rear.value = THREE.MathUtils.smoothstep(-slotCenter.z / R, .1, .75);
       slot.image.material.uniforms.hover.value = Math.min(1, slot.lift * 3);
       const projectionAngle = slot.angle + disc.rotation.z - localFocus;
-      slot.weight = discProjectionCoverage(layout, projection, projectionAngle, controls.glowRadius);
+      slot.weight = discProjectionCoverage(layout, projection, projectionAngle, renderedControls.glowRadius);
       // Sample only title pigment actually inside the projector footprint. A title entering
       // halfway changes only from its illuminated half instead of recolouring the beam early.
       const fitX = slot.imageAspect > layout.aspect ? 1 : slot.imageAspect / layout.aspect;
       const fitY = slot.imageAspect > layout.aspect ? layout.aspect / slot.imageAspect : 1;
       const cos = Math.cos(projectionAngle), sin = Math.sin(projectionAngle);
+      let slotInkCoverage = 0;
       for (const sample of slot.samples) {
         const u = .5 + (sample.u - .5) * fitX, v = .5 + (sample.v - .5) * fitY;
         const localX = layout.inner + (layout.outer - layout.inner) * u;
         const localY = -layout.innerHalfWidth + layout.innerHalfWidth * 2 * v;
-        const mask = discProjectionMask(localX * cos - localY * sin, localX * sin + localY * cos, projection, controls.glowRadius);
+        const mask = discProjectionMask(localX * cos - localY * sin, localX * sin + localY * cos, projection, renderedControls.glowRadius);
         const sampleWeight = sample.weight * mask;
         if (sampleWeight <= .000001) continue;
         const colour = slot.titleColor ?? sample.colour;
         targetColor.r += colour.r * sampleWeight;
         targetColor.g += colour.g * sampleWeight;
         targetColor.b += colour.b * sampleWeight;
-        coverage += sampleWeight;
+        coverage += sampleWeight; slotInkCoverage += sampleWeight;
       }
-      targetBands.addScaledVector(slot.bands, slot.weight);
-      bandCoverage += slot.weight;
+      // Density follows visible title pigment too; the invisible placement region is not a card.
+      targetBands.addScaledVector(slot.bands, slotInkCoverage);
+      bandCoverage += slotInkCoverage;
     }
-    if (coverage > .00001) targetColor.multiplyScalar(1 / coverage); else targetColor.copy(beamColor);
+    const artworkPresence = discArtworkPresence(coverage);
+    if (coverage > .00001) targetColor.multiplyScalar(1 / coverage); else targetColor.copy(neutralBeamColor);
     const luminance = targetColor.r * 0.2126 + targetColor.g * 0.7152 + targetColor.b * 0.0722;
     const chroma = Math.max(targetColor.r, targetColor.g, targetColor.b) - Math.min(targetColor.r, targetColor.g, targetColor.b);
-    const colourBoost = coverage > .00001 ? controls.saturation * (1 + controls.vibrance * (1 - chroma)) : 1;
+    const colourBoost = coverage > .00001 ? renderedControls.saturation * (1 + renderedControls.vibrance * (1 - chroma)) : 1;
     targetColor.setRGB(Math.max(0, luminance + (targetColor.r - luminance) * colourBoost),
       Math.max(0, luminance + (targetColor.g - luminance) * colourBoost), Math.max(0, luminance + (targetColor.b - luminance) * colourBoost));
     // A dark image changes hue, not whether the projector lamp exists.
     const brightest = Math.max(targetColor.r, targetColor.g, targetColor.b);
     if (brightest > .0001 && brightest < .45) targetColor.multiplyScalar(.45 / brightest);
+    sampledColor.copy(targetColor);
+    targetColor.copy(neutralBeamColor).lerp(sampledColor, artworkPresence);
     // Fast enough to follow each title edge, but eased so colour never flashes between frames.
     beamColor.lerp(targetColor, motion.matches || dt === 0 ? 1 : 1 - Math.exp(-dt * 12));
-    if (bandCoverage > .00001) targetBands.multiplyScalar(1 / bandCoverage); else targetBands.copy(imageBands.value);
+    if (bandCoverage > .00001) targetBands.multiplyScalar(1 / bandCoverage).lerp(neutralBands, 1 - artworkPresence);
+    else targetBands.copy(neutralBands);
     imageBands.value.lerp(targetBands, motion.matches || dt === 0 ? 1 : 1 - Math.exp(-dt * 3));
     const energy = (imageBands.value.x + imageBands.value.y + imageBands.value.z + imageBands.value.w) * .25;
-    const lampShimmer = 1 + controls.rayMotion * (.035 * Math.sin(time * 3.1) + .025 * Math.sin(time * 7.3 + 1.2));
-    contactStrength.value = controls.rayIntensity * (.62 + controls.bloom * .68) * (.66 + energy * .34) * lampShimmer * controls.surfaceReflection;
-    contactPrism.value = controls.rayStyle === 1 ? controls.rayPrism : controls.rayPrism * .35;
+    const lampShimmer = 1 + renderedControls.rayMotion * (.035 * Math.sin(time * 3.1) + .025 * Math.sin(time * 7.3 + 1.2));
+    contactStrength.value = renderedControls.rayIntensity * (.62 + renderedControls.bloom * .68) * (.66 + energy * .34) * lampShimmer * renderedControls.surfaceReflection;
+    contactPrism.value = controls.rayStyle === 1 ? renderedControls.rayPrism : renderedControls.rayPrism * .35;
     // The projector stays on the chosen side, independent of the rotating slots.
     // Changing the focus aims the beam; it never carries the projector around with the slot.
     const halfView = (camera.position.z - 1.4) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const drift = controls.rayMotion * (.09 * Math.sin(time * .33) + .05 * Math.sin(time * .57 + 1.4));
+    const drift = renderedControls.rayMotion * (.09 * Math.sin(time * .33) + .05 * Math.sin(time * .57 + 1.4));
     if (!motion.matches && !paused && opened < 0) updateRays(dt); else if (firstRays) updateRays(0);
     firstRays = false;
     // The projector itself always lives beyond the visible canvas. Visitors see light entering
     // from the screen edge, never an apex floating in the mobile or desktop composition.
-    const sourceFraction = 1.08 + (controls.rayLength - 3) / 6 * .42;
-    const linkedOrigin = (beamOriginYFraction === null ? controls.rayElevation * .55
+    const sourceFraction = 1.08 + (renderedControls.rayLength - 3) / 6 * .42;
+    const linkedOrigin = (beamOriginYFraction === null ? renderedControls.rayElevation * .55
       : (.5 - THREE.MathUtils.clamp(beamOriginYFraction, .04, .96)) * halfView * 2
-        + (controls.rayElevation - DISC_DEFAULTS.rayElevation) * .12)
-      - controls.originOffsetY * halfView * 2;
+        + (renderedControls.rayElevation - DISC_DEFAULTS.rayElevation) * .12)
+      - renderedControls.originY * halfView * 2;
     const linkedX = (beamOriginXFraction === null ? side * halfView * camera.aspect * sourceFraction
       : (THREE.MathUtils.clamp(beamOriginXFraction, .04, .96) - .5) * halfView * camera.aspect * 2)
-      + controls.originOffsetX * halfView * camera.aspect * 2;
+      + renderedControls.originX * halfView * camera.aspect * 2;
     source.set(linkedX,
       THREE.MathUtils.clamp(linkedOrigin + drift, -halfView * .92, halfView * .92), 1.4);
     // A lamp behind the disc could not light its face: keep the source on the lit side.
@@ -663,14 +747,14 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     });
     beamPositions.needsUpdate = true;
     // The projector remains on between titles. Only the artwork focus fades, never the light.
-    fanMaterial.uniforms.power.value = controls.rayIntensity;
-    beamGlow.value = controls.beamGlow; rayStrength.value = controls.rayStrength;
+    fanMaterial.uniforms.power.value = renderedControls.rayIntensity;
+    beamGlow.value = renderedControls.beamGlow; rayStrength.value = renderedControls.rayStrength;
     beamTime.value = time;
-    beamMotion.value = controls.rayMotion;
-    fanMaterial.uniforms.prism.value = controls.rayPrism;
+    beamMotion.value = renderedControls.rayMotion;
+    fanMaterial.uniforms.prism.value = renderedControls.rayPrism;
     fanMaterial.uniforms.rayStyle.value = controls.rayStyle;
-    saturation.value = controls.desaturation; bloom.strength = controls.bloom; bloom.enabled = controls.bloom > 0;
-    bloom.radius = controls.glowRadius; bloom.threshold = controls.glowThreshold;
+    saturation.value = renderedControls.desaturation; bloom.strength = renderedControls.bloom; bloom.enabled = renderedControls.bloom > .001;
+    bloom.radius = renderedControls.glowRadius; bloom.threshold = renderedControls.glowThreshold;
     composer.render();
   }
   function tick(now: number) {
@@ -683,7 +767,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       if (performance.now() - start > 28 || frameMs > (lowPower ? 65 : 45)) slowFrames++; else slowFrames = Math.max(0, slowFrames - 1);
       if (slowFrames > 45 && quality > 0.65) { quality = Math.max(0.65, quality * 0.8); slowFrames = 0; resize(width, height); }
     }
-    if (!raf && !motion.matches && (hoverSettling || (!paused && opened < 0 && ((controls.spinSpeed !== 0 && hovered < 0) || (controls.rayMotion > 0 && controls.rayIntensity > 0))))) raf = requestAnimationFrame(tick);
+    if (!raf && !motion.matches && (controlsSettling || hoverSettling || (!paused && opened < 0 && ((controls.spinSpeed !== 0 && hovered < 0) || (controls.rayMotion > 0 && controls.rayIntensity > 0))))) raf = requestAnimationFrame(tick);
   }
   function wake() { if (!destroyed && active && !document.hidden && !raf) { last = 0; raf = requestAnimationFrame(tick); } }
   function stop() { cancelAnimationFrame(raf); raf = 0; last = 0; elapsed = 0; }

@@ -182,7 +182,7 @@ test("section editors never repeat a field path or render duplicate React keys",
 
 test("disc settings migrate old slates, clamp invalid controls, and retain artwork and ordering", () => {
   const read = loader();
-  const { DISC_DEFAULTS, sanitizeDisc, sectorSize } = read("lib/content/disc.ts");
+  const { DISC_DEFAULTS, sanitizeDisc, sectorSize, discAimProfileForWidth } = read("lib/content/disc.ts");
   assert.deepEqual(sanitizeDisc(undefined), DISC_DEFAULTS);
   assert.deepEqual(sanitizeDisc({ spinSpeed: NaN, bloom: "high" }), DISC_DEFAULTS);
   assert.equal(sanitizeDisc({ discTilt: -999 }).discTilt, -75);
@@ -192,6 +192,14 @@ test("disc settings migrate old slates, clamp invalid controls, and retain artwo
   assert.equal(sanitizeDisc({ projectorSide: -100 }).projectorSide, -1);
   assert.equal(sanitizeDisc({ projectorSide: .4 }).projectorSide, 1);
   assert.equal(sanitizeDisc({ projectorSide: NaN }).projectorSide, -1);
+  assert.equal(discAimProfileForWidth(390), "mobile");
+  assert.equal(discAimProfileForWidth(640), "mobile");
+  assert.equal(discAimProfileForWidth(641), "tablet");
+  assert.equal(discAimProfileForWidth(1024), "tablet");
+  assert.equal(discAimProfileForWidth(1025), "desktop");
+  assert.equal(discAimProfileForWidth(Number.NaN), "desktop");
+  assert.equal(sanitizeDisc({ mobileFocusAngle: -999 }).mobileFocusAngle, -180);
+  assert.equal(sanitizeDisc({ tabletOriginOffsetY: 9 }).tabletOriginOffsetY, .25);
   for (const count of [0, 1, 2, 12, 16, 100]) {
     const { step, width } = sectorSize(count, 12);
     assert.ok(width > 0 && width < step);
@@ -233,6 +241,10 @@ test("disc settings migrate old slates, clamp invalid controls, and retain artwo
     migrated.proofTable.disc = { ...custom, rayStyle, discRoll: -50, rayElevation: 3, raySpread: 1.5, rayPrism: 0.8 };
     assert.deepEqual(sanitizeIntroSettings(JSON.parse(JSON.stringify(migrated))).proofTable.disc, migrated.proofTable.disc);
   }
+  const editor = readFileSync(path.join(root, "app/portal/ProofTableEditor.tsx"), "utf8");
+  assert.match(editor, /Desktop beam position · 1025px\+/);
+  assert.match(editor, /Tablet beam position · 641–1024px/);
+  assert.match(editor, /Mobile beam position · up to 640px/);
 });
 
 test("disc title regions stay separated inside the silver ring", () => {
@@ -251,11 +263,15 @@ test("disc mounts transparent title artwork without card or frame layers", () =>
   const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
   assert.doesNotMatch(source, /const glass = own\(/);
   assert.doesNotMatch(source, /EdgesGeometry\(panelGeometry/);
-  assert.match(source, /gl_FragColor=vec4\(c,tex\.a\*imageOpacity\)/);
+  assert.match(source, /gl_FragColor=vec4\(c,outputAlpha\)/);
+  assert.match(source, /mix\(c,artworkCore\*\(1\.\+slotGlow\*\.1\),titleInk\*focus\*\.5\)/);
   assert.match(source, /Float32BufferAttribute\(\[0, 0, 1, 0, 1, 1, 0, 1\], 2\)/);
   assert.match(source, /titleGlowIntensity/);
   assert.match(source, /mix\(contactColour,vec3\(1\.\),\.08\)/);
   assert.match(source, /hullWidth = 1\.5/);
+  assert.match(source, /tilt\.position\.x = -side \* 1\.42 \* THREE\.MathUtils\.smoothstep/);
+  assert.match(source, /THREE\.MathUtils\.damp\(current, target, rate/);
+  assert.match(source, /controlsSettling \|\| hoverSettling/);
   assert.match(source, /makeAimGuide\(0x5be7ff\).*makeAimGuide\(0xffd45b\)/s);
   assert.match(source, /setAimGuides\(value: boolean\)/);
   const page = readFileSync(path.join(root, "components/proof-table/ProofTable.tsx"), "utf8");
@@ -264,10 +280,13 @@ test("disc mounts transparent title artwork without card or frame layers", () =>
   assert.match(page, /const stacked = stageBounds\.top >= bodyBounds\.bottom/);
   assert.match(page, /setAimGuides\(portalPreview\)/);
   assert.match(source, /smoothstep\(\.015,\.42,along\)/);
+  const editor = readFileSync(path.join(root, "app/portal/ProofTableEditor.tsx"), "utf8");
+  assert.match(editor, /open=\{openDiscGroups\.has\(group\.title\)\}/);
+  assert.match(editor, /setOpenDiscGroups\(current =>/);
 });
 
 test("projector illuminates only overlapping image pixels and blends partial entries in either direction", () => {
-  const { discPanelLayout, discProjectionWindow, discProjectionMask, discProjectionCoverage } = loader()("lib/content/disc.ts");
+  const { discPanelLayout, discProjectionWindow, discProjectionMask, discProjectionCoverage, discArtworkPresence } = loader()("lib/content/disc.ts");
   const panel = discPanelLayout(8, 3, 1), window = discProjectionWindow(panel, .67, 1.1);
   assert.equal(discProjectionMask(window.center, 0, window, .75), 1);
   assert.equal(discProjectionMask(window.outer + .01, 0, window, .75), 0);
@@ -281,6 +300,15 @@ test("projector illuminates only overlapping image pixels and blends partial ent
   assert.equal(discProjectionCoverage(panel, window, Math.PI, .75), 0);
   assert.ok(Math.abs(partial - discProjectionCoverage(panel, window, -.35, .75)) < 1e-9);
   assert.ok(Math.abs(partial - discProjectionCoverage(panel, window, Math.PI * 2 + .35, .75)) < 1e-9);
+  assert.equal(discArtworkPresence(0), 0);
+  assert.equal(discArtworkPresence(.012), 0);
+  assert.ok(discArtworkPresence(.08) > 0 && discArtworkPresence(.08) < 1);
+  assert.equal(discArtworkPresence(.28), 1);
+  const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  assert.match(source, /targetColor\.copy\(neutralBeamColor\)\.lerp\(sampledColor, artworkPresence\)/);
+  assert.match(source, /else targetBands\.copy\(neutralBands\)/);
+  assert.doesNotMatch(source, /else targetColor\.copy\(beamColor\)/);
+  assert.match(source, /const COLOUR_GRID = 8/);
 });
 
 test("upright artwork keeps its aspect ratio entirely inside a rotating projected plaque", () => {
@@ -325,19 +353,22 @@ test("disc displays eight entries without deleting titles or changing their link
   assert.equal(visibleDiscItems(items.slice(0, 3)).length, 3);
 });
 
-test("projector footprint tracks slot dimensions and stays inside the selected plaque", () => {
+test("projector footprint tracks title dimensions with bounded edge overscan", () => {
   const { DISC_DEFAULTS, discPanelLayout, discProjectionWindow } = loader()("lib/content/disc.ts");
   assert.equal(DISC_DEFAULTS.focusAngle, -18);
   for (const count of [1, 5, 12, 16]) for (const size of [.7, 1]) for (const radius of [.48, .67, .82]) for (const spread of [.3, 1.1, 2]) {
     const layout = discPanelLayout(count, 3, size), window = discProjectionWindow(layout, radius, spread);
-    assert.ok(window.inner >= layout.inner && window.outer <= layout.outer);
+    const span = layout.outer - layout.inner;
+    assert.ok(window.inner >= layout.inner - span * .18 && window.outer <= layout.outer + span * .18);
     assert.ok(window.inner < window.center && window.center < window.outer);
     for (const [r, width] of [[window.inner, window.innerHalfWidth], [window.outer, window.outerHalfWidth]]) {
       const boundary = layout.innerHalfWidth + (layout.outerHalfWidth - layout.innerHalfWidth) * (r - layout.inner) / (layout.outer - layout.inner);
-      assert.ok(width > 0 && width < boundary, "Even maximum spread stays inside the glass");
+      assert.ok(width > 0 && width <= boundary * 1.351, "Overscan remains bounded around the title");
     }
   }
   const window = (count, size) => discProjectionWindow(discPanelLayout(count, 3, size), .67, 1.1);
+  assert.ok(window(5, 1).inner < discPanelLayout(5, 3, 1).inner, "Default light reaches beyond the inner letters");
+  assert.ok(window(5, 1).outer > discPanelLayout(5, 3, 1).outer, "Default light reaches beyond the outer letters");
   assert.ok(window(16, 1).outerHalfWidth < window(5, 1).outerHalfWidth);
   assert.ok(window(5, .7).outer - window(5, .7).inner < window(5, 1).outer - window(5, 1).inner);
 });

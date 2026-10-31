@@ -14,6 +14,8 @@ export const DISC_DEFAULTS = {
   rayMotion: 0.45, projectorSide: -1,
   beamGlow: 1, rayStrength: 1, surfaceReflection: 1,
   originOffsetX: 0, originOffsetY: 0,
+  tabletFocusAngle: -16, tabletFocusRadius: 0.66, tabletOriginOffsetX: 0, tabletOriginOffsetY: 0,
+  mobileFocusAngle: -12, mobileFocusRadius: 0.64, mobileOriginOffsetX: 0, mobileOriginOffsetY: 0,
 };
 export type DiscControls = typeof DISC_DEFAULTS;
 export const DISC_RANGES: Record<keyof DiscControls, readonly [number, number, number]> = {
@@ -29,6 +31,10 @@ export const DISC_RANGES: Record<keyof DiscControls, readonly [number, number, n
   projectorSide: [-1, 1, 2],
   beamGlow: [0, 3, 0.05], rayStrength: [0, 3, 0.05], surfaceReflection: [0, 3, 0.05],
   originOffsetX: [-0.25, 0.25, 0.01], originOffsetY: [-0.25, 0.25, 0.01],
+  tabletFocusAngle: [-180, 180, 1], tabletFocusRadius: [0.48, 0.82, 0.01],
+  tabletOriginOffsetX: [-0.25, 0.25, 0.01], tabletOriginOffsetY: [-0.25, 0.25, 0.01],
+  mobileFocusAngle: [-180, 180, 1], mobileFocusRadius: [0.48, 0.82, 0.01],
+  mobileOriginOffsetX: [-0.25, 0.25, 0.01], mobileOriginOffsetY: [-0.25, 0.25, 0.01],
 };
 export function sanitizeDisc(input: unknown): DiscControls {
   const src = input && typeof input === "object" ? input as Record<string, unknown> : {};
@@ -39,6 +45,14 @@ export function sanitizeDisc(input: unknown): DiscControls {
     if (typeof value === "number" && Number.isFinite(value)) out[key] = key === "projectorSide" ? (value < 0 ? -1 : 1) : Math.min(max, Math.max(min, key === "rayStyle" ? Math.round(value) : value));
   }
   return out;
+}
+
+export type DiscAimProfile = "mobile" | "tablet" | "desktop";
+/** CSS-width profiles keep portal editing and the renderer deterministic across device DPRs. */
+export function discAimProfileForWidth(width: number): DiscAimProfile {
+  if (Number.isFinite(width) && width <= 640) return "mobile";
+  if (Number.isFinite(width) && width <= 1024) return "tablet";
+  return "desktop";
 }
 export function sectorSize(count: number, gapDegrees: number) {
   const step = Math.PI * 2 / Math.max(1, count);
@@ -58,10 +72,10 @@ export function discPanelLayout(count: number, gapDegrees: number, size: number)
     aspect: (outer - inner) / (halfWidth * 2) };
 }
 
-/** A fixed, slot-sized projector window. Spread may soften/widen it, never spill beyond the plaque. */
+/** A title-sized projector window with bounded overscan so outer letters receive soft light too. */
 export function discProjectionWindow(layout: ReturnType<typeof discPanelLayout>, radius: number, spread: number) {
   const center = Math.min(layout.outer - 0.015, Math.max(layout.inner + 0.015, radius));
-  const scale = Math.min(0.94, Math.max(0.25, spread * 0.86));
+  const scale = Math.min(1.35, Math.max(0.35, spread * 1.14));
   const halfHeight = Math.min(center - layout.inner, layout.outer - center) * scale;
   const inner = center - halfHeight, outer = center + halfHeight;
   const widthAt = (r: number) => layout.innerHalfWidth + (layout.outerHalfWidth - layout.innerHalfWidth) * (r - layout.inner) / (layout.outer - layout.inner);
@@ -94,6 +108,12 @@ export function discProjectionCoverage(layout: ReturnType<typeof discPanelLayout
     }
   }
   return coverage / 25;
+}
+
+/** Artwork pigment must materially enter the projector before it can tint the whole beam. */
+export function discArtworkPresence(coverage: number) {
+  const t = Math.min(1, Math.max(0, (coverage - 0.012) / (0.28 - 0.012)));
+  return t * t * (3 - 2 * t);
 }
 
 /** Largest upright image rectangle centred inside a projected convex plaque. No crop or stretch.
