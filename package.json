@@ -13,7 +13,8 @@
     "images": "node scripts/build-image-manifest.mjs",
     "cf:build": "node scripts/with-build-id.mjs cross-env DEPLOY_TARGET=cloudflare NEXT_PUBLIC_SITE_URL=https://dollydesignstudio.pages.dev opennextjs-cloudflare build",
     "cf:preview": "npm run cf:build && opennextjs-cloudflare preview",
-    "cf:deploy": "npm run cf:build && opennextjs-cloudflare deploy",
+    "cf:deploy": "node scripts/deploy-cloudflare.mjs",
+    "deploy": "node scripts/deploy-cloudflare.mjs",
     "check": "npm run typecheck && npm run lint && npm test && npm run build"
   },
   "dependencies": {

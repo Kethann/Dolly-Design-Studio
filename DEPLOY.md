@@ -12,7 +12,15 @@ Everything below runs from the `site/` folder. The portal's content, accounts an
    - Optional, for emailed codes / password reset: `npx wrangler secret put RESEND_API_KEY` and `npx wrangler secret put MAIL_FROM`
 
 ## Deploy
-`npm run cf:deploy`  → prints your `https://dolly-design-studio.<you>.workers.dev` address.
+`npm run deploy` performs the safe production workflow from one command:
+
+1. Type-checks, lints and tests the project.
+2. Builds and deploys the application Worker with the current Git commit as its version.
+3. Refreshes `dollydesignstudio.pages.dev` with the same commit metadata.
+
+The command stops before deployment when the Git workspace has uncommitted changes. This keeps GitHub, the Worker and Pages on the same version. It also selects the existing Dolly Design Studio Cloudflare account, avoiding Wrangler's multiple-account prompt.
+
+`npm run deploy` and `npm run cf:deploy` are aliases for the same synchronized workflow. After both deployments, the command verifies that the Worker and Pages are serving the exact same Git commit; a mismatch is reported as a failed release.
 Try it locally first (simulated R2): copy `.dev.vars.example` to `.dev.vars`, then `npm run cf:preview`.
 
 ## Custom domain
