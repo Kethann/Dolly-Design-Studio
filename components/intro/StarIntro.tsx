@@ -31,6 +31,7 @@ import { createGlassPlane } from "@/lib/intro/glass-plane";
 import { createAdaptiveQuality } from "@/lib/intro/adaptive-quality";
 import { planStream, streamPose } from "@/lib/intro/stream";
 import { T } from "@/lib/intro/timeline";
+import { createIntroFrameClock } from "@/lib/intro/frame-clock";
 import {
   bezier,
   clamp01,
@@ -577,7 +578,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     let revealed = false;
     let finished = false;
     let raf = 0;
-    let last = performance.now();
+    const clock = createIntroFrameClock();
     let lastReport = 0;
     let firstFrameShown = false;
     // Never below full resolution: a softer render would blur the stars as they form the logo.
@@ -622,10 +623,17 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     }
 
     function frame(now: number) {
-      let dt = (now - last) / 1000;
-      last = now;
-      if (dt < 0 || dt > 0.25) dt = 1 / 60; // tab was hidden or stalled: don't jump the show forward
+      raf = 0;
+      if (finished || document.hidden) { clock.reset(); return; }
+      // Choreography is a pure function of time. Dropping slow-frame time stretches
+      // the intro on phones/tablets; count it normally, but never count a hidden tab.
+      // RAF's timestamp can already be stale after another canvas did expensive work
+      // in this batch. Read the current clock so that work cannot delay the hand-off.
+      const dt = clock.step(performance.now());
       if (!paused) t += dt;
+      // At the end the overlay is fully transparent: do not spend another GPU frame
+      // drawing it before unmounting (especially costly on mobile and software GPUs).
+      if (!paused && t >= T.end) { onTime?.(t); return finish(); }
       adapt(dt);
       update(t);
       composer.render();
@@ -655,7 +663,14 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     renderer.compile(front, camera);
     appearLater.forEach((o) => (o.visible = false));
     reportIntroProgress(0.92); // shaders compiled
+    clock.reset(); // compilation is loading time, not part of the eight-second choreography
     raf = requestAnimationFrame(frame);
+
+    function onVisibility() {
+      clock.reset();
+      if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
+      else if (!finished && !raf) raf = requestAnimationFrame(frame);
+    }
 
     // Esc jumps straight to the hand-off (keyboard accessibility). No on-screen skip, no accidental skips.
     // Scrolling (wheel, swipe, or the scroll keys) during the show doesn't stop it: the intro becomes the opening
@@ -721,6 +736,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("resize", onResize);
+    document.addEventListener("visibilitychange", onVisibility);
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
 
     return () => {
@@ -731,6 +747,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("resize", onResize);
+      document.removeEventListener("visibilitychange", onVisibility);
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
       starGeometry.dispose();
       bigStarGeometry.dispose();
@@ -759,7 +776,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
   }, []);
 
   return (
-    <div ref={overlayRef} className={styles.overlay} aria-hidden="true">
+    <div ref={overlayRef} className={styles.overlay} data-intro-scene aria-hidden="true">
       <div ref={wrapRef} className={styles.canvasWrap} />
       <div ref={vignetteRef} className={styles.vignette} />
     </div>

@@ -23,17 +23,16 @@ interface Item {
 /** The items repeated so one copy is always wider than a screen. */
 const fill = (items: Item[]) => items.length ? Array.from({ length: Math.max(2, Math.ceil(14 / items.length)) }, () => items).flat() : [];
 
-function Row({ items, label, reverse, shape, size, logoSize, list }: { items: Item[]; label: string; reverse?: boolean; shape?: string; size?: string; logoSize?: string; /** The content list this row shows (clients or collaborators), so each entry can be edited. */ list: string }) {
+type RowProps = { items: Item[]; label: string; reverse?: boolean; shape?: string; size?: string; logoSize?: string; list: string };
+
+function MarqueeTrack({ items, label, reverse, shape, size, logoSize, list, secondary = false }: RowProps & { secondary?: boolean }) {
   const fillItems = fill(items);
-  const { viewport, track } = useDragMarquee({ seconds: reverse ? 140 : 120, reverse });
+  const { viewport, track } = useDragMarquee({ seconds: list === "clients" ? 120 : 140, reverse });
   /** What marks an entry for the portal's Edit button: only the first set of the first copy; repeats are hidden while editing. */
-  const mark = (copy: number, i: number) => (copy === 0 && i < items.length ? edItem(list, i, items[i].name) : { "data-ed-dup": "" });
+  const mark = (copy: number, i: number) => (!secondary && copy === 0 && i < items.length ? edItem(list, i, items[i].name) : { "data-ed-dup": "" });
   const hasPictures = items.some((it) => it.logo || it.photo);
   return (
-    <div className={styles.row}>
-      <span className={styles.rowLabel}><span>{label}</span><span className={styles.dragHint} aria-hidden="true">Hold & drag ↔</span></span>
-      <AddContent list={list} label={list === "clients" ? "Add production house" : "Add collaborator"} count={items.length} />
-      <div ref={viewport} className={styles.viewport} data-marquee={list} data-shape={shape} data-size={size} data-logo={logoSize} tabIndex={0} role="region" aria-label={`${label}. Hold and drag sideways, or use the left and right arrow keys.`}>
+      <div ref={viewport} className={`${styles.viewport}${secondary ? ` ${styles.secondaryTrack}` : ""}`} data-marquee={list} data-direction={reverse ? "right" : "left"} data-shape={shape} data-size={size} data-logo={logoSize} tabIndex={0} role="region" aria-label={`${label}${secondary ? ", second track" : ""}. Hold and drag sideways, or use the left and right arrow keys.`}>
         <div ref={track} className={styles.track} aria-hidden="true">
           {[0, 1].map((copy) => (
             <div key={copy} className={styles.half}>
@@ -73,11 +72,21 @@ function Row({ items, label, reverse, shape, size, logoSize, list }: { items: It
           ))}
         </div>
       </div>
+  );
+}
+
+function Row(props: RowProps & { paired?: boolean; secondaryReverse?: boolean }) {
+  return (
+    <div className={styles.row}>
+      <span className={styles.rowLabel}><span>{props.label}</span><span className={styles.dragHint} aria-hidden="true">Hold & drag ↔</span></span>
+      <AddContent list={props.list} label={props.list === "clients" ? "Add production house" : "Add collaborator"} count={props.items.length} />
+      <MarqueeTrack {...props} />
+      {props.paired && props.items.length > 0 && <MarqueeTrack {...props} reverse={props.secondaryReverse ?? true} secondary />}
     </div>
   );
 }
 
-/** Clients & collaborations: two tracks drifting in opposite directions (hold and drag either one sideways) — production houses, then the people. */
+/** Three independently directed tracks. Both production tracks share one saved list. */
 export function Clients() {
   const { home, clients, collaborators, testimonials } = useContent();
   const names = [...clients.map((c) => c.name), ...collaborators.map((c) => c.name)];
@@ -91,8 +100,8 @@ export function Clients() {
       </div>
 
       <div className={styles.rows}>
-        <Row items={clients} list="clients" label={labels.clients} logoSize={home.clients.logoSize} />
-        <Row items={collaborators} list="collaborators" label={labels.collaborators} reverse shape={home.clients.portraitShape} size={home.clients.portraitSize} />
+        <Row items={clients} list="clients" label={labels.clients} logoSize={home.clients.logoSize} reverse={home.clients.productionDirection === "right"} secondaryReverse={home.clients.productionSecondDirection !== "left"} paired />
+        <Row items={collaborators} list="collaborators" label={labels.collaborators} shape={home.clients.portraitShape} size={home.clients.portraitSize} reverse={home.clients.filmmakersDirection === "right"} />
       </div>
       <p className="sr-only">
         {home.clients.screenReaderIntro} {names.join(", ")}.

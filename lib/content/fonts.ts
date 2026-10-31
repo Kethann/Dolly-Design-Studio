@@ -11,7 +11,7 @@ export interface FontChoice {
 export const FONTS: FontChoice[] = [
   { id: "lemon-bold", label: "Lemon Milk Bold — headings", var: "--font-lemon-bold", fallback: "Georgia, serif" },
   { id: "lemon-light", label: "Lemon Milk Light — text", var: "--font-lemon-light", fallback: "Inter, sans-serif" },
-  { id: "lemon-italic", label: "Lemon Milk Italic — subheadings", var: "--font-lemon-italic", fallback: "Inter, sans-serif" },
+  { id: "lemon-regular", label: "Lemon Milk Regular — subheadings", var: "--font-lemon-regular", fallback: "Inter, sans-serif" },
   { id: "bodoni", label: "Bodoni Moda — classic serif", var: "--font-bodoni", fallback: "Georgia, serif" },
   { id: "playfair", label: "Playfair Display — editorial serif", var: "--font-playfair", fallback: "Georgia, serif" },
   { id: "cormorant", label: "Cormorant Garamond — fine serif", var: "--font-cormorant", fallback: "Georgia, serif" },
@@ -34,9 +34,11 @@ export const allFonts = (custom: CustomFontLike[] = []): FontChoice[] => [
   ...custom.map((c) => ({ id: c.id, label: `${c.label} — your font`, var: "", fallback: "Georgia, serif", url: c.url })),
 ];
 
-export const fontById = (id: string | undefined, custom: CustomFontLike[] = []) => allFonts(custom).find((f) => f.id === id);
+/** Older portal documents use the former italic font ID; keep them upright too. */
+export const regularFontId = (id: string | undefined) => id === "lemon-italic" ? "lemon-regular" : id;
+export const fontById = (id: string | undefined, custom: CustomFontLike[] = []) => allFonts(custom).find((f) => f.id === regularFontId(id));
 
 export const fontStack = (f: FontChoice) => (f.url ? `"${f.id}", ${f.fallback}` : `var(${f.var}), ${f.fallback}`);
 
 /** Where the three global font roles start out (they match globals.css). */
-export const DEFAULT_FONT_ROLES = { display: "lemon-bold", label: "lemon-italic", body: "lemon-light" } as const;
+export const DEFAULT_FONT_ROLES = { display: "lemon-bold", label: "lemon-regular", body: "lemon-light" } as const;

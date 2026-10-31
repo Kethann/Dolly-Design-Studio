@@ -1,0 +1,56 @@
+name: dolly-design-studio
+
+services:
+  web:
+    image: dolly-design-studio:local
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SITE_URL: ${DOLLY_SITE_URL:-http://localhost:3001}
+        NEXT_PUBLIC_BUILD_ID: ${DOLLY_BUILD_ID:-docker-local}
+    # Optional runtime secrets, never copied into the image. Requires Compose 2.24+.
+    env_file:
+      - path: .env.docker.local
+        required: false
+    environment:
+      NODE_ENV: production
+      DEPLOY_TARGET: docker
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      NODE_OPTIONS: --max-old-space-size=512
+    ports:
+      - "${DOLLY_BIND_ADDRESS:-127.0.0.1}:${DOLLY_PORT:-3001}:3000"
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 1g
+    cpus: 2.0
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - content:/app/content
+      - accounts:/app/.data
+      - videos:/app/.media
+      - images:/app/public/images/uploads
+      - titles:/app/public/images/proof-table
+      - textures:/app/public/images/textures
+      - fonts:/app/public/fonts/uploads
+      - cache:/app/.next/cache
+
+volumes:
+  content:
+  accounts:
+  videos:
+  images:
+  titles:
+  textures:
+  fonts:
+  cache:

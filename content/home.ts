@@ -15,7 +15,7 @@ export const home = {
   // 2. BASIC INFO ABOUT THE AGENCY — the statement that lights up word by word…
   manifesto: {
     label: "About Our Agency",
-    /** Words wrapped in *asterisks* are set in gold italic. */
+    /** Words wrapped in *asterisks* are highlighted in gold. */
     statement: "Let us be the cover page of your beautiful book called *‘Cinema’*",
     body: "Dolly Design Studio is a creative collection specializing in film publicity and title design. We blend artistry with strategy to craft unforgettable identities that elevate films and leave a lasting mark.",
   },
@@ -98,6 +98,10 @@ export const home = {
     label: "Our Clients",
     title: "Clients & collaborations",
     rowLabels: { clients: "Production houses", collaborators: "Filmmakers & actors" },
+    /** Automatic travel direction; dragging remains available in either direction. */
+    productionDirection: "left",
+    productionSecondDirection: "right",
+    filmmakersDirection: "left",
     /** The shape of the round portraits in the Filmmakers & actors row: "round", "rounded" or "square". */
     portraitShape: "round",
     /** How big the portraits are: "small", "medium" or "large". */

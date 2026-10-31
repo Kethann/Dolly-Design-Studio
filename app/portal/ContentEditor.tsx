@@ -138,23 +138,17 @@ export function StyleControls({ value, onChange }: { value: TextStyle; onChange:
         format={(v) => (value.size ? `${v}px` : "default")}
         onChange={(size) => patch({ size })}
       />
-      <div className={styles.twoCols}>
-        <label className={styles.row}>
-          <span>Weight</span>
-          <select className={styles.input} value={value.weight ?? ""} onChange={(e) => patch({ weight: Number(e.target.value) || undefined })}>
-            <option value="">Default</option>
-            {WEIGHTS.map((w) => (
-              <option key={w} value={w}>
-                {w}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={styles.check}>
-          <input type="checkbox" checked={!!value.italic} onChange={(e) => patch({ italic: e.target.checked || undefined })} />
-          <span>Italic</span>
-        </label>
-      </div>
+      <label className={styles.row}>
+        <span>Weight</span>
+        <select className={styles.input} value={value.weight ?? ""} onChange={(e) => patch({ weight: Number(e.target.value) || undefined })}>
+          <option value="">Default</option>
+          {WEIGHTS.map((w) => (
+            <option key={w} value={w}>
+              {w}
+            </option>
+          ))}
+        </select>
+      </label>
       <Choice
         label="Alignment"
         value={value.align ?? "default"}
@@ -1257,7 +1251,7 @@ export function TypographyEditor({ onFocus }: { onFocus?: (target: string) => vo
             multiple
             state={uploads.state}
             title="Drop font files here, or click to choose"
-            hint=".ttf, .otf, .woff or .woff2 — one file per weight or style (Bold, Light, Italic…). Then use them for headings, subheadings or text, or pick them in any “Aa” list."
+            hint=".ttf, .otf, .woff or .woff2 — upload an upright font file for each weight (Regular, Bold, Light…). Then use them for headings, subheadings or text, or pick them in any “Aa” list."
             onFiles={(files) => uploads.start(files, addFont)}
           />
           {content.customFonts.length === 0 && <p className={styles.hint}>No fonts uploaded yet.</p>}

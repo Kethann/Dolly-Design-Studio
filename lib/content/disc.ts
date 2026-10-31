@@ -5,23 +5,25 @@ export function visibleDiscItems<T>(items: readonly T[]): T[] {
   return items.slice(0, DISC_SLOT_LIMIT);
 }
 export const DISC_DEFAULTS = {
-  spinSpeed: 0.12, focusAngle: -18, focusRadius: 0.67, rayIntensity: 0.8,
-  rayLength: 5, bloom: 0.35, desaturation: 0.5, discTilt: -65, slotGap: 3,
+  glassVersion: 1, entranceDuration: 3.6, circleScale: 1, glassOpacity: 0.22,
+  spinSpeed: 0.09, focusAngle: -43, focusRadius: 0.8, rayIntensity: 0.8,
+  rayLength: 5, bloom: 0.35, desaturation: 0.5, discTilt: -12, slotGap: 3,
   lightIntensity: 1, glowRadius: 0.75, glowThreshold: 0.72,
   saturation: 1, vibrance: 0, slotSize: 1, slotOpacity: 1,
-  slotBlur: 1.5, unfocusedBrightness: 0.35,
-  discRoll: -65, rayStyle: 1, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.65,
+  slotBlur: 0, unfocusedBrightness: 0.18,
+  discRoll: -8, rayStyle: 0, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.25,
   rayMotion: 0.45, projectorSide: -1,
   beamGlow: 1, rayStrength: 1, surfaceReflection: 1,
   originOffsetX: 0, originOffsetY: 0,
-  tabletFocusAngle: -16, tabletFocusRadius: 0.66, tabletOriginOffsetX: 0, tabletOriginOffsetY: 0,
-  mobileFocusAngle: -12, mobileFocusRadius: 0.64, mobileOriginOffsetX: 0, mobileOriginOffsetY: 0,
+  tabletFocusAngle: -48, tabletFocusRadius: 0.8, tabletOriginOffsetX: 0, tabletOriginOffsetY: 0,
+  mobileFocusAngle: -54, mobileFocusRadius: 0.8, mobileOriginOffsetX: 0, mobileOriginOffsetY: 0,
 };
 export type DiscControls = typeof DISC_DEFAULTS;
 export const DISC_RANGES: Record<keyof DiscControls, readonly [number, number, number]> = {
-  spinSpeed: [-0.5, 0.5, 0.01], focusAngle: [-180, 180, 1], focusRadius: [0.48, 0.82, 0.01],
+  glassVersion: [1, 1, 1], entranceDuration: [1.5, 6, 0.1], circleScale: [0.85, 1.15, 0.01], glassOpacity: [0.05, 0.5, 0.01],
+  spinSpeed: [-0.5, 0.5, 0.01], focusAngle: [-180, 180, 1], focusRadius: [0.66, 0.9, 0.01],
   rayIntensity: [0, 3, 0.05], rayLength: [3, 9, 0.1], bloom: [0, 2, 0.05],
-  desaturation: [0, 1, 0.05], discTilt: [-75, -20, 1], slotGap: [0.5, 12, 0.5],
+  desaturation: [0, 1, 0.05], discTilt: [-30, 0, 1], slotGap: [0.5, 12, 0.5],
   lightIntensity: [0, 2, 0.05], glowRadius: [0, 1, 0.05], glowThreshold: [0.1, 2, 0.05],
   saturation: [0, 2, 0.05], vibrance: [0, 1, 0.05], slotSize: [0.7, 1, 0.05],
   slotOpacity: [0.2, 1, 0.05], slotBlur: [0, 6, 0.25], unfocusedBrightness: [0.05, 1, 0.05],
@@ -31,9 +33,9 @@ export const DISC_RANGES: Record<keyof DiscControls, readonly [number, number, n
   projectorSide: [-1, 1, 2],
   beamGlow: [0, 3, 0.05], rayStrength: [0, 3, 0.05], surfaceReflection: [0, 3, 0.05],
   originOffsetX: [-0.25, 0.25, 0.01], originOffsetY: [-0.25, 0.25, 0.01],
-  tabletFocusAngle: [-180, 180, 1], tabletFocusRadius: [0.48, 0.82, 0.01],
+  tabletFocusAngle: [-180, 180, 1], tabletFocusRadius: [0.66, 0.9, 0.01],
   tabletOriginOffsetX: [-0.25, 0.25, 0.01], tabletOriginOffsetY: [-0.25, 0.25, 0.01],
-  mobileFocusAngle: [-180, 180, 1], mobileFocusRadius: [0.48, 0.82, 0.01],
+  mobileFocusAngle: [-180, 180, 1], mobileFocusRadius: [0.66, 0.9, 0.01],
   mobileOriginOffsetX: [-0.25, 0.25, 0.01], mobileOriginOffsetY: [-0.25, 0.25, 0.01],
 };
 export function sanitizeDisc(input: unknown): DiscControls {
@@ -44,7 +46,44 @@ export function sanitizeDisc(input: unknown): DiscControls {
     const [min, max] = DISC_RANGES[key];
     if (typeof value === "number" && Number.isFinite(value)) out[key] = key === "projectorSide" ? (value < 0 ? -1 : 1) : Math.min(max, Math.max(min, key === "rayStyle" ? Math.round(value) : value));
   }
+  // Old silver-CD poses would put the glass almost edge-on. Migrate presentation only;
+  // keep artwork, colours, light strength, ordering and content untouched.
+  if (src.glassVersion !== 1) {
+    for (const key of ["discTilt", "discRoll", "focusAngle", "focusRadius", "tabletFocusAngle", "tabletFocusRadius", "mobileFocusAngle", "mobileFocusRadius", "originOffsetX", "originOffsetY", "tabletOriginOffsetX", "tabletOriginOffsetY", "mobileOriginOffsetX", "mobileOriginOffsetY", "projectorSide"] as const) out[key] = DISC_DEFAULTS[key];
+  }
   return out;
+}
+
+/** The entrance turns visibly, then joins the saved speed with no stop or velocity jump. */
+export function glassArrivalSpinMultiplier(progress: number) {
+  const t = Math.min(1, Math.max(0, progress));
+  return 1 + 3 * (1 - t * t * (3 - 2 * t));
+}
+
+/** Screen-fraction composition: full circle on arrival, oversized arc behind the copy at rest.
+ * Scroll affects only feathering, so reversing the scroll never restarts the entrance. */
+export function glassCircleComposition(width: number, height: number, progress: number) {
+  // A short establishing beat lets the complete rotating circle register before approaching.
+  const t = Math.min(1, Math.max(0, (progress - .12) / .88));
+  const eased = t * t * t * (t * (t * 6 - 15) + 10);
+  const mobile = width <= 640;
+  // Keep the same arc placement on tablet and desktop, rather than pushing it
+  // to the far right when crossing the desktop breakpoint. Phone stays unchanged.
+  const endX = mobile ? -.35 : .12;
+  const endY = mobile ? .02 : -.3;
+  const endRadius = mobile ? .85 : 1.35;
+  const startX = mobile ? .5 : .65;
+  const startRadius = Math.min(.29, .38 * Math.max(1, width) / Math.max(1, height));
+  return { x: startX + (endX - startX) * eased, y: .46 + (endY - .46) * eased,
+    radius: startRadius + (endRadius - startRadius) * eased, reveal: eased };
+}
+
+/** Screen fractions: the reference light enters from above the scene, never from an on-screen apex. */
+export function glassProjectorOrigin(width: number, side: number, offsetX = 0, offsetY = 0,
+  xOverride: number | null = null, yOverride = -.09) {
+  const left = width <= 640 ? -.1 : width <= 1024 ? .14 : .3;
+  const x = (xOverride ?? (side < 0 ? left : 1 - left)) + offsetX;
+  return { x: Math.min(1.4, Math.max(-.4, x)), y: Math.min(-.035, yOverride + offsetY) };
 }
 
 export type DiscAimProfile = "mobile" | "tablet" | "desktop";
@@ -59,10 +98,10 @@ export function sectorSize(count: number, gapDegrees: number) {
   return { step, width: step - Math.min(gapDegrees * Math.PI / 180, step * 0.3) };
 }
 
-/** Transparent title regions distributed evenly on the silver disc. */
+/** Transparent title regions distributed evenly near the glass circle's rim. */
 export function discPanelLayout(count: number, gapDegrees: number, size: number) {
   const { step, width } = sectorSize(count, gapDegrees);
-  const center = 0.67, halfHeight = 0.24 * size;
+  const center = 0.8, halfHeight = 0.14 * size;
   const inner = center - halfHeight, outer = center + halfHeight;
   // The invisible placement region stays rectangular so a PNG is never warped into a wedge.
   const halfAngle = Math.min(0.6, width * 0.48) * size;

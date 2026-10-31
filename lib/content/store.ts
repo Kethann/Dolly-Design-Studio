@@ -8,7 +8,7 @@ import type { SiteContent } from "./types";
 const KEY = "content/site-content.json";
 
 export async function getContent(): Promise<SiteContent> {
-  if (onCloudflare()) {
+  if (onCloudflare() || process.env.DEPLOY_TARGET === "docker") {
     // Pages there are built fresh for each visit from what is saved now (never frozen at build time).
     try {
       await connection();

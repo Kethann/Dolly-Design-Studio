@@ -102,6 +102,5 @@ publishing a change: building the site always picks up the latest images.
 - Keep the quotes and the comma at the end of each line.
 - To use an apostrophe inside text, the typographic one `’` is safest
   (e.g. `Let’s`), so it doesn't clash with the quotes.
-- In the manifesto statement, wrap words in `*asterisks*` to set them in gold
-  italic.
+- In the manifesto statement, wrap words in `*asterisks*` to highlight them in gold.
 - After editing, `npm run check` confirms everything is still valid.

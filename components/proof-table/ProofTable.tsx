@@ -44,19 +44,18 @@ export function ProofTable() {
   useEffect(() => {
     if (!pt.enabled) return;
     const host = stage.current!, surface = canvas.current!;
-    let disposed = false, loading = false, visible = false;
+    let disposed = false, loading = false, visible = false, scrollFrame = 0;
     const syncBeamOrigin = () => {
-      const copyBounds = copy.current?.getBoundingClientRect(), titleBounds = headline.current?.getBoundingClientRect(), bodyBounds = body.current?.getBoundingClientRect();
-      const stageBounds = host.getBoundingClientRect();
-      if (!copyBounds || !titleBounds || !bodyBounds || stageBounds.width <= 0 || stageBounds.height <= 0) return;
-      // Begin just beneath the final heading line, then let the volumetric shader ease the light
-      // into view before it reaches the description. On stacked mobile the source stays off screen.
-      const titleGap = Math.max(0, bodyBounds.top - titleBounds.bottom);
-      const originY = titleBounds.bottom + Math.min(14, Math.max(4, titleGap * .22));
-      const stacked = stageBounds.top >= bodyBounds.bottom;
-      const sourceX = stacked ? null : (copyBounds.left + copyBounds.width / 2 - stageBounds.left) / stageBounds.width;
-      scene.current?.setBeamOrigin(sourceX, (originY - stageBounds.top) / stageBounds.height);
+      // A steady off-screen upper-corner source, independent of the rotating circle and text height.
+      scene.current?.setBeamOrigin(null, -.09);
     };
+    const syncScroll = () => {
+      scrollFrame = 0;
+      if (!visible || disposed) return;
+      const bounds = host.getBoundingClientRect();
+      scene.current?.setScrollProgress(Math.max(0, -bounds.top) / Math.max(1, bounds.height * .8));
+    };
+    const onScroll = () => { if (visible && !scrollFrame) scrollFrame = requestAnimationFrame(syncScroll); };
     const portalPreview = new URLSearchParams(location.search).has("portal-preview");
     // eslint-disable-next-line react-hooks/set-state-in-effect -- browser-only preview URL
     setPreview(portalPreview);
@@ -72,6 +71,7 @@ export function ProofTable() {
           sanitizeDisc(data.pt.disc), () => { scene.current?.dispose(); scene.current = null; if (!disposed) setState("fallback"); });
         scene.current.resize(host.clientWidth, host.clientHeight);
         syncBeamOrigin();
+        syncScroll();
         scene.current.setAimGuides(portalPreview);
         scene.current.setPaused(data.paused); scene.current.setActive(visible);
         setState("ready");
@@ -82,12 +82,13 @@ export function ProofTable() {
     }
     const near = new IntersectionObserver(([e]) => { if (e.isIntersecting) { void init(); near.disconnect(); } }, { rootMargin: "250px" });
     near.observe(host);
-    const observer = new IntersectionObserver(([e]) => { visible = e.isIntersecting; scene.current?.setActive(visible); }); observer.observe(host);
+    const observer = new IntersectionObserver(([e]) => { visible = e.isIntersecting && e.intersectionRatio >= .18; scene.current?.setActive(visible); syncScroll(); }, { threshold: [0, .18] }); observer.observe(host);
     const resize = new ResizeObserver(() => { scene.current?.resize(host.clientWidth, host.clientHeight); syncBeamOrigin(); });
     resize.observe(host);
     if (copy.current) resize.observe(copy.current);
     if (headline.current) resize.observe(headline.current);
     if (body.current) resize.observe(body.current);
+    window.addEventListener("scroll", onScroll, { passive: true });
     let press: { x: number; y: number } | null = null;
     const down = (e: PointerEvent) => { press = { x: e.clientX, y: e.clientY }; };
     const click = (e: MouseEvent) => {
@@ -106,12 +107,13 @@ export function ProofTable() {
       if (e.pointerType !== "mouse" || e.buttons) return;
       const bounds = surface.getBoundingClientRect(), index = scene.current?.hit(e.clientX - bounds.left, e.clientY - bounds.top) ?? -1;
       const item = current.current.pt.items[index];
-      surface.style.cursor = item ? "pointer" : "default";
+      surface.style.cursor = item ? "pointer" : scene.current?.canDrag(e.clientX - bounds.left, e.clientY - bounds.top) ? "grab" : "default";
       scene.current?.setHover(item ? index : -1);
     };
     surface.addEventListener("pointerdown", down, { passive: true }); surface.addEventListener("click", click); surface.addEventListener("pointermove", move, { passive: true });
     return () => {
       disposed = true; near.disconnect(); observer.disconnect(); resize.disconnect();
+      window.removeEventListener("scroll", onScroll); cancelAnimationFrame(scrollFrame);
       surface.removeEventListener("pointerdown", down); surface.removeEventListener("click", click); surface.removeEventListener("pointermove", move);
       scene.current?.dispose(); scene.current = null;
     };
@@ -140,7 +142,7 @@ export function ProofTable() {
           <canvas ref={canvas} className={styles.canvas} aria-hidden="true" />
           {state === "fallback" && <p className={styles.status}>Explore the title collection below.</p>}
         </div>
-        {state === "ready" && <div className={styles.sceneControls}><button type="button" className={styles.pause} onClick={() => setPaused(v => !v)} aria-pressed={paused}>{paused ? "Resume disc" : "Pause disc"}</button></div>}
+        {state === "ready" && <div className={styles.sceneControls}><button type="button" className={styles.pause} onClick={() => setPaused(v => !v)} aria-pressed={paused}>{paused ? "Resume circle" : "Pause circle"}</button></div>}
         {state === "fallback" && <details className={styles.collection} open>
           <summary>Explore the collection</summary>
           <ul>{pt.items.map((it, i) => <li key={`${it.slug}-${i}`}>{projects.some(p => p.slug === it.slug)

@@ -1038,7 +1038,7 @@
   "type": {},
   "fonts": {
     "display": "lemon-bold",
-    "label": "lemon-italic",
+    "label": "lemon-regular",
     "body": "lemon-light"
   },
   "customFonts": [],

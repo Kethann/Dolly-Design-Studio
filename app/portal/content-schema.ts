@@ -131,7 +131,7 @@ const home: SchemaPage = {
       art: "agency",
       fields: [
         { kind: "text", path: "home.manifesto.label", label: "Small heading", style: true },
-        { kind: "area", path: "home.manifesto.statement", label: "Big statement", style: true, hint: "Put *asterisks* around words to set them in gold italic." },
+        { kind: "area", path: "home.manifesto.statement", label: "Big statement", style: true, hint: "Put *asterisks* around words to highlight them in gold." },
         { kind: "area", path: "home.manifesto.body", label: "Paragraph", style: true },
       ],
     },
@@ -164,8 +164,11 @@ const home: SchemaPage = {
       fields: [
         { kind: "text", path: "home.clients.label", label: "Small heading", style: true },
         { kind: "text", path: "home.clients.title", label: "Heading", style: true },
-        { kind: "text", path: "home.clients.rowLabels.clients", label: "First row caption" },
-        { kind: "text", path: "home.clients.rowLabels.collaborators", label: "Second row caption" },
+        { kind: "text", path: "home.clients.rowLabels.clients", label: "Production houses caption" },
+        { kind: "text", path: "home.clients.rowLabels.collaborators", label: "Filmmakers & actors caption" },
+        { kind: "select", path: "home.clients.productionDirection", label: "Production track 1 — automatic direction", options: ["left", "right"] },
+        { kind: "select", path: "home.clients.productionSecondDirection", label: "Production track 2 — automatic direction", options: ["left", "right"] },
+        { kind: "select", path: "home.clients.filmmakersDirection", label: "Filmmakers & actors — automatic direction", options: ["left", "right"] },
         { kind: "select", path: "home.clients.logoSize", label: "Logo size (small, medium or large)", options: ["small", "medium", "large"] },
         { kind: "select", path: "home.clients.portraitSize", label: "Portrait size (small, medium or large)", options: ["small", "medium", "large"] },
         { kind: "select", path: "home.clients.portraitShape", label: "Portrait shape (round, rounded or square)", options: ["round", "rounded", "square"] },

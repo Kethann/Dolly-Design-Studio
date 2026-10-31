@@ -103,6 +103,7 @@
   cursor: grabbing;
 }
 .viewport:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
+.secondaryTrack { margin-top: -1px; }
 .dragHint { letter-spacing: .08em; font-size: 10px; white-space: nowrap; }
 
 .viewport img {
@@ -271,6 +272,7 @@
 }
 
 :global(html[data-dds-edit]) .half + .half,
+:global(html[data-dds-edit]) .secondaryTrack,
 :global(html[data-dds-edit]) [data-ed-dup] {
   display: none;
 }

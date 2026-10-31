@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const isDev = process.env.NODE_ENV === "development";
 
 const nextConfig: NextConfig = {
+  // Container builds only: keep the Cloudflare adapter and local dev configuration unchanged.
+  ...(process.env.DEPLOY_TARGET === "docker" ? { output: "standalone" as const, experimental: { cpus: 2 } } : {}),
   reactStrictMode: true,
   poweredByHeader: false,
   devIndicators: false,

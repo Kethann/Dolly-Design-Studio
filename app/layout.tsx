@@ -20,7 +20,7 @@ import type { SiteContent } from "@/lib/content/types";
 import { readIntroSettings } from "@/lib/portal/settings-store";
 import "./globals.css";
 
-// The studio's typeface: Lemon Milk. Bold for headings, Light for text, Regular Italic for subheadings.
+// The studio's typeface: upright Lemon Milk. Bold headings, Light text, Regular subheadings.
 const lemonBold = localFont({
   src: [{ path: "./fonts/LEMONMILK-Bold.otf", weight: "700", style: "normal" }],
   variable: "--font-lemon-bold",
@@ -31,16 +31,16 @@ const lemonLight = localFont({
   variable: "--font-lemon-light",
   display: "swap",
 });
-const lemonItalic = localFont({
-  src: [{ path: "./fonts/LEMONMILK-RegularItalic.otf", weight: "400", style: "italic" }],
-  variable: "--font-lemon-italic",
+const lemonRegular = localFont({
+  src: [{ path: "./fonts/LEMONMILK-Regular.otf", weight: "400", style: "normal" }],
+  variable: "--font-lemon-regular",
   display: "swap",
 });
 
 const bodoni = Bodoni_Moda({
   subsets: ["latin"],
   weight: ["400", "600", "700", "900"],
-  style: ["normal", "italic"],
+  style: "normal",
   variable: "--font-bodoni",
   display: "swap",
 });
@@ -123,7 +123,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     // suppressHydrationWarning: the pre-paint script below may add "intro-skip" to <html> before React hydrates.
     <html
       lang="en"
-      className={`${lemonBold.variable} ${lemonLight.variable} ${lemonItalic.variable} ${bodoni.variable} ${syne.variable} ${inter.variable} ${playfair.variable} ${cormorant.variable} ${space.variable} ${oswald.variable} ${dmsans.variable}`}
+      className={`${lemonBold.variable} ${lemonLight.variable} ${lemonRegular.variable} ${bodoni.variable} ${syne.variable} ${inter.variable} ${playfair.variable} ${cormorant.variable} ${space.variable} ${oswald.variable} ${dmsans.variable}`}
       style={{ "--stage": introSettings.background } as React.CSSProperties}
       suppressHydrationWarning
     >

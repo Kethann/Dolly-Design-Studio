@@ -141,11 +141,7 @@
   overflow: visible;
 }
 
-@media (min-width: 1200px) {
-  .links {
-    display: flex;
-  }
-}
+/* Desktop shares the quiet hamburger header and in-page icon rail with tablet. */
 
 .link {
   position: relative;
@@ -302,16 +298,12 @@
   justify-content: center;
 }
 
-@media (min-width: 1200px) {
-  .menuButton {
-    display: none;
-  }
-}
 
 .menuButton span {
   width: 20px;
   height: 1.5px;
   background: var(--ivory);
+  transition: transform .2s ease, opacity .2s ease;
 }
 
 .mobileMenu {
@@ -354,4 +346,84 @@
 .mobileActive {
   opacity: 1;
   text-shadow: 0 0 22px var(--tone);
+}
+
+/* Tablet and desktop: a compact in-page rail, aligned under the right-hand hamburger.
+   Only labels expand left; the icons never shift when the active section changes. */
+@media (min-width: 641px) {
+  .mobileMenu {
+    inset: calc(var(--nav-h) + 12px) max(calc(clamp(20px, 5vw, 48px) - 8px), env(safe-area-inset-right)) auto auto;
+    width: min(240px, calc(100vw - 40px));
+    max-height: calc(100svh - var(--nav-h) - 32px - env(safe-area-inset-bottom));
+    padding: 8px;
+    gap: 6px;
+    align-items: flex-end;
+    justify-content: flex-start;
+    background: transparent;
+    pointer-events: none;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    animation: railAppear .2s ease-out;
+  }
+  .mobileMenu::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 60px;
+    border: 1px solid #ffffff24;
+    border-radius: 22px;
+    background: linear-gradient(140deg, #30232bdb, #110d17ed);
+    box-shadow: 0 8px 24px #0004;
+    pointer-events: none;
+  }
+  .mobileLink {
+    position: relative;
+    width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    gap: 0;
+    border-radius: 14px;
+    font-family: var(--font-body);
+    font-size: 12px;
+    opacity: .72;
+    pointer-events: auto;
+  }
+  .mobileIcon { width: 21px; height: 21px; flex: none; }
+  .mobileLabel {
+    position: absolute;
+    right: 54px;
+    width: max-content;
+    max-width: 162px;
+    padding: 10px 13px;
+    border: 1px solid #ffffff24;
+    border-radius: 12px;
+    background: #1a111deb;
+    color: var(--ivory);
+    font-size: 11px;
+    line-height: 1.4;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    visibility: hidden;
+    opacity: 0;
+    transform: translateX(5px);
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease, visibility .18s;
+  }
+  .mobileActive, .mobileLink:focus-visible {
+    opacity: 1;
+    background: color-mix(in srgb, var(--tone) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 38%, transparent);
+  }
+  .mobileActive .mobileLabel, .mobileLink:focus-visible .mobileLabel {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  .mobileLink:focus-visible { outline: 2px solid var(--tone); outline-offset: 2px; }
+}
+@keyframes railAppear { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .mobileMenu { animation: none; }
+  .mobileLabel, .menuButton span { transition: none; }
 }

@@ -196,7 +196,7 @@ const DESIGN_WORDS: Partial<Record<Tab, string>> = {
   breakdowns: "breakdown breakdowns layers psd photoshop png layer explode labels hover how we work",
   slate: "slate disc cd silver glass cards titles projector focus spin speed tilt gap bloom desaturation images add upload reorder",
   media: "images pictures photos upload library files",
-  type: "fonts typography typeface upload font file ttf otf woff size weight italic spacing text style headings paragraphs",
+  type: "fonts typography typeface upload font file ttf otf woff size weight regular spacing text style headings paragraphs",
   playback: "play pause hold scrub timeline intro preview",
   account: "users people password login sign in security owner editor account username email reset forgot otp code two-step smtp gmail",
   inbox: "enquiries inbox contact form messages submissions leads email phone reply clients",

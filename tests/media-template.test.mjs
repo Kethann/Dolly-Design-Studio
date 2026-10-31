@@ -185,12 +185,12 @@ test("disc settings migrate old slates, clamp invalid controls, and retain artwo
   const { DISC_DEFAULTS, sanitizeDisc, sectorSize, discAimProfileForWidth } = read("lib/content/disc.ts");
   assert.deepEqual(sanitizeDisc(undefined), DISC_DEFAULTS);
   assert.deepEqual(sanitizeDisc({ spinSpeed: NaN, bloom: "high" }), DISC_DEFAULTS);
-  assert.equal(sanitizeDisc({ discTilt: -999 }).discTilt, -75);
+  assert.equal(sanitizeDisc({ glassVersion: 1, discTilt: -999 }).discTilt, -30);
   assert.equal(sanitizeDisc({ spinSpeed: 0 }).spinSpeed, 0);
   assert.equal(sanitizeDisc({ slotGap: 100 }).slotGap, 12);
   assert.equal(sanitizeDisc({}).projectorSide, -1, "Existing slates receive the left-hand projector");
   assert.equal(sanitizeDisc({ projectorSide: -100 }).projectorSide, -1);
-  assert.equal(sanitizeDisc({ projectorSide: .4 }).projectorSide, 1);
+  assert.equal(sanitizeDisc({ glassVersion: 1, projectorSide: .4 }).projectorSide, 1);
   assert.equal(sanitizeDisc({ projectorSide: NaN }).projectorSide, -1);
   assert.equal(discAimProfileForWidth(390), "mobile");
   assert.equal(discAimProfileForWidth(640), "mobile");
@@ -198,8 +198,8 @@ test("disc settings migrate old slates, clamp invalid controls, and retain artwo
   assert.equal(discAimProfileForWidth(1024), "tablet");
   assert.equal(discAimProfileForWidth(1025), "desktop");
   assert.equal(discAimProfileForWidth(Number.NaN), "desktop");
-  assert.equal(sanitizeDisc({ mobileFocusAngle: -999 }).mobileFocusAngle, -180);
-  assert.equal(sanitizeDisc({ tabletOriginOffsetY: 9 }).tabletOriginOffsetY, .25);
+  assert.equal(sanitizeDisc({ glassVersion: 1, mobileFocusAngle: -999 }).mobileFocusAngle, -180);
+  assert.equal(sanitizeDisc({ glassVersion: 1, tabletOriginOffsetY: 9 }).tabletOriginOffsetY, .25);
   for (const count of [0, 1, 2, 12, 16, 100]) {
     const { step, width } = sectorSize(count, 12);
     assert.ok(width > 0 && width < step);
@@ -234,7 +234,13 @@ test("disc settings migrate old slates, clamp invalid controls, and retain artwo
   assert.equal(sanitizeDisc({ saturation: 999, slotSize: -4 }).saturation, 2);
   assert.equal(sanitizeDisc({ saturation: 999, slotSize: -4 }).slotSize, 0.7);
   assert.equal(sanitizeDisc({ spinSpeed: -0.2 }).saturation, 1, "Earlier disc documents receive new colour defaults");
-  assert.equal(sanitizeDisc({ discTilt: -65 }).discRoll, -65, "Existing documents receive the upright reference angle");
+  const silver = sanitizeDisc({ discTilt: -65, discRoll: -65, originOffsetY: .2, saturation: 1.4, spinSpeed: -.2 });
+  assert.equal(silver.discRoll, DISC_DEFAULTS.discRoll, "Legacy metal poses migrate to the broad glass composition");
+  assert.equal(silver.discTilt, DISC_DEFAULTS.discTilt);
+  assert.equal(silver.originOffsetY, 0);
+  assert.equal(silver.saturation, 1.4, "Colour and motion preferences survive the pose migration");
+  assert.equal(silver.spinSpeed, -.2);
+  assert.deepEqual(sanitizeDisc(silver), silver, "Migration runs once and is idempotent");
   assert.equal(sanitizeDisc({ rayStyle: 1.6 }).rayStyle, 2);
   assert.equal(sanitizeDisc({ rayStyle: -1 }).rayStyle, 0);
   for (const rayStyle of [0, 1, 2]) {
@@ -247,7 +253,80 @@ test("disc settings migrate old slates, clamp invalid controls, and retain artwo
   assert.match(editor, /Mobile beam position · up to 640px/);
 });
 
-test("disc title regions stay separated inside the silver ring", () => {
+test("glass circle arrives fully visible and settles into a responsive background arc", () => {
+  const { glassCircleComposition } = loader()("lib/content/disc.ts");
+  for (const [w, h] of [[1440,560],[820,540],[390,820],[280,680]]) {
+    const start = glassCircleComposition(w,h,0), end = glassCircleComposition(w,h,1);
+    assert.deepEqual(glassCircleComposition(w,h,.1),start,"Establish the full circle before zooming");
+    const rx = start.radius*h/w;
+    assert.ok(start.x-rx >= 0 && start.x+rx <= 1, "Initial full circle fits horizontally");
+    assert.ok(start.y-start.radius >= 0 && start.y+start.radius <= 1);
+    assert.ok(end.radius > start.radius && end.y < start.y, "Circle approaches and moves behind the heading");
+    let previous = start.radius;
+    for (let i=1;i<=100;i++) {
+      const pose=glassCircleComposition(w,h,i/100);
+      assert.ok(pose.radius >= previous);
+      previous=pose.radius;
+    }
+    assert.deepEqual(glassCircleComposition(w,h,-1),start);
+    assert.deepEqual(glassCircleComposition(w,h,2),end);
+  }
+});
+
+test("glass scene feathers every edge into transparency without an extra rendering pass", () => {
+  const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  assert.match(source, /smoothstep\(0\.,\.12,vUv.x\)\*\(1\.-smoothstep\(\.88,1\.,vUv.x\)\)/);
+  assert.match(source, /smoothstep\(0\.,\.22,vUv.y\)\*\(1\.-smoothstep\(\.80,1\.,vUv.y\)\)/);
+  assert.match(source, /gl_FragColor\*=frame\*readable\*outgoing/, "Fade premultiplied colour and alpha, not a black overlay");
+  assert.match(source, /composer.addPass\(renderPass\); composer.addPass\(bloom\); composer.addPass\(output\); composer.addPass\(antialias\)/);
+});
+
+test("desktop glass arc shares the tablet reference pose without changing phone placement", () => {
+  const { glassCircleComposition } = loader()("lib/content/disc.ts");
+  const tablet = glassCircleComposition(930, 540, 1);
+  for (const width of [1024, 1025, 1440, 1920]) {
+    assert.deepEqual(glassCircleComposition(width, 748, 1), tablet);
+  }
+  const phone = glassCircleComposition(390, 820, 1);
+  for (const [key, value] of Object.entries({ x: -.35, y: .02, radius: .85, reveal: 1 })) {
+    assert.ok(Math.abs(phone[key] - value) < 1e-9);
+  }
+});
+
+test("glass entrance rotation eases into uninterrupted saved-speed rotation", () => {
+  const { glassArrivalSpinMultiplier } = loader()("lib/content/disc.ts");
+  assert.equal(glassArrivalSpinMultiplier(0), 4);
+  assert.equal(glassArrivalSpinMultiplier(1), 1);
+  assert.equal(glassArrivalSpinMultiplier(2), 1);
+  let previous = 4;
+  for (let i = 0; i <= 100; i++) {
+    const speed = glassArrivalSpinMultiplier(i / 100);
+    assert.ok(speed >= 1 && speed <= previous, "Never stops or reverses while settling");
+    previous = speed;
+  }
+  assert.ok(glassArrivalSpinMultiplier(.999) - 1 < .00001, "No speed jump at landing");
+  const scene = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  assert.match(scene, /renderedControls.spinSpeed \* arrivalSpin \* spinBlend \* dt/);
+  assert.match(scene, /if \(!motion.matches && !paused\)/);
+});
+
+test("glass projector enters diagonally from above, mirrors correctly and never exposes its source", () => {
+  const { glassProjectorOrigin } = loader()("lib/content/disc.ts");
+  for (const width of [320,390,640,820,1024,1440]) {
+    const left=glassProjectorOrigin(width,-1),right=glassProjectorOrigin(width,1);
+    assert.ok(Math.abs(left.x+right.x-1)<1e-9);
+    assert.equal(left.y,right.y);
+    assert.ok(left.y<0);
+    for (const x of [-.25,0,.25]) for (const y of [-.25,0,.25]) {
+      assert.ok(glassProjectorOrigin(width,-1,x,y).y<=-.035);
+      assert.ok(glassProjectorOrigin(width,1,x,y).y<=-.035);
+    }
+  }
+  assert.equal(glassProjectorOrigin(1440,-1).x,.3);
+  assert.equal(glassProjectorOrigin(390,-1).x,-.1);
+});
+
+test("title regions stay separated inside the glass rim", () => {
   const { discPanelLayout } = loader()("lib/content/disc.ts");
   for (const count of [1, 2, 5, 6, 8, 12, 16]) for (const gap of [0.5, 12]) for (const size of [0.7, 1]) {
     const panel = discPanelLayout(count, gap, size);
@@ -259,6 +338,184 @@ test("disc title regions stay separated inside the silver ring", () => {
   }
 });
 
+test("intro timing counts slow visible frames equally and excludes loading and hidden time", () => {
+  const { createIntroFrameClock } = loader()("lib/intro/frame-clock.ts");
+  const duration = fps => {
+    const clock = createIntroFrameClock(); let t = 0;
+    // Loading/compilation may take any duration; the first visible frame starts at zero.
+    for (let i = 0; i <= fps * 8; i++) t += clock.step(2500 + i * 1000 / fps);
+    return t;
+  };
+  for (const fps of [2, 15, 30, 60, 120]) assert.ok(Math.abs(duration(fps) - 8) < .00001);
+  const clock = createIntroFrameClock();
+  assert.equal(clock.step(4000), 0); assert.equal(clock.step(4400), .4);
+  clock.reset(); assert.equal(clock.step(14000), 0); assert.equal(clock.step(14100), .1);
+  assert.equal(clock.step(14050), 0); assert.equal(clock.step(NaN), 0);
+  assert.equal(clock.step(14200), .1);
+  const source = readFileSync(path.join(root, "components/Intro.tsx"), "utf8");
+  assert.equal((source.match(/getContext\("webgl2"\)/g) ?? []).length, 1, "Only one capability probe is needed");
+  assert.match(source, /if \(webGLSupport !== undefined\) return webGLSupport/);
+  assert.match(source, /loseContext\(\)/, "Probe releases its GPU context");
+  const scene = readFileSync(path.join(root, "components/intro/StarIntro.tsx"), "utf8");
+  assert.doesNotMatch(scene, /dt > 0\.25/);
+  assert.match(scene, /clock.step\(performance.now\(\)\)/, "Shared RAF timestamps cannot defer the handoff");
+  assert.ok(scene.indexOf("if (!paused && t >= T.end)") < scene.indexOf("adapt(dt)"), "Skip rendering the fully transparent final frame");
+  assert.match(scene, /removeEventListener\("visibilitychange", onVisibility\)/);
+});
+
+test("tablet and desktop icon rail stays non-modal and preserves real navigation links", () => {
+  const source = readFileSync(path.join(root, "components/Nav.tsx"), "utf8");
+  const css = readFileSync(path.join(root, "components/Nav.module.css"), "utf8");
+  assert.match(source, /matchMedia\("\(min-width: 641px\)"\)/);
+  assert.doesNotMatch(css, /min-width: 1200px/, "Desktop must not restore the full-width menu or hide the toggle");
+  assert.match(source, /if \(!tablet\) freezeScroll\(\)/);
+  assert.match(source, /if \(!tablet\) releaseScroll\(\)/);
+  assert.match(source, /if \(!tablet && e.key === "Tab"\)/, "Only the phone overlay traps focus");
+  assert.match(source, /aria-label=\{item.label\}/, "Icon-only links keep accessible names");
+  assert.match(source, /aria-current=\{item.id === activeId \? "page" : undefined\}/);
+  assert.match(css, /\.mobileActive \.mobileLabel, \.mobileLink:focus-visible \.mobileLabel/);
+  assert.match(css, /max-height: calc\(100svh/, "Short tablet screens can scroll the rail");
+  assert.match(source, /menuButtonRef.current\?\.focus\(\)/, "Escape returns focus to the toggle");
+});
+
+test("track swipe velocity follows speed, reversal and hold time instead of event rate", () => {
+  const { createMarqueeVelocity, marqueeGlide } = loader()("components/sections/marqueeMotion.ts");
+  const speed = (pixels, milliseconds, steps) => {
+    const tracker = createMarqueeVelocity(); tracker.reset(0, 0);
+    for (let i = 1; i <= steps; i++) tracker.sample(pixels * i / steps, milliseconds * i / steps);
+    return tracker.release(milliseconds);
+  };
+  assert.ok(speed(-160, 80, 8) < speed(-160, 640, 8) * 5, "Fast flicks retain substantially more momentum");
+  assert.ok(Math.abs(speed(120, 120, 8) - speed(120, 120, 24)) < .001, "Input frequency cannot change the glide");
+  assert.ok(speed(10000, 1, 1) <= 2600, "Bound extreme input spikes");
+  const tracker = createMarqueeVelocity(); tracker.reset(0, 0);
+  tracker.sample(100, 50); tracker.sample(200, 100);
+  assert.equal(tracker.release(230), 0, "Hold still before releasing to stop");
+  tracker.sample(190, 110); tracker.sample(180, 120);
+  assert.ok(tracker.release(120) < 0, "A reversal must not launch in the original direction");
+  tracker.reset(0, 0); tracker.sample(20, 100); tracker.sample(20, 100);
+  assert.equal(tracker.release(100), 200, "Duplicate timestamps are harmless");
+  const coast = hz => {
+    let velocity = 1500, distance = 0;
+    for (let i = 0; i < hz; i++) { const next = marqueeGlide(velocity, 1 / hz); distance += next.distance; velocity = next.velocity; }
+    return distance;
+  };
+  assert.ok(Math.abs(coast(30) - coast(120)) < .001, "Coast distance is refresh-rate independent");
+  assert.equal(marqueeGlide(0, 1).distance, 0);
+});
+
+test("client tracks alternate without duplicating the portal's saved-list controls", () => {
+  const source = readFileSync(path.join(root, "components/sections/Clients.tsx"), "utf8");
+  const hook = readFileSync(path.join(root, "components/sections/useDragMarquee.ts"), "utf8");
+  const css = readFileSync(path.join(root, "components/sections/Clients.module.css"), "utf8");
+  assert.match(source, /items=\{clients\}[^\n]* paired/);
+  assert.match(source, /reverse=\{home.clients.productionDirection === "right"\}/);
+  assert.match(source, /secondaryReverse=\{home.clients.productionSecondDirection !== "left"\}/);
+  assert.match(source, /reverse=\{home.clients.filmmakersDirection === "right"\}/);
+  assert.match(source, /reverse=\{props.secondaryReverse \?\? true\} secondary/);
+  assert.match(source, /!secondary && copy === 0/);
+  assert.equal((source.match(/<AddContent /g) ?? []).length, 1, "One Add control per group, not per visual copy");
+  assert.match(css, /html\[data-dds-edit\]\) \.secondaryTrack/);
+  assert.match(css, /touch-action: pan-y/);
+  assert.match(hook, /pointer !== null && e.pointerId === pointer\) cancel\(\)/, "Post-release lost capture must not cancel inertia");
+  assert.match(hook, /disposed = true/);
+  assert.match(hook, /motion.removeEventListener\("change", changeMotion\);\s*release\(\)/);
+});
+
+test("all three track directions are independently editable and survive saving", () => {
+  const read = loader();
+  const { sanitizeContent } = read("lib/content/sanitize.ts");
+  const fields = read("app/portal/content-schema.ts").findSection("home", "clients").section.fields;
+  const keys = ["productionDirection", "productionSecondDirection", "filmmakersDirection"];
+  const content = json("content/site-content.json");
+  keys.forEach(key => delete content.home.clients[key]);
+  const migrated = sanitizeContent(content);
+  assert.deepEqual(keys.map(key => migrated.home.clients[key]), ["left", "right", "left"]);
+  for (const key of keys) {
+    const field = fields.find(f => f.path === `home.clients.${key}`);
+    assert.equal(field.kind, "select");
+    assert.deepEqual(field.options, ["left", "right"]);
+  }
+  for (let mask = 0; mask < 8; mask++) {
+    keys.forEach((key, i) => { migrated.home.clients[key] = mask & (1 << i) ? "right" : "left"; });
+    const saved = sanitizeContent(JSON.parse(JSON.stringify(migrated)));
+    assert.deepEqual(keys.map(key => saved.home.clients[key]), keys.map(key => migrated.home.clients[key]));
+  }
+  keys.forEach(key => { migrated.home.clients[key] = "invalid"; });
+  assert.deepEqual(keys.map(key => sanitizeContent(migrated).home.clients[key]), ["left", "right", "left"]);
+});
+
+test("smoked glass keeps its existing pane and reveals pigment through a bounded light landing", () => {
+  const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  assert.match(source, /vec3 smokeTint=mix\(vec3\(\.004,\.005,\.007\),vec3\(\.005\),uDesaturation\)/);
+  assert.match(source, /float tintAlpha=glassOpacity\*mix\(\.72,\.88/);
+  assert.match(source, /float a=reflectionAlpha\+tintAlpha\*\(1\.-reflectionAlpha\)/);
+  assert.match(source, /float landingHaze=1\.-\.48\*smoothstep\(\.78,1\.,along\)/);
+  assert.match(source, /contactColour\*\(contact\*\.42\+sheen\*\.06\*contactStrength\)/);
+  assert.equal((source.match(/new THREE\.CircleGeometry\(R, 192\)/g) ?? []).length, 1);
+  assert.match(source, /projectorTransform\*world/, "Glass and artwork share the fixed light frame");
+  assert.match(source, /artworkCore\*\(1\.\+slotGlow\*\.1\)/, "Preserve the original logo core under its glow");
+});
+
+test("glass drag captures one pointer, preserves taps and suppresses a drag click", () => {
+  const previousWindow = globalThis.window, previousDocument = globalThis.document;
+  const win = new EventTarget(), doc = new EventTarget(), surface = new EventTarget();
+  globalThis.window = win; globalThis.document = doc;
+  surface.style = {};
+  surface.getBoundingClientRect = () => ({ left: 10, top: 20 });
+  let captured = null;
+  surface.setPointerCapture = id => { captured = id; };
+  surface.hasPointerCapture = id => captured === id;
+  surface.releasePointerCapture = () => { captured = null; };
+  const calls = [];
+  const fire = (type, extra = {}, target = surface) => {
+    const event = new Event(type, { cancelable: true });
+    Object.assign(event, { pointerId: 1, isPrimary: true, button: 0, clientX: 40, clientY: 60, detail: 1 }, extra);
+    target.dispatchEvent(event); return event;
+  };
+  let unbind;
+  try {
+    const { bindCircleDrag } = loader()("components/disc-hero/drag.ts");
+    unbind = bindCircleDrag(surface, {
+      begin: (x, y) => { calls.push(["begin", x, y]); return x >= 0; },
+      move: (x, y) => calls.push(["move", x, y]), end: () => calls.push(["end"]),
+    });
+    fire("pointerdown", { button: 2 }); fire("pointerdown", { isPrimary: false });
+    assert.equal(calls.length, 0, "Ignore secondary buttons and extra touches");
+    fire("pointerdown");
+    assert.equal(captured, 1);
+    fire("pointermove", { clientX: 43 });
+    assert.equal(calls.length, 1, "Small tap jitter must not rotate");
+    fire("pointerup");
+    assert.equal(fire("click").defaultPrevented, false, "A tap still opens its title");
+    fire("pointerdown");
+    fire("pointermove", { pointerId: 2, clientX: 110 });
+    assert.equal(calls.length, 3, "Only the captured pointer can rotate");
+    fire("pointermove", { clientX: 120 });
+    assert.deepEqual(calls.at(-1), ["move", 110, 40]);
+    fire("pointerup");
+    assert.equal(captured, null);
+    assert.equal(fire("click").defaultPrevented, true, "Dragging must not open details");
+    fire("pointerdown"); fire("pointercancel");
+    assert.deepEqual(calls.at(-1), ["end"], "Native scrolling releases manual rotation");
+    assert.equal(captured, null);
+    for (const exit of ["blur", "resize"]) {
+      fire("pointerdown"); fire(exit, {}, win);
+      assert.equal(captured, null, exit + " cannot leave rotation held");
+    }
+    fire("pointerdown"); doc.hidden = true; fire("visibilitychange", {}, doc);
+    assert.equal(captured, null, "Hidden tabs release the gesture");
+    fire("pointerdown"); unbind(); unbind = null;
+    const length = calls.length;
+    fire("pointerdown"); fire("pointermove", { clientX: 140 });
+    assert.equal(calls.length, length, "Unmount removes all gesture handlers");
+  } finally {
+    unbind?.();
+    if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow;
+    if (previousDocument === undefined) delete globalThis.document; else globalThis.document = previousDocument;
+  }
+});
+
 test("disc mounts transparent title artwork without card or frame layers", () => {
   const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
   assert.doesNotMatch(source, /const glass = own\(/);
@@ -267,17 +524,27 @@ test("disc mounts transparent title artwork without card or frame layers", () =>
   assert.match(source, /mix\(c,artworkCore\*\(1\.\+slotGlow\*\.1\),titleInk\*focus\*\.5\)/);
   assert.match(source, /Float32BufferAttribute\(\[0, 0, 1, 0, 1, 1, 0, 1\], 2\)/);
   assert.match(source, /titleGlowIntensity/);
-  assert.match(source, /mix\(contactColour,vec3\(1\.\),\.08\)/);
+  assert.match(source, /new THREE\.CircleGeometry\(R, 192\)/);
+  assert.doesNotMatch(source, /PMREMGenerator|RectAreaLight|discStreak|MeshPhysicalMaterial/);
   assert.match(source, /hullWidth = 1\.5/);
-  assert.match(source, /tilt\.position\.x = -side \* 1\.42 \* THREE\.MathUtils\.smoothstep/);
+  assert.match(source, /glassCircleComposition\(width, height, arrival\)/);
+  assert.match(source, /gl_FragColor\*=frame\*readable\*outgoing/, "Feathering must fade premultiplied RGB as well as alpha");
   assert.match(source, /THREE\.MathUtils\.damp\(current, target, rate/);
   assert.match(source, /controlsSettling \|\| hoverSettling/);
+  assert.doesNotMatch(source, /!paused && opened < 0|controls\.spinSpeed !== 0 && hovered < 0/,
+    "A hover or movie dialog must not stop background animation");
+  assert.match(source, /if \(!motion\.matches && !paused\) \{\s*time \+= dt;[\s\S]*?disc\.rotation\.z =/,
+    "Automatic motion respects explicit pause and reduced motion");
+  assert.match(source, /if \(!dragging\)/, "Holding the glass takes over automatic rotation");
+  assert.match(source, /Math\.atan2\(Math\.sin\(delta\), Math\.cos\(delta\)\)/, "Dragging unwraps the angle seam");
+  assert.match(source, /unbindDrag\(\)/, "Drag handlers are disposed with the renderer");
+  assert.doesNotMatch(source, /if \(hovered < 0 && !hoverSettling\)/);
   assert.match(source, /makeAimGuide\(0x5be7ff\).*makeAimGuide\(0xffd45b\)/s);
   assert.match(source, /setAimGuides\(value: boolean\)/);
   const page = readFileSync(path.join(root, "components/proof-table/ProofTable.tsx"), "utf8");
-  assert.match(page, /setBeamOrigin\(sourceX,/);
-  assert.match(page, /titleBounds\.bottom \+ Math\.min\(14, Math\.max\(4, titleGap \* \.22\)\)/);
-  assert.match(page, /const stacked = stageBounds\.top >= bodyBounds\.bottom/);
+  assert.match(page, /setBeamOrigin\(null, -\.09\)/);
+  assert.match(page, /setScrollProgress/);
+  assert.match(page, /removeEventListener\("scroll", onScroll\)/);
   assert.match(page, /setAimGuides\(portalPreview\)/);
   assert.match(page, /state === "fallback" && <details className=\{styles\.collection\} open>/);
   assert.doesNotMatch(page, /Explore the collection <span>/);
@@ -289,7 +556,7 @@ test("disc mounts transparent title artwork without card or frame layers", () =>
 
 test("projector illuminates only overlapping image pixels and blends partial entries in either direction", () => {
   const { discPanelLayout, discProjectionWindow, discProjectionMask, discProjectionCoverage, discArtworkPresence } = loader()("lib/content/disc.ts");
-  const panel = discPanelLayout(8, 3, 1), window = discProjectionWindow(panel, .67, 1.1);
+  const panel = discPanelLayout(8, 3, 1), window = discProjectionWindow(panel, .8, 1.1);
   assert.equal(discProjectionMask(window.center, 0, window, .75), 1);
   assert.equal(discProjectionMask(window.outer + .01, 0, window, .75), 0);
   assert.equal(discProjectionMask(window.center, window.outerHalfWidth + .01, window, .75), 0);
@@ -297,11 +564,11 @@ test("projector illuminates only overlapping image pixels and blends partial ent
   const edgeWeight = discProjectionMask(window.center, halfWidth * .85, window, .75);
   assert.ok(edgeWeight > 0 && edgeWeight < 1, "Only the entering edge is feathered, not the whole image");
   const centered = discProjectionCoverage(panel, window, 0, .75);
-  const partial = discProjectionCoverage(panel, window, .35, .75);
+  const partial = discProjectionCoverage(panel, window, .12, .75);
   assert.ok(partial > 0 && partial < centered);
   assert.equal(discProjectionCoverage(panel, window, Math.PI, .75), 0);
-  assert.ok(Math.abs(partial - discProjectionCoverage(panel, window, -.35, .75)) < 1e-9);
-  assert.ok(Math.abs(partial - discProjectionCoverage(panel, window, Math.PI * 2 + .35, .75)) < 1e-9);
+  assert.ok(Math.abs(partial - discProjectionCoverage(panel, window, -.12, .75)) < 1e-9);
+  assert.ok(Math.abs(partial - discProjectionCoverage(panel, window, Math.PI * 2 + .12, .75)) < 1e-9);
   assert.equal(discArtworkPresence(0), 0);
   assert.equal(discArtworkPresence(.012), 0);
   assert.ok(discArtworkPresence(.08) > 0 && discArtworkPresence(.08) < 1);
@@ -357,8 +624,8 @@ test("disc displays eight entries without deleting titles or changing their link
 
 test("projector footprint tracks title dimensions with bounded edge overscan", () => {
   const { DISC_DEFAULTS, discPanelLayout, discProjectionWindow } = loader()("lib/content/disc.ts");
-  assert.equal(DISC_DEFAULTS.focusAngle, -18);
-  for (const count of [1, 5, 12, 16]) for (const size of [.7, 1]) for (const radius of [.48, .67, .82]) for (const spread of [.3, 1.1, 2]) {
+  assert.equal(DISC_DEFAULTS.focusAngle, -43);
+  for (const count of [1, 5, 12, 16]) for (const size of [.7, 1]) for (const radius of [.66, .8, .9]) for (const spread of [.3, 1.1, 2]) {
     const layout = discPanelLayout(count, 3, size), window = discProjectionWindow(layout, radius, spread);
     const span = layout.outer - layout.inner;
     assert.ok(window.inner >= layout.inner - span * .18 && window.outer <= layout.outer + span * .18);
@@ -368,7 +635,7 @@ test("projector footprint tracks title dimensions with bounded edge overscan", (
       assert.ok(width > 0 && width <= boundary * 1.351, "Overscan remains bounded around the title");
     }
   }
-  const window = (count, size) => discProjectionWindow(discPanelLayout(count, 3, size), .67, 1.1);
+  const window = (count, size) => discProjectionWindow(discPanelLayout(count, 3, size), .8, 1.1);
   assert.ok(window(5, 1).inner < discPanelLayout(5, 3, 1).inner, "Default light reaches beyond the inner letters");
   assert.ok(window(5, 1).outer > discPanelLayout(5, 3, 1).outer, "Default light reaches beyond the outer letters");
   assert.ok(window(16, 1).outerHalfWidth < window(5, 1).outerHalfWidth);
@@ -2206,6 +2473,80 @@ test("bulk library listings and direct deletion protect intro dependencies", asy
   assert.equal((await route.DELETE(request("uploads/images/art.webp", false))).status, 400);
   assert.equal((await route.DELETE(request("uploads/images/art.webp"))).status, 200);
   assert.deepEqual(removed, ["uploads/images/art.webp"]);
+});
+
+test("upright typography migrates legacy italic references without losing other styles", () => {
+  const read = loader();
+  const { sanitizeContent } = read("lib/content/sanitize.ts");
+  const { fontById, FONTS } = read("lib/content/fonts.ts");
+  const { contentCss } = read("lib/content/css.ts");
+  const content = json("content/site-content.json");
+  content.fonts.label = "lemon-italic";
+  content.pages.work.fontLabel = "lemon-italic";
+  content.type["home.clients.title"] = { font:"lemon-italic", italic:true, weight:700, size:32, color:"#abcdef", tracking:4 };
+  const clean = sanitizeContent(content);
+  assert.equal(clean.fonts.label, "lemon-regular");
+  assert.equal(clean.pages.work.fontLabel, "lemon-regular");
+  assert.deepEqual(clean.type["home.clients.title"], { font:"lemon-regular", weight:700, size:32, color:"#abcdef", tracking:4 });
+  assert.equal(fontById("lemon-italic").id, "lemon-regular");
+  assert.ok(!FONTS.some(font => /italic/i.test(font.label)));
+  assert.doesNotMatch(contentCss(clean), /font-style:italic|--font-lemon-italic/);
+  assert.deepEqual(sanitizeContent(clean), clean, "Migration is repeatable without changing content");
+  const layout = readFileSync(path.join(root,"app/layout.tsx"),"utf8");
+  assert.match(layout, /LEMONMILK-Regular.otf/);
+  assert.doesNotMatch(layout, /RegularItalic|style:.*italic/);
+  // Inspect the actual OTF, not just its filename: upright angle and regular weight.
+  const font = readFileSync(path.join(root,"app/fonts/LEMONMILK-Regular.otf"));
+  const tables = new Map();
+  for(let i=0;i<font.readUInt16BE(4);i++){const at=12+i*16;tables.set(font.toString('ascii',at,at+4),font.readUInt32BE(at+8));}
+  assert.equal(font.readInt32BE(tables.get('post')+4),0,"The copied font contains upright glyphs");
+  assert.equal(font.readUInt16BE(tables.get('OS/2')+4),400);
+});
+
+test("Docker runs standalone with private persistent data and bounded runtime resources", () => {
+  const docker = readFileSync(path.join(root, "Dockerfile"), "utf8");
+  const compose = nativeRequire("yaml").parse(readFileSync(path.join(root, "compose.yaml"), "utf8"));
+  const ignore = readFileSync(path.join(root, ".dockerignore"), "utf8").split(/\r?\n/);
+  const config = readFileSync(path.join(root, "next.config.ts"), "utf8");
+  assert.match(config, /process.env.DEPLOY_TARGET === "docker" \? \{ output: "standalone"/);
+  assert.match(docker, /npm ci --no-audit --no-fund/);
+  assert.match(docker, /USER node/);
+  assert.match(docker, /CMD \["node", "server.js"\]/);
+  assert.match(docker, /\.next\/standalone/);
+  assert.match(docker, /\/api\/version/);
+  for (const item of [".env", ".env.*", ".data", ".media", ".next", "node_modules", ".git", ".dev.vars*"]) assert.ok(ignore.includes(item));
+  const service = compose.services.web;
+  assert.equal(service.environment.DEPLOY_TARGET, "docker");
+  assert.equal(service.mem_limit, "1g");
+  assert.equal(service.environment.NODE_OPTIONS, "--max-old-space-size=512");
+  assert.ok(service.ports[0].includes("127.0.0.1"), "No default LAN/public exposure");
+  assert.equal(service.env_file[0].path, ".env.docker.local");
+  for (const mount of ["/app/content", "/app/.data", "/app/.media", "/app/public/images/uploads", "/app/public/images/proof-table", "/app/public/images/textures", "/app/public/fonts/uploads", "/app/.next/cache"]) {
+    assert.ok(service.volumes.some(value => value.endsWith(`:${mount}`)), `${mount} must persist`);
+  }
+  assert.ok(service.volumes.every(value => Object.hasOwn(compose.volumes, value.split(":")[0])));
+});
+
+test("Docker reads saved content and settings dynamically after container recreation", async () => {
+  const before = process.env.DEPLOY_TARGET;
+  process.env.DEPLOY_TARGET = "docker";
+  try {
+    let content = json("content/site-content.json"), settings = json("content/intro-settings.json"), connections = 0;
+    const read = loader({
+      "next/server": { connection: async () => { connections++; } },
+      "@/lib/storage": { onCloudflare: () => false, readJson: async key => clone(key === "content/site-content.json" ? content : settings) },
+    });
+    const { getContent } = read("lib/content/store.ts");
+    const { readIntroSettings } = read("lib/portal/settings-store.ts");
+    await getContent(); await readIntroSettings();
+    content.home.clients.productionDirection = "right";
+    settings.proofTable.enabled = false;
+    assert.equal((await getContent()).home.clients.productionDirection, "right");
+    assert.equal((await readIntroSettings()).proofTable.enabled, false);
+    assert.equal(connections, 4, "Every Docker read opts out of build-time rendering");
+  } finally {
+    if (before === undefined) delete process.env.DEPLOY_TARGET; else process.env.DEPLOY_TARGET = before;
+  }
 });
 
 test("Cloudflare renders read fresh content/settings after another worker publishes", async () => {

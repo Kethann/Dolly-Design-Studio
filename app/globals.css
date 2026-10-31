@@ -20,7 +20,7 @@
   --smoke-strong: rgba(244, 237, 225, 0.16);
 
   --font-display: var(--font-lemon-bold), "Georgia", serif;
-  --font-label: var(--font-lemon-italic), "Inter", sans-serif;
+  --font-label: var(--font-lemon-regular), "Inter", sans-serif;
   --font-body: var(--font-lemon-light), "Helvetica Neue", sans-serif;
 
   --nav-h: 76px;
@@ -63,6 +63,8 @@ body {
   background: transparent;
   color: var(--ivory);
   font-family: var(--font-body);
+  font-style: normal;
+  font-synthesis-style: none;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -84,6 +86,11 @@ button {
   background: none;
   border: none;
   cursor: pointer;
+}
+
+/* Preserve semantic emphasis without introducing browser-default slanted text. */
+em, i, cite, address {
+  font-style: normal;
 }
 
 img {

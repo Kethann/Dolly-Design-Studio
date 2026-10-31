@@ -12,7 +12,7 @@ import { renderFx } from "@/components/fx/render-fx";
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 
 function renderStatement(statement: string) {
-  // "*word word*" segments are set in gold italic; everything else is lit word-by-word.
+  // "*word word*" segments are highlighted in gold; everything else is lit word-by-word.
   const segments = statement.split(/\*(.+?)\*/g);
   let wordIndex = 0;
   return segments.map((seg, i) => {

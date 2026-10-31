@@ -8,7 +8,7 @@ const KEY = "content/intro-settings.json";
 
 /** What was saved from the portal; until something is saved there, the settings that came with the site. */
 export async function readIntroSettings(): Promise<IntroSettings> {
-  if (onCloudflare()) {
+  if (onCloudflare() || process.env.DEPLOY_TARGET === "docker") {
     try {
       await connection();
     } catch {}

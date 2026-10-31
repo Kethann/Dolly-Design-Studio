@@ -12,18 +12,21 @@ import styles from "./portal.module.css";
 import { moveTo, useReorder } from "./reorder";
 
 const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: string; hint?: string }[] }[] = [
-  { title: "Disc motion", fields: [
-    { key: "spinSpeed", label: "Spin speed", hint: "Zero stops rotation. Negative reverses direction. Reduced-motion devices keep the disc still." },
-    { key: "discTilt", label: "Disc tilt", hint: "The disc is automatically reframed on phones and tablets so this angle stays inside the screen." },
-    { key: "discRoll", label: "Disc angle", hint: "Rotates the whole disc's presentation. −65° gives the upright diagonal reference pose." },
+  { title: "Circle & entrance", fields: [
+    { key: "spinSpeed", label: "Rotation speed", hint: "Zero stops rotation. Negative reverses it. Reduced-motion devices show the settled composition." },
+    { key: "entranceDuration", label: "Arrival duration", hint: "The full circle keeps turning as it zooms in, then settles into its saved rotation speed without stopping. Plays once per page visit." },
+    { key: "circleScale", label: "Circle size", hint: "Fine-tune the oversized arc. Desktop, tablet and mobile use their own framing." },
+    { key: "glassOpacity", label: "Glass visibility", hint: "Subtle transparent surface and a fine light-catching edge." },
+    { key: "discTilt", label: "Glass tilt", hint: "Keep this shallow for the broad circle in the reference." },
+    { key: "discRoll", label: "Glass angle", hint: "Rotates the presentation of the glass surface." },
   ] },
   { title: "Projector & light", fields: [
     { key: "projectorSide", label: "Projector side" },
-    { key: "lightIntensity", label: "Studio light", hint: "Lighting and reflections on the silver disc and glass." },
+    { key: "lightIntensity", label: "Glass edge light", hint: "Controls the soft reflection along the glass edge." },
     { key: "rayIntensity", label: "Projector brightness", hint: "The beam, haze and landing reflection automatically follow the focused artwork's colour." },
     { key: "beamGlow", label: "Beam glow", hint: "The soft haze filling the beam. 100% is the normal look; up to 300%." },
     { key: "rayStrength", label: "Ray strength", hint: "How bright and defined the moving streaks inside the beam are." },
-    { key: "surfaceReflection", label: "Surface reflection", hint: "A subtle artwork-coloured glow on the focused title plus the light touching the silver disc. It does not brighten other titles." },
+    { key: "surfaceReflection", label: "Surface reflection", hint: "Artwork-coloured light where the steady projector touches the glass." },
     { key: "rayStyle", label: "Ray style" },
     { key: "rayMotion", label: "Ray movement", hint: "Gentle, irregular motion with steady brightness. Zero keeps the beam still. Pause and reduced motion stop animation." },
     { key: "raySpread", label: "Ray spread", hint: "Includes a soft overscan so the outer letters are illuminated. Increase for more surrounding light; decrease for a tighter beam." },
@@ -31,9 +34,9 @@ const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: st
     { key: "rayLength", label: "Off-screen beam distance", hint: "Moves the hidden projector farther beyond the selected screen edge. The source itself always remains outside the visible page." },
   ] },
   { title: "Desktop beam position · 1025px+", fields: [
-    { key: "originOffsetX", label: "Origin — horizontal", hint: "Moves the cyan origin marker left or right on desktop." },
-    { key: "originOffsetY", label: "Origin — vertical", hint: "Negative lifts the cyan marker; positive lowers it." },
-    { key: "focusAngle", label: "Landing — angle", hint: "Moves the gold landing marker around the desktop disc." },
+    { key: "originOffsetX", label: "Origin — horizontal", hint: "Moves the source along the upper edge. The projector itself stays off screen." },
+    { key: "originOffsetY", label: "Origin — vertical", hint: "Negative lifts the source; positive lowers it, stopping safely above the frame." },
+    { key: "focusAngle", label: "Landing — angle", hint: "Moves the gold landing marker around the glass circle." },
     { key: "focusRadius", label: "Landing — distance", hint: "Moves the gold marker between the centre and outer rim." },
   ] },
   { title: "Tablet beam position · 641–1024px", fields: [
@@ -56,19 +59,19 @@ const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: st
   { title: "Artwork colour", fields: [
     { key: "saturation", label: "Colour saturation", hint: "100% keeps the original colour; 0% makes the artwork monochrome." },
     { key: "vibrance", label: "Colour vibrance", hint: "Boosts muted colours more than colours that are already vivid." },
-    { key: "desaturation", label: "Silver desaturation", hint: "Mutes the disc's iridescence without changing the artwork." },
+    { key: "desaturation", label: "Glass tint softness", hint: "Mutes the cool glass tint without changing the artwork." },
   ] },
   { title: "Title appearance", fields: [
-    { key: "slotSize", label: "Title size", hint: "Scales the transparent title artwork directly on the disc." },
+    { key: "slotSize", label: "Title size", hint: "Scales the transparent title artwork directly on the glass." },
     { key: "slotGap", label: "Gap between titles", hint: "Spacing adjusts automatically to the number of uploaded titles." },
     { key: "slotOpacity", label: "Artwork opacity" },
-    { key: "slotBlur", label: "Far-side softness", hint: "Only artwork on the far side of the disc softens, capped at a mild blur. Front-facing and hovered titles stay sharp. Zero removes all blur." },
+    { key: "slotBlur", label: "Far-side softness", hint: "Optional mild softness for distant artwork. Front-facing and hovered titles stay sharp. Zero removes all blur." },
     { key: "unfocusedBrightness", label: "Unfocused image brightness" },
   ] },
 ];
 
 /**
- * Portal controls for the title disc: artwork, linked projects, order, light and motion.
+ * Portal controls for the glass circle: artwork, linked projects, order, light and motion.
  * Existing slate entries remain editable and preview live.
  */
 export function ProofTableEditor({
@@ -90,7 +93,7 @@ export function ProofTableEditor({
   /** The card whose picture is being chosen. */
   const [picking, setPicking] = useState<number | null>(null);
   const [openDiscGroups, setOpenDiscGroups] = useState<ReadonlySet<string>>(
-    () => new Set(DISC_GROUPS.filter(group => group.title === "Disc motion" || group.title.startsWith("Desktop beam")).map(group => group.title)),
+    () => new Set(DISC_GROUPS.filter(group => group.title === "Circle & entrance" || group.title.startsWith("Desktop beam")).map(group => group.title)),
   );
 
   const items = value.items;
@@ -139,18 +142,18 @@ export function ProofTableEditor({
   return (
     <>
       {deleteDialog}
-      <Section title="Title disc" scope="Page" hint="Uploaded transparent title artwork sits directly on the disc and rotates through a fixed cinema-projector beam. The projector stays outside the viewport, mobile framing is automatic, and movement respects reduced motion.">
+      <Section title="Glass title circle" scope="Page" hint="The full glass circle approaches, then settles as an oversized arc behind the heading. Uploaded titles rotate through a steady corner light and reveal their colour as they enter it.">
         <Toggle label="Show the section" checked={value.enabled} onChange={(enabled) => onChange({ enabled })} />
         <div className={styles.control}>
           <button type="button" className={styles.ghostButton} onClick={onShow}>Show it in the preview ↓</button>
-          <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, discRoll: -65, discTilt: -65, focusAngle: -18, focusRadius: 0.67, tabletFocusAngle: -16, tabletFocusRadius: 0.66, mobileFocusAngle: -12, mobileFocusRadius: 0.64, projectorSide: -1, rayLength: 5, rayStyle: 1, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.65, originOffsetX: 0, originOffsetY: 0, tabletOriginOffsetX: 0, tabletOriginOffsetY: 0, mobileOriginOffsetX: 0, mobileOriginOffsetY: 0, slotSize: 1, slotGap: 3 } })}>Use responsive cinema setup</button>
+          <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, ...sanitizeDisc({ ...disc, glassVersion: 0 }), circleScale: 1, entranceDuration: 3.6 } })}>Restore reference placement</button>
           <p className={styles.controlHint}>In the portal preview, cyan marks the beam origin and gold marks its landing point. These guides are never shown on the public site.</p>
         </div>
         <div className={styles.control}>
           <button type="button" className={styles.ghostButton} disabled={full} onClick={() => addCard()}>+ Add title</button>
-          <p className={styles.controlHint}>{Math.min(items.length, DISC_SLOT_LIMIT)} of {DISC_SLOT_LIMIT} disc slots filled. The first {DISC_SLOT_LIMIT} titles appear on the disc; remaining titles stay in the collection. Drag a title into the first {DISC_SLOT_LIMIT} positions to display it.</p>
-          <button type="button" className={styles.linkButton} onClick={() => onChange({ disc: { ...DISC_DEFAULTS } })}>Reset disc settings</button>
-          <p className={styles.controlHint}>Reset restores the disc controls; your images and slot order stay as they are.</p>
+          <p className={styles.controlHint}>{Math.min(items.length, DISC_SLOT_LIMIT)} of {DISC_SLOT_LIMIT} positions assigned. The first {DISC_SLOT_LIMIT} titles appear on the glass; remaining entries are kept here. Drag a title into the first {DISC_SLOT_LIMIT} positions to display it.</p>
+          <button type="button" className={styles.linkButton} onClick={() => onChange({ disc: { ...DISC_DEFAULTS } })}>Reset circle settings</button>
+          <p className={styles.controlHint}>Reset restores the circle controls; your images and title order stay as they are.</p>
         </div>
       </Section>
       {DISC_GROUPS.map(group => <details key={group.title} className={styles.discControls} open={openDiscGroups.has(group.title)}
@@ -169,7 +172,7 @@ export function ProofTableEditor({
           if (key === "projectorSide") return <div key={key} className={styles.control}>
             <label className={styles.controlLabel}>Projector side
               <select className={styles.select} aria-label="Projector side" value={disc.projectorSide} onChange={e => onChange({ disc: { ...disc, projectorSide: Number(e.target.value) } })}>
-                <option value={-1}>Left — behind the heading</option><option value={1}>Right</option>
+                <option value={-1}>Upper-left corner</option><option value={1}>Upper-right corner</option>
               </select>
             </label>
           </div>;
@@ -182,7 +185,7 @@ export function ProofTableEditor({
           </div>;
           const [min, max, step] = DISC_RANGES[key];
           return <Slider key={key} label={label} hint={hint} value={disc[key]} min={min} max={max} step={step}
-            format={n => key === "discTilt" || key === "discRoll" || key.endsWith("FocusAngle") || key === "focusAngle" || key === "slotGap" ? `${n}°` : key === "spinSpeed" ? `${Number(n.toFixed(2))} rad/s` : ["slotBlur", "rayLength", "rayElevation", "glowThreshold"].includes(key) ? String(Number(n.toFixed(2))) : `${Math.round(n * 100)}%`}
+            format={n => key === "entranceDuration" ? `${n.toFixed(1)} seconds` : key === "discTilt" || key === "discRoll" || key.endsWith("FocusAngle") || key === "focusAngle" || key === "slotGap" ? `${n}°` : key === "spinSpeed" ? `${Number(n.toFixed(2))} rad/s` : ["slotBlur", "rayLength", "rayElevation", "glowThreshold"].includes(key) ? String(Number(n.toFixed(2))) : `${Math.round(n * 100)}%`}
             onChange={next => onChange({ disc: { ...disc, [key]: next } })} />;
         })}
         </div>
@@ -190,7 +193,7 @@ export function ProofTableEditor({
       <Section
         title={`Title collection (${items.length} / ${PROOF_LIMITS.items})`}
         scope="Page"
-        hint={`The first ${DISC_SLOT_LIMIT} images appear around the disc in this order. All titles remain in the collection below it.`}
+        hint={`The first ${DISC_SLOT_LIMIT} images appear around the glass in this order. Additional entries stay saved here until you move them into those positions.`}
       >
         <div ref={attach} style={{ display: "contents" }}>
         {items.map((it, i) => (
@@ -200,7 +203,7 @@ export function ProofTableEditor({
               {/* eslint-disable-next-line @next/next/no-img-element -- a small preview of the chosen title */}
               {it.src && <img className={styles.slotThumb} src={resizedSrc(it.src, 240)} alt="" />}
               <span className={styles.slotIndex}>{String(i + 1).padStart(2, "0")}</span>
-              <span className={styles.controlHint}>{i < DISC_SLOT_LIMIT ? "On disc" : "Collection only"}</span>
+              <span className={styles.controlHint}>{i < DISC_SLOT_LIMIT ? "On glass" : "Saved for later"}</span>
               <span className={styles.slotActions}>
                 <button
                   type="button"

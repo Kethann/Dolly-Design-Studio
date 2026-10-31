@@ -20,10 +20,11 @@ const StarIntro = dynamic(loadStarIntro, { ssr: false });
 if (
   typeof window !== "undefined" &&
   window.location.pathname === "/" &&
+  window.location.hash.length <= 1 &&
   !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
-  (!window.matchMedia("(pointer: coarse)").matches || canRun3D()) // a weak phone never downloads what it will not run
+  (!window.matchMedia("(pointer: coarse)").matches || canRun3D()) // cheap eligibility check; do not create a GPU context during hydration
 ) {
-  void loadStarIntro();
+  void loadStarIntro().catch(() => {}); // the mounted dynamic component/error boundary handles load failure
 }
 
 /**
@@ -44,21 +45,19 @@ function canRun3D(): boolean {
   if (nav.connection?.saveData) return false;
   if ((nav.hardwareConcurrency || 4) < 4) return false;
   if (nav.deviceMemory !== undefined && nav.deviceMemory < 4) return false;
-  try {
-    return !!document.createElement("canvas").getContext("webgl2");
-  } catch {
-    return false;
-  }
+  return true; // WebGL is checked once below, not repeatedly for touch-device preloading.
 }
 
+let webGLSupport: boolean | undefined;
 function supportsWebGL(): boolean {
+  if (webGLSupport !== undefined) return webGLSupport;
   try {
     const canvas = document.createElement("canvas");
-    const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    const gl = canvas.getContext("webgl2"); // the installed Three.js renderer requires WebGL 2
     gl?.getExtension("WEBGL_lose_context")?.loseContext(); // release the probe context straight away
-    return !!gl;
+    return (webGLSupport = !!gl);
   } catch {
-    return false;
+    return (webGLSupport = false);
   }
 }
 
@@ -133,7 +132,7 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const isTouch = window.matchMedia("(pointer: coarse)").matches;
     // Desktops with WebGL, and phones and tablets that can run it smoothly, all get the same 3D intro.
-    const next = !reducedMotion && supportsWebGL() && (!isTouch || canRun3D()) ? "stars" : "fallback";
+    const next = !reducedMotion && (!isTouch || canRun3D()) && supportsWebGL() ? "stars" : "fallback";
     if (next === "fallback") reportIntroProgress(1); // the light version needs no loading
     setMode(next);
     // Decide once on mount; onReveal is a stable setter from the parent.

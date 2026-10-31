@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { createMarqueeVelocity, marqueeGlide } from "./marqueeMotion";
 
 /**
  * A row that drifts sideways on its own and can be held and dragged either way, like a track: let go and it glides on
@@ -14,6 +15,11 @@ import { useEffect, useRef } from "react";
 export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?: boolean }) {
   const viewport = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
+  const config = useRef({ seconds, reverse });
+  useEffect(() => {
+    // Live portal changes must not reset the track position or interrupt a held drag.
+    config.current = { seconds, reverse };
+  }, [seconds, reverse]);
 
   useEffect(() => {
     const vp = viewport.current;
@@ -26,6 +32,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
     let vel = 0; // px/s from a flick, fading out
     let half = 0;
     let factor = 1; // 1 = drifting, 0 = still (pointer resting on it, or being dragged)
+    let direction = config.current.reverse ? 1 : -1;
     let last = 0;
     let frame = 0;
     let dragging = false;
@@ -33,9 +40,8 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
     let onScreen = true;
     let startX = 0;
     let startPos = 0;
-    let lastX = 0;
-    let lastT = 0;
-    let flick = 0;
+    const swipe = createMarqueeVelocity();
+    let disposed = false;
     let travelled = 0; // how far the current drag has moved, to tell a drag from a click
     let pointer: number | null = null;
     let startY = 0;
@@ -64,9 +70,8 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
         // Only the real entries, held still: dragging moves along them from the first to the last, never past either end.
         const lo = Math.min(0, room - all);
         if (!dragging) {
-          x += vel * dt;
-          vel *= Math.exp(-dt * 3.2);
-          if (Math.abs(vel) < 1) vel = 0;
+          const glide = marqueeGlide(vel, dt);
+          x += glide.distance; vel = glide.velocity;
         }
         x = all <= room ? (room - all) / 2 : Math.max(lo, Math.min(0, x));
         if ((x === lo && vel < 0) || (x === 0 && vel > 0) || all <= room) vel = 0;
@@ -74,14 +79,14 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
         tr.style.transform = `translate3d(${x.toFixed(2)}px,0,0)`;
         if (before !== tr.style.transform) window.dispatchEvent(new Event("dds-track-moved")); // the Edit buttons follow
       } else {
-        const paused = pointer !== null || hover;
+        const paused = pointer !== null || hover || Math.abs(vel) > 12;
         factor += ((paused ? 0 : 1) - factor) * Math.min(1, dt * 6);
         if (paused && factor < 0.001) factor = 0;
         if (!dragging) {
-          const drift = reduced || !half ? 0 : ((reverse ? 1 : -1) * half) / seconds;
-          x += (drift * factor + vel) * dt;
-          vel *= Math.exp(-dt * 3.2);
-          if (Math.abs(vel) < 1) vel = 0;
+          direction += ((config.current.reverse ? 1 : -1) - direction) * (1 - Math.exp(-dt * 8));
+          const drift = reduced || !half ? 0 : (direction * half) / Math.max(1, config.current.seconds);
+          const glide = marqueeGlide(vel, dt);
+          x += drift * factor * dt + glide.distance; vel = glide.velocity;
         }
         wrap();
         tr.style.transform = `translate3d(${x.toFixed(2)}px,0,0)`;
@@ -90,7 +95,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
       if (Math.abs(vel) > 0 || (!editMode && !reduced && half > 0 && ((pointer === null && !hover) || factor > 0))) frame = requestAnimationFrame(tick);
     };
     const start = () => {
-      if (frame || !onScreen || document.hidden) return;
+      if (disposed || frame || !onScreen || document.hidden) return;
       last = performance.now();
       frame = requestAnimationFrame(tick);
     };
@@ -99,12 +104,11 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
       if (!e.isPrimary || e.button !== 0 || pointer !== null || (e.target as Element)?.closest("[data-ed-ui],button,a,input,select,textarea")) return;
       pointer = e.pointerId;
       dragging = false;
-      startX = lastX = e.clientX;
+      startX = e.clientX;
       startY = e.clientY;
       travelled = 0;
       startPos = x;
-      lastT = performance.now();
-      flick = 0;
+      swipe.reset(e.clientX, performance.now());
       vel = 0;
       factor = 0;
       start();
@@ -124,11 +128,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
       e.preventDefault();
       x = startPos + (e.clientX - startX);
       travelled = Math.max(travelled, Math.abs(e.clientX - startX));
-      const now = performance.now();
-      const dt = (now - lastT) / 1000;
-      if (dt > 0) flick = flick * 0.6 + ((e.clientX - lastX) / dt) * 0.4; // a smoothed speed, so one jittery sample doesn't throw it
-      lastX = e.clientX;
-      lastT = now;
+      swipe.sample(e.clientX, performance.now());
       start();
     };
     const release = () => {
@@ -156,7 +156,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
         suppressClick();
       }
       // Let go while still moving and it glides on; let go while holding still and it simply stays.
-      vel = moved && !reduced && performance.now() - lastT < 90 ? Math.max(-1800, Math.min(1800, flick)) : 0;
+      vel = moved && !reduced ? swipe.release(performance.now()) : 0;
       start();
     };
     const cancel = () => {
@@ -167,6 +167,9 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
       vel = 0;
       start();
     };
+    // Normal pointerup releases capture too. Its later lostpointercapture event must
+    // not cancel the glide that was just started; only cancel an active matching drag.
+    const cancelPointer = (e: PointerEvent) => { if (pointer !== null && e.pointerId === pointer) cancel(); };
     const enter = (e: PointerEvent) => {
       if (e.pointerType === "mouse") { hover = true; start(); }
     };
@@ -219,8 +222,8 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
     vp.addEventListener("pointerdown", down);
     vp.addEventListener("pointermove", move, { passive: false });
     vp.addEventListener("pointerup", up);
-    vp.addEventListener("pointercancel", cancel);
-    vp.addEventListener("lostpointercapture", cancel);
+    vp.addEventListener("pointercancel", cancelPointer);
+    vp.addEventListener("lostpointercapture", cancelPointer);
     vp.addEventListener("pointerenter", enter);
     vp.addEventListener("pointerleave", leave);
     vp.addEventListener("wheel", wheel, { passive: false });
@@ -232,6 +235,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
     start();
 
     return () => {
+      disposed = true;
       if (frame) cancelAnimationFrame(frame);
       window.clearTimeout(clickTimer);
       if (clickMarker && document.documentElement.dataset.ddsDragged === clickMarker) delete document.documentElement.dataset.ddsDragged;
@@ -242,8 +246,8 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
       vp.removeEventListener("pointerdown", down);
       vp.removeEventListener("pointermove", move);
       vp.removeEventListener("pointerup", up);
-      vp.removeEventListener("pointercancel", cancel);
-      vp.removeEventListener("lostpointercapture", cancel);
+      vp.removeEventListener("pointercancel", cancelPointer);
+      vp.removeEventListener("lostpointercapture", cancelPointer);
       vp.removeEventListener("pointerenter", enter);
       vp.removeEventListener("pointerleave", leave);
       vp.removeEventListener("wheel", wheel);
@@ -252,10 +256,11 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
       window.removeEventListener("blur", cancel);
       document.removeEventListener("visibilitychange", visibility);
       motion.removeEventListener("change", changeMotion);
+      release();
       tr.style.transform = "";
       tr.style.willChange = "";
     };
-  }, [seconds, reverse]);
+  }, []);
 
   return { viewport, track };
 }

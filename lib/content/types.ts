@@ -22,7 +22,6 @@ export interface TextStyle {
   /** Largest size in px (it shrinks smoothly on small screens). */
   size?: number;
   weight?: number;
-  italic?: boolean;
   color?: string;
   align?: "left" | "center" | "right";
   /** Line height as a multiple of the size. */

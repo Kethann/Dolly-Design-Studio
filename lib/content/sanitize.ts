@@ -5,7 +5,7 @@ import { ZOOM_MAX, ZOOM_MIN, cleanAdjust } from "./adjust";
 import { DEFAULT_GLASS, DEFAULT_MENU_TONES, GLASS_COLOR_COUNT, GLASS_EFFECTS, OLD_GEMINI, OLD_GLASS, OLD_SIX, type GlassLook } from "./types";
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "./limits";
 import { defaultContent } from "./defaults";
-import { fontById } from "./fonts";
+import { fontById, regularFontId } from "./fonts";
 import { MAX_BREAKDOWNS, MAX_BREAKDOWN_LAYERS } from "./limits";
 import type { Breakdown, CustomFont, SiteContent, TextStyle } from "./types";
 
@@ -50,12 +50,12 @@ const num = (x: unknown, min: number, max: number) =>
 function cleanStyle(x: unknown, custom: CustomFont[]): TextStyle | null {
   if (!isObj(x)) return null;
   const s: TextStyle = {};
-  if (typeof x.font === "string" && fontById(x.font, custom)) s.font = x.font;
+  if (typeof x.font === "string" && fontById(x.font, custom)) s.font = regularFontId(x.font);
   const size = num(x.size, 8, 240);
   if (size !== undefined) s.size = Math.round(size);
   const weight = num(x.weight, 100, 900);
   if (weight !== undefined) s.weight = Math.round(weight / 100) * 100;
-  if (x.italic === true) s.italic = true;
+  // Legacy italic flags are intentionally dropped: the studio now uses upright typography.
   if (typeof x.color === "string" && /^#[0-9a-f]{6}$/i.test(x.color)) s.color = x.color;
   if (x.align === "left" || x.align === "center" || x.align === "right") s.align = x.align;
   const lh = num(x.lineHeight, 0.8, 3);
@@ -288,6 +288,10 @@ export function sanitizeContent(input: unknown): SiteContent {
   merged.home.clients.portraitShape = oneOf(merged.home.clients.portraitShape, SHAPES, "round");
   merged.home.clients.portraitSize = oneOf(merged.home.clients.portraitSize, SIZES, "large");
   merged.home.clients.logoSize = oneOf(merged.home.clients.logoSize, SIZES, "large");
+  const DIRECTIONS = ["left", "right"] as const;
+  merged.home.clients.productionDirection = oneOf(merged.home.clients.productionDirection, DIRECTIONS, "left");
+  merged.home.clients.productionSecondDirection = oneOf(merged.home.clients.productionSecondDirection, DIRECTIONS, "right");
+  merged.home.clients.filmmakersDirection = oneOf(merged.home.clients.filmmakersDirection, DIRECTIONS, "left");
   if (merged.home.founder.photo && !merged.home.founder.photo.startsWith("/images/")) merged.home.founder.photo = "";
 
   // Keep empty layers and their labels so cleared artwork can be replaced in the same slots.
@@ -315,6 +319,7 @@ export function sanitizeContent(input: unknown): SiteContent {
   for (const k of ["home", "work", "breakdowns", "project", "notFound"] as const) {
     const look = merged.pages[k];
     for (const f of ["fontDisplay", "fontLabel", "fontBody"] as const) {
+      look[f] = regularFontId(look[f]) ?? "";
       if (look[f] && !fontById(look[f], merged.customFonts)) look[f] = "";
     }
     look.accent = isHex(look.accent) ? look.accent.toLowerCase() : "";
@@ -339,6 +344,7 @@ export function sanitizeContent(input: unknown): SiteContent {
   merged.type = types;
 
   for (const role of ["display", "label", "body"] as const) {
+    merged.fonts[role] = regularFontId(merged.fonts[role]) ?? def.fonts[role];
     if (!fontById(merged.fonts[role], merged.customFonts)) merged.fonts[role] = def.fonts[role];
   }
   return merged;

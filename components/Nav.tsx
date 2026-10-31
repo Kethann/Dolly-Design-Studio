@@ -35,6 +35,7 @@ export function Nav() {
   // The portal's "Corner logo (top left)" glow switch decides whether the logo takes the colour effect when the cursor is on it.
   const logoGlowOn = settings.logoGlow.enabled && settings.logoGlow.places.navLogo;
   const [open, setOpen] = useState(false);
+  const [tablet, setTablet] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("");
   /** The corner logo: hidden on the first section of the home page (the big logo is there), then eased in. */
   const [pastFirst, setPastFirst] = useState(false);
@@ -49,6 +50,20 @@ export function Nav() {
   const [beam, setBeam] = useState<{ left: number; width: number; lift: number; animate: boolean } | null>(null);
   /** An item's lamp colour: the portal's, else the one it starts with. */
   const toneOf = (id: string) => `var(--tone-${id}, ${DEFAULT_MENU_TONES[id] ?? "#ffc857"})`;
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 641px)");
+    const sync = () => setTablet(query.matches);
+    sync(); query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (!tablet || !open) return;
+    // The old section-progress squares must not sit underneath the expanded icon rail.
+    document.documentElement.setAttribute("data-tablet-menu-open", "");
+    return () => document.documentElement.removeAttribute("data-tablet-menu-open");
+  }, [tablet, open]);
 
   // The item for the place you are: the full gallery (and a project on the home page), the Breakdowns page (it belongs to
   // "How we work"), or the home-page section in view.
@@ -156,22 +171,31 @@ export function Nav() {
   const glideOnHome = (id?: string) => (e: React.MouseEvent) => {
     if (pathname !== "/" || !isPlainClick(e)) return;
     e.preventDefault();
-    setOpen(false);
-    // Next frame, once the mobile menu has closed and the page can scroll again.
+    if (!tablet) setOpen(false);
+    // Tablet keeps its in-page rail visible; phone releases its full-screen menu first.
     requestAnimationFrame(() => goToSection(id));
   };
 
   // While the mobile menu is open the page behind it must not scroll (Lenis would keep scrolling a page that only has overflow hidden).
   useEffect(() => {
     if (!open) return;
-    freezeScroll();
-    const focusFrame = requestAnimationFrame(() => menuRef.current?.querySelector<HTMLAnchorElement>("a")?.focus());
+    if (!tablet) freezeScroll();
+    const focusFrame = requestAnimationFrame(() => {
+      const menu = menuRef.current;
+      (menu?.querySelector<HTMLAnchorElement>('a[aria-current="page"]') ?? menu?.querySelector<HTMLAnchorElement>("a"))?.focus({ preventScroll: true });
+    });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setOpen(false);
         menuButtonRef.current?.focus();
       }
-      if (e.key === "Tab") {
+      if (tablet && ["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key) && menuRef.current?.contains(document.activeElement)) {
+        const items = Array.from(menuRef.current.querySelectorAll<HTMLAnchorElement>("a"));
+        const at = items.indexOf(document.activeElement as HTMLAnchorElement);
+        const next = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : (at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+        e.preventDefault(); items[next]?.focus();
+      }
+      if (!tablet && e.key === "Tab") {
         const items = [menuButtonRef.current, ...Array.from(menuRef.current?.querySelectorAll<HTMLAnchorElement>("a") ?? [])].filter(Boolean) as HTMLElement[];
         const first = items[0], last = items[items.length - 1];
         if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
@@ -182,22 +206,14 @@ export function Nav() {
     return () => {
       cancelAnimationFrame(focusFrame);
       window.removeEventListener("keydown", onKey);
-      releaseScroll();
+      if (!tablet) releaseScroll();
     };
-  }, [open]);
+  }, [open, tablet]);
 
-  // Any change of page (a link, Back, Forward) closes the menu.
+  // Phone overlays close on navigation; the tablet rail stays available and highlights the destination.
   useEffect(() => {
-    setOpen(false); // eslint-disable-line react-hooks/set-state-in-effect -- close the menu when the page changes
-  }, [pathname]);
-
-  // A menu left open when the window grows past the phone layout would leave the page frozen with no menu visible.
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1200px)");
-    const close = () => mq.matches && setOpen(false);
-    mq.addEventListener("change", close);
-    return () => mq.removeEventListener("change", close);
-  }, []);
+    if (!tablet) setOpen(false); // eslint-disable-line react-hooks/set-state-in-effect -- close phone overlay on navigation or breakpoint change
+  }, [pathname, tablet]);
 
   return (
     <header className={styles.nav} data-chrome>
@@ -288,24 +304,26 @@ export function Nav() {
           onClick={() => setOpen((v) => !v)}
           data-cursor="link"
         >
-          <span style={open ? { transform: "translateY(3.25px) rotate(45deg)" } : undefined} />
+          <span style={open ? { transform: "translateY(6.5px) rotate(45deg)" } : undefined} />
           <span style={open ? { opacity: 0 } : undefined} />
-          <span style={open ? { transform: "translateY(-3.25px) rotate(-45deg)" } : undefined} />
+          <span style={open ? { transform: "translateY(-6.5px) rotate(-45deg)" } : undefined} />
         </button>
       </div>
 
       {open && (
-        <nav ref={menuRef} id="mobile-navigation" className={styles.mobileMenu} aria-label="Mobile" data-lenis-prevent>
+        <nav ref={menuRef} id="mobile-navigation" className={styles.mobileMenu} aria-label={tablet ? "Section navigation" : "Mobile"} data-lenis-prevent>
           {navItems.map((item) => (
             <Link
               key={item.id}
               href={item.id === "work" ? "/work" : `/#${item.id}`}
+              aria-label={item.label}
+              aria-current={item.id === activeId ? "page" : undefined}
               className={`${styles.mobileLink} ${item.id === activeId ? styles.mobileActive : ""}`}
               style={{ ["--tone" as string]: toneOf(item.id) }}
-              onClick={item.id === "work" ? () => setOpen(false) : glideOnHome(item.id)}
+              onClick={item.id === "work" ? () => { if (!tablet) setOpen(false); } : glideOnHome(item.id)}
             >
               <NavIcon id={item.id} className={styles.mobileIcon} />
-              {item.label}
+              <span className={styles.mobileLabel}>{item.label}</span>
             </Link>
           ))}
         </nav>

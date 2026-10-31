@@ -44,7 +44,6 @@ function rule(style: TextStyle, custom: CustomFontLike[]): string {
     out.push(`font-size:clamp(${Math.round(style.size * 0.6)}px,${(style.size / 14.4).toFixed(2)}vw,${style.size}px)`);
   }
   if (style.weight) out.push(`font-weight:${style.weight}`);
-  if (style.italic) out.push("font-style:italic");
   if (style.color) out.push(`color:${style.color}`);
   if (style.align) out.push(`text-align:${style.align}`);
   if (style.lineHeight) out.push(`line-height:${style.lineHeight}`);

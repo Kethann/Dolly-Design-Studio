@@ -5,14 +5,14 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
-import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
-import { DISC_DEFAULTS, sanitizeDisc, discAimProfileForWidth, discPanelLayout, discProjectionWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, type DiscControls } from "../../lib/content/disc";
+import { bindCircleDrag } from "./drag";
+import { DISC_DEFAULTS, sanitizeDisc, glassCircleComposition, glassArrivalSpinMultiplier, glassProjectorOrigin, discAimProfileForWidth, discPanelLayout, discProjectionWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, type DiscControls } from "../../lib/content/disc";
 
 export type DiscImage = { src: string; label: string; titleColor?: string; glowColor?: string; glowIntensity?: number };
 export type DiscScene = ReturnType<typeof createDiscScene>;
 const TAU = Math.PI * 2;
 const R = 2.35;
-const SILVER_BASE = 0xcbd0d5;
+const GLASS_LIGHT = 0xb0cced;
 const COLOUR_GRID = 8;
 // The one description of the light. The volume and every surface read these same rays,
 // so a ray always brightens the exact spot it lands on.
@@ -33,20 +33,12 @@ const rayShader = (count: number) => `
 // Surface-space reflection, not a floating sprite or a glowing slot outline.
 const contactShader = `float contactReflection(vec2 p,float shafts){
     float radius=max(abs(p.x),abs(p.y));
-    // A physically plausible landing: a wide low-energy pool scattered by glass and brushed
-    // metal, with each ray's own bright footprint inside it.
+    // A low-energy reflection scattered by the glass, with each ray's footprint inside it.
     float spread=mix(1.05,1.45,projectorSoftness);
     float edge=1.-smoothstep(spread*.72,spread,radius);
     float pool=exp(-dot(p*vec2(1.2,1.35),p*vec2(1.2,1.35)));
     float soft=exp(-dot(p*vec2(2.6,2.3),p*vec2(2.6,2.3)));
     return (pool*.13+soft*.17+shafts*pool*.54)*edge*contactStrength;
-  }
-  // Silver diffracts a highlight along the radius facing the lamp, the streak a real disc shows.
-  vec3 discStreak(vec2 point){
-    float angle=atan(point.y,point.x), radius=length(point);
-    float streak=exp(-angle*angle*42.)+.35*exp(-angle*angle*7.);
-    vec3 spectrum=.5+.5*cos(6.28318*(radius*3.4+angle*1.5+vec3(0.,.33,.67)));
-    return mix(vec3(1.),spectrum*1.3,contactPrism*.35)*streak*contactStrength*.075;
   }`;
 const noiseSize = 64;
 // The light lands just above the glass, in the disc's own space.
@@ -81,8 +73,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.transmissionResolutionScale = lowPower ? 0.35 : 0.5;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 35);
-  camera.position.set(0, 0, 9.8);
+  const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
+  camera.position.set(0, 0, 26);
   camera.lookAt(0, 0, 0);
   const tilt = new THREE.Group(); tilt.position.x = -0.6; scene.add(tilt);
   const disc = new THREE.Group(); tilt.add(disc);
@@ -102,10 +94,13 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const originGuide = makeAimGuide(0x5be7ff), landingGuide = makeAimGuide(0xffd45b);
   let destroyed = false, active = false, paused = false, aimGuides = false, raf = 0, last = 0, elapsed = 0, firstPose = true;
   let width = 1, height = 1, quality = 1, slowFrames = 0, time = 0, hovered = -1, opened = -1, hoverSettling = false, controlsSettling = false;
+  let arrival = 0, scrollExit = 0, smoothedExit = 0;
+  let dragging = false, dragAngle = 0, spinBlend = 1;
   // Portal sliders can emit much faster than a frame. Keep one small render-side state so
   // geometry, aiming, lighting and bloom ease together instead of jumping or flickering.
   // Reduced-motion users get the requested value immediately.
   const renderedControls = {
+    circleScale: controls.circleScale, glassOpacity: controls.glassOpacity,
     discTilt: controls.discTilt, discRoll: controls.discRoll,
     spinSpeed: controls.spinSpeed,
     focusAngle: controls.focusAngle, focusRadius: controls.focusRadius,
@@ -132,93 +127,68 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const projectorSoftness = { value: controls.glowRadius };
   const projectorPower = { value: controls.rayIntensity };
   const projectorFrame = new THREE.Matrix4();
-  // Empty brushed silver produces neutral, slightly cool projector light. It must never retain
+  // Empty glass produces neutral, slightly cool projector light. It must never retain
   // the hue of the previous title after that title has left the landing window.
-  const neutralBeamColor = new THREE.Color(SILVER_BASE).multiplyScalar(.72);
+  const neutralBeamColor = new THREE.Color(GLASS_LIGHT).multiplyScalar(.72);
   const beamColor = neutralBeamColor.clone(), targetColor = new THREE.Color(), sampledColor = new THREE.Color();
   const neutralBands = new THREE.Vector4(.55, .55, .55, .55);
   const imageBands = { value: neutralBands.clone() };
   const targetBands = new THREE.Vector4();
-  const contactColour = { value: beamColor }, contactStrength = { value: 0 }, contactPrism = { value: controls.rayPrism };
+  const contactColour = { value: beamColor }, contactStrength = { value: 0 };
   // Few rays and few volume steps: this runs per covered pixel, so phones get the smaller budget.
   const rayCount = lowPower ? 5 : 7, beamSteps = lowPower ? 4 : 6, moteCount = lowPower ? 26 : 60;
   const raysUniform = { value: Array.from({ length: rayCount }, () => new THREE.Vector4(0, 0, .3, 0)) };
   const rayShaderSource = rayShader(rayCount);
-  const studioLights: { light: THREE.Light; base: number }[] = [];
-
-  // Fixed studio strips are baked once into a small environment, never captured every frame.
-  RectAreaLightUniformsLib.init();
-  const room = new THREE.Scene(); room.background = new THREE.Color(0x454b54);
-  for (const [x, y, z, w, h, intensity] of [[-3, 3, 4, 1.1, 6, 8], [3, 0, 2, 0.4, 5, 5], [0, -4, 3, 6, 0.3, 3]]) {
-    const strip = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(intensity, intensity, intensity) }));
-    strip.position.set(x, y, z); strip.lookAt(0, 0, 0); room.add(strip);
-    const light = new THREE.RectAreaLight(0xf3f6ff, intensity * 2, w, h);
-    light.position.copy(strip.position); light.quaternion.copy(strip.quaternion); scene.add(light);
-    studioLights.push({ light, base: light.intensity });
-  }
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const env = own(pmrem.fromScene(room, 0.04, 0.1, 30, { size: 128 }));
-  scene.environment = env.texture;
-  pmrem.dispose();
-  room.traverse(obj => { if (obj instanceof THREE.Mesh) { obj.geometry.dispose(); obj.material.dispose(); } });
-  const ambient = new THREE.HemisphereLight(0xdbe4ff, 0x161821, 1.4); scene.add(ambient);
-  studioLights.push({ light: ambient, base: ambient.intensity });
-
-  // Radial anisotropy + fine angular roughness streaks. Only one 256² procedural texture.
-  const data = new Uint8Array(256 * 256 * 4);
-  for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
-    const a = Math.atan2(y - 127.5, x - 127.5), i = (y * 256 + x) * 4;
-    data[i] = (Math.cos(a) * 0.5 + 0.5) * 255;
-    data[i + 1] = (Math.sin(a) * 0.5 + 0.5) * 255;
-    data[i + 2] = 210 + Math.sin(a * 291) * 35; data[i + 3] = 255;
-  }
-  const brushed = own(new THREE.DataTexture(data, 256, 256));
-  brushed.minFilter = brushed.magFilter = THREE.LinearFilter; brushed.needsUpdate = true;
-  const silver = own(new THREE.MeshPhysicalMaterial({ color: SILVER_BASE, metalness: 1, roughness: 0.25, iridescence: 1,
-    iridescenceIOR: 1.3, iridescenceThicknessRange: [120, 360], anisotropy: 0.85, anisotropyMap: brushed, side: THREE.DoubleSide }));
-  silver.onBeforeCompile = shader => {
-    shader.uniforms.uDesaturation = saturation;
-    Object.assign(shader.uniforms, { projectorTransform, projectorBounds, projectorSoftness, contactColour, contactStrength, contactPrism, rays: raysUniform });
-    shader.vertexShader = `uniform mat4 projectorTransform; varying vec2 vDiscProjector; varying vec3 vDiscLocal;\n${shader.vertexShader}`.replace("#include <begin_vertex>", "#include <begin_vertex>\nvDiscLocal=position; vDiscProjector=(projectorTransform*modelMatrix*vec4(position,1.)).xy/2.35;");
-    shader.fragmentShader = `uniform float uDesaturation, contactStrength, contactPrism, projectorSoftness; uniform vec3 contactColour; uniform vec4 projectorBounds; varying vec2 vDiscProjector; varying vec3 vDiscLocal; ${rayShaderSource} ${contactShader}\n${shader.fragmentShader}`
-      .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
-        float angle=atan(vDiscLocal.y,vDiscLocal.x);
-        roughnessFactor *= .9+.1*sin(angle*291.)*sin(angle*113.)*exp(-fwidth(angle)*291.);`)
-      .replace("#include <opaque_fragment>", `
-        float rim=pow(clamp(1.-abs(dot(normal,geometryViewDir)),0.,1.),3.);
-        float edge=smoothstep(2.28,2.35,length(vDiscLocal.xy));
-        outgoingLight=outgoingLight*.38+vec3(.04)*rim*edge;
-        outgoingLight=mix(outgoingLight,vec3(dot(outgoingLight,vec3(.2126,.7152,.0722))),uDesaturation);
-        // Retain the artwork hue in the wide reflection; only the specular response adds white.
-        vec2 lightWindow=discWindow(vDiscProjector);
-        outgoingLight+=(mix(contactColour,vec3(1.),.08)*contactReflection(lightWindow,rayField(lightWindow))+discStreak(vDiscProjector))*float(gl_FrontFacing);
-        #include <opaque_fragment>`);
-  };
-  disc.add(new THREE.Mesh(own(new THREE.RingGeometry(R * 0.22, R, 128, 2)), silver));
-  // Three attached, closed layers share one bevelled geometry/material. The centre stays hollow.
-  const shell = new THREE.Shape(); shell.absarc(0, 0, R - .014, 0, TAU, false);
-  const hole = new THREE.Path(); hole.absarc(0, 0, R * .22 + .014, 0, TAU, true); shell.holes.push(hole);
-  const layerGeometry = own(new THREE.ExtrudeGeometry(shell, { depth: .058, bevelEnabled: true,
-    bevelSize: .012, bevelThickness: .009, bevelSegments: 1, steps: 1, curveSegments: 64 }));
-  const backing = own(new THREE.MeshStandardMaterial({ color: 0x89939e, metalness: 1, roughness: .28, envMapIntensity: .7 }));
-  backing.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, { projectorTransform, contactStrength, contactPrism });
-    shader.vertexShader = `uniform mat4 projectorTransform; varying vec2 vDiscProjector;\n${shader.vertexShader}`.replace("#include <begin_vertex>", "#include <begin_vertex>\nvDiscProjector=(projectorTransform*modelMatrix*vec4(position,1.)).xy/2.35;");
-    shader.fragmentShader = `uniform float contactStrength, contactPrism; varying vec2 vDiscProjector;\n${contactShader.slice(contactShader.indexOf("vec3 discStreak"))}\n${shader.fragmentShader}`
-      .replace("#include <opaque_fragment>", "outgoingLight+=discStreak(vDiscProjector)*.55;\n#include <opaque_fragment>");
-  };
-  for (let layer = 0; layer < 3; layer++) {
-    const mesh = new THREE.Mesh(layerGeometry, backing); mesh.position.z = -.068 * (layer + 1); disc.add(mesh);
-  }
-  const edgeMaterial = own(new THREE.MeshBasicMaterial({ color: 0xb2bcc8, transparent: true, opacity: 0.22 }));
-  for (const radius of [R, R * 0.22, R * 0.27, R * 0.3]) {
-    disc.add(new THREE.Mesh(own(new THREE.TorusGeometry(radius, radius === R ? 0.012 : 0.004, 4, 192)), edgeMaterial));
-  }
+  // One transparent pane with an analytic bevel. No centre hole, metallic backing,
+  // environment capture or transmission framebuffer is needed for this glass treatment.
+  const glassLight = { value: controls.lightIntensity };
+  const glassOpacity = { value: controls.glassOpacity };
+  const glassMaterial = own(new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    uniforms: { projectorTransform, projectorBounds, projectorSoftness, contactColour,
+      contactStrength, glassLight, glassOpacity, uDesaturation: saturation, rays: raysUniform },
+    vertexShader: `uniform mat4 projectorTransform; varying vec2 vGlass, vProjector;
+      void main(){ vec4 world=modelMatrix*vec4(position,1.);
+        vGlass=position.xy/2.35; vProjector=(projectorTransform*world).xy/2.35;
+        gl_Position=projectionMatrix*viewMatrix*world; }`,
+    fragmentShader: `uniform vec4 projectorBounds; uniform vec3 contactColour;
+      uniform float projectorSoftness, contactStrength, glassLight, glassOpacity, uDesaturation;
+      varying vec2 vGlass, vProjector;
+      ${rayShaderSource}
+      ${contactShader}
+      void main(){
+        float r=length(vGlass), aa=max(fwidth(r),.00025);
+        float edge=1.-smoothstep(1.-aa,1.,r);
+        float bevel=exp(-pow((r-.993)/max(.0025,aa*1.5),2.));
+        float inner=exp(-pow((r-.987)/max(.0014,aa),2.))*.22;
+        float sweep=pow(max(0.,.5+.5*sin(atan(vGlass.y,vGlass.x)*2.+.8)),8.);
+        vec2 p=discWindow(vProjector);
+        float contact=contactReflection(p,rayField(p));
+        // The smoked-black interior absorbs background light without becoming an opaque disc.
+        // Reflection stays anchored to the projector; only faint surface variation rotates.
+        float lampFacing=exp(-pow(atan(vProjector.y,vProjector.x)*1.5,2.));
+        float sheen=exp(-pow((vProjector.y+.12*vProjector.x-.035)/.14,2.))
+          *smoothstep(.35,.85,r)*(1.-smoothstep(.97,1.,r))
+          *exp(-dot(p*vec2(.7,.85),p*vec2(.7,.85)));
+        vec3 smokeTint=mix(vec3(.004,.005,.007),vec3(.005),uDesaturation);
+        float tintAlpha=glassOpacity*mix(.72,.88,smoothstep(.2,.95,r));
+        vec3 reflection=vec3(.53,.69,.82)*(bevel+inner)*(.32+sweep*.28+lampFacing*.42)*glassLight;
+        reflection+=contactColour*(contact*.42+sheen*.06*contactStrength);
+        float reflectionAlpha=clamp((bevel+inner)*glassOpacity*(.55+sweep)+contact*.12+sheen*.04*contactStrength,0.,.48);
+        // Composite reflection over the tint in this same mesh: no new draw call or buffer.
+        float a=reflectionAlpha+tintAlpha*(1.-reflectionAlpha);
+        vec3 c=(reflection*reflectionAlpha+smokeTint*tintAlpha*(1.-reflectionAlpha))/max(a,.0001);
+        gl_FragColor=vec4(c,clamp(a*edge,0.,.65));
+      }`,
+  }));
+  const glassPane = new THREE.Mesh(own(new THREE.CircleGeometry(R, 192)), glassMaterial);
+  glassPane.renderOrder = -2;
+  disc.add(glassPane);
 
   type ColourSample = { u: number; v: number; colour: THREE.Color; weight: number };
   type Slot = { group: THREE.Group; image: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; texture: THREE.CanvasTexture;
     bands: THREE.Vector4; samples: ColourSample[]; imageAspect: number; titleColor?: THREE.Color;
-    angle: number; weight: number; lift: number };
+    angle: number; weight: number; lift: number; scale: number };
   let slots: Slot[] = [], generation = 0, lastGap = controls.slotGap, lastSize = controls.slotSize;
   let layout = discPanelLayout(initial.length, controls.slotGap, controls.slotSize);
   let loader = new AbortController();
@@ -281,7 +251,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         uniform vec3 contactColour, titleColour, titleGlowColour;
         uniform vec4 projectorBounds; varying vec2 vProjector; varying vec2 vUv;
         ${rayShaderSource}
-        ${contactShader.slice(0, contactShader.indexOf("// Silver diffracts"))}
+        ${contactShader}
         float feather(float edge){
           float width=.32+.26*projectorSoftness;
           float t=clamp((edge-(1.-width))/width,0.,1.);
@@ -330,9 +300,9 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       // Only the transparent PNG is mounted: no glass rectangle, border or opaque backing.
       const image = new THREE.Mesh(imageGeometry, material); image.position.z = 0.041; group.add(image);
       slots.push({ group, image, texture, bands: new THREE.Vector4(.55,.55,.55,.55),
-        samples: [], imageAspect: 1, titleColor: item.titleColor ? customTitle : undefined, angle: i * step, weight: 0, lift: 0 });
+        samples: [], imageAspect: 1, titleColor: item.titleColor ? customTitle : undefined, angle: i * step, weight: 0, lift: 0, scale: 1 });
     });
-    // Decode one image at a time. Failed/CORS-blocked images retain a labelled placeholder.
+    // Decode one image at a time. Failed/CORS-blocked images leave the glass empty.
     void (async () => {
       for (let i = 0; i < images.length; i++) {
         if (destroyed || signal.aborted) return;
@@ -402,17 +372,18 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const sourceLocal = { value: new THREE.Vector3() }, beamPlanes = { value: Array.from({ length: 4 }, () => new THREE.Vector3()) };
   const beamTime = { value: 0 }, beamMotion = { value: controls.rayMotion };
   const beamGlow = { value: controls.beamGlow }, rayStrength = { value: controls.rayStrength };
+  const volumeScale = { value: 1 };
   // One convex hull, shaded once per pixel on its far side. Each pixel marches its view ray through
   // the cone, so the light has real depth and ends exactly on the disc plane instead of on a flat edge.
   const fanMaterial = own(new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
     uniforms: { tint: { value: beamColor }, power: { value: 0 }, time: beamTime, motion: beamMotion, prism: { value: controls.rayPrism }, rayStyle: { value: controls.rayStyle }, viewport: { value: new THREE.Vector2(1, 1) },
-      projectorTransform, projectorBounds, sourceLocal, beamPlanes, beamGlow, rayStrength, rays: raysUniform, smokeTexture: { value: smokeTexture } },
+      projectorTransform, projectorBounds, sourceLocal, beamPlanes, beamGlow, rayStrength, volumeScale, rays: raysUniform, smokeTexture: { value: smokeTexture } },
     vertexShader: `uniform mat4 projectorTransform; varying vec3 vLocal, vCamera;
       void main(){ vec4 world=modelMatrix*vec4(position,1.);
         vLocal=(projectorTransform*world).xyz; vCamera=(projectorTransform*vec4(cameraPosition,1.)).xyz;
         gl_Position=projectionMatrix*viewMatrix*world; }`,
     fragmentShader: `#define BEAM_STEPS ${beamSteps}
-      uniform vec3 tint, sourceLocal, beamPlanes[4]; uniform vec4 projectorBounds; uniform float power, prism, rayStyle, time, motion, beamGlow, rayStrength; uniform vec2 viewport; uniform sampler2D smokeTexture; varying vec3 vLocal, vCamera;
+      uniform vec3 tint, sourceLocal, beamPlanes[4]; uniform vec4 projectorBounds; uniform float power, prism, rayStyle, time, motion, beamGlow, rayStrength, volumeScale; uniform vec2 viewport; uniform sampler2D smokeTexture; varying vec3 vLocal, vCamera;
       ${rayShaderSource}
       void main(){
         vec3 toCamera=vCamera-vLocal; float span=length(toCamera); vec3 dir=toCamera/span;
@@ -433,14 +404,15 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
           float smoke=texture2D(smokeTexture,point.xy*.31+point.z*.17+drift).r;
           smoke=smoke*.65+.35*texture2D(smokeTexture,point.yx*.83-drift*1.7).r;
           float shafts=rayField(p);
-          // A long eased fade grows from the point beneath the heading; the disc keeps a small
-          // reflected lift without exposing a hard projector apex over the text.
-          float reach=smoothstep(.015,.42,along)*mix(1.18,1.,along)+exp(-(1.-along)*18.)*.35;
+          // The off-screen source fades in. Near the glass, surface reflection takes over
+          // from airborne haze so the original logo remains legible underneath the light.
+          float landingHaze=1.-.48*smoothstep(.78,1.,along);
+          float reach=smoothstep(.015,.42,along)*mix(1.18,1.,along)*landingHaze;
           float density=body*reach*((.05+smoke*smoke*.2)*beamGlow+shafts*(.9+smoke*1.1)*rayStrength);
           scatter+=density; bodySum+=body*reach*(1.-smoothstep(0.,.45,length(p)));
           meanWindow+=p*density; meanWeight+=density;
         }
-        scatter*=span/float(BEAM_STEPS); bodySum*=span/float(BEAM_STEPS);
+        scatter*=span*volumeScale/float(BEAM_STEPS); bodySum*=span*volumeScale/float(BEAM_STEPS);
         vec2 p=meanWindow/meanWeight;
         float prismatic=step(.5,rayStyle)*(1.-step(1.5,rayStyle));
         float luminance=dot(tint,vec3(.2126,.7152,.0722));
@@ -448,7 +420,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         // Dispersion modulates the artwork's colour instead of replacing it with a rainbow.
         vec3 colour=tint*mix(vec3(1.8),vec3(.9)+spectrum*1.8,prism*prismatic*.45);
         // The haze carries the artwork pigment; the lamp's neutral core stays narrow.
-        colour=mix(colour,vec3(max(.32,luminance)*1.38),clamp(bodySum*.04,0.,.18));
+        colour=mix(colour,vec3(max(.32,luminance)*1.38),clamp(bodySum*.025,0.,.1));
         // Fade the light before it reaches the canvas boundary, without masking the disc or text.
         vec2 screen=gl_FragCoord.xy/viewport;
         float frame=smoothstep(0.,.06,screen.x)*(1.-smoothstep(.93,1.,screen.x))*smoothstep(0.,.08,screen.y)*(1.-smoothstep(.92,1.,screen.y));
@@ -528,14 +500,42 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const composer = new EffectComposer(renderer);
   const renderPass = new RenderPass(scene, camera);
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), controls.bloom, 0.75, 0.72);
-  const output = new OutputPass(), antialias = new ShaderPass(FXAAShader);
+  // Feather the complete scene in the existing antialias pass: no extra render target.
+  const output = new OutputPass(), antialias = new ShaderPass({ ...FXAAShader,
+    uniforms: { ...FXAAShader.uniforms, arrival: { value: 0 }, scrollExit: { value: 0 }, portrait: { value: 0 }, mirror: { value: 0 } },
+    fragmentShader: `uniform float arrival, scrollExit, portrait, mirror;\n${FXAAShader.fragmentShader}`.replace(
+      "gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );",
+      `gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );
+       // Wide transparent shoulders soften the glass, tint and bloom together.
+       // UV y=1 is the top: the old 3% fade left a visible horizontal boundary.
+       float frame=smoothstep(0.,.12,vUv.x)*(1.-smoothstep(.88,1.,vUv.x))
+         *smoothstep(0.,.22,vUv.y)*(1.-smoothstep(.80,1.,vUv.y));
+       float copyFade=mix(.025,1.,smoothstep(.26,.58,mix(vUv.x,1.-vUv.x,mirror)));
+       float mobileFade=mix(.03,1.,1.-smoothstep(.4,.74,vUv.y));
+       float readable=mix(1.,mix(copyFade,mobileFade,portrait),arrival);
+       float outgoing=1.-smoothstep(.08,1.,scrollExit*(1.3-.3*vUv.x));
+       // The transparent canvas is premultiplied: fade colour and alpha together.
+       gl_FragColor*=frame*readable*outgoing;`),
+  });
   composer.addPass(renderPass); composer.addPass(bloom); composer.addPass(output); composer.addPass(antialias);
   const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
   const restRay = new THREE.Ray(), restHit = new THREE.Vector3();
-  const restPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -.02);
+  const restPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -.041);
   const slotCenter = new THREE.Vector3();
-  const restPosition = new THREE.Vector3(), openPosition = new THREE.Vector3();
+  const restPosition = new THREE.Vector3();
   const inverseDisc = new THREE.Matrix4();
+  const inverseTilt = new THREE.Matrix4();
+  const dragRay = new THREE.Ray(), dragHit = new THREE.Vector3();
+  function pointerAngle(x: number, y: number, insideOnly = false) {
+    pointer.set(x / width * 2 - 1, 1 - y / height * 2);
+    raycaster.setFromCamera(pointer, camera);
+    inverseTilt.copy(tilt.matrixWorld).invert();
+    if (!dragRay.copy(raycaster.ray).applyMatrix4(inverseTilt).intersectPlane(restPlane, dragHit)) return null;
+    const radius = Math.hypot(dragHit.x, dragHit.y);
+    // Avoid unstable angles near the centre; a gesture may continue outside the glass.
+    if (radius < R * .12 || (insideOnly && radius > R * 1.02)) return null;
+    return Math.atan2(dragHit.y, dragHit.x);
+  }
   const faceCamera = new THREE.Quaternion(), restRotation = new THREE.Quaternion();
   function resize(w: number, h: number) {
     width = Math.max(1, w); height = Math.max(1, h);
@@ -546,8 +546,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     fanMaterial.uniforms.viewport.value.set(Math.max(1, Math.floor(width * dpr)), Math.max(1, Math.floor(height * dpr)));
     antialias.uniforms.resolution.value.set(1 / Math.max(1, Math.floor(width * dpr)), 1 / Math.max(1, Math.floor(height * dpr)));
     camera.aspect = width / height;
-    // Fit the entire tilted disc plus its left offset in narrow portrait viewports.
-    camera.position.z = Math.max(8.7, 6.5 / camera.aspect); camera.updateProjectionMatrix(); camera.updateMatrixWorld(); wake();
+    camera.updateProjectionMatrix(); camera.updateMatrixWorld(); wake();
   }
   function settleControl(current: number, target: number, dt: number, rate = 14) {
     if (motion.matches || firstPose) return target;
@@ -570,6 +569,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     const aimOriginY = aimProfile === "mobile" ? controls.mobileOriginOffsetY
       : aimProfile === "tablet" ? controls.tabletOriginOffsetY : controls.originOffsetY;
     controlsSettling = false;
+    renderedControls.circleScale = settleControl(renderedControls.circleScale, controls.circleScale, dt, 10);
+    renderedControls.glassOpacity = settleControl(renderedControls.glassOpacity, controls.glassOpacity, dt, 12);
     renderedControls.discTilt = settleControl(renderedControls.discTilt, controls.discTilt, dt, 12);
     renderedControls.discRoll = settleControl(renderedControls.discRoll, controls.discRoll, dt, 12);
     renderedControls.spinSpeed = settleControl(renderedControls.spinSpeed, controls.spinSpeed, dt, 12);
@@ -601,19 +602,35 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     dimBrightness.value = renderedControls.unfocusedBrightness;
     slotGlow.value = renderedControls.bloom * renderedControls.rayIntensity;
     projectorSoftness.value = renderedControls.glowRadius; projectorPower.value = renderedControls.rayIntensity;
-    studioLights.forEach(({ light, base }) => { light.intensity = base * renderedControls.lightIntensity; });
-    scene.environmentIntensity = renderedControls.lightIntensity;
-    // Centre narrow screens; on wide layouts use the open right-hand space more evenly while
-    // retaining a safe gap from the heading. The beam target follows this same transform.
-    tilt.position.x = -side * 1.42 * THREE.MathUtils.smoothstep(camera.aspect, 1.35, 1.9);
+    glassLight.value = renderedControls.lightIntensity;
+    glassOpacity.value = renderedControls.glassOpacity;
+    if (motion.matches) arrival = 1;
+    else if (!paused && !dragging) arrival = Math.min(1, arrival + dt / controls.entranceDuration);
+    smoothedExit = settleControl(smoothedExit, scrollExit, dt, 10);
+    const composition = glassCircleComposition(width, height, arrival);
+    const viewHeight = camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * 2;
+    // Full circle approaches once, then its centre passes above the frame to form the reference arc.
+    tilt.position.set((composition.x - .5) * viewHeight * camera.aspect * -side,
+      (.5 - composition.y) * viewHeight, 0);
+    tilt.scale.setScalar(composition.radius * viewHeight / R * renderedControls.circleScale);
+    volumeScale.value = Math.min(3, tilt.scale.x);
+    antialias.uniforms.arrival.value = composition.reveal;
+    antialias.uniforms.scrollExit.value = smoothedExit;
+    antialias.uniforms.portrait.value = width <= 640 ? 1 : 0;
+    antialias.uniforms.mirror.value = side > 0 ? 1 : 0;
     tilt.rotation.set(THREE.MathUtils.degToRad(renderedControls.discTilt), 0, THREE.MathUtils.degToRad(renderedControls.discRoll * side), "ZYX");
-    if (!motion.matches && !paused && opened < 0) {
+    if (!motion.matches && !paused) {
       time += dt;
-      // Hold the selected plaque still while inspecting it; the projector continues moving softly.
-      if (hovered < 0 && !hoverSettling) disc.rotation.z = (disc.rotation.z + renderedControls.spinSpeed * dt) % TAU;
+      // The background circle never stops for hover or the separate movie-detail dialog.
+      if (!dragging) {
+        spinBlend = Math.min(1, spinBlend + dt / .5);
+        // Position/scale settle independently; rotation flows through the landing unchanged.
+        const arrivalSpin = glassArrivalSpinMultiplier(arrival);
+        disc.rotation.z = (disc.rotation.z + renderedControls.spinSpeed * arrivalSpin * spinBlend * dt) % TAU;
+      }
     }
     tilt.updateMatrixWorld(true);
-    const focus = THREE.MathUtils.degToRad(renderedControls.focusAngle), dx = Math.cos(focus), dy = Math.sin(focus);
+    const focus = THREE.MathUtils.degToRad(renderedControls.focusAngle), dx = Math.cos(focus) * -side, dy = Math.sin(focus);
     const m = tilt.matrixWorld.elements, det = m[0] * m[5] - m[1] * m[4];
     const localFocus = Math.atan2((m[0] * dy - m[1] * dx) / det, (m[5] * dx - m[4] * dy) / det);
     // The still/reduced-motion view should also begin with a title under the projector.
@@ -633,24 +650,21 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     inverseDisc.copy(disc.matrixWorld).invert();
     disc.getWorldQuaternion(faceCamera).invert().multiply(camera.quaternion);
     const panelCenter = (layout.inner + layout.outer) * R / 2;
-    const openScale = 1.45, openZ = 2.6;
-    const openView = (camera.position.z - openZ) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const marginX = Math.max(.05, openView * camera.aspect - (layout.outer - layout.inner) * R / 2 * openScale - .15);
-    const marginY = Math.max(.05, openView - layout.outerHalfWidth * R * openScale - .32);
     hoverSettling = false;
     for (let index = 0; index < slots.length; index++) {
-      // Hover only lifts a little. Clicking opens fully and holds the scene for the detail card.
-      const slot = slots[index], desired = index === opened ? 1 : index === hovered ? .16 : 0;
+      // The DOM dialog owns the front-screen reveal. Its background print remains on the glass.
+      const slot = slots[index], desired = opened < 0 && index === hovered ? .16 : 0;
       slot.lift = motion.matches ? desired : THREE.MathUtils.damp(slot.lift, desired, 9, dt);
       if (Math.abs(slot.lift - desired) < .001) slot.lift = desired; else hoverSettling = true;
+      const desiredScale = desired > 0 ? 1.05 : 1;
+      slot.scale = motion.matches ? desiredScale : THREE.MathUtils.damp(slot.scale, desiredScale, 9, dt);
+      if (Math.abs(slot.scale - desiredScale) < .001) slot.scale = desiredScale; else hoverSettling = true;
       restPosition.set(Math.cos(slot.angle) * panelCenter, Math.sin(slot.angle) * panelCenter, 0);
-      openPosition.copy(restPosition).applyMatrix4(disc.matrixWorld);
-      openPosition.set(THREE.MathUtils.clamp(openPosition.x, -marginX, marginX),
-        THREE.MathUtils.clamp(openPosition.y, -marginY, marginY), openZ).applyMatrix4(inverseDisc);
-      slot.group.position.copy(restPosition).lerp(openPosition, slot.lift);
+      slot.group.position.copy(restPosition);
       restRotation.setFromAxisAngle(projectionAxis, slot.angle);
       slot.group.quaternion.copy(restRotation).slerp(faceCamera, slot.lift);
-      slot.group.scale.setScalar(1 + (openScale - 1) * slot.lift);
+      // A small hover lift stays attached to the continuously rotating glass.
+      slot.group.scale.setScalar(slot.scale);
       slot.group.updateMatrixWorld(true);
       slotCenter.set(0, 0, 0).applyMatrix4(slot.group.matrixWorld);
       slot.image.material.uniforms.rear.value = THREE.MathUtils.smoothstep(-slotCenter.z / R, .1, .75);
@@ -700,29 +714,26 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     const energy = (imageBands.value.x + imageBands.value.y + imageBands.value.z + imageBands.value.w) * .25;
     const lampShimmer = 1 + renderedControls.rayMotion * (.035 * Math.sin(time * 3.1) + .025 * Math.sin(time * 7.3 + 1.2));
     contactStrength.value = renderedControls.rayIntensity * (.62 + renderedControls.bloom * .68) * (.66 + energy * .34) * lampShimmer * renderedControls.surfaceReflection;
-    contactPrism.value = controls.rayStyle === 1 ? renderedControls.rayPrism : renderedControls.rayPrism * .35;
     // The projector stays on the chosen side, independent of the rotating slots.
     // Changing the focus aims the beam; it never carries the projector around with the slot.
-    const halfView = (camera.position.z - 1.4) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const drift = renderedControls.rayMotion * (.09 * Math.sin(time * .33) + .05 * Math.sin(time * .57 + 1.4));
-    if (!motion.matches && !paused && opened < 0) updateRays(dt); else if (firstRays) updateRays(0);
+    const sourceZ = Math.max(4, anchor.z + 3);
+    const halfView = (camera.position.z - sourceZ) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    if (!motion.matches && !paused) updateRays(dt); else if (firstRays) updateRays(0);
     firstRays = false;
     // The projector itself always lives beyond the visible canvas. Visitors see light entering
     // from the screen edge, never an apex floating in the mobile or desktop composition.
-    const sourceFraction = 1.08 + (renderedControls.rayLength - 3) / 6 * .42;
-    const linkedOrigin = (beamOriginYFraction === null ? renderedControls.rayElevation * .55
-      : (.5 - THREE.MathUtils.clamp(beamOriginYFraction, .04, .96)) * halfView * 2
-        + (renderedControls.rayElevation - DISC_DEFAULTS.rayElevation) * .12)
-      - renderedControls.originY * halfView * 2;
-    const linkedX = (beamOriginXFraction === null ? side * halfView * camera.aspect * sourceFraction
-      : (THREE.MathUtils.clamp(beamOriginXFraction, .04, .96) - .5) * halfView * camera.aspect * 2)
-      + renderedControls.originX * halfView * camera.aspect * 2;
-    source.set(linkedX,
-      THREE.MathUtils.clamp(linkedOrigin + drift, -halfView * .92, halfView * .92), 1.4);
+    const sourceLift = (renderedControls.rayLength - DISC_DEFAULTS.rayLength) * .025
+      + (renderedControls.rayElevation - DISC_DEFAULTS.rayElevation) * .025;
+    const origin = glassProjectorOrigin(width, side, renderedControls.originX,
+      renderedControls.originY - sourceLift, beamOriginXFraction, beamOriginYFraction ?? -.09);
+    source.set((origin.x - .5) * halfView * camera.aspect * 2, (.5 - origin.y) * halfView * 2, sourceZ);
     // A lamp behind the disc could not light its face: keep the source on the lit side.
     discNormal.set(0, 0, 1).transformDirection(projectorFrame);
     sourceLocal.value.copy(source).applyMatrix4(projectorTransform.value);
-    if (sourceLocal.value.z < .9) { source.addScaledVector(discNormal, .9 - sourceLocal.value.z); sourceLocal.value.z = .9; }
+    if (sourceLocal.value.z < .18) {
+      source.addScaledVector(discNormal, (.18 - sourceLocal.value.z) * tilt.scale.x);
+      sourceLocal.value.copy(source).applyMatrix4(projectorTransform.value);
+    }
     originGuide.visible = landingGuide.visible = aimGuides;
     if (aimGuides) {
       originGuide.position.copy(source); landingGuide.position.copy(anchor);
@@ -767,7 +778,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       if (performance.now() - start > 28 || frameMs > (lowPower ? 65 : 45)) slowFrames++; else slowFrames = Math.max(0, slowFrames - 1);
       if (slowFrames > 45 && quality > 0.65) { quality = Math.max(0.65, quality * 0.8); slowFrames = 0; resize(width, height); }
     }
-    if (!raf && !motion.matches && (controlsSettling || hoverSettling || (!paused && opened < 0 && ((controls.spinSpeed !== 0 && hovered < 0) || (controls.rayMotion > 0 && controls.rayIntensity > 0))))) raf = requestAnimationFrame(tick);
+    if (!raf && !motion.matches && (controlsSettling || hoverSettling || (!paused && (arrival < 1 || controls.spinSpeed !== 0 || (controls.rayMotion > 0 && controls.rayIntensity > 0))))) raf = requestAnimationFrame(tick);
   }
   function wake() { if (!destroyed && active && !document.hidden && !raf) { last = 0; raf = requestAnimationFrame(tick); } }
   function stop() { cancelAnimationFrame(raf); raf = 0; last = 0; elapsed = 0; }
@@ -776,10 +787,34 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const lost = (event: Event) => { event.preventDefault(); stop(); onError?.(); };
   document.addEventListener("visibilitychange", visibility); motion.addEventListener("change", changeMotion);
   canvas.addEventListener("webglcontextlost", lost);
+  const unbindDrag = bindCircleDrag(canvas, {
+    begin(x, y) {
+      if (destroyed || !active || firstPose || opened >= 0) return false;
+      const angle = pointerAngle(x, y, true);
+      if (angle === null) return false;
+      dragging = true; dragAngle = angle; spinBlend = 0; hovered = -1;
+      wake(); return true;
+    },
+    move(x, y) {
+      if (!dragging) return;
+      const angle = pointerAngle(x, y);
+      if (angle === null) return;
+      const delta = angle - dragAngle;
+      // Unwrap the -PI/PI seam so reversing direction never jumps a full revolution.
+      disc.rotation.z = (disc.rotation.z + Math.atan2(Math.sin(delta), Math.cos(delta))) % TAU;
+      dragAngle = angle; tilt.updateMatrixWorld(true); wake();
+    },
+    end() { dragging = false; spinBlend = 0; wake(); },
+  });
   setImages(initial);
   return {
     controls, resize,
     setImages,
+    setScrollProgress(value: number) {
+      const next = Number.isFinite(value) ? THREE.MathUtils.clamp(value, 0, 1) : 0;
+      if (Math.abs(next - scrollExit) < .001) return;
+      scrollExit = next; wake();
+    },
     setBeamOrigin(xFraction: number | null, yFraction: number) {
       beamOriginXFraction = typeof xFraction === "number" && Number.isFinite(xFraction) ? xFraction : null;
       beamOriginYFraction = Number.isFinite(yFraction) ? yFraction : null;
@@ -792,7 +827,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     },
     setActive(value: boolean) { active = value; if (value) wake(); else stop(); },
     setPaused(value: boolean) { paused = value; stop(); wake(); },
-    setHover(index: number) { if (opened >= 0) return; const next = index >= 0 && index < slots.length ? index : -1; if (hovered !== next) { hovered = next; wake(); } },
+    canDrag(x: number, y: number) { return !firstPose && opened < 0 && pointerAngle(x, y, true) !== null; },
+    setHover(index: number) { if (opened >= 0 || dragging) return; const next = index >= 0 && index < slots.length ? index : -1; if (hovered !== next) { hovered = next; wake(); } },
     setOpen(index: number) { opened = index >= 0 && index < slots.length ? index : -1; hovered = -1; wake(); },
     invalidate: wake,
     hit(x: number, y: number) {
@@ -812,7 +848,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     },
     dispose() {
       if (destroyed) return;
-      destroyed = true; stop(); clearSlots();
+      destroyed = true; unbindDrag(); stop(); clearSlots();
       document.removeEventListener("visibilitychange", visibility); motion.removeEventListener("change", changeMotion);
       canvas.removeEventListener("webglcontextlost", lost);
       renderPass.dispose(); bloom.dispose(); output.dispose(); antialias.dispose(); composer.dispose();

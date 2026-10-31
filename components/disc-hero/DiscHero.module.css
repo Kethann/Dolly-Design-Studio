@@ -12,7 +12,7 @@
 .section[data-projector-side="1"] .layout { grid-template-columns:minmax(0,1.4fr) minmax(0,.8fr); }
 .section[data-projector-side="1"] .copy { grid-column:2; }
 .section[data-projector-side="1"] .collection,.section[data-projector-side="1"] .sceneControls { margin-left:4%; margin-right:36%; }
-.stage { position:relative; width:100%; height:clamp(340px,40vw,500px); overflow:hidden; scroll-margin-top:calc(var(--nav-h) + 16px); scroll-margin-bottom:16px; }
+.stage { position:relative; width:100%; height:clamp(430px,43vw,560px); overflow:hidden; scroll-margin-top:calc(var(--nav-h) + 16px); scroll-margin-bottom:16px; }
 .canvas { display:block; width:100%; height:100%; touch-action:pan-y; opacity:1; transition:opacity .2s ease-out; }
 .stage:not([data-disc-state="ready"]) .canvas { visibility:hidden; opacity:0; }
 .stage[data-disc-state="fallback"] { height:96px; }
@@ -38,7 +38,8 @@
 @keyframes cardBackdrop { from { background:#08060d00; } to { background:#08060dc9; } }
 .previewButton { min-height:44px; padding:8px 12px; border:0; background:transparent; color:#d8cba9; font-size:11px; cursor:pointer; }
 @keyframes revealTitle { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-.sceneControls { display:flex; justify-content:center; margin:0 4% 8px 36%; }
+.sceneControls { position:relative; z-index:2; display:flex; justify-content:flex-end; margin:-52px 4% 8px 36%; pointer-events:none; }
+.sceneControls button { pointer-events:auto; }
 .pause { min-height:44px; padding:8px 18px; border:1px solid #ffffff30; background:#0e1017c9; border-radius:100px; color:#d3d9e1; font-size:11px; cursor:pointer; }
 .status { position:absolute; inset:0; display:grid; place-items:center; margin:0; text-align:center; font-size:12px; color:#aeb9c8; }
 .collection { border-top:1px solid #ffffff24; margin:4px 4% 0 36%; }
@@ -49,6 +50,14 @@
 .collection li > a,.collection li > span { display:block; border:1px solid #ffffff20; border-radius:8px; padding:12px; overflow-wrap:anywhere; font-size:13px; }
 .collection li > a:hover { background:#ffffff10; }
 .section a:focus-visible,.section button:focus-visible,.section summary:focus-visible { outline:2px solid #ffe6aa; outline-offset:4px; }
-@media(max-width:900px) { .layout,.section[data-projector-side="1"] .layout { grid-template-columns:minmax(0,1fr); gap:8px; } .copy,.section[data-projector-side="1"] .copy { grid-column:auto; grid-row:auto; max-width:640px; padding-block:0; margin-inline:auto; width:100%; } .visual { grid-column:auto; grid-row:auto; width:100%; min-width:0; overflow:clip; } .collection,.sceneControls,.section[data-projector-side="1"] .collection,.section[data-projector-side="1"] .sceneControls { margin-left:0; margin-right:0; } .body { max-width:54ch; } .stage { height:clamp(280px,72vw,440px); width:100%; } .stage[data-disc-state="fallback"] { height:80px; } }
+/* Carry the reference's inset copy and broad background arc onto large screens. */
+@media(min-width:1025px) {
+  .layout { max-width:1600px; padding-inline:clamp(24px,4.4vw,84px); }
+  .stage { height:clamp(540px,52vw,760px); }
+  .copy { max-width:400px; }
+}
+@media(max-width:900px) { .layout,.section[data-projector-side="1"] .layout { grid-template-columns:minmax(0,1fr); gap:8px; } .copy,.section[data-projector-side="1"] .copy { grid-column:1; grid-row:1; max-width:380px; padding-block:24px; margin:0; width:48%; } .visual { grid-column:1; grid-row:1; width:100%; min-width:0; overflow:clip; } .collection,.sceneControls,.section[data-projector-side="1"] .collection,.section[data-projector-side="1"] .sceneControls { margin-left:0; margin-right:0; } .stage { height:540px; width:100%; } .stage[data-disc-state="fallback"] { height:440px; } }
+@media(max-width:640px) { .copy,.section[data-projector-side="1"] .copy { width:100%; max-width:34ch; padding-top:8px; pointer-events:none; } .copy a { pointer-events:auto; } .headline { font-size:clamp(28px,8vw,38px); margin-bottom:18px; } .body { font-size:13px; line-height:1.6; max-width:36ch; margin-bottom:20px; } .stage { height:clamp(680px,105svh,820px); } .stage[data-disc-state="fallback"] { height:420px; } .sceneControls { margin-top:-48px; } }
 @media(max-width:600px) { .detailDialog { height:min(760px,calc(100svh - 24px)); border-radius:16px; } .detailCard { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(210px,38%) minmax(0,1fr); } .detailArtwork { grid-column:1; grid-row:1; padding:48px 24px 24px; } .detailInfo { grid-column:1; grid-row:2; padding:24px; } .detailInfo h3 { padding-right:32px; } }
+@media(min-width:641px) and (max-width:900px) { .section[data-projector-side="1"] .copy { margin-left:auto; } }
 @media(prefers-reduced-motion:reduce) { .cta { transition:none; } .pause { display:none; } .detailDialog,.detailDialog[data-closing],.detailDialog::backdrop,.detailDialog[data-closing]::backdrop { animation:none; } }
