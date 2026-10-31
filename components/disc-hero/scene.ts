@@ -6,7 +6,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
 import { bindCircleDrag } from "./drag";
-import { DISC_DEFAULTS, sanitizeDisc, glassCircleComposition, glassArrivalSpinMultiplier, glassProjectorOrigin, discAimProfileForWidth, discPanelLayout, discProjectionWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, type DiscControls } from "../../lib/content/disc";
+import { DISC_DEFAULTS, sanitizeDisc, glassCircleComposition, glassArrivalSpinMultiplier, glassArrivalOpacity, glassEase, glassProjectorOrigin, discAimProfileForWidth, discPanelLayout, discProjectionWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, type DiscControls } from "../../lib/content/disc";
 
 export type DiscImage = { src: string; label: string; titleColor?: string; glowColor?: string; glowIntensity?: number };
 export type DiscScene = ReturnType<typeof createDiscScene>;
@@ -502,8 +502,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), controls.bloom, 0.75, 0.72);
   // Feather the complete scene in the existing antialias pass: no extra render target.
   const output = new OutputPass(), antialias = new ShaderPass({ ...FXAAShader,
-    uniforms: { ...FXAAShader.uniforms, arrival: { value: 0 }, scrollExit: { value: 0 }, portrait: { value: 0 }, mirror: { value: 0 } },
-    fragmentShader: `uniform float arrival, scrollExit, portrait, mirror;\n${FXAAShader.fragmentShader}`.replace(
+    uniforms: { ...FXAAShader.uniforms, arrival: { value: 0 }, entranceOpacity: { value: 0 }, scrollExit: { value: 0 }, portrait: { value: 0 }, mirror: { value: 0 } },
+    fragmentShader: `uniform float arrival, entranceOpacity, scrollExit, portrait, mirror;\n${FXAAShader.fragmentShader}`.replace(
       "gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );",
       `gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );
        // Wide transparent shoulders soften the glass, tint and bloom together.
@@ -513,9 +513,10 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
        float copyFade=mix(.025,1.,smoothstep(.26,.58,mix(vUv.x,1.-vUv.x,mirror)));
        float mobileFade=mix(.03,1.,1.-smoothstep(.4,.74,vUv.y));
        float readable=mix(1.,mix(copyFade,mobileFade,portrait),arrival);
-       float outgoing=1.-smoothstep(.08,1.,scrollExit*(1.3-.3*vUv.x));
+       float exitT=clamp((scrollExit*(1.15-.15*vUv.x)-.03)/.97,0.,1.);
+       float outgoing=1.-exitT*exitT*exitT*(exitT*(exitT*6.-15.)+10.);
        // The transparent canvas is premultiplied: fade colour and alpha together.
-       gl_FragColor*=frame*readable*outgoing;`),
+       gl_FragColor*=frame*readable*outgoing*entranceOpacity;`),
   });
   composer.addPass(renderPass); composer.addPass(bloom); composer.addPass(output); composer.addPass(antialias);
   const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
@@ -606,7 +607,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     glassOpacity.value = renderedControls.glassOpacity;
     if (motion.matches) arrival = 1;
     else if (!paused && !dragging) arrival = Math.min(1, arrival + dt / controls.entranceDuration);
-    smoothedExit = settleControl(smoothedExit, scrollExit, dt, 10);
+    smoothedExit = settleControl(smoothedExit, scrollExit, dt, 7.5);
     const composition = glassCircleComposition(width, height, arrival);
     const viewHeight = camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * 2;
     // Full circle approaches once, then its centre passes above the frame to form the reference arc.
@@ -615,6 +616,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     tilt.scale.setScalar(composition.radius * viewHeight / R * renderedControls.circleScale);
     volumeScale.value = Math.min(3, tilt.scale.x);
     antialias.uniforms.arrival.value = composition.reveal;
+    antialias.uniforms.entranceOpacity.value = motion.matches ? 1 : glassArrivalOpacity(arrival);
     antialias.uniforms.scrollExit.value = smoothedExit;
     antialias.uniforms.portrait.value = width <= 640 ? 1 : 0;
     antialias.uniforms.mirror.value = side > 0 ? 1 : 0;
@@ -623,10 +625,10 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       time += dt;
       // The background circle never stops for hover or the separate movie-detail dialog.
       if (!dragging) {
-        spinBlend = Math.min(1, spinBlend + dt / .5);
+        spinBlend = Math.min(1, spinBlend + dt / .65);
         // Position/scale settle independently; rotation flows through the landing unchanged.
         const arrivalSpin = glassArrivalSpinMultiplier(arrival);
-        disc.rotation.z = (disc.rotation.z + renderedControls.spinSpeed * arrivalSpin * spinBlend * dt) % TAU;
+        disc.rotation.z = (disc.rotation.z + renderedControls.spinSpeed * arrivalSpin * glassEase(spinBlend) * dt) % TAU;
       }
     }
     tilt.updateMatrixWorld(true);
@@ -826,7 +828,12 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       wake();
     },
     setActive(value: boolean) { active = value; if (value) wake(); else stop(); },
-    setPaused(value: boolean) { paused = value; stop(); wake(); },
+    setPaused(value: boolean) {
+      if (paused === value) return;
+      paused = value;
+      if (!value) spinBlend = 0;
+      stop(); wake();
+    },
     canDrag(x: number, y: number) { return !firstPose && opened < 0 && pointerAngle(x, y, true) !== null; },
     setHover(index: number) { if (opened >= 0 || dragging) return; const next = index >= 0 && index < slots.length ? index : -1; if (hovered !== next) { hovered = next; wake(); } },
     setOpen(index: number) { opened = index >= 0 && index < slots.length ? index : -1; hovered = -1; wake(); },

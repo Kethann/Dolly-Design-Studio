@@ -54,10 +54,21 @@ export function sanitizeDisc(input: unknown): DiscControls {
   return out;
 }
 
-/** The entrance turns visibly, then joins the saved speed with no stop or velocity jump. */
+/** Zero slope and acceleration at each end, shared by fades and rotation hand-offs. */
+export function glassEase(progress: number) {
+  const t = Math.min(1, Math.max(0, progress));
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+/** Reveal the complete circle softly during the establishing beat, before most of the zoom. */
+export function glassArrivalOpacity(progress: number) {
+  return glassEase(progress / .22);
+}
+
+/** Gently gather speed, then settle to the saved rotation without stopping or reversing. */
 export function glassArrivalSpinMultiplier(progress: number) {
   const t = Math.min(1, Math.max(0, progress));
-  return 1 + 3 * (1 - t * t * (3 - 2 * t));
+  return t < .24 ? .6 + 1.8 * glassEase(t / .24) : 1 + 1.4 * (1 - glassEase((t - .24) / .76));
 }
 
 /** Screen-fraction composition: full circle on arrival, oversized arc behind the copy at rest.
@@ -67,10 +78,10 @@ export function glassCircleComposition(width: number, height: number, progress: 
   const t = Math.min(1, Math.max(0, (progress - .12) / .88));
   const eased = t * t * t * (t * (t * 6 - 15) + 10);
   const mobile = width <= 640;
-  // Keep the same arc placement on tablet and desktop, rather than pushing it
-  // to the far right when crossing the desktop breakpoint. Phone stays unchanged.
-  const endX = mobile ? -.35 : .12;
-  const endY = mobile ? .02 : -.3;
+  // Settle the wide-screen arc farther right and lower, along the marked edge.
+  // Only its final position changes; the full-circle arrival and phone pose stay intact.
+  const endX = mobile ? -.35 : .17;
+  const endY = .02;
   const endRadius = mobile ? .85 : 1.35;
   const startX = mobile ? .5 : .65;
   const startRadius = Math.min(.29, .38 * Math.max(1, width) / Math.max(1, height));

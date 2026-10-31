@@ -296,15 +296,21 @@
       "sample": ""
     },
     {
-      "name": "Musical Tours/Brand Promotions",
-      "description": "Visual identities and promotional artwork for musical tours, live events and brand campaigns.",
+      "name": "Musical Tours",
+      "description": "Visual identities and promotional artwork for musical tours and live events.",
       "deliverables": [
         "Tour posters",
-        "Event artwork",
-        "Brand campaigns"
+        "Event artwork"
       ],
       "sample": "",
       "number": "07"
+    },
+    {
+      "number": "08",
+      "name": "Brand Promotions",
+      "description": "Campaign identities and promotional artwork that bring brands to life across print and digital media.",
+      "deliverables": ["Brand campaigns", "Promotional artwork", "Social media creatives"],
+      "sample": ""
     }
   ],
   "clients": [

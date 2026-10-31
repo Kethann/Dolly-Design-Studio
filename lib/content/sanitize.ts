@@ -157,6 +157,21 @@ export function sanitizeContent(input: unknown): SiteContent {
     ];
   });
 
+  // Upgrade the original combined service in saved portal/Docker documents too.
+  // Once split, later edits/deletions are respected; no repeated insertion on reads.
+  const combinedService = merged.services.findIndex(s => s.name.trim().toLowerCase() === "musical tours/brand promotions");
+  if (combinedService >= 0 && merged.services.length < 10 && !merged.services.some(s => s.name.trim().toLowerCase() === "brand promotions")) {
+    const tours = merged.services[combinedService];
+    tours.name = "Musical Tours";
+    if (tours.description === "Visual identities and promotional artwork for musical tours, live events and brand campaigns.") {
+      tours.description = "Visual identities and promotional artwork for musical tours and live events.";
+    }
+    tours.deliverables = tours.deliverables.filter(d => d.trim().toLowerCase() !== "brand campaigns");
+    const promotions = def.services.find(s => s.name === "Brand Promotions")!;
+    merged.services.splice(combinedService + 1, 0, { ...promotions, deliverables: [...promotions.deliverables], details: "", gallery: [] });
+    merged.services.forEach((s, i) => { s.number = String(i + 1).padStart(2, "0"); });
+  }
+
   // Plain lists of words: no blanks.
   merged.clients = (merged.clients as unknown[]).flatMap((raw) => {
     if (typeof raw === "string") return raw.trim() ? [{ name: raw.trim(), logo: "" }] : [];

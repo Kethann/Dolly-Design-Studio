@@ -59,10 +59,10 @@ try {
   await send('Runtime.discardConsoleEntries');
   errors.length=0;
   const instrumentation = await send("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
-    window.__glass={draws:0,arrival:0,exit:0,frames:0,artwork:false};
+    window.__glass={draws:0,arrival:0,exit:0,frames:0,artwork:false,opacity:0,entranceSamples:[]};
     const gl=WebGL2RenderingContext.prototype, names=new WeakMap(), programs=new WeakMap(), titlePrograms=new WeakSet(), glassPrograms=new WeakSet(), locate=gl.getUniformLocation, scalar=gl.uniform1f, matrix=gl.uniformMatrix4fv;
     gl.getUniformLocation=function(...a){const u=locate.apply(this,a);if(u){names.set(u,a[1]);programs.set(u,a[0]);if(a[1]==='imageAspect')titlePrograms.add(a[0]);if(a[1]==='glassOpacity')glassPrograms.add(a[0]);}return u;};
-    gl.uniform1f=function(u,v){if(names.get(u)==='arrival'){window.__glass.arrival=v;window.__glass.frames++;}if(names.get(u)==='scrollExit')window.__glass.exit=v;if(names.get(u)==='imageAspect'&&v===3)window.__glass.artwork=true;return scalar.call(this,u,v);};
+    gl.uniform1f=function(u,v){if(names.get(u)==='arrival'){window.__glass.arrival=v;window.__glass.frames++;}if(names.get(u)==='entranceOpacity'){window.__glass.opacity=v;if(window.__glass.entranceSamples.length<120)window.__glass.entranceSamples.push(v);}if(names.get(u)==='scrollExit')window.__glass.exit=v;if(names.get(u)==='imageAspect'&&v===3)window.__glass.artwork=true;return scalar.call(this,u,v);};
     gl.uniformMatrix4fv=function(u,t,v,...rest){if(names.get(u)==='modelMatrix'&&this.canvas.closest('#collaborations')){if(titlePrograms.has(programs.get(u)))window.__glass.titleMatrix=Array.from(v);if(glassPrograms.has(programs.get(u)))window.__glass.glassMatrix=Array.from(v);}return matrix.call(this,u,t,v,...rest);};
     for(const method of ['drawElements','drawArrays']){const draw=gl[method];gl[method]=function(...a){window.__glass.draws++;return draw.apply(this,a);};}
   })();` });
@@ -76,10 +76,17 @@ try {
     await until('!!window.__glass.glassMatrix');
     const basis = matrix => { const length=Math.hypot(...matrix.slice(0,3)); return matrix.slice(0,3).map(v=>v/length); };
     const arriving = await evaluate('window.__glass.glassMatrix');
-    await pause(400);
+    // Wait for an actual rendered rotation update: first-use shader compilation on
+    // software/low-power GPUs can outlast a fixed 400 ms wall-clock delay.
+    await until(`(()=>{const m=window.__glass.glassMatrix,n=Math.hypot(...m.slice(0,3));return JSON.stringify(m.slice(0,3).map(v=>v/n))!==${JSON.stringify(JSON.stringify(basis(arriving)))}})()`);
     assert.notDeepEqual(basis(await evaluate('window.__glass.glassMatrix')),basis(arriving),'Glass rotates during its approach');
     await screenshot(name + "-arrival");
     await until('window.__glass.arrival > .999');
+    const entranceSamples = await evaluate('window.__glass.entranceSamples');
+    assert.ok(entranceSamples[0] < .1, 'First rendered glass frame fades in instead of flashing');
+    assert.ok(entranceSamples.some(v => v > 0 && v < 1), 'Entrance includes intermediate opacity');
+    assert.equal(await evaluate('window.__glass.opacity'), 1);
+    assert.ok(entranceSamples.every((v,i) => v >= 0 && v <= 1 && (!i || v >= entranceSamples[i-1])), 'Entrance opacity never pulses or overshoots');
     await screenshot(name + "-settled");
     const settled = await evaluate('window.__glass.glassMatrix');
     await pause(500);
@@ -102,6 +109,9 @@ try {
     await evaluate('window.scrollBy({top:300,behavior:"instant"})'); await pause(1300);
     assert.ok(await evaluate('window.__glass.exit > .1'), "Scroll must feather the glass even when paused");
     await screenshot(name + "-scroll-fade");
+    await evaluate('document.querySelector("#collaborations").scrollIntoView({behavior:"instant"})');
+    await until('window.__glass.exit === 0');
+    assert.equal(await evaluate('window.__glass.arrival'), 1, 'Returning restores visibility without replaying the zoom');
     console.log(name + ": ready, entrance completed, responsive bounds and scroll fade passed");
   }
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
@@ -109,6 +119,7 @@ try {
   await until('!!document.querySelector("#collaborations") && !document.querySelector(".intro-curtain")');
   await evaluate('document.querySelector("#collaborations").scrollIntoView({behavior:"instant"})');
   await until('window.__glass.arrival === 1');
+  assert.equal(await evaluate('window.__glass.opacity'), 1, 'Reduced-motion view is immediately visible');
   // In-memory preview fixture: no saved content, uploads or credentials are modified.
   const settings=JSON.parse(await readFile(new URL('../content/intro-settings.json',import.meta.url),'utf8'));
   const titles=['AFTERLIGHT','MONSOON','SOLSTICE','NOCTURNE','THE RETURN','FIRST LIGHT','ECHO','HORIZON'];

@@ -11,6 +11,38 @@ const nativeRequire = createRequire(import.meta.url);
 const json = (file) => JSON.parse(readFileSync(path.join(root, file), "utf8"));
 const clone = (value) => structuredClone(value);
 
+test("Brand Promotions is service 08 and legacy combined cards split without losing saved artwork", () => {
+  const { sanitizeContent } = loader()("lib/content/sanitize.ts");
+  const saved = json("content/site-content.json");
+  const current = sanitizeContent(saved);
+  assert.equal(current.services[6].name, "Musical Tours");
+  assert.equal(current.services[7].name, "Brand Promotions");
+  assert.equal(current.services[7].number, "08");
+  const legacy = clone(saved);
+  legacy.services = legacy.services.slice(0, 7);
+  Object.assign(legacy.services[6], {
+    name: "Musical Tours/Brand Promotions",
+    description: "Visual identities and promotional artwork for musical tours, live events and brand campaigns.",
+    deliverables: ["Tour posters", "Event artwork", "Brand campaigns"],
+    sample: "/images/uploads/tour.png", details: "Custom tour details", sampleZoom: 1.2,
+  });
+  const split = sanitizeContent(legacy);
+  assert.equal(split.services.length, 8);
+  assert.deepEqual(split.services.slice(0, 6), current.services.slice(0, 6));
+  assert.equal(split.services[6].sample, "/images/uploads/tour.png");
+  assert.equal(split.services[6].details, "Custom tour details");
+  assert.equal(split.services[6].sampleZoom, 1.2);
+  assert.deepEqual(split.services[6].deliverables, ["Tour posters", "Event artwork"]);
+  assert.deepEqual(split.services[7], current.services[7]);
+  assert.deepEqual(sanitizeContent(split), split, "Repeated reads never duplicate card 08");
+  split.services.pop();
+  assert.equal(sanitizeContent(split).services.length, 7, "A later intentional deletion stays deleted");
+  legacy.services[6].description = "My edited description";
+  assert.equal(sanitizeContent(legacy).services[6].description, "My edited description");
+  legacy.services.push(...clone(current.services.slice(0, 3)));
+  assert.equal(sanitizeContent(legacy).services.length, 10, "Never displace custom cards at capacity");
+});
+
 test("projector density follows image brightness bands without extinguishing the lamp", () => {
   const { discImageBands } = loader()("lib/content/disc.ts");
   const bands = discImageBands([0,0,0,255, 64,64,64,255, 128,128,128,255, 255,255,255,255], 4);
@@ -284,6 +316,10 @@ test("glass scene feathers every edge into transparency without an extra renderi
 test("desktop glass arc shares the tablet reference pose without changing phone placement", () => {
   const { glassCircleComposition } = loader()("lib/content/disc.ts");
   const tablet = glassCircleComposition(930, 540, 1);
+  assert.ok(Math.abs(tablet.x - .17) < 1e-9, "Arc settles toward the marked right edge");
+  assert.ok(Math.abs(tablet.y - .02) < 1e-9, "Lower placement carries the arc down to the marked bottom edge");
+  assert.ok(Math.abs(tablet.radius - 1.35) < 1e-9, "Moving does not resize the glass");
+  assert.ok(Math.abs(glassCircleComposition(930, 540, 0).x - .65) < 1e-9, "Arrival remains unchanged");
   for (const width of [1024, 1025, 1440, 1920]) {
     assert.deepEqual(glassCircleComposition(width, 748, 1), tablet);
   }
@@ -295,19 +331,44 @@ test("desktop glass arc shares the tablet reference pose without changing phone 
 
 test("glass entrance rotation eases into uninterrupted saved-speed rotation", () => {
   const { glassArrivalSpinMultiplier } = loader()("lib/content/disc.ts");
-  assert.equal(glassArrivalSpinMultiplier(0), 4);
+  assert.equal(glassArrivalSpinMultiplier(0), .6);
+  assert.equal(glassArrivalSpinMultiplier(.24), 2.4);
   assert.equal(glassArrivalSpinMultiplier(1), 1);
   assert.equal(glassArrivalSpinMultiplier(2), 1);
-  let previous = 4;
+  let previous = .6;
   for (let i = 0; i <= 100; i++) {
     const speed = glassArrivalSpinMultiplier(i / 100);
-    assert.ok(speed >= 1 && speed <= previous, "Never stops or reverses while settling");
+    assert.ok(speed >= .6 && speed <= 2.4, "Never stops, reverses or overspeeds");
+    assert.ok(i <= 24 ? speed >= previous : speed <= previous, "Gentle acceleration followed by a smooth landing");
     previous = speed;
   }
   assert.ok(glassArrivalSpinMultiplier(.999) - 1 < .00001, "No speed jump at landing");
   const scene = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
-  assert.match(scene, /renderedControls.spinSpeed \* arrivalSpin \* spinBlend \* dt/);
+  assert.match(scene, /renderedControls.spinSpeed \* arrivalSpin \* glassEase\(spinBlend\) \* dt/);
   assert.match(scene, /if \(!motion.matches && !paused\)/);
+});
+
+test("glass entrance and resume fades are bounded and ease at both ends without extra buffers", () => {
+  const { glassArrivalOpacity, glassEase } = loader()("lib/content/disc.ts");
+  assert.equal(glassArrivalOpacity(0), 0);
+  assert.equal(glassArrivalOpacity(-1), 0);
+  assert.equal(glassArrivalOpacity(.22), 1);
+  assert.equal(glassArrivalOpacity(2), 1);
+  assert.ok(glassArrivalOpacity(.001) < .00001, "No initial opacity flash");
+  let last = 0;
+  for (let i = 0; i <= 100; i++) {
+    const alpha = glassArrivalOpacity(i / 100);
+    assert.ok(alpha >= last && alpha <= 1);
+    last = alpha;
+  }
+  assert.equal(glassEase(0), 0);
+  assert.equal(glassEase(1), 1);
+  assert.ok(glassEase(.001) < .00001 && 1 - glassEase(.999) < .00001);
+  const scene = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  assert.match(scene, /gl_FragColor\*=frame\*readable\*outgoing\*entranceOpacity/);
+  assert.match(scene, /motion.matches \? 1 : glassArrivalOpacity\(arrival\)/);
+  assert.match(scene, /if \(!value\) spinBlend = 0/);
+  assert.equal((scene.match(/composer.addPass\(/g) ?? []).length, 4, "Fades reuse the existing final pass");
 });
 
 test("glass projector enters diagonally from above, mirrors correctly and never exposes its source", () => {
