@@ -207,9 +207,22 @@ test("disc settings migrate old slates, clamp invalid controls, and retain artwo
   const custom = { ...DISC_DEFAULTS, lightIntensity: 0, saturation: 0, vibrance: 0.7, slotOpacity: 0.5, slotSize: 0.8, slotBlur: 0, glowRadius: 0.9, glowThreshold: 1.2, unfocusedBrightness: 0.4 };
   migrated.proofTable.disc = custom;
   migrated.proofTable.items[0].tint = "#55aaff";
+  migrated.proofTable.items[0].titleColor = "#123456";
+  migrated.proofTable.items[0].titleGlowColor = "#abcdef";
+  migrated.proofTable.items[0].titleGlowIntensity = 1.35;
   const roundTrip = sanitizeIntroSettings(JSON.parse(JSON.stringify(migrated)));
   assert.deepEqual(roundTrip.proofTable.disc, custom);
   assert.equal(roundTrip.proofTable.items[0].tint, "#55aaff");
+  assert.equal(roundTrip.proofTable.items[0].titleColor, "#123456");
+  assert.equal(roundTrip.proofTable.items[0].titleGlowColor, "#abcdef");
+  assert.equal(roundTrip.proofTable.items[0].titleGlowIntensity, 1.35);
+  migrated.proofTable.items[0].titleColor = "red";
+  migrated.proofTable.items[0].titleGlowColor = "#xyzxyz";
+  migrated.proofTable.items[0].titleGlowIntensity = 99;
+  const boundedTitle = sanitizeIntroSettings(JSON.parse(JSON.stringify(migrated))).proofTable.items[0];
+  assert.equal(boundedTitle.titleColor, undefined);
+  assert.equal(boundedTitle.titleGlowColor, undefined);
+  assert.equal(boundedTitle.titleGlowIntensity, 2);
   assert.equal(sanitizeDisc({ saturation: 999, slotSize: -4 }).saturation, 2);
   assert.equal(sanitizeDisc({ saturation: 999, slotSize: -4 }).slotSize, 0.7);
   assert.equal(sanitizeDisc({ spinSpeed: -0.2 }).saturation, 1, "Earlier disc documents receive new colour defaults");
@@ -222,16 +235,35 @@ test("disc settings migrate old slates, clamp invalid controls, and retain artwo
   }
 });
 
-test("disc plaques stay separated inside the silver ring", () => {
+test("disc title regions stay separated inside the silver ring", () => {
   const { discPanelLayout } = loader()("lib/content/disc.ts");
   for (const count of [1, 2, 5, 6, 8, 12, 16]) for (const gap of [0.5, 12]) for (const size of [0.7, 1]) {
     const panel = discPanelLayout(count, gap, size);
     assert.ok(panel.inner > 0.22);
-    assert.equal(panel.innerHalfWidth, panel.outerHalfWidth, "Every title uses a true rectangular card");
-    assert.ok(Math.hypot(panel.outer, panel.outerHalfWidth) < 1, "Plaque corners stay inside the rim");
-    assert.ok(Math.atan2(panel.innerHalfWidth, panel.inner) < panel.step / 2, "Adjacent plaques cannot overlap");
+    assert.equal(panel.innerHalfWidth, panel.outerHalfWidth, "Transparent PNGs are never warped into wedges");
+    assert.ok(Math.hypot(panel.outer, panel.outerHalfWidth) < 1, "Title pixels stay inside the rim");
+    assert.ok(Math.atan2(panel.innerHalfWidth, panel.inner) < panel.step / 2, "Adjacent titles cannot overlap");
     assert.ok(Math.abs(panel.step * count - Math.PI * 2) < 1e-10, "Adding titles redistributes them equally");
   }
+});
+
+test("disc mounts transparent title artwork without card or frame layers", () => {
+  const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  assert.doesNotMatch(source, /const glass = own\(/);
+  assert.doesNotMatch(source, /EdgesGeometry\(panelGeometry/);
+  assert.match(source, /gl_FragColor=vec4\(c,tex\.a\*imageOpacity\)/);
+  assert.match(source, /Float32BufferAttribute\(\[0, 0, 1, 0, 1, 1, 0, 1\], 2\)/);
+  assert.match(source, /titleGlowIntensity/);
+  assert.match(source, /mix\(contactColour,vec3\(1\.\),\.08\)/);
+  assert.match(source, /hullWidth = 1\.5/);
+  assert.match(source, /makeAimGuide\(0x5be7ff\).*makeAimGuide\(0xffd45b\)/s);
+  assert.match(source, /setAimGuides\(value: boolean\)/);
+  const page = readFileSync(path.join(root, "components/proof-table/ProofTable.tsx"), "utf8");
+  assert.match(page, /setBeamOrigin\(sourceX,/);
+  assert.match(page, /titleBounds\.bottom \+ Math\.min\(14, Math\.max\(4, titleGap \* \.22\)\)/);
+  assert.match(page, /const stacked = stageBounds\.top >= bodyBounds\.bottom/);
+  assert.match(page, /setAimGuides\(portalPreview\)/);
+  assert.match(source, /smoothstep\(\.015,\.42,along\)/);
 });
 
 test("projector illuminates only overlapping image pixels and blends partial entries in either direction", () => {
@@ -295,7 +327,7 @@ test("disc displays eight entries without deleting titles or changing their link
 
 test("projector footprint tracks slot dimensions and stays inside the selected plaque", () => {
   const { DISC_DEFAULTS, discPanelLayout, discProjectionWindow } = loader()("lib/content/disc.ts");
-  assert.equal(DISC_DEFAULTS.focusAngle, -25);
+  assert.equal(DISC_DEFAULTS.focusAngle, -18);
   for (const count of [1, 5, 12, 16]) for (const size of [.7, 1]) for (const radius of [.48, .67, .82]) for (const spread of [.3, 1.1, 2]) {
     const layout = discPanelLayout(count, 3, size), window = discProjectionWindow(layout, radius, spread);
     assert.ok(window.inner >= layout.inner && window.outer <= layout.outer);

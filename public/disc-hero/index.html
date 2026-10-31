@@ -21,7 +21,7 @@ export function visibleDiscItems(items) {
     return items.slice(0, DISC_SLOT_LIMIT);
 }
 export const DISC_DEFAULTS = {
-    spinSpeed: 0.12, focusAngle: -25, focusRadius: 0.67, rayIntensity: 0.8,
+    spinSpeed: 0.12, focusAngle: -18, focusRadius: 0.67, rayIntensity: 0.8,
     rayLength: 5, bloom: 0.35, desaturation: 0.5, discTilt: -65, slotGap: 3,
     lightIntensity: 1, glowRadius: 0.75, glowThreshold: 0.72,
     saturation: 1, vibrance: 0, slotSize: 1, slotOpacity: 1,
@@ -29,6 +29,7 @@ export const DISC_DEFAULTS = {
     discRoll: -65, rayStyle: 1, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.65,
     rayMotion: 0.45, projectorSide: -1,
     beamGlow: 1, rayStrength: 1, surfaceReflection: 1,
+    originOffsetX: 0, originOffsetY: 0,
 };
 export const DISC_RANGES = {
     spinSpeed: [-0.5, 0.5, 0.01], focusAngle: [-180, 180, 1], focusRadius: [0.48, 0.82, 0.01],
@@ -42,6 +43,7 @@ export const DISC_RANGES = {
     rayMotion: [0, 1, 0.05],
     projectorSide: [-1, 1, 2],
     beamGlow: [0, 3, 0.05], rayStrength: [0, 3, 0.05], surfaceReflection: [0, 3, 0.05],
+    originOffsetX: [-0.25, 0.25, 0.01], originOffsetY: [-0.25, 0.25, 0.01],
 };
 export function sanitizeDisc(input) {
     const src = input && typeof input === "object" ? input : {};
@@ -58,17 +60,17 @@ export function sectorSize(count, gapDegrees) {
     const step = Math.PI * 2 / Math.max(1, count);
     return { step, width: step - Math.min(gapDegrees * Math.PI / 180, step * 0.3) };
 }
-/** Separate plaques leave silver between images, even with only one or two titles. */
+/** Transparent title regions distributed evenly on the silver disc. */
 export function discPanelLayout(count, gapDegrees, size) {
     const { step, width } = sectorSize(count, gapDegrees);
     const center = 0.67, halfHeight = 0.24 * size;
     const inner = center - halfHeight, outer = center + halfHeight;
-    // Fill most of each title's angular allocation, retaining a narrow silver separator.
+    // The invisible placement region stays rectangular so a PNG is never warped into a wedge.
     const halfAngle = Math.min(0.6, width * 0.48) * size;
-    const innerHalfWidth = Math.min(0.28 * size, inner * Math.tan(halfAngle));
-    const outerHalfWidth = Math.min(0.36 * size, outer * Math.tan(halfAngle));
+    const halfWidth = Math.min((outer - inner) * 0.39, 0.28 * size, inner * Math.tan(halfAngle));
+    const innerHalfWidth = halfWidth, outerHalfWidth = halfWidth;
     return { step, inner, outer, innerHalfWidth, outerHalfWidth,
-        aspect: (innerHalfWidth + outerHalfWidth) / (outer - inner) };
+        aspect: (outer - inner) / (halfWidth * 2) };
 }
 /** A fixed, slot-sized projector window. Spread may soften/widen it, never spill beyond the plaque. */
 export function discProjectionWindow(layout, radius, spread) {
@@ -177,7 +179,7 @@ const rayShader = (count) => `
     for(int i=0;i<DISC_RAYS;i++){ vec2 d=(p-rays[i].xy)/rays[i].z; sum+=rays[i].w*exp(-dot(d,d)); }
     return sum;
   }
-  float beamBody(vec2 p){ float r=length(max(abs(p)-.42,0.))+.42; return 1.-smoothstep(.5,1.36,r); }`;
+  float beamBody(vec2 p){ float r=length(max(abs(p)-.4,0.))+.4; return 1.-smoothstep(.48,1.48,r); }`;
 // Surface-space reflection, not a floating sprite or a glowing slot outline.
 const contactShader = `float contactReflection(vec2 p,float shafts){
     float radius=max(abs(p.x),abs(p.y));
@@ -187,7 +189,7 @@ const contactShader = `float contactReflection(vec2 p,float shafts){
     float edge=1.-smoothstep(spread*.72,spread,radius);
     float pool=exp(-dot(p*vec2(1.2,1.35),p*vec2(1.2,1.35)));
     float soft=exp(-dot(p*vec2(2.6,2.3),p*vec2(2.6,2.3)));
-    return (pool*.17+soft*.2+shafts*pool*.8)*edge*contactStrength;
+    return (pool*.13+soft*.17+shafts*pool*.54)*edge*contactStrength;
   }
   // Silver diffracts a highlight along the radius facing the lamp, the streak a real disc shows.
   vec3 discStreak(vec2 point){
@@ -209,7 +211,8 @@ function plaque(layout, inset = 0) {
         (outer - inset) * R, (outerHalfWidth - inset) * R, 0,
         (inner + inset) * R, (innerHalfWidth - inset) * R, 0,
     ], 3));
-    g.setAttribute("uv", new THREE.Float32BufferAttribute([0, 0, 0, 1, 1, 1, 1, 0], 2));
+    // Source artwork reads in its original orientation: radial is image X, tangent is image Y.
+    g.setAttribute("uv", new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
     // Pivot at the plaque's centre, so it opens toward the viewer instead of orbiting the disc.
     g.translate(-(inner + outer) * R / 2, 0, 0);
     g.setIndex([0, 1, 2, 0, 2, 3]);
@@ -237,8 +240,23 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
     tilt.add(disc);
     const owned = new Set();
     const own = (v) => { owned.add(v); return v; };
-    let destroyed = false, active = false, paused = false, raf = 0, last = 0, elapsed = 0, firstPose = true;
+    const makeAimGuide = (colour) => {
+        const guide = new THREE.Group();
+        const material = own(new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: .95,
+            depthTest: false, depthWrite: false, toneMapped: false }));
+        const ring = new THREE.Mesh(own(new THREE.RingGeometry(.055, .078, 32)), material);
+        const dot = new THREE.Mesh(own(new THREE.CircleGeometry(.018, 16)), material);
+        ring.renderOrder = dot.renderOrder = 100;
+        guide.add(ring, dot);
+        guide.visible = false;
+        scene.add(guide);
+        return guide;
+    };
+    // Portal-only calibration markers. They are never enabled on the public page.
+    const originGuide = makeAimGuide(0x5be7ff), landingGuide = makeAimGuide(0xffd45b);
+    let destroyed = false, active = false, paused = false, aimGuides = false, raf = 0, last = 0, elapsed = 0, firstPose = true;
     let width = 1, height = 1, quality = 1, slowFrames = 0, time = 0, hovered = -1, opened = -1, hoverSettling = false;
+    let beamOriginXFraction = null, beamOriginYFraction = null;
     const saturation = { value: controls.desaturation };
     const imageSaturation = { value: controls.saturation }, vibrance = { value: controls.vibrance };
     const imageOpacity = { value: controls.slotOpacity }, blur = { value: controls.slotBlur };
@@ -314,7 +332,7 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         outgoingLight=mix(outgoingLight,vec3(dot(outgoingLight,vec3(.2126,.7152,.0722))),uDesaturation);
         // Retain the artwork hue in the wide reflection; only the specular response adds white.
         vec2 lightWindow=discWindow(vDiscProjector);
-        outgoingLight+=(mix(contactColour,vec3(1.),.28)*contactReflection(lightWindow,rayField(lightWindow))+discStreak(vDiscProjector))*float(gl_FrontFacing);
+        outgoingLight+=(mix(contactColour,vec3(1.),.08)*contactReflection(lightWindow,rayField(lightWindow))+discStreak(vDiscProjector))*float(gl_FrontFacing);
         #include <opaque_fragment>`);
     };
     disc.add(new THREE.Mesh(own(new THREE.RingGeometry(R * 0.22, R, 128, 2)), silver));
@@ -342,9 +360,6 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
     for (const radius of [R, R * 0.22, R * 0.27, R * 0.3]) {
         disc.add(new THREE.Mesh(own(new THREE.TorusGeometry(radius, radius === R ? 0.012 : 0.004, 4, 192)), edgeMaterial));
     }
-    const glass = own(new THREE.MeshPhysicalMaterial({ color: 0xdde5f2, transmission: 0.9, roughness: 0.1, thickness: 0.025,
-        ior: 1.45, metalness: 0, clearcoat: 0.1, envMapIntensity: 0.35, side: THREE.FrontSide, depthWrite: false }));
-    const border = own(new THREE.LineBasicMaterial({ color: 0xcbd8ef, transparent: true, opacity: 0.18 }));
     let slots = [], generation = 0, lastGap = controls.slotGap, lastSize = controls.slotSize;
     let layout = discPanelLayout(initial.length, controls.slotGap, controls.slotSize);
     let loader = new AbortController();
@@ -361,7 +376,6 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         for (const s of slots) {
             s.texture.dispose();
             s.image.material.dispose();
-            s.tintMaterial?.dispose();
             s.texture.image.width = s.texture.image.height = 0;
         }
         geometries.forEach(g => g.dispose());
@@ -374,14 +388,11 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         // A spacing slider must not re-fetch/re-decode every image on each pointer move.
         const old = geometries.splice(0);
         layout = discPanelLayout(slots.length, controls.slotGap, controls.slotSize);
-        const panelGeometry = plaque(layout);
-        const imageGeometry = plaque(layout, 0.008);
-        const edges = new THREE.EdgesGeometry(panelGeometry, 20);
-        geometries.push(panelGeometry, imageGeometry, edges);
+        const imageGeometry = plaque(layout);
+        geometries.push(imageGeometry);
         for (const slot of slots) {
             slot.image.geometry = imageGeometry;
-            slot.group.children[1].geometry = panelGeometry;
-            slot.group.children[2].geometry = edges;
+            slot.image.material.uniforms.panelAspect.value = layout.aspect;
         }
         old.forEach(g => g.dispose());
     }
@@ -391,40 +402,35 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         const gen = generation, signal = loader.signal;
         layout = discPanelLayout(images.length, controls.slotGap, controls.slotSize);
         const { step } = layout;
-        const panelGeometry = plaque(layout);
-        const imageGeometry = plaque(layout, 0.008);
-        const edges = new THREE.EdgesGeometry(panelGeometry, 20);
-        geometries.push(panelGeometry, imageGeometry, edges);
+        const imageGeometry = plaque(layout);
+        geometries.push(imageGeometry);
         // Aggregate CPU/GPU texture budget is bounded as the slot count grows.
         const size = 2 ** Math.floor(Math.log2(Math.max(64, Math.min(lowPower ? 512 : 1024, Math.sqrt(4194304 / Math.max(1, images.length))))));
         images.forEach((item, i) => {
             const thumb = document.createElement("canvas");
             thumb.width = size;
             thumb.height = size;
-            const ctx = thumb.getContext("2d");
-            ctx.fillStyle = "#131923";
-            ctx.fillRect(0, 0, size, size);
-            ctx.strokeStyle = "#4e5a6d";
-            ctx.strokeRect(size * 0.05, size * 0.05, size * 0.9, size * 0.9);
-            ctx.fillStyle = "#d3d9e3";
-            ctx.font = `500 ${size * 0.06}px sans-serif`;
-            ctx.textAlign = "center";
-            ctx.fillText(item.label || `IMAGE ${i + 1}`, size / 2, size * 0.5, size * 0.85);
             const texture = new THREE.CanvasTexture(thumb);
             texture.colorSpace = THREE.SRGBColorSpace;
             texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+            const customTitle = item.titleColor ? new THREE.Color(item.titleColor) : new THREE.Color(0xffffff);
+            const customGlow = item.glowColor ? new THREE.Color(item.glowColor) : new THREE.Color(0xffffff);
             const material = new THREE.ShaderMaterial({ transparent: true, uniforms: { map: { value: texture },
                     imageSaturation, vibrance, imageOpacity, blur, dimBrightness, slotGlow,
-                    artworkBox: { value: new THREE.Vector4(0, 0, 1, 1) }, rear: { value: 0 }, hover: { value: 0 },
+                    imageAspect: { value: 1 }, panelAspect: { value: layout.aspect }, rear: { value: 0 }, hover: { value: 0 },
+                    titleColour: { value: customTitle }, useTitleColour: { value: item.titleColor ? 1 : 0 },
+                    titleGlowColour: { value: customGlow }, useTitleGlowColour: { value: item.glowColor ? 1 : 0 },
+                    titleGlowIntensity: { value: THREE.MathUtils.clamp(item.glowIntensity ?? 1, 0, 2) },
                     projectorTransform, projectorBounds, projectorSoftness, projectorPower, contactColour, contactStrength, rays: raysUniform },
-                vertexShader: `uniform mat4 projectorTransform; varying vec2 vProjector; varying vec4 vImageClip;
+                vertexShader: `uniform mat4 projectorTransform; varying vec2 vProjector; varying vec2 vUv;
           void main(){ vec4 world=modelMatrix*vec4(position,1.);
             vProjector=(projectorTransform*world).xy/2.35;
-            vImageClip=projectionMatrix*viewMatrix*world; gl_Position=vImageClip; }`,
+            vUv=uv; gl_Position=projectionMatrix*viewMatrix*world; }`,
                 fragmentShader: `uniform sampler2D map;
-        uniform float imageSaturation, vibrance, imageOpacity, blur, dimBrightness, slotGlow, projectorSoftness, projectorPower, contactStrength, rear, hover;
-        uniform vec3 contactColour;
-        uniform vec4 projectorBounds, artworkBox; varying vec2 vProjector; varying vec4 vImageClip;
+        uniform float imageSaturation, vibrance, imageOpacity, blur, dimBrightness, slotGlow, projectorSoftness, projectorPower, contactStrength, rear, hover, imageAspect, panelAspect;
+        uniform float useTitleColour, useTitleGlowColour, titleGlowIntensity;
+        uniform vec3 contactColour, titleColour, titleGlowColour;
+        uniform vec4 projectorBounds; varying vec2 vProjector; varying vec2 vUv;
         ${rayShaderSource}
         ${contactShader.slice(0, contactShader.indexOf("// Silver diffracts"))}
         float feather(float edge){
@@ -436,10 +442,18 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
           float radial=(vProjector.x-projectorBounds.x)/(projectorBounds.y-projectorBounds.x);
           float halfWidth=mix(projectorBounds.z,projectorBounds.w,clamp(radial,0.,1.));
           float focus=feather(abs(radial*2.-1.))*feather(abs(vProjector.y)/halfWidth)*smoothstep(0.,.25,projectorPower);
-          // Screen-aligned print inside the glass: no upside-down titles, trapezoid warp or double letterboxing.
-          vec2 uv=(vImageClip.xy/vImageClip.w-artworkBox.xy)/(2.*artworkBox.zw)+.5;
+          // Local card UVs make the artwork and title one rigid print. Preserve the uploaded
+          // image ratio with contain-fit padding instead of stretching it to the card.
+          vec2 fit=vec2(1.);
+          if(imageAspect>panelAspect) fit.y=panelAspect/imageAspect;
+          else fit.x=imageAspect/panelAspect;
+          vec2 uv=(vUv-.5)/fit+.5;
           float inside=step(0.,uv.x)*step(uv.x,1.)*step(0.,uv.y)*step(uv.y,1.);
-          vec4 tex=texture2D(map,clamp(uv,0.,1.),rear*(1.-focus)*(1.-hover)*min(blur,2.)); tex.a*=inside; vec3 c=tex.rgb;
+          vec4 tex=texture2D(map,clamp(uv,0.,1.),rear*(1.-focus)*(1.-hover)*min(blur,2.)); tex.a*=inside;
+          if(tex.a<.01) discard;
+          float sourcePeak=max(tex.r,max(tex.g,tex.b));
+          float titleInk=smoothstep(.1,.58,sourcePeak)*tex.a;
+          vec3 c=mix(tex.rgb,titleColour*sourcePeak,titleInk*useTitleColour);
           float grey=dot(c,vec3(.2126,.7152,.0722));
           float chroma=max(c.r,max(c.g,c.b))-min(c.r,min(c.g,c.b));
           c=max(vec3(0.),mix(vec3(grey),c,imageSaturation*(1.+vibrance*(1.-chroma))));
@@ -448,28 +462,25 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
           float shafts=rayField(lightWindow);
           // Rays visibly travel across the print: lit where one lands, a little dimmer between them.
           c=mix(vec3(grey)*dimBrightness,c*(1.+slotGlow*.65)*(.84+shafts*.6),focus);
-          c=mix(c,tex.rgb,hover*.85);
-          c=mix(vec3(.012),c,tex.a);
-          // A compact reflected landing on the print, never the entire frame or raised card.
-          c+=mix(contactColour,vec3(1.),.2)*contactReflection(lightWindow,shafts)*focus*(1.-hover);
-          gl_FragColor=vec4(c,imageOpacity); }` });
+          c=mix(c,mix(tex.rgb,titleColour*sourcePeak,useTitleColour),hover*.85);
+          // Extract the visible title ink from the uploaded artwork. There is deliberately no
+          // baseline card emission: only bright/coloured title pixels cross the bloom threshold.
+          vec3 titlePigment=c/max(max(c.r,max(c.g,c.b)),.12);
+          vec3 automaticGlow=mix(contactColour,titlePigment,.68);
+          vec3 titleLight=mix(automaticGlow,titleGlowColour,useTitleGlowColour);
+          float titleGlow=titleInk*focus*(1.-hover)*(.18+.34*shafts)
+            *contactReflection(lightWindow,shafts)*titleGlowIntensity;
+          c+=titleLight*titleGlow*(.9+slotGlow*.45);
+          gl_FragColor=vec4(c,tex.a*imageOpacity); }` });
             const group = new THREE.Group();
             group.rotation.z = i * step;
             panels.add(group);
-            // The print sits just inside the raised glass edge; refraction must not wash out its lettering.
+            // Only the transparent PNG is mounted: no glass rectangle, border or opaque backing.
             const image = new THREE.Mesh(imageGeometry, material);
-            image.position.z = 0.039;
+            image.position.z = 0.041;
             group.add(image);
-            const tintMaterial = item.tint ? glass.clone() : undefined;
-            if (tintMaterial)
-                tintMaterial.color.set(item.tint);
-            const pane = new THREE.Mesh(panelGeometry, tintMaterial ?? glass);
-            pane.position.z = 0.037;
-            group.add(pane);
-            const outline = new THREE.LineSegments(edges, border);
-            outline.position.z = 0.041;
-            group.add(outline);
-            slots.push({ group, image, texture, average: new THREE.Color(0x808080), bands: new THREE.Vector4(.55, .55, .55, .55), angle: i * step, weight: 0, lift: 0, tintMaterial });
+            slots.push({ group, image, texture, bands: new THREE.Vector4(.55, .55, .55, .55),
+                samples: [], imageAspect: 1, titleColor: item.titleColor ? customTitle : undefined, angle: i * step, weight: 0, lift: 0 });
         });
         // Decode one image at a time. Failed/CORS-blocked images retain a labelled placeholder.
         void (async () => {
@@ -517,9 +528,28 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
                     averageContext.clearRect(0, 0, 24, 24);
                     averageContext.drawImage(bitmap, 0, 0, 24, 24);
                     const pixels = averageContext.getImageData(0, 0, 24, 24).data;
-                    const [r, g, b] = discImageColour(pixels);
                     slot.bands.fromArray(discImageBands(pixels, 24));
-                    slot.average.setRGB(r, g, b, THREE.SRGBColorSpace);
+                    slot.imageAspect = bitmap.width / bitmap.height;
+                    slot.samples = [];
+                    for (let row = 0; row < 5; row++)
+                        for (let col = 0; col < 5; col++) {
+                            let sr = 0, sg = 0, sb = 0, total = 0;
+                            const x0 = Math.floor(col * 24 / 5), x1 = Math.floor((col + 1) * 24 / 5);
+                            const y0 = Math.floor(row * 24 / 5), y1 = Math.floor((row + 1) * 24 / 5);
+                            for (let y = y0; y < y1; y++)
+                                for (let x = x0; x < x1; x++) {
+                                    const p = (y * 24 + x) * 4, red = pixels[p] / 255, green = pixels[p + 1] / 255, blue = pixels[p + 2] / 255;
+                                    const peak = Math.max(red, green, blue), chroma = peak - Math.min(red, green, blue);
+                                    const weight = pixels[p + 3] / 255 * peak * (.12 + chroma * 3);
+                                    sr += red * weight;
+                                    sg += green * weight;
+                                    sb += blue * weight;
+                                    total += weight;
+                                }
+                            if (total > .0001)
+                                slot.samples.push({ u: (col + .5) / 5, v: (row + .5) / 5,
+                                    colour: new THREE.Color(sr / total, sg / total, sb / total).convertSRGBToLinear(), weight: total / Math.max(1, (x1 - x0) * (y1 - y0)) });
+                        }
                     // WebGL textures cannot change size after first upload; replace and release the placeholder.
                     const texture = new THREE.CanvasTexture(thumb);
                     texture.colorSpace = THREE.SRGBColorSpace;
@@ -527,6 +557,7 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
                     slot.texture.dispose();
                     slot.texture = texture;
                     slot.image.material.uniforms.map.value = texture;
+                    slot.image.material.uniforms.imageAspect.value = slot.imageAspect;
                     release();
                     wake();
                 }
@@ -584,8 +615,9 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
           float smoke=texture2D(smokeTexture,point.xy*.31+point.z*.17+drift).r;
           smoke=smoke*.65+.35*texture2D(smokeTexture,point.yx*.83-drift*1.7).r;
           float shafts=rayField(p);
-          // Hidden near the lens; thickest close to it; a little extra where light bounces off the disc.
-          float reach=smoothstep(.02,.3,along)*mix(1.25,1.,along)+exp(-(1.-along)*18.)*.35;
+          // A long eased fade grows from the point beneath the heading; the disc keeps a small
+          // reflected lift without exposing a hard projector apex over the text.
+          float reach=smoothstep(.015,.42,along)*mix(1.18,1.,along)+exp(-(1.-along)*18.)*.35;
           float density=body*reach*((.05+smoke*smoke*.2)*beamGlow+shafts*(.9+smoke*1.1)*rayStrength);
           scatter+=density; bodySum+=body*reach*(1.-smoothstep(0.,.45,length(p)));
           meanWindow+=p*density; meanWeight+=density;
@@ -598,7 +630,7 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         // Dispersion modulates the artwork's colour instead of replacing it with a rainbow.
         vec3 colour=tint*mix(vec3(1.8),vec3(.9)+spectrum*1.8,prism*prismatic*.45);
         // The haze carries the artwork pigment; the lamp's neutral core stays narrow.
-        colour=mix(colour,vec3(max(.32,luminance)*1.55),clamp(bodySum*.1,0.,.4));
+        colour=mix(colour,vec3(max(.32,luminance)*1.38),clamp(bodySum*.04,0.,.18));
         // Fade the light before it reaches the canvas boundary, without masking the disc or text.
         vec2 screen=gl_FragCoord.xy/viewport;
         float frame=smoothstep(0.,.06,screen.x)*(1.-smoothstep(.93,1.,screen.x))*smoothstep(0.,.08,screen.y)*(1.-smoothstep(.92,1.,screen.y));
@@ -691,7 +723,6 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
     const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
     const restRay = new THREE.Ray(), restHit = new THREE.Vector3();
     const restPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -.02);
-    const artCorners = Array.from({ length: 4 }, () => new THREE.Vector3());
     const slotCenter = new THREE.Vector3();
     const restPosition = new THREE.Vector3(), openPosition = new THREE.Vector3();
     const inverseDisc = new THREE.Matrix4();
@@ -761,7 +792,7 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         projectorBounds.value.set(projection.inner, projection.outer, projection.innerHalfWidth, projection.outerHalfWidth);
         anchor.set(Math.cos(localFocus) * R * projection.center, Math.sin(localFocus) * R * projection.center, 0.06);
         tilt.localToWorld(anchor);
-        let coverage = 0;
+        let coverage = 0, bandCoverage = 0;
         targetColor.setRGB(0, 0, 0);
         targetBands.set(0, 0, 0, 0);
         inverseDisc.copy(disc.matrixWorld).invert();
@@ -788,21 +819,32 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
             slot.group.quaternion.copy(restRotation).slerp(faceCamera, slot.lift);
             slot.group.scale.setScalar(1 + (openScale - 1) * slot.lift);
             slot.group.updateMatrixWorld(true);
-            const positions = slot.image.geometry.getAttribute("position");
-            for (let i = 0; i < 4; i++)
-                artCorners[i].fromBufferAttribute(positions, i).applyMatrix4(slot.image.matrixWorld).project(camera);
-            const thumb = slot.texture.image;
-            const box = discArtworkFrame(artCorners, thumb.width / thumb.height, camera.aspect);
-            slot.image.material.uniforms.artworkBox.value.set(box.x, box.y, box.halfWidth, box.halfHeight);
             slotCenter.set(0, 0, 0).applyMatrix4(slot.group.matrixWorld);
             slot.image.material.uniforms.rear.value = THREE.MathUtils.smoothstep(-slotCenter.z / R, .1, .75);
             slot.image.material.uniforms.hover.value = Math.min(1, slot.lift * 3);
-            slot.weight = discProjectionCoverage(layout, projection, slot.angle + disc.rotation.z - localFocus, controls.glowRadius);
-            coverage += slot.weight;
-            targetColor.r += slot.average.r * slot.weight;
-            targetColor.g += slot.average.g * slot.weight;
-            targetColor.b += slot.average.b * slot.weight;
+            const projectionAngle = slot.angle + disc.rotation.z - localFocus;
+            slot.weight = discProjectionCoverage(layout, projection, projectionAngle, controls.glowRadius);
+            // Sample only title pigment actually inside the projector footprint. A title entering
+            // halfway changes only from its illuminated half instead of recolouring the beam early.
+            const fitX = slot.imageAspect > layout.aspect ? 1 : slot.imageAspect / layout.aspect;
+            const fitY = slot.imageAspect > layout.aspect ? layout.aspect / slot.imageAspect : 1;
+            const cos = Math.cos(projectionAngle), sin = Math.sin(projectionAngle);
+            for (const sample of slot.samples) {
+                const u = .5 + (sample.u - .5) * fitX, v = .5 + (sample.v - .5) * fitY;
+                const localX = layout.inner + (layout.outer - layout.inner) * u;
+                const localY = -layout.innerHalfWidth + layout.innerHalfWidth * 2 * v;
+                const mask = discProjectionMask(localX * cos - localY * sin, localX * sin + localY * cos, projection, controls.glowRadius);
+                const sampleWeight = sample.weight * mask;
+                if (sampleWeight <= .000001)
+                    continue;
+                const colour = slot.titleColor ?? sample.colour;
+                targetColor.r += colour.r * sampleWeight;
+                targetColor.g += colour.g * sampleWeight;
+                targetColor.b += colour.b * sampleWeight;
+                coverage += sampleWeight;
+            }
             targetBands.addScaledVector(slot.bands, slot.weight);
+            bandCoverage += slot.weight;
         }
         if (coverage > .00001)
             targetColor.multiplyScalar(1 / coverage);
@@ -816,9 +858,10 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         const brightest = Math.max(targetColor.r, targetColor.g, targetColor.b);
         if (brightest > .0001 && brightest < .45)
             targetColor.multiplyScalar(.45 / brightest);
-        beamColor.lerp(targetColor, motion.matches || dt === 0 ? 1 : 1 - Math.exp(-dt * 4));
-        if (coverage > .00001)
-            targetBands.multiplyScalar(1 / coverage);
+        // Fast enough to follow each title edge, but eased so colour never flashes between frames.
+        beamColor.lerp(targetColor, motion.matches || dt === 0 ? 1 : 1 - Math.exp(-dt * 12));
+        if (bandCoverage > .00001)
+            targetBands.multiplyScalar(1 / bandCoverage);
         else
             targetBands.copy(imageBands.value);
         imageBands.value.lerp(targetBands, motion.matches || dt === 0 ? 1 : 1 - Math.exp(-dt * 3));
@@ -835,9 +878,17 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         else if (firstRays)
             updateRays(0);
         firstRays = false;
-        // Map distance into the chosen side's usable space, instead of putting every source off-canvas.
-        const sourceFraction = .52 + (controls.rayLength - 3) / 6 * .28;
-        source.set(side * halfView * camera.aspect * sourceFraction, THREE.MathUtils.clamp(controls.rayElevation * .55 + drift, -halfView * .8, halfView * .8), 1.4);
+        // The projector itself always lives beyond the visible canvas. Visitors see light entering
+        // from the screen edge, never an apex floating in the mobile or desktop composition.
+        const sourceFraction = 1.08 + (controls.rayLength - 3) / 6 * .42;
+        const linkedOrigin = (beamOriginYFraction === null ? controls.rayElevation * .55
+            : (.5 - THREE.MathUtils.clamp(beamOriginYFraction, .04, .96)) * halfView * 2
+                + (controls.rayElevation - DISC_DEFAULTS.rayElevation) * .12)
+            - controls.originOffsetY * halfView * 2;
+        const linkedX = (beamOriginXFraction === null ? side * halfView * camera.aspect * sourceFraction
+            : (THREE.MathUtils.clamp(beamOriginXFraction, .04, .96) - .5) * halfView * camera.aspect * 2)
+            + controls.originOffsetX * halfView * camera.aspect * 2;
+        source.set(linkedX, THREE.MathUtils.clamp(linkedOrigin + drift, -halfView * .92, halfView * .92), 1.4);
         // A lamp behind the disc could not light its face: keep the source on the lit side.
         discNormal.set(0, 0, 1).transformDirection(projectorFrame);
         sourceLocal.value.copy(source).applyMatrix4(projectorTransform.value);
@@ -845,8 +896,17 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
             source.addScaledVector(discNormal, .9 - sourceLocal.value.z);
             sourceLocal.value.z = .9;
         }
+        originGuide.visible = landingGuide.visible = aimGuides;
+        if (aimGuides) {
+            originGuide.position.copy(source);
+            landingGuide.position.copy(anchor);
+            originGuide.quaternion.copy(camera.quaternion);
+            landingGuide.quaternion.copy(camera.quaternion);
+        }
         // The hull is larger than the window so the light's soft edge fades out before reaching it.
-        const hullX = (projection.outer - projection.inner) * .5 * .36, hullWidth = 1.36;
+        // A slightly broader coloured fan reaches the reflection centre; the shader keeps its
+        // neutral core thin so widening the beam does not create a thick white hotspot.
+        const hullX = (projection.outer - projection.inner) * .5 * .5, hullWidth = 1.5;
         localCorners[0].set((projection.inner - hullX) * R, -projection.innerHalfWidth * hullWidth * R, BEAM_PLANE);
         localCorners[1].set((projection.outer + hullX) * R, -projection.outerHalfWidth * hullWidth * R, BEAM_PLANE);
         localCorners[2].set((projection.outer + hullX) * R, projection.outerHalfWidth * hullWidth * R, BEAM_PLANE);
@@ -920,6 +980,16 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
     return {
         controls, resize,
         setImages,
+        setBeamOrigin(xFraction, yFraction) {
+            beamOriginXFraction = typeof xFraction === "number" && Number.isFinite(xFraction) ? xFraction : null;
+            beamOriginYFraction = Number.isFinite(yFraction) ? yFraction : null;
+            wake();
+        },
+        setAimGuides(value) {
+            aimGuides = value;
+            originGuide.visible = landingGuide.visible = value;
+            wake();
+        },
         setActive(value) { active = value; if (value)
             wake();
         else

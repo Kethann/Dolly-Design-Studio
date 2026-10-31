@@ -5,7 +5,7 @@ export function visibleDiscItems<T>(items: readonly T[]): T[] {
   return items.slice(0, DISC_SLOT_LIMIT);
 }
 export const DISC_DEFAULTS = {
-  spinSpeed: 0.12, focusAngle: -25, focusRadius: 0.67, rayIntensity: 0.8,
+  spinSpeed: 0.12, focusAngle: -18, focusRadius: 0.67, rayIntensity: 0.8,
   rayLength: 5, bloom: 0.35, desaturation: 0.5, discTilt: -65, slotGap: 3,
   lightIntensity: 1, glowRadius: 0.75, glowThreshold: 0.72,
   saturation: 1, vibrance: 0, slotSize: 1, slotOpacity: 1,
@@ -13,6 +13,7 @@ export const DISC_DEFAULTS = {
   discRoll: -65, rayStyle: 1, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.65,
   rayMotion: 0.45, projectorSide: -1,
   beamGlow: 1, rayStrength: 1, surfaceReflection: 1,
+  originOffsetX: 0, originOffsetY: 0,
 };
 export type DiscControls = typeof DISC_DEFAULTS;
 export const DISC_RANGES: Record<keyof DiscControls, readonly [number, number, number]> = {
@@ -27,6 +28,7 @@ export const DISC_RANGES: Record<keyof DiscControls, readonly [number, number, n
   rayMotion: [0, 1, 0.05],
   projectorSide: [-1, 1, 2],
   beamGlow: [0, 3, 0.05], rayStrength: [0, 3, 0.05], surfaceReflection: [0, 3, 0.05],
+  originOffsetX: [-0.25, 0.25, 0.01], originOffsetY: [-0.25, 0.25, 0.01],
 };
 export function sanitizeDisc(input: unknown): DiscControls {
   const src = input && typeof input === "object" ? input as Record<string, unknown> : {};
@@ -43,18 +45,17 @@ export function sectorSize(count: number, gapDegrees: number) {
   return { step, width: step - Math.min(gapDegrees * Math.PI / 180, step * 0.3) };
 }
 
-/** Separate rectangular cards leave silver between images, even with only one or two titles. */
+/** Transparent title regions distributed evenly on the silver disc. */
 export function discPanelLayout(count: number, gapDegrees: number, size: number) {
   const { step, width } = sectorSize(count, gapDegrees);
   const center = 0.67, halfHeight = 0.24 * size;
   const inner = center - halfHeight, outer = center + halfHeight;
-  // Keep both sides parallel: the artwork is a real rectangular card, not a stretched sector.
-  // The angular allocation still limits its width so neighbouring cards cannot overlap.
+  // The invisible placement region stays rectangular so a PNG is never warped into a wedge.
   const halfAngle = Math.min(0.6, width * 0.48) * size;
   const halfWidth = Math.min((outer - inner) * 0.39, 0.28 * size, inner * Math.tan(halfAngle));
   const innerHalfWidth = halfWidth, outerHalfWidth = halfWidth;
   return { step, inner, outer, innerHalfWidth, outerHalfWidth,
-    aspect: halfWidth * 2 / (outer - inner) };
+    aspect: (outer - inner) / (halfWidth * 2) };
 }
 
 /** A fixed, slot-sized projector window. Spread may soften/widen it, never spill beyond the plaque. */

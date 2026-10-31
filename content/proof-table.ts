@@ -23,8 +23,14 @@ export interface ProofItem {
   slug: string;
   /** Read out by screen readers. */
   alt: string;
-  /** Optional glass colour for this card (otherwise the portal's glass colour). */
+  /** Legacy glass tint retained when reading older saved content. */
   tint?: string;
+  /** Optional colour override for the uploaded title pixels. */
+  titleColor?: string;
+  /** Optional glow override; otherwise the glow follows the artwork colour. */
+  titleGlowColor?: string;
+  /** Per-title projector glow multiplier, from 0 to 2. */
+  titleGlowIntensity?: number;
 }
 
 export const proofTable = {

@@ -12,7 +12,7 @@ export function TextEffectSettings({ effect, value, disabled, onChange }: {
   onChange: (value: TextEffectOptions) => void;
 }) {
   const patch = (next: Partial<TextEffectOptions>) => onChange({ ...value, ...next });
-  return <details className={styles.effectSettings}>
+  return <details className={styles.effectSettings} open={effect === "glow" || undefined}>
     <summary>{effect === "particles" ? "Colour & particle settings" : "Colour & glow settings"}</summary>
     <fieldset disabled={disabled}>
       <ColorRow label="Text colour" value={value.color ?? "#fff195"} onChange={color => patch({ color })} />
