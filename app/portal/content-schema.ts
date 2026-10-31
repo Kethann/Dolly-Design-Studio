@@ -1,5 +1,6 @@
 import type { ArtSection } from "@/lib/intro/settings";
 import { plainFx } from "@/lib/content/text-effects";
+import { statText } from "@/lib/content/stat-value";
 import { CARD_LINK_VALUES, CARD_OPENS_OWN_PAGE } from "@/lib/content/card-links";
 import { MAX_PROCESS_ITEMS, PROCESS_COLS, PROCESS_FITS, PROCESS_SHAPES } from "@/lib/content/process";
 import type { PageKey } from "@/lib/content/types";
@@ -145,11 +146,11 @@ const home: SchemaPage = {
           label: "Numbers",
           add: "Add a number",
           max: 6,
-          title: (it) => `${it.value ?? ""}${it.suffix ?? ""} ${it.label ?? ""}`,
-          blank: () => ({ value: 10, suffix: "+", label: "New number" }),
+          title: (it) => `${plainFx(statText(typeof it.value === "number" ? it.value : str(it.value, ""), str(it.suffix, "")))} ${it.label ?? ""}`,
+          blank: () => ({ value: "", suffix: "", label: "New number" }),
           fields: [
-            { kind: "number", path: "value", label: "Number", min: 0, max: 100000 },
-            { kind: "text", path: "suffix", label: "After the number (e.g. +)" },
+            { kind: "text", path: "value", label: "Number", fx: true, hint: "Type your value, including + or −, for example 4+, -4 or 4.5. Use [[4+]] to apply a text effect. No zero is inserted when you clear it." },
+            { kind: "text", path: "suffix", label: "After a plain number (optional)", hint: "Kept for existing cards. If you type + or other decoration in Number, that takes precedence." },
             { kind: "text", path: "label", label: "Label", style: true },
           ],
         },
@@ -484,7 +485,7 @@ const studio: SchemaPage = {
 const slate: SchemaPage = {
   id: "slate",
   name: "Slate text",
-  hint: "the words beside the glass slate",
+  hint: "the words beside the silver title disc",
   sections: [
     {
       id: "slate-text",

@@ -34,6 +34,9 @@
 /* The corner logo, with no name beside it. It is not there on the first section of the home page: once you scroll to the
    second it eases in (fading, rising and growing a little into place), and eases out again if you go back up. */
 .brand {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   opacity: 0;
@@ -138,7 +141,7 @@
   overflow: visible;
 }
 
-@media (min-width: 860px) {
+@media (min-width: 1200px) {
   .links {
     display: flex;
   }
@@ -281,6 +284,8 @@
 }
 
 .right {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -291,9 +296,13 @@
   flex-direction: column;
   gap: 5px;
   padding: 10px;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
 }
 
-@media (min-width: 860px) {
+@media (min-width: 1200px) {
   .menuButton {
     display: none;
   }
@@ -308,13 +317,16 @@
 .mobileMenu {
   position: fixed;
   inset: 0;
-  z-index: 49;
+  z-index: 1;
   background: var(--stage);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 34px;
+  justify-content: safe center;
+  gap: clamp(12px, 3vh, 28px);
+  padding: calc(var(--nav-h) + 16px) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .mobileLink {
@@ -322,7 +334,11 @@
   align-items: center;
   gap: 14px;
   font-family: var(--font-display);
-  font-size: 32px;
+  font-size: clamp(22px, 4vw, 32px);
+  min-height: 44px;
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   color: var(--ivory);
   opacity: 0.8;
   transition: opacity 0.2s ease, color 0.2s ease;

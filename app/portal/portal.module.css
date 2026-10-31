@@ -1301,7 +1301,15 @@
   cursor: pointer;
 }
 
-/* Proof Table cards: one block per slot. */
+/* Disc settings stay compact; keyboard and touch users can open each group. */
+.discControls { border:1px solid rgba(255,255,255,.12); border-radius:12px; margin:0 0 10px; overflow:hidden; }
+.discControls > summary { padding:14px 16px; cursor:pointer; color:var(--ivory); font-size:13px; font-weight:600; }
+.discControls > summary > span { float:right; color:rgba(244,237,225,.55); font-size:11px; font-weight:400; }
+.discControls > summary:focus-visible { outline:2px solid var(--gold); outline-offset:-3px; }
+.discControls[open] > summary { border-bottom:1px solid rgba(255,255,255,.1); }
+.discControls > div { padding:12px 16px; }
+
+/* Title disc: one editable block per image slot. */
 .slot {
   padding: 12px 0 14px;
   border-top: 1px solid var(--p-line);

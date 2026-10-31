@@ -1,13 +1,15 @@
 .page {
-  padding-top: calc(var(--nav-h) + 40px);
-  padding-bottom: clamp(70px, 9vw, 120px);
+  padding-top: calc(var(--nav-h) + var(--section-pad));
+  padding-bottom: var(--section-pad);
   min-height: 80vh;
   min-height: 80svh;
 }
 
 .back {
-  display: inline-block;
-  margin-bottom: 26px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 16px;
   font-family: var(--font-label);
   font-size: 11px;
   letter-spacing: 0.2em;
@@ -24,7 +26,8 @@
 
 .head {
   max-width: 760px;
-  margin-bottom: clamp(30px, 5vw, 56px);
+  margin-bottom: var(--section-head-gap);
+  overflow-wrap: anywhere;
 }
 
 .eyebrow {
@@ -41,7 +44,7 @@
   margin: 0 0 18px;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(32px, 5.4vw, 60px);
+  font-size: clamp(26px, 5.4vw, 60px);
   line-height: 1.08;
 }
 

@@ -4,12 +4,13 @@
 
 .row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(12px, 2vw, 24px);
 }
 
 /* Each number sits on its own pane of glass (the shared .glass-panel look). */
 .stat {
+  min-width: 0;
   padding: clamp(28px, 4vw, 48px) 16px;
   text-align: center;
   transition: transform 0.35s ease, border-color 0.35s ease;
@@ -27,6 +28,7 @@
 }
 
 .value {
+  overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: clamp(40px, 6vw, 76px);

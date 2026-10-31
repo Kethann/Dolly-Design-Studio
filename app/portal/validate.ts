@@ -33,7 +33,7 @@ export function contentProblems(c: SiteContent): Problem[] {
   });
   c.home.stats.forEach((s, i) => {
     if (blank(s.label)) out.push({ path: `home.stats.${i}.label`, message: "Add a short caption under the number." });
-    if (!Number.isFinite(s.value) || s.value < 0) out.push({ path: `home.stats.${i}.value`, message: "Use a number of 0 or more." });
+    if (typeof s.value === "number" ? !Number.isFinite(s.value) : blank(s.value)) out.push({ path: `home.stats.${i}.value`, message: "Enter a value, for example 4+, -4 or [[4+]]." });
   });
   c.home.process.cards.forEach((card, i) => {
     if (blank(card.title)) out.push({ path: `home.process.cards.${i}.title`, message: "Give this card a title." });

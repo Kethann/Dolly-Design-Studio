@@ -141,6 +141,126 @@ test("section editors never repeat a field path or render duplicate React keys",
   for (const page of Object.values(CONTENT_PAGES)) for (const section of page.sections) check(section.fields);
 });
 
+test("disc settings migrate old slates, clamp invalid controls, and retain artwork and ordering", () => {
+  const read = loader();
+  const { DISC_DEFAULTS, sanitizeDisc, sectorSize } = read("lib/content/disc.ts");
+  assert.deepEqual(sanitizeDisc(undefined), DISC_DEFAULTS);
+  assert.deepEqual(sanitizeDisc({ spinSpeed: NaN, bloom: "high" }), DISC_DEFAULTS);
+  assert.equal(sanitizeDisc({ discTilt: -999 }).discTilt, -75);
+  assert.equal(sanitizeDisc({ spinSpeed: 0 }).spinSpeed, 0);
+  assert.equal(sanitizeDisc({ slotGap: 100 }).slotGap, 12);
+  for (const count of [0, 1, 2, 12, 16, 100]) {
+    const { step, width } = sectorSize(count, 12);
+    assert.ok(width > 0 && width < step);
+    assert.ok(Math.abs(step * Math.max(1, count) - Math.PI * 2) < 1e-10);
+  }
+  const { sanitizeIntroSettings } = read("lib/intro/settings.ts");
+  const legacy = json("content/intro-settings.json");
+  const migrated = sanitizeIntroSettings(legacy);
+  assert.deepEqual(migrated.proofTable.disc, DISC_DEFAULTS);
+  assert.deepEqual(migrated.proofTable.items.map(it => [it.src, it.slug]), legacy.proofTable.items.map(it => [it.src, it.slug]));
+  migrated.proofTable.disc.spinSpeed = -0.2;
+  assert.equal(sanitizeIntroSettings(JSON.parse(JSON.stringify(migrated))).proofTable.disc.spinSpeed, -0.2);
+  const custom = { ...DISC_DEFAULTS, lightIntensity: 0, saturation: 0, vibrance: 0.7, slotOpacity: 0.5, slotSize: 0.8, slotBlur: 0, glowRadius: 0.9, glowThreshold: 1.2, unfocusedBrightness: 0.4 };
+  migrated.proofTable.disc = custom;
+  migrated.proofTable.items[0].tint = "#55aaff";
+  const roundTrip = sanitizeIntroSettings(JSON.parse(JSON.stringify(migrated)));
+  assert.deepEqual(roundTrip.proofTable.disc, custom);
+  assert.equal(roundTrip.proofTable.items[0].tint, "#55aaff");
+  assert.equal(sanitizeDisc({ saturation: 999, slotSize: -4 }).saturation, 2);
+  assert.equal(sanitizeDisc({ saturation: 999, slotSize: -4 }).slotSize, 0.7);
+  assert.equal(sanitizeDisc({ spinSpeed: -0.2 }).saturation, 1, "Earlier disc documents receive new colour defaults");
+  assert.equal(sanitizeDisc({ discTilt: -65 }).discRoll, -65, "Existing documents receive the upright reference angle");
+  assert.equal(sanitizeDisc({ rayStyle: 1.6 }).rayStyle, 2);
+  assert.equal(sanitizeDisc({ rayStyle: -1 }).rayStyle, 0);
+  for (const rayStyle of [0, 1, 2]) {
+    migrated.proofTable.disc = { ...custom, rayStyle, discRoll: -50, rayElevation: 3, raySpread: 1.5, rayPrism: 0.8 };
+    assert.deepEqual(sanitizeIntroSettings(JSON.parse(JSON.stringify(migrated))).proofTable.disc, migrated.proofTable.disc);
+  }
+});
+
+test("disc plaques stay separated inside the silver ring", () => {
+  const { discPanelLayout } = loader()("lib/content/disc.ts");
+  for (const count of [1, 2, 5, 6, 8, 12, 16]) for (const gap of [0.5, 12]) for (const size of [0.7, 1]) {
+    const panel = discPanelLayout(count, gap, size);
+    assert.ok(panel.inner > 0.22);
+    assert.ok(Math.hypot(panel.outer, panel.outerHalfWidth) < 1, "Plaque corners stay inside the rim");
+    assert.ok(Math.atan2(panel.innerHalfWidth, panel.inner) < panel.step / 2, "Adjacent plaques cannot overlap");
+    assert.ok(Math.abs(panel.step * count - Math.PI * 2) < 1e-10, "Adding titles redistributes them equally");
+  }
+});
+
+test("projector illuminates only overlapping image pixels and blends partial entries in either direction", () => {
+  const { discPanelLayout, discProjectionWindow, discProjectionMask, discProjectionCoverage } = loader()("lib/content/disc.ts");
+  const panel = discPanelLayout(8, 3, 1), window = discProjectionWindow(panel, .67, 1.1);
+  assert.equal(discProjectionMask(window.center, 0, window, .75), 1);
+  assert.equal(discProjectionMask(window.outer + .01, 0, window, .75), 0);
+  assert.equal(discProjectionMask(window.center, window.outerHalfWidth + .01, window, .75), 0);
+  const halfWidth = (window.innerHalfWidth + window.outerHalfWidth) / 2;
+  const edgeWeight = discProjectionMask(window.center, halfWidth * .85, window, .75);
+  assert.ok(edgeWeight > 0 && edgeWeight < 1, "Only the entering edge is feathered, not the whole image");
+  const centered = discProjectionCoverage(panel, window, 0, .75);
+  const partial = discProjectionCoverage(panel, window, .35, .75);
+  assert.ok(partial > 0 && partial < centered);
+  assert.equal(discProjectionCoverage(panel, window, Math.PI, .75), 0);
+  assert.ok(Math.abs(partial - discProjectionCoverage(panel, window, -.35, .75)) < 1e-9);
+  assert.ok(Math.abs(partial - discProjectionCoverage(panel, window, Math.PI * 2 + .35, .75)) < 1e-9);
+});
+
+test("disc displays eight entries without deleting titles or changing their link order", () => {
+  const { DISC_SLOT_LIMIT, visibleDiscItems } = loader()("lib/content/disc.ts");
+  const items = Array.from({ length: 12 }, (_, i) => ({ slug: `title-${i}`, src: `image-${i}.png` }));
+  const original = clone(items);
+  assert.equal(DISC_SLOT_LIMIT, 8);
+  assert.deepEqual(visibleDiscItems(items), original.slice(0, 8));
+  assert.deepEqual(items, original);
+  const reordered = [items[10], ...items.filter((_, i) => i !== 10)];
+  assert.equal(visibleDiscItems(reordered)[0].slug, "title-10");
+  assert.equal(visibleDiscItems([]).length, 0);
+  assert.equal(visibleDiscItems(items.slice(0, 3)).length, 3);
+});
+
+test("projector footprint tracks slot dimensions and stays inside the selected plaque", () => {
+  const { DISC_DEFAULTS, discPanelLayout, discProjectionWindow } = loader()("lib/content/disc.ts");
+  assert.equal(DISC_DEFAULTS.focusAngle, -180);
+  for (const count of [1, 5, 12, 16]) for (const size of [.7, 1]) for (const radius of [.48, .67, .82]) for (const spread of [.3, 1.1, 2]) {
+    const layout = discPanelLayout(count, 3, size), window = discProjectionWindow(layout, radius, spread);
+    assert.ok(window.inner >= layout.inner && window.outer <= layout.outer);
+    assert.ok(window.inner < window.center && window.center < window.outer);
+    for (const [r, width] of [[window.inner, window.innerHalfWidth], [window.outer, window.outerHalfWidth]]) {
+      const boundary = layout.innerHalfWidth + (layout.outerHalfWidth - layout.innerHalfWidth) * (r - layout.inner) / (layout.outer - layout.inner);
+      assert.ok(width > 0 && width < boundary, "Even maximum spread stays inside the glass");
+    }
+  }
+  const window = (count, size) => discProjectionWindow(discPanelLayout(count, 3, size), .67, 1.1);
+  assert.ok(window(16, 1).outerHalfWidth < window(5, 1).outerHalfWidth);
+  assert.ok(window(5, .7).outer - window(5, .7).inner < window(5, 1).outer - window(5, 1).inner);
+});
+
+test("stat values retain typed symbols, decimal precision, blank drafts and text effects through saving", () => {
+  const read = loader();
+  const { statText, statCounter } = read("lib/content/stat-value.ts");
+  const { sanitizeContent } = read("lib/content/sanitize.ts");
+  const { contentProblems } = read("app/portal/validate.ts");
+  const { applyTextEffect } = read("lib/content/text-effects.ts");
+  assert.equal(statText(4, "+"), "4+");
+  assert.equal(statText("4", "+"), "4+");
+  for (const value of ["4+", "4-", "-4", "+4", "[[4+]]", "[[glow|4+]]", "", "004+"]) {
+    assert.equal(statText(value, "+"), value);
+    const content = json("content/site-content.json");
+    content.home.stats[0].value = value;
+    const saved = sanitizeContent(JSON.parse(JSON.stringify(content)));
+    assert.equal(saved.home.stats[0].value, value);
+    const errors = contentProblems(saved).filter(p => p.path === "home.stats.0.value");
+    assert.equal(errors.length, value ? 0 : 1);
+  }
+  assert.equal(statText("[[4]]", "+"), "[[4]]+");
+  assert.deepEqual(statCounter("-4.50"), {target:-4.5,decimals:2,sign:"-",suffix:""});
+  assert.equal(statCounter(applyTextEffect("[[4+]]", "glow")), null);
+  const number = read("app/portal/content-schema.ts").findList("home.stats").fields.find(f => f.path === "value");
+  assert.equal(number.kind, "text");assert.equal(number.fx, true);
+});
+
 test("text effects preserve old dots, isolate field choices, and keep editable brackets simple", () => {
   const { applyTextEffect, editableFx, plainFx, selectedEffect, TEXT_EFFECTS } = loader()("lib/content/text-effects.ts");
   const original = "Make [[cinematic]] work with [[character]].";

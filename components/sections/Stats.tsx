@@ -17,7 +17,7 @@ export function Stats() {
         {home.stats.map((s, i) => (
           <div key={s.label} className={`glass-panel ${styles.stat}`} {...edItem("home.stats", i, "Number")}>
             <div className={styles.value} {...tx("home.stats.value")}>
-              <CountUp value={s.value} suffix={s.suffix} />
+              <CountUp key={`${s.value}:${s.suffix}`} value={s.value} suffix={s.suffix} />
             </div>
             <div className={styles.label} {...tx("home.stats.label")}>{renderFx(s.label)}</div>
           </div>

@@ -2,17 +2,54 @@
 
 import { useConfirmDelete } from "./DeleteDialog";
 import { resizedSrc } from "@/lib/images";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ProofItem } from "@/content/proof-table";
 import { PROOF_LIMITS, type ProofTableSettings } from "@/lib/intro/settings";
-import { ColorRow, Section, Slider, Toggle, percent } from "./controls";
+import { Section, Slider, Toggle } from "./controls";
+import { DISC_DEFAULTS, DISC_RANGES, DISC_SLOT_LIMIT, sanitizeDisc, type DiscControls } from "@/lib/content/disc";
 import { ImagePicker, useMedia } from "./ContentEditor";
 import styles from "./portal.module.css";
 import { moveTo, useReorder } from "./reorder";
 
+const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: string; hint?: string }[] }[] = [
+  { title: "Disc motion", fields: [
+    { key: "spinSpeed", label: "Spin speed", hint: "Zero stops rotation. Negative reverses direction. Reduced-motion devices keep the disc still." },
+    { key: "discTilt", label: "Disc tilt" },
+    { key: "discRoll", label: "Disc angle", hint: "Rotates the whole disc's presentation. −65° gives the upright diagonal reference pose." },
+  ] },
+  { title: "Projector & light", fields: [
+    { key: "lightIntensity", label: "Studio light", hint: "Lighting and reflections on the silver disc and glass." },
+    { key: "rayIntensity", label: "Projector brightness" },
+    { key: "rayStyle", label: "Ray style" },
+    { key: "rayElevation", label: "Ray height", hint: "Raises or lowers the source in the empty space on the right." },
+    { key: "raySpread", label: "Ray spread", hint: "The landing area automatically fits the slot. Increase to fill the panel; decrease for a narrower beam." },
+    { key: "rayPrism", label: "Prism colour separation", hint: "Adds fine spectral streaks to Prismatic fan. The main colour still follows the highlighted artwork." },
+    { key: "rayLength", label: "Projector distance", hint: "The source stays in the space to the right of the disc." },
+    { key: "focusAngle", label: "Projector focus angle", hint: "−180° places the fixed projection on the left side; 0° places it on the right." },
+    { key: "focusRadius", label: "Focus radius" },
+  ] },
+  { title: "Glow", fields: [
+    { key: "bloom", label: "Glow strength", hint: "Zero switches bloom off." },
+    { key: "glowRadius", label: "Glow softness", hint: "Softens the fixed projection window's fade across the artwork as it enters and leaves the light." },
+    { key: "glowThreshold", label: "Glow threshold", hint: "Higher values let only the brightest highlights glow." },
+  ] },
+  { title: "Artwork colour", fields: [
+    { key: "saturation", label: "Colour saturation", hint: "100% keeps the original colour; 0% makes the artwork monochrome." },
+    { key: "vibrance", label: "Colour vibrance", hint: "Boosts muted colours more than colours that are already vivid." },
+    { key: "desaturation", label: "Silver desaturation", hint: "Mutes the disc's iridescence without changing the artwork." },
+  ] },
+  { title: "Slot appearance", fields: [
+    { key: "slotSize", label: "Slot size" },
+    { key: "slotGap", label: "Gap between slots", hint: "Spacing adjusts automatically to the number of slots." },
+    { key: "slotOpacity", label: "Artwork opacity" },
+    { key: "slotBlur", label: "Unfocused image blur", hint: "1.5 gives moderate softness. Only the part inside the projection window becomes fully sharp." },
+    { key: "unfocusedBrightness", label: "Unfocused image brightness" },
+  ] },
+];
+
 /**
- * Portal controls for the Proof Table (the 3D collaborations section): the cards (add, remove, reorder, upload a
- * new title), their size, the glass and how long the section plays. Everything previews live.
+ * Portal controls for the title disc: artwork, linked projects, order, light and motion.
+ * Existing slate entries remain editable and preview live.
  */
 export function ProofTableEditor({
   value,
@@ -28,31 +65,33 @@ export function ProofTableEditor({
 }) {
   const media = useMedia();
   const { ask: askDelete, dialog: deleteDialog } = useConfirmDelete();
-  const images = media.images; // everything uploaded anywhere in the portal
   const [upload, setUpload] = useState<{ kind: "idle" | "busy" | "error"; message?: string }>({ kind: "idle" });
   const fileRef = useRef<HTMLInputElement>(null);
   /** The card whose picture is being chosen. */
   const [picking, setPicking] = useState<number | null>(null);
 
   const items = value.items;
-  const setItems = (next: ProofItem[]) => onChange({ items: next });
+  const latestItems = useRef(items);
+  useEffect(() => { latestItems.current = items; }, [items]);
+  const disc = sanitizeDisc(value.disc);
+  const setItems = (next: ProofItem[]) => { latestItems.current = next; onChange({ items: next }); };
   const patchItem = (i: number, patch: Partial<ProofItem>) =>
     setItems(items.map((it, j) => (j === i ? { ...it, ...patch } : it)));
   const { attach, item: reItem, grip: reGrip } = useReorder((from, to) => setItems(moveTo(items, from, to)));
   const full = items.length >= PROOF_LIMITS.items;
   const addCard = (src?: string) => {
-    if (full) return;
-    const unused = images.find((im) => !items.some((it) => it.src === im));
-    const image = src ?? unused ?? images[0] ?? "";
+    const currentItems = latestItems.current;
+    if (currentItems.length >= PROOF_LIMITS.items) return;
+    const image = src ?? "";
     setItems([
-      ...items,
+      ...currentItems,
       {
         src: image,
         type: "title-png",
         film: "New title",
         year: new Date().getFullYear(),
         tag: "Title",
-        slug: "title-designs",
+        slug: projects[0]?.slug ?? "title-designs",
         alt: "Title design",
       },
     ]);
@@ -77,87 +116,41 @@ export function ProofTableEditor({
   return (
     <>
       {deleteDialog}
-      <Section title="Proof Table" scope="Page" hint="The 3D section where your titles drop onto a lit proofing table.">
+      <Section title="Title disc" scope="Page" hint="Your titles rotate through a fixed cinema-projector beam. Movement pauses off-screen and respects reduced motion.">
         <Toggle label="Show the section" checked={value.enabled} onChange={(enabled) => onChange({ enabled })} />
         <div className={styles.control}>
-          <button type="button" className={styles.ghostButton} onClick={onShow}>
-            Show it in the preview ↓
-          </button>
+          <button type="button" className={styles.ghostButton} onClick={onShow}>Show it in the preview ↓</button>
+          <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, discRoll: -65, discTilt: -65, focusAngle: -180, focusRadius: 0.67, rayStyle: 1, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.65 } })}>Use reference angle & ray</button>
         </div>
-        <Slider
-          label="Scroll length"
-          value={value.length}
-          min={0.8}
-          max={4}
-          step={0.1}
-          format={(v) => `${v.toFixed(1)} screens`}
-          hint="How much scrolling the story takes. Shorter plays it faster."
-          onChange={(length) => onChange({ length })}
-        />
-        <Slider
-          label="Card size"
-          hint="100% fills the glass; more cards automatically make each card smaller."
-          value={value.cardSize}
-          min={0.25}
-          max={1}
-          step={0.05}
-          format={percent}
-          onChange={(cardSize) => onChange({ cardSize })}
-        />
+        <div className={styles.control}>
+          <button type="button" className={styles.ghostButton} disabled={full} onClick={() => addCard()}>+ Add title</button>
+          <p className={styles.controlHint}>{Math.min(items.length, DISC_SLOT_LIMIT)} of {DISC_SLOT_LIMIT} disc slots filled. The first {DISC_SLOT_LIMIT} titles appear on the disc; remaining titles stay in the collection. Drag a title into the first {DISC_SLOT_LIMIT} positions to display it.</p>
+          <button type="button" className={styles.linkButton} onClick={() => onChange({ disc: { ...DISC_DEFAULTS } })}>Reset disc settings</button>
+          <p className={styles.controlHint}>Reset restores the disc controls; your images and slot order stay as they are.</p>
+        </div>
       </Section>
-
-      <Section title="Glass slab" scope="Page" hint="The slim pane of glass the cards lie on.">
-        <ColorRow label="Slab tint" value={value.slabColor} onChange={(slabColor) => onChange({ slabColor })} />
-        <Slider
-          label="Slab opacity"
-          value={value.slabOpacity}
-          min={0.05}
-          max={1}
-          step={0.05}
-          format={percent}
-          hint="Lower is clearer glass; the page behind shows through."
-          onChange={(slabOpacity) => onChange({ slabOpacity })}
-        />
-      </Section>
-
-      <Section title="Card glass" scope="Page" hint="The glass plate each title is mounted on.">
-        <ColorRow label="Glass colour" value={value.glassColor} onChange={(glassColor) => onChange({ glassColor })} />
-        <Slider
-          label="Glass opacity"
-          value={value.glassOpacity}
-          min={0.15}
-          max={1}
-          step={0.05}
-          format={percent}
-          hint="Lower lets more of the lit table show through."
-          onChange={(glassOpacity) => onChange({ glassOpacity })}
-        />
-        <Slider
-          label="Frosted blur"
-          value={value.frost}
-          min={0}
-          max={1}
-          step={0.05}
-          format={percent}
-          hint="Frosts the glass so the light behind it softens. Off = clear glass."
-          onChange={(frost) => onChange({ frost })}
-        />
-        <Slider
-          label="Reflection"
-          value={value.reflection}
-          min={0}
-          max={1}
-          step={0.05}
-          format={percent}
-          hint="How much the glass mirrors the room light. Lower it if the shine covers the titles."
-          onChange={(reflection) => onChange({ reflection })}
-        />
-      </Section>
-
+      {DISC_GROUPS.map(group => <details key={group.title} className={styles.discControls} open={group.title === "Disc motion" || undefined}>
+        <summary>{group.title}<span>{group.fields.length} controls</span></summary>
+        <div className={styles.sectionBody}>
+        {group.fields.map(({ key, label, hint }) => {
+          if (key === "rayStyle") return <div key={key} className={styles.control}>
+            <label className={styles.controlLabel}>Ray style
+              <select className={styles.select} aria-label="Ray style" value={disc.rayStyle} onChange={e => onChange({ disc: { ...disc, rayStyle: Number(e.target.value) } })}>
+                <option value={0}>Cinema projector</option><option value={1}>Prismatic fan — reference</option><option value={2}>Soft light fan</option>
+              </select>
+            </label>
+          </div>;
+          const [min, max, step] = DISC_RANGES[key];
+          return <Slider key={key} label={label} hint={hint} value={disc[key]} min={min} max={max} step={step}
+            format={n => key === "discTilt" || key === "discRoll" || key === "focusAngle" || key === "slotGap" ? `${n}°` : key === "spinSpeed" ? `${Number(n.toFixed(2))} rad/s` : ["slotBlur", "rayLength", "rayElevation", "glowThreshold"].includes(key) ? String(Number(n.toFixed(2))) : `${Math.round(n * 100)}%`}
+            onChange={next => onChange({ disc: { ...disc, [key]: next } })} />;
+        })}
+        </div>
+      </details>)}
       <Section
-        title={`Cards (${items.length} / ${PROOF_LIMITS.items})`}
+        title={`Title collection (${items.length} / ${PROOF_LIMITS.items})`}
         scope="Page"
-        hint="They drop in this order, on phones too."
+        hint={`The first ${DISC_SLOT_LIMIT} images appear around the disc in this order. All titles remain in the collection below it.`}
       >
         <div ref={attach} style={{ display: "contents" }}>
         {items.map((it, i) => (
@@ -167,6 +160,7 @@ export function ProofTableEditor({
               {/* eslint-disable-next-line @next/next/no-img-element -- a small preview of the chosen title */}
               {it.src && <img className={styles.slotThumb} src={resizedSrc(it.src, 240)} alt="" />}
               <span className={styles.slotIndex}>{String(i + 1).padStart(2, "0")}</span>
+              <span className={styles.controlHint}>{i < DISC_SLOT_LIMIT ? "On disc" : "Collection only"}</span>
               <span className={styles.slotActions}>
                 <button
                   type="button"
@@ -241,7 +235,7 @@ export function ProofTableEditor({
                     type="color"
                     aria-label={`Glass tint for ${it.film}`}
                     className={styles.swatch}
-                    value={it.tint ?? value.glassColor}
+                    value={it.tint ?? "#dde5f2"}
                     onChange={(e) => patchItem(i, { tint: e.target.value })}
                   />
                   <button
@@ -250,7 +244,7 @@ export function ProofTableEditor({
                     disabled={!it.tint}
                     onClick={() => patchItem(i, { tint: undefined })}
                   >
-                    {it.tint ? "Use the glass colour" : "Same as the glass colour"}
+                    {it.tint ? "Use default glass" : "Default glass colour"}
                   </button>
                 </span>
               </div>
@@ -259,7 +253,7 @@ export function ProofTableEditor({
         ))}
         <div className={styles.slotFooter}>
           <button type="button" className={styles.ghostButton} disabled={full} onClick={() => addCard()}>
-            + Add a card
+            + Add title
           </button>
           <button
             type="button"

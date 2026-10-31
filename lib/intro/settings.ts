@@ -1,4 +1,5 @@
 import { proofTable as proofTableContent, type ProofItem } from "@/content/proof-table";
+import { DISC_DEFAULTS, sanitizeDisc, type DiscControls } from "@/lib/content/disc";
 // The creator-tunable look of the star intro and the lasting background stars.
 // Shared by the server (reads/writes content/intro-settings.json), the site and the portal.
 
@@ -205,6 +206,8 @@ function sanitizeSweep(input: unknown, d: SweepSettings): SweepSettings {
 
 export interface ProofTableSettings {
   enabled: boolean;
+  /** CD presentation. Legacy table controls remain readable for older saved drafts. */
+  disc: DiscControls;
   /** How long the section stays pinned, in screen heights (shorter = the story plays faster). */
   length: number;
   /** Card width (1 = the widest that fits). */
@@ -248,6 +251,7 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
     : d.items;
   return {
     enabled: bool(src.enabled, d.enabled),
+    disc: sanitizeDisc(src.disc),
     length: num(src.length, [0.8, 4], d.length),
     cardSize: num(src.cardSize, [0.25, 1], d.cardSize),
     glassColor: hex(src.glassColor, d.glassColor),
@@ -329,7 +333,7 @@ export interface IntroSettings {
   logoGlow: { enabled: boolean; intensity: number; spread: number; color: string; places: Record<GlowPlace, boolean> };
   /** The cursor: normal (the usual arrow) or the pen, and the pen's colour, size, glow and the colour it turns over a logo. */
   cursor: { style: "pen" | "normal"; color: string; size: number; glow: number; logoColor: string };
-  /** The Proof Table (collaborations section): its title cards and their glass. */
+  /** The title disc (collaborations section); preserves the legacy slate entries. */
   proofTable: ProofTableSettings;
   /** A soft pool of dark glass behind the logo that the stars stream out of. */
   dial: DialSettings;
@@ -409,6 +413,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   cursor: { style: "normal", color: "#fff195", size: 1, glow: 0.3, logoColor: "#ffffff" },
   proofTable: {
     enabled: true,
+    disc: { ...DISC_DEFAULTS },
     length: 1.3,
     cardSize: 1,
     glassColor: "#1c1630",

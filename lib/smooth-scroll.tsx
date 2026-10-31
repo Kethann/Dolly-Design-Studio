@@ -33,7 +33,7 @@ export function glideTo(target: number | HTMLElement) {
     return;
   }
   glideGoal = null; // no smooth-scroll engine: the browser's own glide, nothing to resume
-  const top = typeof target === "number" ? target : target.getBoundingClientRect().top + window.scrollY;
+  const top = typeof target === "number" ? target : topOf(target);
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   window.scrollTo({ top, behavior: reduced ? "instant" : "smooth" });
 }
@@ -57,7 +57,8 @@ export function releaseScroll() {
 /** Where on the page an element sits, just below the fixed menu bar when `clearBar` is set. */
 export function topOf(el: HTMLElement, clearBar = false) {
   const bar = clearBar ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 72 : 0;
-  return Math.max(0, Math.round(el.getBoundingClientRect().top + window.scrollY - (bar ? bar + 20 : 0)));
+  const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+  return Math.max(0, Math.round(el.getBoundingClientRect().top + window.scrollY - (bar ? bar + 20 : margin)));
 }
 
 /** Mounts Lenis smooth scroll once, disabled entirely under reduced motion. */

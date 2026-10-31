@@ -675,7 +675,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
 
 function TextInput({ field, path }: { field: Extract<Field, { kind: "text" | "area" }>; path: string }) {
   const { content, update } = useEditor();
-  const raw = (getAt(content, path) as string | undefined) ?? "";
+  const raw = String(getAt(content, path) ?? "");
   const fxOn = field.fx ?? (!!field.style && !NO_FX.has(styleKey(path)));
   const effect = selectedEffect(raw);
   const value = fxOn ? editableFx(raw) : raw;

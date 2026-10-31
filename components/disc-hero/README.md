@@ -1,0 +1,26 @@
+# Silver title disc
+
+The homepage's existing `collaborations` slate now uses this scene. Existing title entries, uploads, order and valid project links are preserved. The opening intro and studio logo are unchanged.
+
+- Portal → Title disc: 23 controls grouped into motion, projector/light, glow, artwork colour and slot appearance. The reference preset uses an upright diagonal pose and a prismatic fan; Cinema projector and Soft light fan are also available. Add blank slots, choose/upload artwork, remove slots and drag to reorder (up to 16 collection entries, with the first 8 on the disc). Resetting appearance keeps the images and order. Settings live in `proofTable.disc`; old documents receive safe defaults.
+- The public scene loads near the viewport, sleeps off-screen or in hidden tabs, and provides Pause plus reduced-motion and non-WebGL views. Project links remain available in the keyboard-accessible collection list.
+- `scene.ts` is shared with the standalone demo. Run `node scripts/build-disc-demo.mjs` after changing it or `lib/content/disc.ts`.
+- Open `/disc-hero/index.html` for the single-file demo with lil-gui. Its `const images = [...]` uses embedded sample artwork; replace those URLs with your own. CDN modules are pinned. Remote images require CORS permission; failed images retain labelled placeholders.
+
+## Rendering budget
+
+DPR is capped at 2, with a separate 1.6-million-pixel framebuffer budget (800,000 on coarse-pointer / low-core devices). Sustained slow frames reduce resolution further. The renderer targets 60 fps on desktop and 30 fps on lower-power devices; actual performance depends on the device and other page effects.
+
+Images decode sequentially, then downsample to power-of-two textures. For the maximum 8 visible slots, the combined base texture budget is at most 4 million pixels, plus mipmaps. One 128-pixel environment capture is generated at startup; there are no per-frame cube captures, shadows or extra blur scenes. Shared glass, geometry and mip-biased image sampling reduce work. Bloom and FXAA use bounded framebuffers. Observers, image requests, animation frames, materials, textures and targets are cleaned up on removal.
+
+Separate trapezoidal glass plaques leave silver visible between titles. Adding or removing a title redistributes the plaques equally; changing size or spacing only rebuilds shared geometry, without loading images again. The artwork is fitted inside each panel.
+
+Each artwork fragment is transformed into the fixed projector window. Only overlapping pixels gain colour, clarity and a gentle image-derived emission; a quintic spatial feather eases the entering and exiting portions. There is no halo, frame light or flare sprite. Unfocused artwork defaults to 35% brightness and a moderate 1.5 mip bias so it remains recognizable. Saved custom brightness and blur values remain editable. Glow softness controls the window's feather.
+
+The projector source and target stay fixed in world space while the disc spins. Artwork outside the window stays grayscale; during a handoff only the overlapping portions of adjacent images are illuminated. A small 5×5 sample grid estimates each image's overlap and weights its pre-sampled average colour. The beam colour eases toward that blend over time, retaining its last colour through empty space. The beam remains continuously lit. This adds no per-frame image reads or render targets. Dispersion modulates the image colour instead of adding an unrelated rainbow. Blank production slots intentionally show labels until artwork is uploaded.
+
+The default landing area is on the left side (focus angle −180°), with the source remaining in the right-hand space. Four triangles form a soft projector volume, widening toward a fixed trapezoidal window fitted to the plaque. Adding slots or changing their size automatically resizes the footprint; spread stays within the panel boundary. All three ray styles share this footprint. Saved custom angles remain editable; the portal's reference preset restores the left-side aim.
+
+The website retains its shared ambient backdrop with a dark radial scrim behind the disc. The canvas clears transparently, so the disc and artwork remain solid while the surrounding background shows through; the standalone demo keeps its black background. The pinned Three.js bloom pass preserves transparent backgrounds without another blur pass or WebGL render target.
+
+Material and post-processing references: [MeshPhysicalMaterial](https://threejs.org/docs/pages/MeshPhysicalMaterial.html), [UnrealBloomPass](https://threejs.org/docs/pages/UnrealBloomPass.html).

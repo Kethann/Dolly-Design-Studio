@@ -136,7 +136,7 @@ export interface SlateText {
 export interface SiteContent {
   site: Widen<typeof site>;
   nav: { id: string; label: string }[];
-  home: Widen<typeof home>;
+  home: Omit<Widen<typeof home>, "stats"> & { stats: { value: number | string; suffix: string; label: string }[] };
   services: Service[];
   clients: ClientEntry[];
   collaborators: CollaboratorEntry[];

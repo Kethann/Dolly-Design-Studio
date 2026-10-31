@@ -159,6 +159,11 @@ img {
   padding-inline: clamp(20px, 5vw, 64px);
 }
 
+/* Native hashes and smooth scrolling share the same fixed-header clearance. */
+main > section[id]:not(#top) {
+  scroll-margin-top: var(--nav-h);
+}
+
 /* Intro hand-off: a plain background-coloured curtain until the intro starts, page fades in on reveal.
    html.intro-skip is set by a pre-paint script on pages where the intro doesn't play. */
 /* Painted from the very first frame while the 3D intro loads: the stage colour with a soft glow where the logo will

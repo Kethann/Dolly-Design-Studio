@@ -40,6 +40,8 @@ export function Nav() {
   const [pastFirst, setPastFirst] = useState(false);
   const logoShown = pathname !== "/" || pastFirst;
   const linksRef = useRef<HTMLElement>(null);
+  const menuRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   /** The size of the glass pane behind the menu items: sized to them, so its shape is exact at every width. */
   const [pane, setPane] = useState<{ w: number; h: number; pad: number } | null>(null);
   const linkRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
@@ -163,11 +165,22 @@ export function Nav() {
   useEffect(() => {
     if (!open) return;
     freezeScroll();
+    const focusFrame = requestAnimationFrame(() => menuRef.current?.querySelector<HTMLAnchorElement>("a")?.focus());
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        menuButtonRef.current?.focus();
+      }
+      if (e.key === "Tab") {
+        const items = [menuButtonRef.current, ...Array.from(menuRef.current?.querySelectorAll<HTMLAnchorElement>("a") ?? [])].filter(Boolean) as HTMLElement[];
+        const first = items[0], last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => {
+      cancelAnimationFrame(focusFrame);
       window.removeEventListener("keydown", onKey);
       releaseScroll();
     };
@@ -180,7 +193,7 @@ export function Nav() {
 
   // A menu left open when the window grows past the phone layout would leave the page frozen with no menu visible.
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 860px)");
+    const mq = window.matchMedia("(min-width: 1200px)");
     const close = () => mq.matches && setOpen(false);
     mq.addEventListener("change", close);
     return () => mq.removeEventListener("change", close);
@@ -267,9 +280,11 @@ export function Nav() {
       <div className={styles.right}>
         <button
           type="button"
+          ref={menuButtonRef}
           className={styles.menuButton}
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
+          aria-controls={open ? "mobile-navigation" : undefined}
           onClick={() => setOpen((v) => !v)}
           data-cursor="link"
         >
@@ -280,7 +295,7 @@ export function Nav() {
       </div>
 
       {open && (
-        <div className={styles.mobileMenu}>
+        <nav ref={menuRef} id="mobile-navigation" className={styles.mobileMenu} aria-label="Mobile" data-lenis-prevent>
           {navItems.map((item) => (
             <Link
               key={item.id}
@@ -293,7 +308,7 @@ export function Nav() {
               {item.label}
             </Link>
           ))}
-        </div>
+        </nav>
       )}
     </header>
   );
