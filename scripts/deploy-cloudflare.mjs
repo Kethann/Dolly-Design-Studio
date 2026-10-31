@@ -1,17 +1,19 @@
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import process from "node:process";
 
 // Account that owns both Dolly Design Studio Cloudflare deployments.
 // An account ID is an identifier, not a secret; Wrangler still supplies authentication.
 const CLOUDFLARE_ACCOUNT_ID = "d189f60c7af53b8c6e37cc60c1f43cd4";
 
-const isWindows = process.platform === "win32";
-const npm = isWindows ? "npm.cmd" : "npm";
-const npx = isWindows ? "npx.cmd" : "npx";
+const root = fileURLToPath(new URL("../", import.meta.url));
+const pagesFront = resolve(root, "pages-front");
+const executable = (...parts) => resolve(root, "node_modules", ...parts);
 
 function capture(command, args) {
   const result = spawnSync(command, args, {
-    cwd: process.cwd(),
+    cwd: root,
     encoding: "utf8",
     shell: false,
   });
@@ -27,7 +29,7 @@ function capture(command, args) {
 function run(label, command, args, options = {}) {
   process.stdout.write(`\n==> ${label}\n`);
   const result = spawnSync(command, args, {
-    cwd: options.cwd ?? process.cwd(),
+    cwd: options.cwd ?? root,
     env: options.env ?? process.env,
     stdio: "inherit",
     shell: false,
@@ -56,18 +58,24 @@ const deployEnv = {
   ...process.env,
   CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID || CLOUDFLARE_ACCOUNT_ID,
   NEXT_PUBLIC_BUILD_ID: sha,
+  NEXT_PUBLIC_SITE_URL: "https://dollydesignstudio.pages.dev",
+  DEPLOY_TARGET: "cloudflare",
 };
 
-run("Type checking", npm, ["run", "typecheck"]);
-run("Linting", npm, ["run", "lint"]);
-run("Tests", npm, ["test"]);
-run("Building the application Worker", npm, ["run", "cf:build"], { env: deployEnv });
-run("Deploying the application Worker", npx, ["opennextjs-cloudflare", "deploy"], { env: deployEnv });
+run("Type checking", process.execPath, [executable("typescript", "bin", "tsc"), "--noEmit"]);
+run("Linting", process.execPath, [executable("eslint", "bin", "eslint.js"), "."]);
+run("Tests", process.execPath, ["--test", "tests/media-template.test.mjs"]);
+run("Building the application Worker", process.execPath, [executable("@opennextjs", "cloudflare", "dist", "cli", "index.js"), "build"], {
+  env: deployEnv,
+});
+run("Deploying the application Worker", process.execPath, [executable("@opennextjs", "cloudflare", "dist", "cli", "index.js"), "deploy"], {
+  env: deployEnv,
+});
 run(
   "Refreshing dollydesignstudio.pages.dev",
-  npx,
+  process.execPath,
   [
-    "wrangler",
+    executable("wrangler", "bin", "wrangler.js"),
     "pages",
     "deploy",
     "public",
@@ -81,7 +89,7 @@ run(
     commitMessage,
     `--commit-dirty=${dirty}`,
   ],
-  { cwd: new URL("../pages-front/", import.meta.url), env: deployEnv },
+  { cwd: pagesFront, env: deployEnv },
 );
 
 const liveUrls = [
