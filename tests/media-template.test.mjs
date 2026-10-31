@@ -11,6 +11,17 @@ const nativeRequire = createRequire(import.meta.url);
 const json = (file) => JSON.parse(readFileSync(path.join(root, file), "utf8"));
 const clone = (value) => structuredClone(value);
 
+test("projector density follows image brightness bands without extinguishing the lamp", () => {
+  const { discImageBands } = loader()("lib/content/disc.ts");
+  const bands = discImageBands([0,0,0,255, 64,64,64,255, 128,128,128,255, 255,255,255,255], 4);
+  assert.equal(bands[0], .35);
+  assert.ok(Math.abs(bands[3] - 1) < 1e-12);
+  assert.ok(bands[0] < bands[1] && bands[1] < bands[2] && bands[2] < bands[3]);
+  assert.deepEqual(discImageBands([255,255,255,0], 1), [.35,.35,.35,.35]);
+  assert.deepEqual(discImageBands([], 0), [.35,.35,.35,.35]);
+  assert.ok(Math.abs(discImageBands([255,255,255,255, 0,0,0,255], 1)[0] - (.35 + .65 * Math.sqrt(.5))) < 1e-12);
+});
+
 function uploadHarness(send) {
   const slots=[];let cursor=0;const cleanups=[];
   const state=initial=>{const at=cursor++;if(!(at in slots))slots[at]=initial;return [slots[at],v=>{slots[at]=typeof v==='function'?v(slots[at]):v}];};
@@ -18,6 +29,34 @@ function uploadHarness(send) {
   function UploadHarness() { cursor=0;return useUploads("image",send); }
   return {render:UploadHarness,close(){cleanups.forEach(fn=>fn?.());}};
 }
+
+test("breadcrumbs preserve entry points, trim revisited parents, and bound long journeys", () => {
+  const { defaultTrail, advanceTrail, readTrail, TRAIL_LIMIT } = loader()("lib/navigation-trail.ts");
+  assert.deepEqual(defaultTrail("/work/dacoit"), ["/", "/work", "/work/dacoit"]);
+  assert.deepEqual(defaultTrail("/process/sketchboards"), ["/", "/#process", "/process/sketchboards"]);
+  let paths = advanceTrail(["/", "/#collaborations"], "/work/dacoit");
+  assert.deepEqual(paths, ["/", "/#collaborations", "/work/dacoit"]);
+  assert.deepEqual(advanceTrail(paths, "/#collaborations"), ["/", "/#collaborations"]);
+  assert.deepEqual(readTrail(paths, "/work/dacoit"), paths);
+  assert.equal(readTrail(paths, "/work/another"), null, "History from another page cannot redirect this one");
+  for (let i = 0; i < 30; i++) paths = advanceTrail(paths, `/work/film-${i}`);
+  assert.equal(paths.length, TRAIL_LIMIT);
+  assert.equal(paths[0], "/");
+  assert.equal(paths.at(-1), "/work/film-29");
+  assert.deepEqual(advanceTrail(paths, "/"), ["/"]);
+});
+
+test("breadcrumb destinations reject unsafe URLs and preserve preview before the hash", () => {
+  const { trailPath, readTrail, trailHref, hashSection } = loader()("lib/navigation-trail.ts");
+  for (const value of ["https://evil.test", "//evil.test", "/\\evil.test", "javascript:alert(1)", "/portal", "/api/contact", "/work/%2e%2e", {}, null]) assert.equal(trailPath(value), null);
+  assert.equal(readTrail(["/", "//evil.test"], "//evil.test"), null);
+  assert.equal(readTrail(["/", "/work", "/work"], "/work"), null);
+  assert.equal(trailHref("/#collaborations", true), "/?portal-preview#collaborations");
+  assert.equal(trailHref("/work/dacoit", true), "/work/dacoit?portal-preview");
+  assert.equal(trailHref("/work", false), "/work");
+  assert.equal(hashSection("#%E0%A4%A"), "");
+  assert.equal(hashSection("#work"), "work");
+});
 
 test("upload controls reject rapid duplicate starts and recover after failure", async () => {
   let finish;let calls=0;const completed=[];
@@ -149,6 +188,10 @@ test("disc settings migrate old slates, clamp invalid controls, and retain artwo
   assert.equal(sanitizeDisc({ discTilt: -999 }).discTilt, -75);
   assert.equal(sanitizeDisc({ spinSpeed: 0 }).spinSpeed, 0);
   assert.equal(sanitizeDisc({ slotGap: 100 }).slotGap, 12);
+  assert.equal(sanitizeDisc({}).projectorSide, -1, "Existing slates receive the left-hand projector");
+  assert.equal(sanitizeDisc({ projectorSide: -100 }).projectorSide, -1);
+  assert.equal(sanitizeDisc({ projectorSide: .4 }).projectorSide, 1);
+  assert.equal(sanitizeDisc({ projectorSide: NaN }).projectorSide, -1);
   for (const count of [0, 1, 2, 12, 16, 100]) {
     const { step, width } = sectorSize(count, 12);
     assert.ok(width > 0 && width < step);
@@ -207,6 +250,35 @@ test("projector illuminates only overlapping image pixels and blends partial ent
   assert.ok(Math.abs(partial - discProjectionCoverage(panel, window, Math.PI * 2 + .35, .75)) < 1e-9);
 });
 
+test("upright artwork keeps its aspect ratio entirely inside a rotating projected plaque", () => {
+  const { discArtworkFrame } = loader()("lib/content/disc.ts");
+  for (const angle of [0, .3, 1, 2, 3, 4, 5]) for (const aspect of [.25, 1, 4]) for (const viewport of [.5, 1, 2]) {
+    const points = [{ x: -.2, y: -.5 }, { x: .2, y: -.5 }, { x: .4, y: .5 }, { x: -.4, y: .5 }]
+      .map(p => ({ x: p.x * Math.cos(angle) - p.y * Math.sin(angle), y: p.x * Math.sin(angle) + p.y * Math.cos(angle) }));
+    const box = discArtworkFrame(points, aspect, viewport);
+    assert.ok(Math.abs(box.halfWidth / box.halfHeight * viewport - aspect) < 1e-8);
+    for (const dx of [-1, 1]) for (const dy of [-1, 1]) {
+      const x = box.x + dx * box.halfWidth, y = box.y + dy * box.halfHeight;
+      for (let i = 0; i < points.length; i++) {
+        const a = points[i], b = points[(i + 1) % points.length];
+        assert.ok((b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x) >= -1e-8, "No corner clips outside the plaque");
+      }
+    }
+  }
+});
+
+test("projector colour ignores transparent padding and preserves artwork pigment", () => {
+  const { discImageColour, sanitizeDisc } = loader()("lib/content/disc.ts");
+  assert.deepEqual(discImageColour([255, 0, 0, 255, 0, 255, 0, 0, 0, 0, 0, 255]), [1, 0, 0]);
+  const colour = discImageColour([255, 0, 0, 255, 255, 255, 255, 255]);
+  assert.ok(colour[0] > .9 && colour[1] < .1);
+  assert.deepEqual(discImageColour([0, 0, 0, 0]), [.5, .5, .5]);
+  assert.equal(sanitizeDisc({}).rayMotion, .45);
+  assert.equal(sanitizeDisc({ rayMotion: 0 }).rayMotion, 0);
+  assert.equal(sanitizeDisc({ rayMotion: Infinity }).rayMotion, .45);
+  assert.equal(sanitizeDisc({ rayMotion: 8 }).rayMotion, 1);
+});
+
 test("disc displays eight entries without deleting titles or changing their link order", () => {
   const { DISC_SLOT_LIMIT, visibleDiscItems } = loader()("lib/content/disc.ts");
   const items = Array.from({ length: 12 }, (_, i) => ({ slug: `title-${i}`, src: `image-${i}.png` }));
@@ -222,7 +294,7 @@ test("disc displays eight entries without deleting titles or changing their link
 
 test("projector footprint tracks slot dimensions and stays inside the selected plaque", () => {
   const { DISC_DEFAULTS, discPanelLayout, discProjectionWindow } = loader()("lib/content/disc.ts");
-  assert.equal(DISC_DEFAULTS.focusAngle, -180);
+  assert.equal(DISC_DEFAULTS.focusAngle, -25);
   for (const count of [1, 5, 12, 16]) for (const size of [.7, 1]) for (const radius of [.48, .67, .82]) for (const spread of [.3, 1.1, 2]) {
     const layout = discPanelLayout(count, 3, size), window = discProjectionWindow(layout, radius, spread);
     assert.ok(window.inner >= layout.inner && window.outer <= layout.outer);
@@ -282,6 +354,72 @@ test("effect marking handles selections, whitespace, punctuation and existing br
   assert.equal(markEffectWords("Make [[cinematic]]", 8, 12), "Make [[cinematic]]");
   assert.equal(markEffectWords("Make [[cinematic]] work"), "Make [[cinematic]] work");
   assert.equal(markEffectWords("  great work  ", 0, 14), "  [[great work]]  ");
+});
+
+test("text colour and glow options stay with their own marked number through edits, saves and reorders", () => {
+  const read = loader();
+  const fx = read("lib/content/text-effects.ts");
+  const options = { color: "#12abcd", glowColor: "#ef3456", glowStrength: 0.45, glowRadius: 18, glowMode: "always" };
+  const encoded = fx.applyTextEffect("[[30+]]", "glow", options);
+  assert.equal(fx.editableFx(encoded), "[[30+]]");
+  assert.equal(fx.plainFx(encoded), "30+");
+  assert.deepEqual(fx.selectedEffectOptions(encoded), options);
+  assert.deepEqual(fx.selectedEffectOptions(fx.applyTextEffect(encoded, "outline")), options);
+  assert.equal(read("lib/content/stat-value.ts").statText(encoded, "+"), encoded);
+  const content = json("content/site-content.json");
+  const neighbour = clone(content.home.stats[1]);
+  content.home.stats[0].value = encoded;
+  const saved = read("lib/content/sanitize.ts").sanitizeContent(JSON.parse(JSON.stringify(content)));
+  const moved = read("app/portal/reorder-content.ts").reorderContent(saved, "home.stats", 0, 1);
+  assert.equal(moved.home.stats[1].value, encoded);
+  assert.deepEqual(moved.home.stats[0], neighbour);
+  assert.equal(fx.applyTextEffect(encoded, "glow", {}), "[[glow|30+]]");
+  assert.deepEqual(fx.effectStyle(options), {color:"#12abcd", "--fx-glow-color":"#ef3456", "--fx-glow-opacity":"45%", "--fx-glow-radius":"18px"});
+  assert.equal(read("lib/content/process.ts").slugify(fx.applyTextEffect("[[My Heading]]", "glow", options)), "my-heading");
+});
+
+test("effect settings reject unsafe CSS and clamp costly glow values without changing legacy markers", () => {
+  const fx = loader()("lib/content/text-effects.ts");
+  assert.deepEqual(fx.cleanEffectOptions({color:"url(https://invalid.example)",glowColor:"red;position:fixed",glowStrength:5,glowRadius:9999,glowMode:"invalid"}), {glowStrength:1,glowRadius:32});
+  assert.deepEqual(fx.cleanEffectOptions({glowStrength:NaN,glowRadius:Infinity}), {});
+  assert.deepEqual(fx.cleanEffectOptions({glowStrength:-1,glowRadius:-20}), {glowStrength:0,glowRadius:1});
+  assert.deepEqual(fx.selectedEffectOptions("[[glow;color=red;glowRadius=Infinity;glowStrength=0|4+]]"), {glowStrength:0});
+  assert.equal(fx.applyTextEffect("[[4+]]", "particles"), "[[4+]]");
+  assert.equal(fx.applyTextEffect("[[glow|4+]]", "glow"), "[[glow|4+]]");
+  assert.deepEqual(fx.effectStyle({}), {});
+});
+
+test("particle controls round-trip with numbers, retain colours through presets, and stay field-local", () => {
+  const read = loader(), fx = read("lib/content/text-effects.ts");
+  const options = { color: "#12abcd", particleColor: "#e94b92", particleSize: .75, particleScatter: 6, particleSpeed: 1.2, particleGlow: .6 };
+  const encoded = fx.applyTextEffect("[[30+]]", "particles", options);
+  assert.equal(fx.editableFx(encoded), "[[30+]]");
+  assert.equal(fx.plainFx(encoded), "30+");
+  assert.deepEqual(fx.selectedEffectOptions(encoded), options);
+  const content = json("content/site-content.json"), neighbour = clone(content.home.stats[1]);
+  content.home.stats[0].value = encoded;
+  const saved = read("lib/content/sanitize.ts").sanitizeContent(JSON.parse(JSON.stringify(content)));
+  const moved = read("app/portal/reorder-content.ts").reorderContent(saved, "home.stats", 0, 1);
+  assert.equal(moved.home.stats[1].value, encoded);
+  assert.deepEqual(moved.home.stats[0], neighbour);
+  assert.deepEqual(fx.selectedEffectOptions(fx.applyTextEffect(encoded, "glow")), options);
+  for (const preset of fx.PARTICLE_PRESETS) {
+    const next = fx.applyTextEffect(encoded, "particles", { ...options, ...preset.options });
+    assert.equal(fx.selectedEffectOptions(next).particleColor, options.particleColor);
+    assert.equal(fx.selectedEffectOptions(next).color, options.color);
+  }
+  assert.equal(fx.applyTextEffect(encoded, "particles", {}), "[[30+]]");
+});
+
+test("particle settings reject unsafe colours, clamp movement and preserve explicit zero", () => {
+  const fx = loader()("lib/content/text-effects.ts");
+  assert.deepEqual(fx.cleanEffectOptions({particleColor:"red;position:fixed",particleSize:99,particleScatter:99,particleSpeed:99,particleGlow:99}),
+    {particleSize:1.6,particleScatter:8,particleSpeed:2,particleGlow:1});
+  assert.deepEqual(fx.cleanEffectOptions({particleSize:NaN,particleScatter:Infinity,particleSpeed:"1",particleGlow:-Infinity}), {});
+  assert.deepEqual(fx.selectedEffectOptions("[[particles;particleColor=#00AAEE;particleSize=-2;particleScatter=0;particleSpeed=0;particleGlow=0|4+]]"),
+    {particleColor:"#00aaee",particleSize:.5,particleScatter:0,particleSpeed:.5,particleGlow:0});
+  for (const preset of fx.PARTICLE_PRESETS) assert.deepEqual(fx.cleanEffectOptions(preset.options), preset.options);
+  assert.equal(fx.applyTextEffect("[[4+]]", "particles"), "[[4+]]", "Legacy dots keep their defaults");
 });
 
 test("heading effects survive sanitizing and card moves without changing page addresses", () => {

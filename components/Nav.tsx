@@ -53,7 +53,7 @@ export function Nav() {
   // The item for the place you are: the full gallery (and a project on the home page), the Breakdowns page (it belongs to
   // "How we work"), or the home-page section in view.
   const activeId =
-    pathname.startsWith("/work") ? "work" : pathname.startsWith("/breakdowns") ? "process" : pathname === "/" ? activeSection || null : null;
+    pathname.startsWith("/work") ? "work" : pathname.startsWith("/breakdowns") || pathname.startsWith("/process/") ? "process" : pathname === "/" ? activeSection || null : null;
 
   useEffect(() => {
     if (pathname !== "/") return;

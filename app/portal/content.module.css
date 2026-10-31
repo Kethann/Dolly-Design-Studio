@@ -1271,6 +1271,15 @@
 }
 .textEffects { padding: 12px; margin-top: 8px; border: 1px solid #ffffff24; border-radius: 10px; background: #ffffff05; min-width: 0; }
 .effectLabel { display: grid; gap: 7px; font: 600 12px/1.4 system-ui, sans-serif; }
+.effectSettings { margin-top: 10px; border-top: 1px solid #ffffff20; }
+.effectSettings summary { padding: 12px 0; min-height: 44px; cursor: pointer; font-size: 12px; }
+.effectSettings fieldset { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 12px; }
+.effectSettings fieldset:disabled { opacity: .5; }
+.effectSettings button { min-height: 44px; }
+.effectSettings summary:focus-visible { outline: 2px solid #ffe9a6; outline-offset: 2px; }
+.particlePresets { display:flex; flex-wrap:wrap; gap:8px; }
+.particlePresets button { flex:1; padding:8px 12px; border:1px solid #ffffff30; border-radius:9px; background:#ffffff08; color:inherit; cursor:pointer; }
+.particlePresets button[aria-pressed="true"] { border-color:#f5c451; background:#f5c45120; color:#ffe9a6; }
 .effectActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .effectActions button { min-height: 44px; border: 1px solid #e8b04b66; border-radius: 8px; padding: 8px 10px; background: #2b1d1d; color: #ffe9a6; cursor: pointer; font: 600 12px/1.3 system-ui, sans-serif; }
 .effectActions button:disabled { opacity: .45; cursor: default; }

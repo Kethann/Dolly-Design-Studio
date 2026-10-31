@@ -12,6 +12,7 @@ import { MAX_PROCESS_ITEMS, extraOf, type ProcessItem } from "@/lib/content/proc
 import { srcSetFor, versionedSrc } from "@/lib/images";
 import { freezeScroll, releaseScroll } from "@/lib/smooth-scroll";
 import styles from "./ProcessView.module.css";
+import { NavigationTrail } from "./NavigationTrail";
 
 /** How a picture sits in its frame: filled or whole, zoomed, and moved (all set per card in the portal). */
 const pictureStyle = (it: ProcessItem): React.CSSProperties => ({
@@ -107,9 +108,7 @@ export function ProcessView({ slug }: { slug: string }) {
     return (
       <section className={styles.page}>
         <div className="container">
-          <Link href={`/${q}#process`} className={styles.back} data-cursor="link">
-            ← How we work
-          </Link>
+          <NavigationTrail />
           <p className={styles.emptyText}>This page isn’t available any more.</p>
         </div>
       </section>
@@ -127,9 +126,7 @@ export function ProcessView({ slug }: { slug: string }) {
   return (
     <article className={styles.page} {...edSection("home", "process", "How we work")}>
       <div className="container">
-        <Link href={`/${q}#process`} className={styles.back} data-cursor="link">
-          ← {home.process.label}
-        </Link>
+        <NavigationTrail />
 
         <header className={styles.head} {...edItem("home.process.cards", index, "This page")}>
           <span className={styles.eyebrow}>

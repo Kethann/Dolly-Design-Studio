@@ -1,6 +1,8 @@
 .word { display: inline; }
-.glow { transition: text-shadow 180ms ease; }
-.glow:hover, .glow:active { text-shadow: 0 0 5px currentColor, 0 0 12px currentColor; }
+.glow { --fx-glow-paint: color-mix(in srgb, var(--fx-glow-color, currentColor) var(--fx-glow-opacity, 100%), transparent); transition: text-shadow 180ms ease; }
+.glow:hover, .glow:active, .glow[data-fx-trigger="always"] {
+  text-shadow: 0 0 calc(var(--fx-glow-radius, 12px) * .4167) var(--fx-glow-paint), 0 0 var(--fx-glow-radius, 12px) var(--fx-glow-paint);
+}
 .sheen { position: relative; display: inline-block; max-width: 100%; }
 .shine {
   position: absolute; inset: 0; pointer-events: none;

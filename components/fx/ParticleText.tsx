@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { cleanEffectOptions, PARTICLE_DEFAULTS, type TextEffectOptions } from "@/lib/content/text-effects";
 import styles from "./ParticleText.module.css";
 
 /** A small hover area and just enough canvas space for the gentle scatter and glow. */
 const REACH = 85;
 const MARGIN = 24;
-const DRIFT = 4;
 /** Never more dots than this for one word, whatever its size. */
 const MAX_DOTS = 2600;
 // Oversized editable headings stay readable as ordinary text instead of allocating huge canvases.
@@ -50,8 +50,15 @@ function glowSprite(color: string) {
  *
  * Where it is used: wrap words in [[double brackets]] in the portal (see renderFx) and render them with renderFx().
  */
-export function ParticleText({ children }: { children: string }) {
+export function ParticleText({ children, color, options }: { children: string; color?: string; options?: TextEffectOptions }) {
   const word = String(children);
+  const settings = cleanEffectOptions(options);
+  const particleColor = settings.particleColor;
+  const dotSize = settings.particleSize ?? PARTICLE_DEFAULTS.particleSize;
+  const scatter = settings.particleScatter ?? PARTICLE_DEFAULTS.particleScatter;
+  const speed = settings.particleSpeed ?? PARTICLE_DEFAULTS.particleSpeed;
+  const glow = settings.particleGlow ?? PARTICLE_DEFAULTS.particleGlow;
+  const renderKey = JSON.stringify([word, color, particleColor, dotSize, scatter, speed, glow]);
   const wrap = useRef<HTMLSpanElement>(null);
   const ghost = useRef<HTMLSpanElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -60,8 +67,8 @@ export function ParticleText({ children }: { children: string }) {
   /** True only while the dots are showing (the pointer is on the word, and until they have settled again); otherwise the word is plain text. */
   const [activeWord, setActiveWord] = useState<string | null>(null);
   // Editing a highlighted word must immediately reveal its new text while its new canvas is prepared.
-  const live = liveWord === word;
-  const active = activeWord === word && live;
+  const live = liveWord === renderKey;
+  const active = activeWord === renderKey && live;
 
   useEffect(() => {
     const host = wrap.current;
@@ -78,14 +85,16 @@ export function ParticleText({ children }: { children: string }) {
     let dpr = 1;
     let sprite: HTMLCanvasElement | null = null;
     let radius = 1;
+    let coreColor = "#fff6e2";
     let raf = 0;
+    let lastFrame = 0;
     let warp = 0;
     let hovering = false;
     let shown = false;
     const show = (on: boolean) => {
       if (shown === on) return;
       shown = on;
-      if (!disposed) setActiveWord(on ? word : null);
+      if (!disposed) setActiveWord(on ? renderKey : null);
     };
     let px = -9999;
     let py = -9999;
@@ -141,14 +150,14 @@ export function ParticleText({ children }: { children: string }) {
         for (let y = step / 2; y < h; y += step) {
           for (let x = step / 2; x < w; x += step) {
             const i = (Math.floor(y * dpr) * off.width + Math.floor(x * dpr)) * 4 + 3;
-            if (data[i] > 110) list.push({ hx: x, hy: y, x, y, driftX: (Math.random() * 2 - 1) * DRIFT, driftY: (Math.random() * 2 - 1) * DRIFT, seed: Math.random() });
+            if (data[i] > 110) list.push({ hx: x, hy: y, x, y, driftX: (Math.random() * 2 - 1) * scatter, driftY: (Math.random() * 2 - 1) * scatter, seed: Math.random() });
           }
         }
         if (list.length <= MAX_DOTS) break;
         step *= 1.25; // a very large word: fewer, slightly sparser dots
       }
       // Finer pinpoints without adding particles or increasing the canvas budget.
-      radius = Math.min(0.7, step * 0.16);
+      radius = Math.min(0.7, step * 0.16) * dotSize;
       // Keep a hard bound even for unusually dense fonts after the sampling retries.
       dots = list.length <= MAX_DOTS ? list : Array.from({ length: MAX_DOTS }, (_, i) => list[Math.floor(i * list.length / MAX_DOTS)]);
       off.width = off.height = 0;
@@ -162,15 +171,19 @@ export function ParticleText({ children }: { children: string }) {
       cv!.height = surfaceHeight;
       // The glow takes the word's own colour; a word painted with a gradient has no single colour, so the site's gold is used.
       const c = cs.color.match(/[\d.]+/g) ?? [];
-      const solid = c.length >= 3 && (c.length < 4 || Number(c[3]) > 0.2) && Number(c[0]) + Number(c[1]) + Number(c[2]) > 60;
+      const solid = c.length >= 3 && (c.length < 4 || Number(c[3]) > 0.2) && (!!color || Number(c[0]) + Number(c[1]) + Number(c[2]) > 60);
       const gold = getComputedStyle(document.documentElement).getPropertyValue("--gold-bright").trim() || "#ffd37a";
-      og.fillStyle = solid ? cs.color : gold;
-      const hex = og.fillStyle as string; // normalised to #rrggbb
-      const n = parseInt(hex.slice(1, 7), 16);
+      // Read one pixel to normalize CSS colours safely, including rgba and wide-gamut colours.
+      off.width = off.height = 1;
+      og.fillStyle = particleColor ?? (solid ? cs.color : gold);
+      og.fillRect(0, 0, 1, 1);
+      const [red, green, blue] = og.getImageData(0, 0, 1, 1).data;
+      off.width = off.height = 0;
+      coreColor = `rgb(${red},${green},${blue})`;
       if (sprite) sprite.width = sprite.height = 0;
-      sprite = glowSprite(`rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},0.9)`);
+      sprite = glowSprite(`rgba(${red},${green},${blue},0.9)`);
       builtKey = key;
-      setLiveWord(word);
+      setLiveWord(renderKey);
       draw();
     }
 
@@ -181,14 +194,14 @@ export function ParticleText({ children }: { children: string }) {
       ctx!.globalCompositeOperation = "lighter";
       // Small, steady cores with a restrained halo keep the lettering readable.
       const halo = radius * (2 + warp * 0.25);
-      ctx!.globalAlpha = 0.06 + warp * 0.05;
-      for (const d of dots) {
+      ctx!.globalAlpha = (0.06 + warp * 0.05) * (glow / PARTICLE_DEFAULTS.particleGlow);
+      if (glow > 0) for (const d of dots) {
         const s = halo * (0.85 + d.seed * 0.3);
         ctx!.drawImage(sprite, MARGIN + d.x - s, MARGIN + d.y - s, s * 2, s * 2);
       }
       ctx!.globalAlpha = 0.9 + warp * 0.1;
       const core = radius;
-      ctx!.fillStyle = "#fff6e2";
+      ctx!.fillStyle = coreColor;
       for (const d of dots) {
         ctx!.beginPath();
         ctx!.arc(MARGIN + d.x, MARGIN + d.y, core * (0.9 + d.seed * 0.2), 0, Math.PI * 2);
@@ -198,11 +211,14 @@ export function ParticleText({ children }: { children: string }) {
       ctx!.globalAlpha = 1;
     }
 
-    function step() {
+    function step(now: number) {
       raf = 0;
       if (disposed || !visible || document.hidden || motion.matches) return;
+      const dt = lastFrame ? Math.min(.05, (now - lastFrame) / 1000) : 1 / 60;
+      lastFrame = now;
+      const warpEase = 1 - Math.exp(-5 * speed * dt), dotEase = 1 - Math.exp(-9 * speed * dt);
       // The warp eases up while the pointer is near and back down when it leaves.
-      warp += ((hovering ? 1 : 0) - warp) * 0.08;
+      warp += ((hovering ? 1 : 0) - warp) * warpEase;
       if (Math.abs((hovering ? 1 : 0) - warp) < 0.002) warp = hovering ? 1 : 0;
       let moving = warp !== (hovering ? 1 : 0);
       for (const d of dots) {
@@ -210,8 +226,8 @@ export function ParticleText({ children }: { children: string }) {
         const targetX = d.hx + d.driftX * influence * warp;
         const targetY = d.hy + d.driftY * influence * warp;
         // Ease directly toward a bounded offset, without spin, repulsion or spring overshoot.
-        d.x += (targetX - d.x) * 0.14;
-        d.y += (targetY - d.y) * 0.14;
+        d.x += (targetX - d.x) * dotEase;
+        d.y += (targetY - d.y) * dotEase;
         if (Math.abs(targetX - d.x) + Math.abs(targetY - d.y) > 0.02) moving = true;
         else {
           d.x = targetX;
@@ -224,7 +240,7 @@ export function ParticleText({ children }: { children: string }) {
       if (moving && visible) raf = requestAnimationFrame(step);
     }
     const wake = () => {
-      if (!raf && visible && !document.hidden && !motion.matches && dots.length) raf = requestAnimationFrame(step);
+      if (!raf && visible && !document.hidden && !motion.matches && dots.length) { lastFrame = 0; raf = requestAnimationFrame(step); }
     };
 
     // Where the pointer is, relative to the word. "Near" is anywhere within reach of it, not only exactly on it.
@@ -274,6 +290,7 @@ export function ParticleText({ children }: { children: string }) {
       cancelAnimationFrame(raf);
       cancelAnimationFrame(pointerFrame);
       raf = pointerFrame = 0;
+      lastFrame = 0;
       lastPointer = null;
       hovering = false;
       warp = 0;
@@ -332,10 +349,10 @@ export function ParticleText({ children }: { children: string }) {
       io.disconnect();
       ro.disconnect();
     };
-  }, [word]);
+  }, [word, color, particleColor, dotSize, scatter, speed, glow, renderKey]);
 
   return (
-    <span ref={wrap} className={styles.wrap} data-live={live} data-active={active}>
+    <span ref={wrap} className={styles.wrap} style={color ? { color } : undefined} data-live={live} data-active={active}>
       {/* The real text: it gives the word its size and place, stays for screen readers and search, and shows until the dots are ready. */}
       <span ref={ghost} className={styles.ghost}>
         {word}

@@ -1,6 +1,6 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type CSSProperties, type ReactNode } from "react";
 import { ParticleText } from "./ParticleText";
-import { decodeEffect } from "@/lib/content/text-effects";
+import { decodeEffect, effectStyle } from "@/lib/content/text-effects";
 import styles from "./TextEffect.module.css";
 
 /** Legacy [[word]] marks keep the original dots; explicit choices travel with the marked text. */
@@ -17,10 +17,11 @@ export function renderFx(text: string): ReactNode {
   const parts = text.split(/\[\[([^\[\]]+?)\]\]/g);
   return parts.map((part, i) => {
     if (i % 2 === 0) return <Fragment key={i}>{part}</Fragment>;
-    const { text: word, effect } = decodeEffect(part);
-    if (effect === "particles") return <ParticleText key={i}>{word}</ParticleText>;
-    if (effect === "none") return <Fragment key={i}>{word}</Fragment>;
-    return <span key={i} className={`${styles.word} ${styles[effect]}`} data-text-effect={effect}>
+    const { text: word, effect, options } = decodeEffect(part);
+    const style = effectStyle(options) as CSSProperties;
+    if (effect === "particles") return <ParticleText key={i} color={options.color} options={options}>{word}</ParticleText>;
+    if (effect === "none") return options.color ? <span key={i} style={style}>{word}</span> : <Fragment key={i}>{word}</Fragment>;
+    return <span key={i} style={style} className={`${styles.word} ${styles[effect]}`} data-text-effect={effect} data-fx-trigger={options.glowMode}>
       {word}{effect === "sheen" && <span aria-hidden="true" className={styles.shine}>{word}</span>}
     </span>;
   });

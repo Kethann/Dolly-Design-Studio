@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { glideTo, jumpTo, topOf } from "@/lib/smooth-scroll";
+import { hashSection } from "@/lib/navigation-trail";
 
 const STORE = "dds-scroll-positions";
 
@@ -35,6 +36,7 @@ export function NavHistory() {
   // Remember where you are on each page.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has("portal-preview")) return;
+    const previousRestoration = history.scrollRestoration;
     if ("scrollRestoration" in history) history.scrollRestoration = "manual"; // restored below, exactly
     positions.current = readPositions();
     // An update just reloaded the page (see UpdateWatcher): put the visitor back where they were.
@@ -72,6 +74,7 @@ export function NavHistory() {
       document.removeEventListener("visibilitychange", persist);
       persist();
       if (raf) cancelAnimationFrame(raf);
+      if ("scrollRestoration" in history) history.scrollRestoration = previousRestoration;
     };
   }, []);
 
@@ -85,7 +88,7 @@ export function NavHistory() {
         return;
       }
       // The same page: a step between sections.
-      const id = decodeURIComponent(window.location.hash.slice(1));
+      const id = hashSection(window.location.hash);
       const el = id ? document.getElementById(id) : null;
       glideTo(el ?? 0);
     };
@@ -99,7 +102,7 @@ export function NavHistory() {
     const arrivedByHistory = popped.current;
     popped.current = false;
     lastPath.current = window.location.pathname;
-    const id = decodeURIComponent(window.location.hash.slice(1));
+    const id = hashSection(window.location.hash);
     // Arrived by a link (or a fresh load) with no #section: Next puts the page at the top itself.
     if (!arrivedByHistory && !id) return;
 

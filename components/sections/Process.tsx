@@ -12,6 +12,7 @@ import { CARD_LINKS } from "@/lib/content/card-links";
 import { extraOf } from "@/lib/content/process";
 import { goToSection } from "@/lib/section-nav";
 import { withPreview } from "@/lib/intro/preview-protocol";
+import { useTrailNavigation } from "@/components/NavigationTrail";
 import styles from "./Process.module.css";
 import { renderFx } from "@/components/fx/render-fx";
 
@@ -87,6 +88,7 @@ function StepIcon({ name }: { name: string }) {
 }
 
 export function Process() {
+  const rememberNavigation = useTrailNavigation();
   const { home, breakdowns } = useContent();
   const copy = home.process;
   const router = useRouter();
@@ -149,9 +151,10 @@ export function Process() {
             const target = link && link.id !== "none" && (link.id !== "breakdowns" || breakdowns.length > 0) ? link : null;
             const open = () => {
               if (!target) return;
-              if (target.id === "page") router.push(withPreview(`/process/${extraOf(card).slug}`));
-              else if (target.id === "breakdowns") router.push(withPreview("/breakdowns"));
-              else if (target.id === "work") router.push(withPreview("/work"));
+              const navigate = (href: string) => { rememberNavigation(href, "process"); router.push(withPreview(href)); };
+              if (target.id === "page") navigate(`/process/${extraOf(card).slug}`);
+              else if (target.id === "breakdowns") navigate("/breakdowns");
+              else if (target.id === "work") navigate("/work");
               else goToSection(target.id === "gallery" ? "work" : target.id);
             };
             const opens = !!target;

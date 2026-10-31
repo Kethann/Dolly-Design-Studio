@@ -18,19 +18,24 @@ const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: st
     { key: "discRoll", label: "Disc angle", hint: "Rotates the whole disc's presentation. −65° gives the upright diagonal reference pose." },
   ] },
   { title: "Projector & light", fields: [
+    { key: "projectorSide", label: "Projector side" },
     { key: "lightIntensity", label: "Studio light", hint: "Lighting and reflections on the silver disc and glass." },
-    { key: "rayIntensity", label: "Projector brightness" },
+    { key: "rayIntensity", label: "Projector brightness", hint: "The beam, haze and landing reflection automatically follow the focused artwork's colour." },
+    { key: "beamGlow", label: "Beam glow", hint: "The soft haze filling the beam. 100% is the normal look; up to 300%." },
+    { key: "rayStrength", label: "Ray strength", hint: "How bright and defined the moving streaks inside the beam are." },
+    { key: "surfaceReflection", label: "Surface reflection", hint: "The soft light where the beam lands on the disc, plus the highlight on the silver and rim." },
     { key: "rayStyle", label: "Ray style" },
-    { key: "rayElevation", label: "Ray height", hint: "Raises or lowers the source in the empty space on the right." },
+    { key: "rayMotion", label: "Ray movement", hint: "Gentle, irregular motion with steady brightness. Zero keeps the beam still. Pause and reduced motion stop animation." },
+    { key: "rayElevation", label: "Ray height", hint: "Raises or lowers the source on the selected side." },
     { key: "raySpread", label: "Ray spread", hint: "The landing area automatically fits the slot. Increase to fill the panel; decrease for a narrower beam." },
     { key: "rayPrism", label: "Prism colour separation", hint: "Adds fine spectral streaks to Prismatic fan. The main colour still follows the highlighted artwork." },
-    { key: "rayLength", label: "Projector distance", hint: "The source stays in the space to the right of the disc." },
-    { key: "focusAngle", label: "Projector focus angle", hint: "−180° places the fixed projection on the left side; 0° places it on the right." },
+    { key: "rayLength", label: "Projector distance", hint: "Adjusts the distance from the chosen edge toward the disc." },
+    { key: "focusAngle", label: "Projector focus angle", hint: "−25° places the landing light on the lower-right front face; −180° moves it back to the left rim." },
     { key: "focusRadius", label: "Focus radius" },
   ] },
   { title: "Glow", fields: [
     { key: "bloom", label: "Glow strength", hint: "Zero switches bloom off." },
-    { key: "glowRadius", label: "Glow softness", hint: "Softens the fixed projection window's fade across the artwork as it enters and leaves the light." },
+    { key: "glowRadius", label: "Glow softness", hint: "Spreads the soft projector haze and its surface reflection while keeping the focused artwork clear." },
     { key: "glowThreshold", label: "Glow threshold", hint: "Higher values let only the brightest highlights glow." },
   ] },
   { title: "Artwork colour", fields: [
@@ -42,7 +47,7 @@ const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: st
     { key: "slotSize", label: "Slot size" },
     { key: "slotGap", label: "Gap between slots", hint: "Spacing adjusts automatically to the number of slots." },
     { key: "slotOpacity", label: "Artwork opacity" },
-    { key: "slotBlur", label: "Unfocused image blur", hint: "1.5 gives moderate softness. Only the part inside the projection window becomes fully sharp." },
+    { key: "slotBlur", label: "Far-side softness", hint: "Only artwork on the far side of the disc softens, capped at a mild blur. Front-facing and hovered titles stay sharp. Zero removes all blur." },
     { key: "unfocusedBrightness", label: "Unfocused image brightness" },
   ] },
 ];
@@ -120,7 +125,7 @@ export function ProofTableEditor({
         <Toggle label="Show the section" checked={value.enabled} onChange={(enabled) => onChange({ enabled })} />
         <div className={styles.control}>
           <button type="button" className={styles.ghostButton} onClick={onShow}>Show it in the preview ↓</button>
-          <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, discRoll: -65, discTilt: -65, focusAngle: -180, focusRadius: 0.67, rayStyle: 1, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.65 } })}>Use reference angle & ray</button>
+          <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, discRoll: -65, discTilt: -65, focusAngle: -25, focusRadius: 0.67, rayStyle: 1, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.65 } })}>Use reference angle & ray</button>
         </div>
         <div className={styles.control}>
           <button type="button" className={styles.ghostButton} disabled={full} onClick={() => addCard()}>+ Add title</button>
@@ -133,6 +138,13 @@ export function ProofTableEditor({
         <summary>{group.title}<span>{group.fields.length} controls</span></summary>
         <div className={styles.sectionBody}>
         {group.fields.map(({ key, label, hint }) => {
+          if (key === "projectorSide") return <div key={key} className={styles.control}>
+            <label className={styles.controlLabel}>Projector side
+              <select className={styles.select} aria-label="Projector side" value={disc.projectorSide} onChange={e => onChange({ disc: { ...disc, projectorSide: Number(e.target.value) } })}>
+                <option value={-1}>Left — behind the heading</option><option value={1}>Right</option>
+              </select>
+            </label>
+          </div>;
           if (key === "rayStyle") return <div key={key} className={styles.control}>
             <label className={styles.controlLabel}>Ray style
               <select className={styles.select} aria-label="Ray style" value={disc.rayStyle} onChange={e => onChange({ disc: { ...disc, rayStyle: Number(e.target.value) } })}>

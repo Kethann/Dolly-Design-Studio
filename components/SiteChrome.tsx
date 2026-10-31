@@ -20,6 +20,7 @@ import { Backdrop } from "@/components/Backdrop";
 import { HoverGlow } from "@/components/HoverGlow";
 import { EditBridge } from "@/components/EditBridge";
 import { UpdateWatcher } from "@/components/UpdateWatcher";
+import { NavigationTrailProvider } from "@/components/NavigationTrail";
 
 /**
  * Client-side shell: motion preferences, smooth scroll, the pen cursor, the
@@ -45,6 +46,7 @@ export function SiteChrome({
   return (
     <IntroSettingsProvider initial={introSettings}>
       <ContentProvider initial={content}>
+      <NavigationTrailProvider>
       <MotionProvider>
         <SmoothScroll />
         <NavHistory />
@@ -68,6 +70,7 @@ export function SiteChrome({
           {footer}
         </main>
       </MotionProvider>
+      </NavigationTrailProvider>
       </ContentProvider>
     </IntroSettingsProvider>
   );

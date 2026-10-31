@@ -45,10 +45,12 @@ try {
   demo=createDiscScene(canvas,images.map((src,i)=>({src,label:'TITLE '+(i+1)})),controls,fail);
   gui=new GUI({title:'Light & motion',width:270});
   for(const [key,range] of Object.entries(DISC_RANGES)) {
-    const input=key==='rayStyle'?gui.add(controls,key,{'Cinema projector':0,'Prismatic fan':1,'Soft light fan':2}):gui.add(controls,key,...range);
+    const input=key==='projectorSide'?gui.add(controls,key,{'Left':-1,'Right':1}):key==='rayStyle'?gui.add(controls,key,{'Cinema projector':0,'Prismatic fan':1,'Soft light fan':2}):gui.add(controls,key,...range);
     input.onChange(()=>demo.invalidate());
   }
   gui.close();
+  canvas.addEventListener('pointermove',event=>{if(event.pointerType!=='mouse')return;const bounds=canvas.getBoundingClientRect();const index=demo.hit(event.clientX-bounds.left,event.clientY-bounds.top);demo.setHover(index);canvas.style.cursor=index<0?'default':'pointer';},{passive:true});
+  canvas.addEventListener('pointerleave',()=>demo.setHover(-1));
   const pause=document.querySelector('#pause');
   pause.onclick=()=>{const on=pause.getAttribute('aria-pressed')!=='true';pause.setAttribute('aria-pressed',String(on));pause.textContent=on?'Resume disc':'Pause disc';demo.setPaused(on);};
   resizeObserver=new ResizeObserver(()=>demo.resize(canvas.clientWidth,canvas.clientHeight));resizeObserver.observe(canvas);

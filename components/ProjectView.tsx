@@ -9,6 +9,7 @@ import { adjustStyle } from "@/lib/content/adjust";
 import styles from "@/app/work/[slug]/page.module.css";
 import { MediaPlaceholder } from "./MediaPlaceholder";
 import { AddContent } from "./PreviewControls";
+import { NavigationTrail } from "./NavigationTrail";
 
 /**
  * One project's own page. Reads the live content, so a change made in the portal's preview shows as it is made; and
@@ -29,9 +30,7 @@ export function ProjectView({ slug }: { slug: string }) {
   return (
     <article {...edSection("site", "project-page", "Project page wording")}>
       <div className={`container ${styles.hero}`}>
-        <Link href="/work" className={styles.backLink} data-cursor="link">
-          {projectPage.backLink}
-        </Link>
+        <NavigationTrail />
 
         <div className={styles.layout} {...edItem("projects", index, project.title)}>
           <div className={styles.coverFrame} {...edItem(`projects.${index}.images`, 0, "Cover picture")}>

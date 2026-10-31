@@ -2,10 +2,11 @@
 
 import { useConfirmDelete } from "./DeleteDialog";
 import { EffectChoices } from "./EffectChoices";
+import { TextEffectSettings } from "./TextEffectSettings";
 import { VideoField, type VideoValue } from "./VideoField";
 import { createPortal } from "react-dom";
 import { resizedSrc } from "@/lib/images";
-import { editableFx, selectedEffect, applyTextEffect, markEffectWords, plainFx, type TextEffect } from "@/lib/content/text-effects";
+import { editableFx, selectedEffect, selectedEffectOptions, applyTextEffect, markEffectWords, plainFx, type TextEffect, type TextEffectOptions } from "@/lib/content/text-effects";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { allFonts } from "@/lib/content/fonts";
 import { fontFaceCss, glassVars } from "@/lib/content/css";
@@ -678,8 +679,9 @@ function TextInput({ field, path }: { field: Extract<Field, { kind: "text" | "ar
   const raw = String(getAt(content, path) ?? "");
   const fxOn = field.fx ?? (!!field.style && !NO_FX.has(styleKey(path)));
   const effect = selectedEffect(raw);
+  const effectOptions = selectedEffectOptions(raw);
   const value = fxOn ? editableFx(raw) : raw;
-  const set = (v: string, nextEffect: TextEffect = effect) => update((c) => setAt(c, path, fxOn ? applyTextEffect(v, nextEffect) : v));
+  const set = (v: string, nextEffect: TextEffect = effect, options: TextEffectOptions = effectOptions) => update((c) => setAt(c, path, fxOn ? applyTextEffect(v, nextEffect, options) : v));
   const box = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const hasFx = /\[\[[^\[\]]+?\]\]/.test(value);
   const markWords = () => {
@@ -707,7 +709,11 @@ function TextInput({ field, path }: { field: Extract<Field, { kind: "text" | "ar
           <button type="button" disabled={!value.trim()} aria-label="Mark selected words" title="Select words first. Without a selection, the final word is marked." onMouseDown={(e) => e.preventDefault()} onClick={markWords}>Mark words</button>
           <button type="button" disabled={!hasFx} aria-label="Clear marked words" onClick={() => set(plainFx(value))}>Clear</button>
         </div>
-        <p className={styles.hint}>Use [[words]] or Mark words. Only this heading changes.</p>
+        <p className={styles.hint}>Use [[words]] or Mark words. Only this field changes.</p>
+        <TextEffectSettings effect={effect} value={effectOptions} disabled={!value.trim()} onChange={options => {
+          const marked = hasFx ? value : markEffectWords(value, box.current?.selectionStart ?? 0, box.current?.selectionEnd ?? 0);
+          set(marked, effect, options);
+        }} />
       </div>}
       {field.hint && <p className={styles.hint}>{field.hint}</p>}
       {field.style && <StyleToggleBody path={path} />}

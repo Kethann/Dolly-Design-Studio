@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { ExplodeStage } from "@/components/BreakdownStage";
 import { useContent, tx } from "@/lib/content/context";
 import { edItem, edSection } from "@/lib/content/tx";
@@ -11,6 +10,7 @@ import { glideTo, topOf } from "@/lib/smooth-scroll";
 import styles from "./BreakdownsPage.module.css";
 import { renderFx } from "@/components/fx/render-fx";
 import { MediaPlaceholder } from "./MediaPlaceholder";
+import { NavigationTrail } from "./NavigationTrail";
 
 /**
  * Moving between breakdowns: on a wide screen a slim column at the right edge (previous, next, and a scrolling list of
@@ -153,9 +153,7 @@ export function BreakdownsPage() {
     <section className={styles.page} {...edSection("breakdowns", "all", "Breakdowns")}>
       <div className={styles.glowTop} aria-hidden="true" />
       <div className="container">
-        <Link href="/#process" className={styles.back} data-cursor="link" {...tx("breakdownsPage.backLink")}>
-          {t.backLink}
-        </Link>
+        <NavigationTrail />
         <header className={styles.hero}>
           <span className={`label gold-text ${styles.label}`} {...tx("breakdownsPage.label")}>
             {renderFx(t.label)}

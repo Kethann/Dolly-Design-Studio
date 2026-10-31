@@ -1,20 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { proofTable } from "@/content/proof-table";
 import { useContent } from "@/lib/content/context";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import { renderFx } from "@/components/fx/render-fx";
 import { resizedSrc } from "@/lib/images";
-import { sanitizeDisc, visibleDiscItems } from "@/lib/content/disc";
+import { DISC_SLOT_LIMIT, sanitizeDisc, visibleDiscItems } from "@/lib/content/disc";
 import type { DiscScene } from "@/components/disc-hero/scene";
+import { DiscDetailCard } from "@/components/disc-hero/DiscDetailCard";
 import styles from "@/components/disc-hero/DiscHero.module.css";
 
 /** The existing slate entries remain editable; only their presentation changes. */
 export function ProofTable() {
-  const router = useRouter();
   const { settings } = useIntroSettings();
   const { slate, projects } = useContent();
   const pt = settings.proofTable;
@@ -23,6 +22,9 @@ export function ProofTable() {
   const [state, setState] = useState<"loading" | "ready" | "fallback">("loading");
   const [paused, setPaused] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [origin, setOrigin] = useState({ x: 0, y: 0 });
+  const previewTrigger = useRef<HTMLButtonElement | null>(null);
   const current = useRef({ pt, projects, paused });
   useEffect(() => { current.current = { pt, projects, paused }; });
   const imagesKey = JSON.stringify(visibleDiscItems(pt.items).map(it => [it.src, it.film, it.tint]));
@@ -72,14 +74,19 @@ export function ProofTable() {
       const bounds = surface.getBoundingClientRect();
       const index = scene.current?.hit(e.clientX - bounds.left, e.clientY - bounds.top) ?? -1;
       const item = current.current.pt.items[index];
-      if (item && current.current.projects.some(p => p.slug === item.slug)) {
-        router.push(`/work/${item.slug}${new URLSearchParams(location.search).has("portal-preview") ? "?portal-preview" : ""}`);
+      if (item) {
+        previewTrigger.current = null;
+        host.focus({ preventScroll: true });
+        setOrigin({ x: (e.clientX - innerWidth / 2) * .35, y: (e.clientY - innerHeight / 2) * .35 });
+        scene.current?.setOpen(index); setSelected(index);
       }
     };
     const move = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || e.buttons) return;
       const bounds = surface.getBoundingClientRect(), index = scene.current?.hit(e.clientX - bounds.left, e.clientY - bounds.top) ?? -1;
       const item = current.current.pt.items[index];
-      surface.style.cursor = item && current.current.projects.some(p => p.slug === item.slug) ? "pointer" : "default";
+      surface.style.cursor = item ? "pointer" : "default";
+      scene.current?.setHover(item ? index : -1);
     };
     surface.addEventListener("pointerdown", down, { passive: true }); surface.addEventListener("click", click); surface.addEventListener("pointermove", move, { passive: true });
     return () => {
@@ -87,13 +94,18 @@ export function ProofTable() {
       surface.removeEventListener("pointerdown", down); surface.removeEventListener("click", click); surface.removeEventListener("pointermove", move);
       scene.current?.dispose(); scene.current = null;
     };
-  }, [pt.enabled, router]);
+  }, [pt.enabled]);
 
   if (!pt.enabled) return null;
   const suffix = preview ? "?portal-preview" : "";
   const viewControls = sanitizeDisc(pt.disc);
+  const selectedItem = selected === null ? null : visibleDiscItems(pt.items)[selected];
+  const closePreview = (restoreFocus = false) => {
+    setSelected(null); scene.current?.setOpen(-1); scene.current?.setHover(-1);
+    if (restoreFocus) (previewTrigger.current?.isConnected ? previewTrigger.current : stage.current)?.focus({ preventScroll: true });
+  };
   return (
-    <section id={proofTable.id} className={styles.section} aria-labelledby="disc-slate-title">
+    <section id={proofTable.id} className={styles.section} data-projector-side={viewControls.projectorSide} aria-labelledby="disc-slate-title">
       <div className={`container ${styles.layout}`}>
       <div className={styles.copy}>
         <span className={styles.overline}>{renderFx(slate.overline)}</span>
@@ -102,20 +114,25 @@ export function ProofTable() {
         <Link href={`/work${suffix}`} className={styles.cta}>{slate.ctaLabel} <span aria-hidden="true">↗</span></Link>
       </div>
       <div className={styles.visual}>
-        <div ref={stage} className={styles.stage} data-disc-state={state}>
+        <div ref={stage} className={styles.stage} data-disc-state={state} tabIndex={-1}
+          onPointerLeave={e => { if (e.pointerType === "mouse") scene.current?.setHover(-1); }}>
           <canvas ref={canvas} className={styles.canvas} aria-hidden="true" />
-          {state !== "ready" && <div className={styles.staticDisc} aria-hidden="true" style={{ transform: `translate(-50%,-50%) rotate(${-viewControls.discRoll}deg) scaleY(${Math.cos(viewControls.discTilt * Math.PI / 180)})` }}><span>DOLLY DESIGN STUDIO · TITLE COLLECTION</span></div>}
-          {state === "ready" && <button type="button" className={styles.pause} onClick={() => setPaused(v => !v)} aria-pressed={paused}>{paused ? "Resume disc" : "Pause disc"}</button>}
+          {state !== "ready" && <div className={styles.staticDisc} aria-hidden="true" style={{ transform: `translate(-50%,-50%) rotate(${-viewControls.discRoll * viewControls.projectorSide}deg) scaleY(${Math.cos(viewControls.discTilt * Math.PI / 180)})` }} />}
           {state === "fallback" && <p className={styles.status}>Explore the title collection below.</p>}
         </div>
+        {state === "ready" && <div className={styles.sceneControls}><button type="button" className={styles.pause} onClick={() => setPaused(v => !v)} aria-pressed={paused}>{paused ? "Resume disc" : "Pause disc"}</button></div>}
         <details className={styles.collection} open={state === "fallback" || undefined}>
           <summary>Explore the collection <span>{pt.items.length} titles</span></summary>
           <ul>{pt.items.map((it, i) => <li key={`${it.slug}-${i}`}>{projects.some(p => p.slug === it.slug)
-            ? <Link href={`/work/${it.slug}${suffix}`}>{it.film}<span>{it.tag} · {it.year}</span></Link>
-            : <span>{it.film}<small>{it.tag} · {it.year}</small></span>}</li>)}</ul>
+            ? <Link href={`/work/${it.slug}${suffix}`}>{it.film}</Link>
+            : <span>{it.film}</span>}
+            {i < DISC_SLOT_LIMIT && state === "ready" && <button type="button" className={styles.previewButton} aria-label={`Preview ${it.film}`} aria-pressed={selected === i}
+              onClick={e => { previewTrigger.current = e.currentTarget; e.currentTarget.focus({ preventScroll: true }); setOrigin({ x: 0, y: 40 }); setSelected(i); scene.current?.setOpen(i); }}>Preview artwork</button>}
+          </li>)}</ul>
         </details>
       </div>
       </div>
+      {selectedItem && <DiscDetailCard key={`${selected}-${selectedItem.src}`} item={selectedItem} project={projects.find(p => p.slug === selectedItem.slug)} suffix={suffix} origin={origin} onClose={() => closePreview(true)} />}
     </section>
   );
 }
