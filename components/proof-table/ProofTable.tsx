@@ -7,7 +7,7 @@ import { useContent } from "@/lib/content/context";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import { renderFx } from "@/components/fx/render-fx";
 import { resizedSrc } from "@/lib/images";
-import { DISC_SLOT_LIMIT, sanitizeDisc, visibleDiscItems } from "@/lib/content/disc";
+import { sanitizeDisc, visibleDiscItems } from "@/lib/content/disc";
 import type { DiscScene } from "@/components/disc-hero/scene";
 import { DiscDetailCard } from "@/components/disc-hero/DiscDetailCard";
 import styles from "@/components/disc-hero/DiscHero.module.css";
@@ -26,7 +26,6 @@ export function ProofTable() {
   const [preview, setPreview] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [origin, setOrigin] = useState({ x: 0, y: 0 });
-  const previewTrigger = useRef<HTMLButtonElement | null>(null);
   const current = useRef({ pt, projects, paused });
   useEffect(() => { current.current = { pt, projects, paused }; });
   const imagesKey = JSON.stringify(visibleDiscItems(pt.items).map(it => [it.src, it.film, it.titleColor, it.titleGlowColor, it.titleGlowIntensity]));
@@ -98,7 +97,6 @@ export function ProofTable() {
       const index = scene.current?.hit(e.clientX - bounds.left, e.clientY - bounds.top) ?? -1;
       const item = current.current.pt.items[index];
       if (item) {
-        previewTrigger.current = null;
         host.focus({ preventScroll: true });
         setOrigin({ x: (e.clientX - innerWidth / 2) * .35, y: (e.clientY - innerHeight / 2) * .35 });
         scene.current?.setOpen(index); setSelected(index);
@@ -125,7 +123,7 @@ export function ProofTable() {
   const selectedItem = selected === null ? null : visibleDiscItems(pt.items)[selected];
   const closePreview = (restoreFocus = false) => {
     setSelected(null); scene.current?.setOpen(-1); scene.current?.setHover(-1);
-    if (restoreFocus) (previewTrigger.current?.isConnected ? previewTrigger.current : stage.current)?.focus({ preventScroll: true });
+    if (restoreFocus) stage.current?.focus({ preventScroll: true });
   };
   return (
     <section id={proofTable.id} className={styles.section} data-projector-side={viewControls.projectorSide} aria-labelledby="disc-slate-title">
@@ -143,15 +141,13 @@ export function ProofTable() {
           {state === "fallback" && <p className={styles.status}>Explore the title collection below.</p>}
         </div>
         {state === "ready" && <div className={styles.sceneControls}><button type="button" className={styles.pause} onClick={() => setPaused(v => !v)} aria-pressed={paused}>{paused ? "Resume disc" : "Pause disc"}</button></div>}
-        <details className={styles.collection} open={state === "fallback" || undefined}>
-          <summary>Explore the collection <span>{pt.items.length} titles</span></summary>
+        {state === "fallback" && <details className={styles.collection} open>
+          <summary>Explore the collection</summary>
           <ul>{pt.items.map((it, i) => <li key={`${it.slug}-${i}`}>{projects.some(p => p.slug === it.slug)
             ? <Link href={`/work/${it.slug}${suffix}`}>{it.film}</Link>
             : <span>{it.film}</span>}
-            {i < DISC_SLOT_LIMIT && state === "ready" && <button type="button" className={styles.previewButton} aria-label={`Preview ${it.film}`} aria-pressed={selected === i}
-              onClick={e => { previewTrigger.current = e.currentTarget; e.currentTarget.focus({ preventScroll: true }); setOrigin({ x: 0, y: 40 }); setSelected(i); scene.current?.setOpen(i); }}>Preview artwork</button>}
           </li>)}</ul>
-        </details>
+        </details>}
       </div>
       </div>
       {selectedItem && <DiscDetailCard key={`${selected}-${selectedItem.src}`} item={selectedItem} project={projects.find(p => p.slug === selectedItem.slug)} suffix={suffix} origin={origin} onClose={() => closePreview(true)} />}

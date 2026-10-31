@@ -279,6 +279,8 @@ test("disc mounts transparent title artwork without card or frame layers", () =>
   assert.match(page, /titleBounds\.bottom \+ Math\.min\(14, Math\.max\(4, titleGap \* \.22\)\)/);
   assert.match(page, /const stacked = stageBounds\.top >= bodyBounds\.bottom/);
   assert.match(page, /setAimGuides\(portalPreview\)/);
+  assert.match(page, /state === "fallback" && <details className=\{styles\.collection\} open>/);
+  assert.doesNotMatch(page, /Explore the collection <span>/);
   assert.match(source, /smoothstep\(\.015,\.42,along\)/);
   const editor = readFileSync(path.join(root, "app/portal/ProofTableEditor.tsx"), "utf8");
   assert.match(editor, /open=\{openDiscGroups\.has\(group\.title\)\}/);
