@@ -8,6 +8,7 @@ import { findRecentDuplicate, noteEmail, saveEnquiry } from "@/lib/contact/inbox
 import { clientIp, describeDevice } from "@/lib/portal/activity";
 import { enquiryEmail, enquiryRecipient, enquiryRecipients, sendMail } from "@/lib/portal/mail";
 import { ownerEmails } from "@/lib/portal/users";
+import { getContent } from "@/lib/content/store";
 
 const errors = home.contact.form.errors;
 // A message is never bigger than this many bytes of JSON.
@@ -40,6 +41,18 @@ export async function POST(req: NextRequest) {
   const { errors: fieldErrors, value } = validateContact(body);
   if (Object.keys(fieldErrors).length) {
     return NextResponse.json({ error: errors.missingFields, fields: fieldErrors }, { status: 422 });
+  }
+
+  // Use the published choices, not hard-coded defaults or a browser-supplied budget list.
+  let content;
+  try {
+    content = await getContent();
+  } catch {
+    return NextResponse.json({ error: "We couldn't load the current project choices. Please try again shortly." }, { status: 503 });
+  }
+  const choiceErrors = validateContact(body, content.home.contact.form.projectOptions).errors;
+  if (Object.keys(choiceErrors).length) {
+    return NextResponse.json({ error: errors.missingFields, fields: choiceErrors }, { status: 422 });
   }
 
   // Only real attempts count towards the limit, so fixing a typo never locks anyone out.

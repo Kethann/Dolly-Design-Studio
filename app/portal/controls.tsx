@@ -74,10 +74,12 @@ export function Slider({
         max={max}
         step={step}
         value={value}
+        aria-valuetext={format(value)}
+        aria-describedby={hint ? `${id}-hint` : undefined}
         style={{ "--fill": `${fill}%` } as React.CSSProperties}
         onChange={(e) => onChange(Number(e.target.value))}
       />
-      {hint && <p className={styles.controlHint}>{hint}</p>}
+      {hint && <p id={`${id}-hint`} className={styles.controlHint}>{hint}</p>}
     </div>
   );
 }
@@ -104,6 +106,8 @@ export function Toggle({
           id={id}
           type="button"
           role="switch"
+          aria-label={label}
+          aria-describedby={hint ? `${id}-hint` : undefined}
           aria-checked={checked}
           className={styles.switch}
           data-on={checked}
@@ -112,7 +116,7 @@ export function Toggle({
           <span className={styles.switchKnob} />
         </button>
       </div>
-      {hint && <p className={styles.controlHint}>{hint}</p>}
+      {hint && <p id={`${id}-hint`} className={styles.controlHint}>{hint}</p>}
     </div>
   );
 }
@@ -133,18 +137,32 @@ export function Choice<T extends string>({
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
 }) {
+  const id = useId();
+  const selected = options.some(option => option.value === value) ? value : options[0]?.value;
   return (
     <div className={styles.control}>
       <div className={styles.controlRow}>
         <span className={styles.controlLabel}>{label}</span>
       </div>
-      <div className={styles.choice} role="radiogroup" aria-label={label}>
+      <div className={styles.choice} role="radiogroup" aria-label={label} aria-describedby={hint ? `${id}-hint` : undefined}
+        onKeyDown={event => {
+          if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+          const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="radio"]'));
+          const at = buttons.indexOf(event.target as HTMLButtonElement);
+          if (at < 0 || !buttons.length) return;
+          event.preventDefault();
+          const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+            : (at + (["ArrowRight", "ArrowDown"].includes(event.key) ? 1 : -1) + buttons.length) % buttons.length;
+          buttons[next].focus();
+          onChange(options[next].value);
+        }}>
         {options.map((o) => (
           <button
             key={o.value}
             type="button"
             role="radio"
             aria-checked={value === o.value}
+            tabIndex={selected === o.value ? 0 : -1}
             className={styles.choiceOption}
             data-on={value === o.value}
             onClick={() => onChange(o.value)}
@@ -153,7 +171,7 @@ export function Choice<T extends string>({
           </button>
         ))}
       </div>
-      {hint && <p className={styles.controlHint}>{hint}</p>}
+      {hint && <p id={`${id}-hint`} className={styles.controlHint}>{hint}</p>}
     </div>
   );
 }
@@ -195,7 +213,11 @@ export function Dial({
           aria-valuemin={0}
           aria-valuemax={359}
           aria-valuenow={Math.round(value)}
+          aria-valuetext={`${Math.round(value)} degrees`}
+          aria-describedby={hint ? `${id}-hint` : undefined}
           onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.currentTarget.focus();
             e.currentTarget.setPointerCapture(e.pointerId);
             fromPointer(e);
           }}
@@ -203,9 +225,13 @@ export function Dial({
             if (e.currentTarget.hasPointerCapture(e.pointerId)) fromPointer(e);
           }}
           onKeyDown={(e) => {
+            if (!["ArrowRight", "ArrowUp", "ArrowLeft", "ArrowDown", "Home", "End"].includes(e.key)) return;
+            e.preventDefault();
             const step = e.shiftKey ? 15 : 5;
             if (e.key === "ArrowRight" || e.key === "ArrowUp") onChange((value + step) % 360);
             if (e.key === "ArrowLeft" || e.key === "ArrowDown") onChange((value - step + 360) % 360);
+            if (e.key === "Home") onChange(0);
+            if (e.key === "End") onChange(359);
           }}
         >
           <span className={styles.dialHand} style={{ transform: `rotate(${value}deg)` }} />
@@ -224,7 +250,7 @@ export function Dial({
           ))}
         </div>
       </div>
-      {hint && <p className={styles.controlHint}>{hint}</p>}
+      {hint && <p id={`${id}-hint`} className={styles.controlHint}>{hint}</p>}
     </div>
   );
 }

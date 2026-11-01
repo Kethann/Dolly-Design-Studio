@@ -5,6 +5,10 @@
   overflow: hidden;
 }
 
+.section > :global(.container) {
+  container-type: inline-size;
+}
+
 .label {
   font-family: var(--font-label);
   font-size: 11px;
@@ -19,7 +23,8 @@
   overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(28px, 4vw, 44px);
+  font-size: clamp(16px, 8.6cqi, 44px);
+  text-wrap: balance;
   margin: 0 0 var(--section-head-gap);
 }
 
@@ -42,6 +47,7 @@
   flex-wrap: wrap;
   gap: 8px 16px;
   padding-inline: calc(max(0px, (100vw - 1360px) / 2) + clamp(20px, 5vw, 64px));
+  padding-inline-end: max(calc(max(0px, (100vw - 1360px) / 2) + clamp(20px, 5vw, 64px)), var(--nav-content-end, 0px));
   font-family: var(--font-label);
   font-size: 10px;
   letter-spacing: 0.3em;
@@ -53,6 +59,7 @@
   /* Height of the picture zone: every logo and portrait is centred in it, and the stars sit on its middle line. */
   --media-h: clamp(112px, 12vw, 180px);
   min-width: 0;
+  margin-inline-end: var(--nav-content-end, 0px);
   overflow: hidden;
   padding-block: 22px;
   border-block: 1px solid var(--smoke);

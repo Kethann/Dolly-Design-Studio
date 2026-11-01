@@ -58,7 +58,7 @@ const records=[];
 const sizes=[[280,720],[320,740],[390,844],[768,1024],[844,390],[900,700],[1024,768],[1280,800],[1440,900],[1920,1080],[2560,1440]];
 try {
  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
- for(const route of ['/?compatibility#agency','/work','/work/dacoit','/process/sketchboards','/process/photoshoot-bts','/breakdowns','/portal']) {
+ for(const route of (process.argv.includes('--home-only') ? ['/?compatibility#agency'] : ['/?compatibility#agency','/work','/work/dacoit','/process/sketchboards','/process/photoshoot-bts','/breakdowns','/portal'])) {
   await viewport(390,844);await send('Page.navigate',{url:'http://localhost:3000'+route});
   await waitFor('document.readyState==="complete" && (location.pathname==="/portal" || (!!document.querySelector("main") && getComputedStyle(document.querySelector("main")).opacity==="1" && !document.querySelector(".intro-curtain")))');
   await evaluate('document.fonts.ready.then(()=>true)');
@@ -71,15 +71,22 @@ try {
     const details=el=>{const r=el.getBoundingClientRect();return {tag:el.tagName,cls:typeof el.className==='string'?el.className:'',text:el.textContent?.trim().slice(0,65),left:Math.round(r.left),right:Math.round(r.right),top:Math.round(r.top),bottom:Math.round(r.bottom),width:el.clientWidth,scroll:el.scrollWidth};};
     const candidates=[...document.querySelectorAll('main .container, main h1,main h2,main h3,main p, main form, main input:not([type=hidden]):not([type=checkbox]),main select,main textarea, header nav a,header button, footer .container')].filter(visible);
     const overflow=candidates.map(details).filter(r=>r.left < -1 || r.right>innerWidth+1 || (r.width>0&&r.scroll>r.width+2));
+    // CSS calc() remains unresolved on custom properties: use the container's actual padding.
+    const container=document.querySelector('main.site-main .container:not(#top .container)');
+    const edge=container?container.getBoundingClientRect().right-parseFloat(getComputedStyle(container).paddingRight):innerWidth;
+    const railOverlap=innerWidth<1200&&container?candidates.filter(el=>el.closest('main.site-main')&&!el.closest('#top')&&!el.classList.contains('container')).map(details).filter(r=>r.right>edge+1):[];
     const sections=[...document.querySelectorAll('main>section')].map(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el),c=el.querySelector('.container')?.getBoundingClientRect();return {id:el.id,top:Math.round(r.top+scrollY),height:Math.round(r.height),padTop:parseFloat(s.paddingTop),padBottom:parseFloat(s.paddingBottom),contentLeft:c?.left,contentRight:c?.right};});
     const header=document.querySelector('header'),brand=header?.querySelector('a'),nav=header?.querySelector('nav');
     const b=brand?.getBoundingClientRect(),n=nav?.getBoundingClientRect();
-    return {width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,title:document.querySelector('h1')?.textContent,overflow,sections,navOverlap:!!(b&&n&&visible(brand)&&visible(nav)&&b.right>n.left&&b.left<n.right)};
+    let clientWordLines=null;
+    const heading=document.querySelector('#clients h2');
+    if(heading){const walker=document.createTreeWalker(heading,NodeFilter.SHOW_TEXT);let node;while((node=walker.nextNode())){const start=node.textContent.toLowerCase().indexOf('collaborations');if(start>=0){const range=document.createRange();range.setStart(node,start);range.setEnd(node,start+14);clientWordLines=range.getClientRects().length;break;}}}
+    return {width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,title:document.querySelector('h1')?.textContent,overflow,railOverlap,clientWordLines,sections,navOverlap:!!(b&&n&&visible(brand)&&visible(nav)&&b.right>n.left&&b.left<n.right)};
    }+')()');
    records.push({route,...metrics});
-   if(metrics.overflow.length||metrics.navOverlap||metrics.scrollWidth>width+1)console.log(JSON.stringify({route,width,overflow:metrics.overflow,navOverlap:metrics.navOverlap,scrollWidth:metrics.scrollWidth}));
+   if(metrics.overflow.length||metrics.railOverlap.length||metrics.navOverlap||metrics.scrollWidth>width+1)console.log(JSON.stringify({route,width,overflow:metrics.overflow,railOverlap:metrics.railOverlap,navOverlap:metrics.navOverlap,scrollWidth:metrics.scrollWidth}));
    if([390,900,1440].includes(width))await screenshot('compat-'+route.split('?')[0].replaceAll('/','_')+'-'+width);
-   if(route.startsWith('/?')&&[390,1440].includes(width))for(const id of ['collaborations','process','contact']){await evaluate('document.getElementById('+JSON.stringify(id)+').scrollIntoView()');await pause(350);await screenshot('compat-home-'+id+'-'+width);}
+   if(route.startsWith('/?')&&[390,1440].includes(width))for(const id of ['clients','about','collaborations','process','services','contact']){await evaluate('document.getElementById('+JSON.stringify(id)+').scrollIntoView()');await pause(350);await screenshot('compat-home-'+id+'-'+width);}
   }
   console.log('AUDITED '+route);
  }
@@ -88,10 +95,14 @@ try {
  for (const record of records) {
   assert.ok(record.scrollWidth <= record.width + 1, `Page overflow: ${record.route} at ${record.width}`);
   assert.deepEqual(record.overflow, [], `Content overflow: ${record.route} at ${record.width}`);
+  assert.deepEqual(record.railOverlap, [], `Content enters the icon rail lane: ${record.route} at ${record.width}`);
+  if(record.clientWordLines!==null)assert.equal(record.clientWordLines,1,`Client heading splits a word at ${record.width}`);
   assert.equal(record.navOverlap, false, `Navigation overlap: ${record.route} at ${record.width}`);
   assert.notEqual(record.title, '404', `Missing page: ${record.route}`);
   const sections = record.route.startsWith('/?') ? record.sections.filter(section => section.id !== 'top') : [];
-  const aligned = sections.filter(section => section.contentLeft !== undefined);
+  // The glass hero intentionally has its own wider 1600px canvas composition.
+  // Its bounds/reading lane are checked above; ordinary sections share a 1360px grid.
+  const aligned = sections.filter(section => section.contentLeft !== undefined && section.id !== 'collaborations');
   for (const section of sections) {
    assert.ok(section.padTop <= 41 && section.padBottom <= 41, `Excess section padding: ${section.id}`);
   }

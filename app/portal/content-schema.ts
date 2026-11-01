@@ -368,8 +368,14 @@ const home: SchemaPage = {
         { kind: "text", path: "home.contact.form.messagePlaceholder", label: "Form: description hint" },
         { kind: "text", path: "home.contact.form.submitButton", label: "Send button" },
         { kind: "text", path: "home.contact.form.successMessage", label: "Thank-you message" },
-        { kind: "strings", path: "home.contact.form.projectTypes", label: "Project types", add: "Add a type" },
-        { kind: "strings", path: "home.contact.form.budgets", label: "Budget ranges", add: "Add a range" },
+        { kind: "list", path: "home.contact.form.projectOptions", label: "Project types & their budgets", add: "Add a project type", min: 1, max: 50,
+          title: (item) => String(item.name || "New project type"),
+          blank: () => ({ name: "", budgets: ["Not sure yet"] }),
+          fields: [
+            { kind: "text", path: "name", label: "Project type", hint: "Only this project's budget choices appear when a visitor selects it." },
+            { kind: "strings", path: "budgets", label: "Budget options for this project", add: "Add a budget option", min: 1 },
+          ],
+        },
         { kind: "strings", path: "home.contact.form.timelines", label: "Timelines", add: "Add a timeline" },
       ],
     },
@@ -482,7 +488,7 @@ const studio: SchemaPage = {
           blank: () => ({}),
           fields: [{ kind: "text", path: "label", label: "Words" }],
         },
-        { kind: "text", path: "footer.rights", label: "Footer line" },
+        { kind: "text", path: "footer.rights", label: "Studio copyright line", hint: "Edits the studio side only. The separate website creator credit is managed in the source code." },
       ],
     },
     {
@@ -499,12 +505,12 @@ const studio: SchemaPage = {
 
 const slate: SchemaPage = {
   id: "slate",
-  name: "Slate text",
-  hint: "the words beside the silver title disc",
+  name: "Title circle text",
+  hint: "The heading, description and button beside the rotating glass circle.",
   sections: [
     {
       id: "slate-text",
-      title: "Words beside the slate",
+      title: "Title circle heading & button",
       target: "collaborations",
       fields: [
         { kind: "text", path: "slate.overline", label: "Small heading", style: true },

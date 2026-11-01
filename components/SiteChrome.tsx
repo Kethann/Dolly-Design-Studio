@@ -21,6 +21,7 @@ import { HoverGlow } from "@/components/HoverGlow";
 import { EditBridge } from "@/components/EditBridge";
 import { UpdateWatcher } from "@/components/UpdateWatcher";
 import { NavigationTrailProvider } from "@/components/NavigationTrail";
+import { VisitorPrivacy } from "@/components/VisitorPrivacy";
 
 /**
  * Client-side shell: motion preferences, smooth scroll, the pen cursor, the
@@ -69,6 +70,7 @@ export function SiteChrome({
           {children}
           {footer}
         </main>
+        <VisitorPrivacy ready={introDone || pathname !== "/"} />
       </MotionProvider>
       </NavigationTrailProvider>
       </ContentProvider>

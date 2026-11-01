@@ -11,7 +11,7 @@ import { ImagePicker, useMedia } from "./ContentEditor";
 import styles from "./portal.module.css";
 import { moveTo, useReorder } from "./reorder";
 
-const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: string; hint?: string }[] }[] = [
+export const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: string; hint?: string }[] }[] = [
   { title: "Circle & entrance", fields: [
     { key: "spinSpeed", label: "Rotation speed", hint: "Zero stops rotation. Negative reverses it. Reduced-motion devices show the settled composition." },
     { key: "entranceDuration", label: "Arrival duration", hint: "The full circle keeps turning as it zooms in, then settles into its saved rotation speed without stopping. Plays once per page visit." },
@@ -223,7 +223,7 @@ export function ProofTableEditor({
                   aria-label={`Remove ${it.film}`}
                   onClick={() =>
                     askDelete({
-                      what: `the slate title “${it.film}”`,
+                      what: `the circle title “${it.film}”`,
                       item: it,
                       elsewhere: items.filter((_, j) => j !== i),
                       onDelete: () => setItems(items.filter((_, j) => j !== i)),
@@ -236,7 +236,7 @@ export function ProofTableEditor({
             </div>
             <div className={styles.slotGrid}>
               <label>
-                <span>Film</span>
+                <span>Film / project name</span>
                 <input
                   className={styles.select}
                   value={it.film}
@@ -245,7 +245,7 @@ export function ProofTableEditor({
                 />
               </label>
               <label>
-                <span>Tag</span>
+                <span>Category label</span>
                 <input
                   className={styles.select}
                   value={it.tag}
@@ -265,7 +265,7 @@ export function ProofTableEditor({
                 />
               </label>
               <label>
-                <span>Opens</span>
+                <span>Linked project</span>
                 <select className={styles.select} value={it.slug} onChange={(e) => patchItem(i, { slug: e.target.value })}>
                   {projects.map((p) => (
                     <option key={p.slug} value={p.slug}>
@@ -275,8 +275,8 @@ export function ProofTableEditor({
                 </select>
               </label>
               <div className={styles.slotWide}>
-                <span>Image</span>
-                <button type="button" className={styles.picture} onClick={() => setPicking(picking === i ? null : i)} aria-expanded={picking === i} title="Choose a different picture for this card">
+                <span>Title artwork</span>
+                <button type="button" className={styles.picture} onClick={() => setPicking(picking === i ? null : i)} aria-expanded={picking === i} title="Choose the uploaded title artwork shown on the glass">
                   {/* eslint-disable-next-line @next/next/no-img-element -- the card's current picture */}
                   {it.src && <img src={resizedSrc(it.src, 480)} alt="" />}
                   <span>{picking === i ? "Close the pictures" : it.src ? "Change the picture" : "Upload or choose a picture"}</span>

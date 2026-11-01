@@ -41,6 +41,7 @@
 
 /* Each step is a card of glass: an icon tile, the step number, a title, and one plain sentence. */
 .step {
+  min-width: 0;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -77,6 +78,7 @@
    number with its line, and then the sentence under them. */
 .headRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 10px;
@@ -222,9 +224,11 @@
 .note {
   margin: 0;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  line-height: 1.5;
   font-family: var(--font-label);
   font-size: 10px;
   letter-spacing: 0.18em;
@@ -278,6 +282,9 @@
 }
 
 .cta {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
   margin-top: auto;
   padding-top: 4px;
   font-family: var(--font-label);

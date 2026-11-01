@@ -3,16 +3,18 @@
   padding-block: 32px;
 }
 
-/* Two parts on one line: the copyright on the left, the place on the right. */
+/* The editable studio side and code-owned credit never share an edit target. */
 .row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px 24px;
 }
 
-.place {
-  justify-self: end;
+.studio {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
 }
 
 /* Phones: stacked and centred. */
@@ -23,9 +25,6 @@
     text-align: center;
   }
 
-  .place {
-    justify-self: center;
-  }
 }
 
 .label {

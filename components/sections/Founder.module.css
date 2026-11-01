@@ -48,8 +48,8 @@
 /* The profile picture: a sized frame (the picture fills it, cropped to the chosen shape), zoomed and moved from the portal. */
 .photo {
   position: relative;
-  width: 168px;
-  height: 168px;
+  width: min(100%, 168px);
+  aspect-ratio: 1;
   margin: 0 auto 24px;
   overflow: hidden;
   border-radius: 50%;
@@ -82,8 +82,8 @@
 }
 
 .monogram {
-  width: 168px;
-  height: 168px;
+  width: min(100%, 168px);
+  aspect-ratio: 1;
   margin: 0 auto 24px;
   display: grid;
   place-items: center;

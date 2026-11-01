@@ -660,7 +660,8 @@
     transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 
-.dockItem:hover .tip {
+.dockItem:hover .tip,
+.dockItem:focus-visible .tip {
   opacity: 1;
   transform: translateX(-50%) translateY(-4px) scale(1);
 }
@@ -776,9 +777,9 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   background:
     radial-gradient(120% 60% at 0% 0%, rgba(255, 255, 255, 0.1), transparent 55%),
-    rgba(26, 18, 23, 0.78);
-  -webkit-backdrop-filter: blur(40px) saturate(2);
-  backdrop-filter: blur(40px) saturate(2);
+    rgba(26, 18, 23, 0.96);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   box-shadow:
     0 40px 120px rgba(0, 0, 0, 0.7),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
@@ -804,12 +805,21 @@
   outline: none;
 }
 
-.spotField kbd {
+.spotClose {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--p-line-strong);
+  border-radius: 8px;
+  color: var(--p-text);
+  background: var(--p-raised);
   font: inherit;
-  font-size: 11px;
-  padding: 2px 7px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+}
+
+.spotClose:focus-visible {
+  outline: 2px solid var(--p-gold-bright);
+  outline-offset: 2px;
 }
 
 .spotList {

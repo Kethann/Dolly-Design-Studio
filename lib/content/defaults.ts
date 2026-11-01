@@ -1,4 +1,5 @@
 import { home } from "@/content/home";
+import { contactProjects } from "@/lib/contact/options";
 import { site, navItems } from "@/content/site";
 import { services } from "@/content/services";
 import { clients, collaborators, testimonials } from "@/content/clients";
@@ -16,7 +17,7 @@ export function defaultContent(): SiteContent {
   return clone({
     site,
     nav: navItems.map((n) => ({ id: n.id, label: n.label })),
-    home,
+    home: { ...home, contact: { ...home.contact, form: { ...home.contact.form, projectOptions: contactProjects(home.contact.form) } } },
     services,
     clients,
     clientsSecond: clients,

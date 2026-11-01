@@ -1,5 +1,6 @@
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "@/lib/content/limits";
 import type { SiteContent } from "@/lib/content/types";
+import { CONTACT_CHOICE_LENGTH, MAX_CONTACT_BUDGETS, MAX_CONTACT_PROJECTS } from "@/lib/contact/options";
 
 /** Something that must be fixed before the creator's changes can be kept: where it is, and what to do. */
 export interface Problem {
@@ -16,6 +17,25 @@ const blank = (v: unknown) => typeof v !== "string" || !v.trim();
  */
 export function contentProblems(c: SiteContent): Problem[] {
   const out: Problem[] = [];
+
+  const contactPath = "home.contact.form.projectOptions";
+  const contactProjects = c.home.contact.form.projectOptions;
+  const projectNames = new Set<string>();
+  if (!contactProjects.length || contactProjects.length > MAX_CONTACT_PROJECTS) out.push({ path: contactPath, message: `Keep between 1 and ${MAX_CONTACT_PROJECTS} contact project types.` });
+  contactProjects.forEach((project, i) => {
+    const path = `${contactPath}.${i}`;
+    const name = project.name.trim().toLowerCase();
+    if (!name || project.name.trim().length > CONTACT_CHOICE_LENGTH) out.push({ path: `${path}.name`, message: `Enter a project name of 1–${CONTACT_CHOICE_LENGTH} characters.` });
+    else if (projectNames.has(name)) out.push({ path: `${path}.name`, message: "Each contact project type needs a different name." });
+    projectNames.add(name);
+    if (!project.budgets.length || project.budgets.length > MAX_CONTACT_BUDGETS) out.push({ path: `${path}.budgets`, message: `Keep 1–${MAX_CONTACT_BUDGETS} budget options; you can include “Not sure yet”.` });
+    const seen = new Set<string>();
+    project.budgets.forEach((budget) => {
+      const key = budget.trim().toLowerCase();
+      if (!key || budget.trim().length > CONTACT_CHOICE_LENGTH || seen.has(key)) out.push({ path: `${path}.budgets`, message: `Use non-empty, unique budget options of up to ${CONTACT_CHOICE_LENGTH} characters.` });
+      seen.add(key);
+    });
+  });
 
   c.projects.forEach((p, i) => {
     if (blank(p.title)) out.push({ path: `projects.${i}.title`, message: "Give this project a title." });

@@ -15,7 +15,7 @@ const frontWorker = {
 
     const hasBody = request.method !== "GET" && request.method !== "HEAD";
     const upstream = await env.WEB.fetch(
-      new Request(target, { method: request.method, headers, body: hasBody ? request.body : undefined, redirect: "manual", duplex: "half" }),
+      new Request(target, { method: request.method, headers, body: hasBody ? request.body : undefined, redirect: "manual", duplex: "half", cf: request.cf }),
     );
 
     // Keep visitors on this address when the site redirects. Everything else is handed back untouched (no copy of the body is made

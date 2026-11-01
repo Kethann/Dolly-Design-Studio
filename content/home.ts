@@ -132,6 +132,7 @@ export const home = {
       submitButton: "Send message",
       sendingButton: "Sending…",
       successMessage: "Thank you — we’ll be in touch.",
+      projectOptions: [] as { name: string; budgets: string[] }[],
       projectTypes: [
         "Theatrical poster campaign",
         "First-look / motion poster",

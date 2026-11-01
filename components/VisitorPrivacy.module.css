@@ -1,0 +1,8 @@
+.preferences { position: relative; z-index: 60; padding: 12px 24px; text-align: center; font: 12px/1.5 var(--font-body); color: var(--ivory); background: #160c19; }
+.preferences button { padding: 10px 14px; min-height: 44px; border: 1px solid #ffffff40; border-radius: 20px; }
+.preferences button:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 3px; }
+.notice { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom)); width: min(430px, calc(100vw - 100px)); max-height: 65svh; overflow: auto; padding: 18px; border: 1px solid #ffffff40; border-radius: 16px; background: #1b101f; box-shadow: 0 6px 24px #0005; text-align: left; }
+.notice p { margin: 10px 0; font-size: 12px; line-height: 1.6; text-transform: none; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions button { flex: 1 1 130px; }
+@media (max-width: 479px) { .notice { width: calc(100vw - 32px); max-height: 48svh; } }

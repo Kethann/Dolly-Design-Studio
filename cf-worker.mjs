@@ -38,6 +38,12 @@ function cacheable(request, url) {
 }
 
 const cachedWorker = {
+  async scheduled(_event, env, ctx) {
+    if (!env.VISITORS_DB) return;
+    // Daily expiry, including opt-out tombstones. No scan or loading visitor records into Worker memory.
+    ctx.waitUntil(env.VISITORS_DB.prepare("DELETE FROM visitor_sessions WHERE first_seen < ?").bind(Date.now() - 30 * 86400000).run());
+    ctx.waitUntil(env.VISITORS_DB.prepare("DELETE FROM visitor_geo_usage WHERE month < ?").bind(new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 7)).run());
+  },
   async fetch(request, env, ctx) {
     let key = null;
     let cache = null;

@@ -14,11 +14,13 @@
   padding-top: var(--nav-pad);
   box-sizing: border-box;
   background: linear-gradient(to bottom, color-mix(in srgb, var(--stage) 85%, transparent), transparent);
-  transition: opacity .25s ease, visibility .25s;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity .55s ease, visibility 0s;
 }
 
 /* No added chrome on the opening section; the intro's own logo and animation stay untouched. */
-.nav[data-shown="false"] { opacity: 0; visibility: hidden; pointer-events: none; }
+.nav[data-shown="false"] { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .55s ease, visibility 0s linear .55s; }
 
 /* A strip of frosted glass behind the whole bar, so the moving stars never compete with the words. It fades out towards the
    bottom edge, so there is no hard line where it ends. (On the ::before, because a backdrop filter on the bar itself would
@@ -39,6 +41,7 @@
    second it eases in (fading, rising and growing a little into place), and eases out again if you go back up. */
 .brand {
   position: relative;
+  top: -6px;
   z-index: 2;
   flex-shrink: 0;
   display: flex;
@@ -341,7 +344,7 @@
 .mobileIcon {
   width: 24px;
   height: 24px;
-  color: var(--tone);
+  color: #f4f4f4;
 }
 
 /* The page you are on, lit in its own colour. */
@@ -350,12 +353,46 @@
   text-shadow: 0 0 22px var(--tone);
 }
 
-/* Phone and tablet: a compact in-page rail, aligned under the right-hand hamburger.
-   Only labels expand left; the icons never shift when the active section changes. */
+.compactLabel { display: none; }
+
+/* Phone and tablet: keep labels in the existing header, away from body copy.
+   Absolute positioning and opacity avoid moving the logo, icons or page content. */
 @media (max-width: 1199px) {
+  .compactLabel {
+    display: block;
+    position: absolute;
+    left: calc(clamp(20px, 5vw, 48px) + 96px);
+    right: calc(clamp(20px, 5vw, 48px) + 56px);
+    top: calc(var(--nav-pad) + (var(--nav-h) - var(--nav-pad)) / 2);
+    transform: translateY(-50%);
+    text-align: right;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .18s ease, visibility .18s;
+  }
+  .compactLabel[data-visible="true"] { opacity: 1; visibility: visible; }
+  .compactLabel span {
+    display: inline-block;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 7px 9px;
+    border: 1px solid #ffffff24;
+    border-radius: 10px;
+    background: #1a111d;
+    color: var(--ivory);
+    font-family: var(--font-body);
+    font-size: 10px;
+    line-height: 1.3;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
   .mobileMenu {
     inset: calc(var(--nav-h) + 12px) max(calc(clamp(20px, 5vw, 48px) - 8px), env(safe-area-inset-right)) auto auto;
-    width: min(240px, calc(100vw - 40px));
+    width: 60px;
     max-height: calc(100svh - var(--nav-h) - 32px - env(safe-area-inset-bottom));
     padding: 8px;
     gap: 6px;
@@ -365,8 +402,13 @@
     pointer-events: none;
     overflow-x: hidden;
     scrollbar-width: thin;
-    animation: railAppear .2s ease-out;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-5px);
+    transition: opacity .45s ease, transform .45s ease, visibility 0s linear .45s;
   }
+  .mobileMenu[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+  .mobileMenu[data-open="false"] .mobileLink { pointer-events: none; }
   .mobileMenu::before {
     content: "";
     position: absolute;
@@ -390,38 +432,53 @@
     opacity: .72;
     pointer-events: auto;
   }
-  .mobileIcon { width: 21px; height: 21px; flex: none; }
-  .mobileLabel {
+  .mobileIcon {
+    position: relative;
+    z-index: 1;
+    width: 21px;
+    height: 21px;
+    flex: none;
+    transition: color .45s ease, filter .45s ease;
+  }
+  /* The same section colour as the desktop lamp, contained within the rail.
+     Static light with a short handoff: no perpetual blur/pulse on touch devices. */
+  .mobileLink::before {
+    content: "";
     position: absolute;
-    right: 54px;
-    width: max-content;
-    max-width: 162px;
-    padding: 10px 13px;
-    border: 1px solid #ffffff24;
-    border-radius: 12px;
-    background: #1a111deb;
-    color: var(--ivory);
-    font-size: 11px;
-    line-height: 1.4;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    visibility: hidden;
+    left: 4px;
+    right: 4px;
+    bottom: 5px;
+    height: 32px;
+    background: radial-gradient(ellipse 50% 100% at 50% 100%, color-mix(in srgb, var(--tone) 42%, transparent), transparent 85%);
     opacity: 0;
-    transform: translateX(5px);
     pointer-events: none;
-    transition: opacity .18s ease, transform .18s ease, visibility .18s;
+    transition: opacity .45s ease;
+  }
+  .mobileLink::after {
+    content: "";
+    position: absolute;
+    bottom: 5px;
+    left: 12px;
+    right: 12px;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, var(--tone) 22%, color-mix(in srgb, var(--tone) 60%, #fff) 50%, var(--tone) 78%, transparent);
+    box-shadow: 0 -2px 6px color-mix(in srgb, var(--tone) 85%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .45s ease;
   }
   .mobileActive, .mobileLink:focus-visible {
     opacity: 1;
-    background: color-mix(in srgb, var(--tone) 14%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 38%, transparent);
+    background: transparent;
+    box-shadow: none;
   }
-  .mobileActive .mobileLabel, .mobileLink:focus-visible .mobileLabel {
-    visibility: visible;
-    opacity: 1;
-    transform: none;
-    pointer-events: auto;
+  .mobileActive .mobileIcon, .mobileLink:focus-visible .mobileIcon {
+    color: var(--tone);
+    filter: drop-shadow(0 0 6px var(--tone));
   }
+  .mobileActive::before, .mobileLink:focus-visible::before,
+  .mobileActive::after { opacity: 1; }
   .mobileLink:focus-visible { outline: 2px solid var(--tone); outline-offset: 2px; }
 }
 /* Keep these overrides after the compact controls' base rules. */
@@ -430,9 +487,8 @@
   .right { display: none; }
   .mobileMenu { display: none; }
 }
-@keyframes railAppear { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .nav { transition: none; }
-  .mobileMenu { animation: none; }
-  .mobileLabel, .menuButton span { transition: none; }
+  .nav, .nav[data-shown="false"], .mobileMenu { transition: none; }
+  .compactLabel, .menuButton span, .mobileIcon,
+  .mobileLink::before, .mobileLink::after { transition: none; }
 }

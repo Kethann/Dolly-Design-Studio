@@ -40,8 +40,9 @@ const PATHS: Record<string, ReactNode> = {
   ),
   slate: (
     <>
-      <path d="M4 10h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" />
-      <path d="m4 10 1.6-4.4 3.6.9L7.8 10M9.4 6.6l3.6.9-1.4 2.5M13.2 7.5l3.6.9-1.4 1.6" />
+      <ellipse cx="13" cy="12" rx="7" ry="9" transform="rotate(25 13 12)" />
+      <path d="m2 5 9 5M2 5l8 10" opacity="0.65" />
+      <path d="m12 7 3 1m-4 8 3 1" />
     </>
   ),
   // library
@@ -124,6 +125,8 @@ const PATHS: Record<string, ReactNode> = {
     </>
   ),
   // studio
+  projects: <><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8 4v16M16 4v16M4 8h4m8 0h4M4 16h4m8 0h4" /></>,
+  visitors: <><circle cx="9" cy="7" r="3" /><path d="M3 19v-2a6 6 0 0 1 10-4M15 19v-4m3 4v-7m3 7V9" /></>,
   inbox: (
     <>
       <path d="M4 13.5 6.5 6h11l2.5 7.5V18a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" />

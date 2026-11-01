@@ -24,6 +24,8 @@
 	"observability": {
 		"enabled": true
 	},
+	// Visitor-data expiry (a no-op until VISITORS_DB is configured; see VISITORS.md).
+	"triggers": { "crons": ["17 3 * * *"] },
 	"services": [
 		{
 			"binding": "WORKER_SELF_REFERENCE",

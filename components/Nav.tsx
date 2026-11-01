@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useContent } from "@/lib/content/context";
 import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
 import { glideLock, glideLocked, goToSection, isPlainClick } from "@/lib/section-nav";
@@ -35,12 +35,22 @@ export function Nav() {
   const logoGlowOn = settings.logoGlow.enabled && settings.logoGlow.places.navLogo;
   const [dismissed, setDismissed] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const focusOnOpen = useRef(false);
   const [activeSection, setActiveSection] = useState<string>("");
   /** The corner logo: hidden on the first section of the home page (the big logo is there), then eased in. */
   const [pastFirst, setPastFirst] = useState(false);
-  const logoShown = pathname !== "/" || pastFirst;
+  const logoShown = mounted && (pathname !== "/" || pastFirst);
   const open = compact && logoShown && !dismissed;
+  const [labelId, setLabelId] = useState<string | null>(null);
+  const [labelTextId, setLabelTextId] = useState<string | null>(null);
+  const labelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showLabel = useCallback((id: string | null) => {
+    if (labelTimer.current !== null) clearTimeout(labelTimer.current);
+    setLabelId(id);
+    if (id) setLabelTextId(id); // Retain the caption while its opacity fades out.
+    labelTimer.current = id ? setTimeout(() => setLabelId(null), 2000) : null;
+  }, []);
   const linksRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -55,8 +65,9 @@ export function Nav() {
   useEffect(() => {
     const query = window.matchMedia("(max-width: 1199px)");
     const sync = () => setCompact(query.matches);
+    const reveal = requestAnimationFrame(() => setMounted(true));
     sync(); query.addEventListener("change", sync);
-    return () => query.removeEventListener("change", sync);
+    return () => { cancelAnimationFrame(reveal); query.removeEventListener("change", sync); };
   }, []);
 
   useEffect(() => {
@@ -70,6 +81,12 @@ export function Nav() {
   // "How we work"), or the home-page section in view.
   const activeId =
     pathname.startsWith("/work") ? "work" : pathname.startsWith("/breakdowns") || pathname.startsWith("/process/") ? "process" : pathname === "/" ? activeSection || null : null;
+
+  useEffect(() => {
+    // One transient header label, not floating captions across the reading area.
+    showLabel(open ? activeId : null); // eslint-disable-line react-hooks/set-state-in-effect -- synchronize the timed hint with navigation
+    return () => { if (labelTimer.current !== null) clearTimeout(labelTimer.current); };
+  }, [open, activeId, showLabel]);
 
   useEffect(() => {
     if (pathname !== "/") return;
@@ -291,6 +308,10 @@ export function Nav() {
         })}
       </nav>
 
+      <div className={styles.compactLabel} data-nav-label data-visible={open && !!labelId} aria-hidden="true">
+        <span>{navItems.find((item) => item.id === labelTextId)?.label}</span>
+      </div>
+
       <div className={styles.right}>
         <button
           type="button"
@@ -298,7 +319,7 @@ export function Nav() {
           className={styles.menuButton}
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
-          aria-controls={open ? "mobile-navigation" : undefined}
+          aria-controls="mobile-navigation"
           onClick={() => { focusOnOpen.current = !open; setDismissed(open); }}
           data-cursor="link"
         >
@@ -308,8 +329,7 @@ export function Nav() {
         </button>
       </div>
 
-      {open && (
-        <nav ref={menuRef} id="mobile-navigation" className={styles.mobileMenu} aria-label="Section navigation" data-lenis-prevent>
+        <nav ref={menuRef} id="mobile-navigation" className={styles.mobileMenu} aria-label="Section navigation" data-open={open} inert={!open} aria-hidden={!open} data-lenis-prevent>
           {navItems.map((item) => (
             <Link
               key={item.id}
@@ -318,14 +338,14 @@ export function Nav() {
               aria-current={item.id === activeId ? "page" : undefined}
               className={`${styles.mobileLink} ${item.id === activeId ? styles.mobileActive : ""}`}
               style={{ ["--tone" as string]: toneOf(item.id) }}
-              onClick={item.id === "work" ? undefined : glideOnHome(item.id)}
+              onFocus={() => showLabel(item.id)}
+              onPointerEnter={(e) => { if (e.pointerType === "mouse") showLabel(item.id); }}
+              onClick={(e) => { showLabel(item.id); if (item.id !== "work") glideOnHome(item.id)(e); }}
             >
               <NavIcon id={item.id} className={styles.mobileIcon} />
-              <span className={styles.mobileLabel}>{item.label}</span>
             </Link>
           ))}
         </nav>
-      )}
     </header>
   );
 }

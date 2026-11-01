@@ -1,6 +1,8 @@
 // Checking an enquiry. Shared by the form (so mistakes are shown next to the field as people type) and by the server
 // (which never trusts the browser), so both always agree.
 
+import { budgetsForProject, type ContactProjectOption } from "./options";
+
 export interface ContactInput {
   name: string;
   email: string;
@@ -41,7 +43,7 @@ export function normalizePhone(raw: string): string {
 }
 
 /** Which fields are wrong, and why in plain words. Nothing wrong = `errors` is empty and `value` is the cleaned enquiry. */
-export function validateContact(raw: Record<string, unknown>): { errors: ContactErrors; value: ContactInput } {
+export function validateContact(raw: Record<string, unknown>, projects?: readonly ContactProjectOption[]): { errors: ContactErrors; value: ContactInput } {
   const L = CONTACT_LIMITS;
   const value: ContactInput = {
     name: text(raw.name).replace(/\s+/g, " "),
@@ -75,6 +77,10 @@ export function validateContact(raw: Record<string, unknown>): { errors: Contact
   else if (value.projectType.length > L.choiceMax) errors.projectType = "That choice isn’t valid.";
   if (value.budget.length > L.choiceMax) errors.budget = "That choice isn’t valid.";
   if (value.timeline.length > L.choiceMax) errors.timeline = "That choice isn’t valid.";
+  if (projects) {
+    if (value.projectType && !projects.some((project) => project.name === value.projectType)) errors.projectType = "Please choose an available project type.";
+    if (value.budget && !budgetsForProject(projects, value.projectType).includes(value.budget)) errors.budget = "Please choose a budget for this project type.";
+  }
 
   if (!value.message) errors.message = "Please describe your project.";
   else if (value.message.length < L.messageMin) errors.message = `Tell us a little more: at least ${L.messageMin} characters.`;

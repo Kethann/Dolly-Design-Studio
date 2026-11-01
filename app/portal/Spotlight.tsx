@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { searchSettings } from "./search-settings";
 import { Glyph } from "./mac";
 import { useDialogFocus } from "./dialog-focus";
 import styles from "./mac.module.css";
@@ -28,29 +29,15 @@ export function Spotlight({ entries, onPick, onClose }: { entries: SpotEntry[]; 
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
+  const listId = useId();
   useDialogFocus(box, onClose);
 
-  const results = useMemo(() => {
-    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    if (!words.length) return entries.slice(0, 40);
-    return entries
-      .map((e) => {
-        const hay = `${e.label} ${e.sub} ${e.keywords}`.toLowerCase();
-        if (!words.every((w) => hay.includes(w))) return null;
-        // Title matches first, then where it lives, then the fields inside.
-        const score = words.reduce((n, w) => n + (e.label.toLowerCase().includes(w) ? 3 : e.sub.toLowerCase().includes(w) ? 2 : 1), 0);
-        return { e, score };
-      })
-      .filter((r): r is { e: SpotEntry; score: number } => !!r)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 40)
-      .map((r) => r.e);
-  }, [q, entries]);
+  const results = useMemo(() => searchSettings(entries, q), [q, entries]);
 
   const current = Math.min(index, Math.max(0, results.length - 1));
   useEffect(() => {
     list.current?.querySelector<HTMLElement>(`[data-i="${current}"]`)?.scrollIntoView({ block: "nearest" });
-  }, [current]);
+  }, [current, q]);
 
   return (
     <div className={styles.spotBackdrop} onPointerDown={onClose}>
@@ -63,9 +50,10 @@ export function Spotlight({ entries, onPick, onClose }: { entries: SpotEntry[]; 
         aria-label="Search settings"
         onPointerDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
+          if (e.target !== input.current) return;
           if (e.key === "ArrowDown") {
             e.preventDefault();
-            setIndex(Math.min(results.length - 1, current + 1));
+            setIndex(Math.max(0, Math.min(results.length - 1, current + 1)));
           }
           if (e.key === "ArrowUp") {
             e.preventDefault();
@@ -85,6 +73,11 @@ export function Spotlight({ entries, onPick, onClose }: { entries: SpotEntry[]; 
           <input
             ref={input}
             aria-label="Search settings"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-activedescendant={results.length ? `${listId}-${current}` : undefined}
             data-dialog-initial-focus
             value={q}
             placeholder="Search settings — try “password”, “font”, “logo”, “cards”…"
@@ -93,15 +86,17 @@ export function Spotlight({ entries, onPick, onClose }: { entries: SpotEntry[]; 
               setIndex(0);
             }}
           />
-          <kbd>Esc</kbd>
+          <button type="button" className={styles.spotClose} aria-label="Close settings search" onClick={onClose}>Close</button>
         </div>
-        <div ref={list} className={styles.spotList} role="listbox">
-          {results.length === 0 && <p className={styles.spotEmpty}>Nothing matches “{q}”.</p>}
+        <div ref={list} id={listId} className={styles.spotList} role="listbox" aria-label="Matching settings">
+          {results.length === 0 && <p className={styles.spotEmpty} role="status">No settings match “{q}”. Try a feature name, such as budget, tint, rotation or password.</p>}
           {results.map((r, i) => (
             <button
               key={`${r.tab}-${r.section ?? ""}-${i}`}
               type="button"
               role="option"
+              id={`${listId}-${i}`}
+              tabIndex={-1}
               aria-selected={i === current}
               data-i={i}
               className={styles.spotItem}

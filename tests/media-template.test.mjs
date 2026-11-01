@@ -11,6 +11,295 @@ const nativeRequire = createRequire(import.meta.url);
 const json = (file) => JSON.parse(readFileSync(path.join(root, file), "utf8"));
 const clone = (value) => structuredClone(value);
 
+test("portal search accepts colour variants, ranks names and bounds results", () => {
+  const { searchSettings } = loader()("app/portal/search-settings.ts");
+  const entries = [
+    { label: "Glass title circle", sub: "Projector settings", keywords: "shadow colour mobile origin rotation" },
+    { label: "Brand colours & navigation", sub: "Site appearance", keywords: "glow" },
+  ];
+  assert.equal(searchSettings(entries, "shadow color")[0], entries[0]);
+  assert.equal(searchSettings(entries, "brand-colour")[0], entries[1]);
+  assert.equal(searchSettings(entries, "mobile origin")[0], entries[0]);
+  assert.equal(searchSettings(entries, "password").length, 0);
+  assert.equal(searchSettings(Array(60).fill(entries[0]), "").length, 40);
+  assert.equal(searchSettings(entries, "colour")[0], entries[1]);
+});
+
+test("portal tools keep owner analytics out of editor and setup navigation", () => {
+  const { canOpenPortalTool: can } = loader()("app/portal/tool-access.ts");
+  assert.equal(can({role:"owner"}, "visitors"), true);
+  assert.equal(can({role:"editor"}, "visitors"), false);
+  assert.equal(can({role:"owner", setup:true}, "visitors"), false);
+  assert.equal(can({role:"owner", setup:true}, "account"), true);
+  assert.equal(can({role:"editor"}, "media"), true);
+});
+
+test("portal choices support keyboard selection and angle keys prevent page scrolling", () => {
+  const { Choice, Dial, Slider, Toggle } = loader({ react: { useId: () => "setting-test" }, "./portal.module.css": {} })("app/portal/controls.tsx");
+  let selected, focused, prevented = false;
+  const tree = Choice({label:"Direction", value:"left", options:[{value:"left",label:"Left"},{value:"right",label:"Right"}], onChange:v => {selected=v;}});
+  const group = tree.props.children[1];
+  assert.deepEqual(group.props.children.map(child=>child.props.tabIndex), [0,-1]);
+  const buttons = [0,1].map(i=>({focus(){focused=i;}}));
+  group.props.onKeyDown({key:"ArrowLeft", target:buttons[0], currentTarget:{querySelectorAll:()=>buttons}, preventDefault(){prevented=true;}});
+  assert.equal(selected,"right"); assert.equal(focused,1); assert.ok(prevented);
+  const dial = Dial({label:"Angle",value:0,onChange:v=>{selected=v;}}).props.children[1].props.children[0];
+  prevented=false;
+  dial.props.onKeyDown({key:"ArrowLeft",preventDefault(){prevented=true;}});
+  assert.equal(selected,355); assert.ok(prevented);
+  const slider = Slider({label:"Glow",hint:"Artwork only",value:0.5,min:0,max:1,step:0.1,format:v=>`${v*100}%`,onChange(){}});
+  assert.equal(slider.props.children[1].props["aria-valuetext"],"50%");
+  assert.equal(slider.props.children[1].props["aria-describedby"], slider.props.children[2].props.id);
+  const toggle = Toggle({label:"Show glass",hint:"On this page",checked:true,onChange(){}});
+  assert.equal(toggle.props.children[0].props.children[1].props["aria-label"],"Show glass");
+});
+
+test("footer keeps the creator credit outside portal-editable content and the studio edit boundary", () => {
+  const content = loader()("lib/content/defaults.ts").defaultContent();
+  content.site.name = "Custom Studio";
+  content.footer.rights = "Custom rights";
+  content.footer.creatorCredit = { name: "Replacement" };
+  content.creatorCredit = { name: "Replacement" };
+  const clean = loader()("lib/content/sanitize.ts").sanitizeContent(content);
+  assert.equal(clean.creatorCredit, undefined);
+  assert.equal(clean.footer.creatorCredit, undefined);
+  const { Footer } = loader({
+    "@/lib/content/context": { useContent: () => clean },
+    "./Footer.module.css": { footer: "footer", row: "row", studio: "studio", label: "label" },
+    "./CreatorCredit.module.css": { credit: "credit", name: "credit-name" },
+  })("components/Footer.tsx");
+  const tree = Footer();
+  assert.equal(tree.props["data-ed-section"], undefined);
+  const [studio, credit] = tree.props.children.props.children;
+  assert.equal(studio.props["data-ed-section"], "site:menu");
+  assert.equal(credit.props["data-ed-section"], undefined);
+  const markup = nativeRequire("react-dom/server").renderToStaticMarkup(tree);
+  assert.match(markup, /Custom Studio/); assert.match(markup, /Custom rights/);
+  assert.match(markup, /Kethan/); assert.doesNotMatch(markup, /Replacement|Bangalore/);
+  const schema = readFileSync(path.join(root, "app/portal/content-schema.ts"), "utf8");
+  assert.doesNotMatch(schema, /path: "(?:creatorCredit|footer\.creator)/);
+});
+
+test("creator watermark supports text, protected logo and both, with a text fallback on image failure", () => {
+  const { creditLogoSource } = loader()("config/creator-credit.ts");
+  const config = { name: "Kethan", mode: "text", logo: { src: "/images/brand/creator/signature.svg", width: 120, height: 40 } };
+  let failed = "";
+  const { CreatorCredit } = loader({
+    react: { useState: () => [failed, next => { failed = next; }] },
+    "@/config/creator-credit": { creatorCredit: config, creditLogoSource },
+    "./CreatorCredit.module.css": {},
+  })("components/CreatorCredit.tsx");
+  const children = () => CreatorCredit().props.children.filter(Boolean);
+  assert.equal(children().filter(c => c.type === "img").length, 0);
+  config.mode = "both";
+  let nodes = children();
+  assert.equal(nodes.find(c => c.type === "img").props.alt, "");
+  assert.equal(nodes.at(-1).props.children, "Kethan");
+  config.mode = "logo";
+  nodes = children(); assert.equal(nodes.at(-1).type, "img"); assert.equal(nodes.at(-1).props.alt, "Kethan");
+  nodes.at(-1).props.onError();
+  assert.equal(children().at(-1).props.children, "Kethan", "A broken logo never removes the credit");
+  for (const value of ["", "/images/uploads/changeable.png", "/images/brand/logo.png", "https://example.com/logo.svg", "/images/brand/creator/../logo.svg"]) assert.equal(creditLogoSource(value), "");
+  assert.equal(creditLogoSource(config.logo.src), config.logo.src);
+});
+
+test("visitor payloads require consent, strip queries, exclude private paths and bound engagement", () => {
+  const { parseVisit, publicVisitPath, timedVisit } = loader()("lib/visitors/model.ts");
+  const input = { consent: true, id: crypto.randomUUID(), sequence: 1, current: "/work", pages: [{ path: "/work", views: 1, seconds: 999, depth: 80 }] };
+  assert.ok(parseVisit(input));
+  assert.equal(parseVisit({ ...input, consent: false }), null);
+  for (const value of ["/portal", "/api/contact", "//evil.test", "https://evil.test", "/#email@example.com", "/work/%2e%2e"]) assert.equal(publicVisitPath(value), null);
+  assert.equal(publicVisitPath("/work?email=private@example.com"), "/work");
+  assert.equal(parseVisit({ ...input, pages: Array(51).fill(input.pages[0]) }), null);
+  assert.equal(parseVisit({ ...input, pages: [{ ...input.pages[0], depth: 101 }] }), null);
+  assert.equal(timedVisit(parseVisit(input), null, 1000).pages[0].seconds, 0);
+  assert.equal(timedVisit(parseVisit(input), { firstSeen: 0 }, 15000).pages[0].seconds, 15);
+});
+
+function visitorDatabase() {
+  const { DatabaseSync } = nativeRequire("node:sqlite");
+  const sqlite = new DatabaseSync(":memory:");
+  sqlite.exec(readFileSync(path.join(root, "migrations/visitors/0001_sessions.sql"), "utf8"));
+  return { sqlite, db: { prepare(sql) { let values = []; return {
+    bind(...next) { values = next; return this; },
+    async first() { return sqlite.prepare(sql).get(...values) ?? null; },
+    async all() { return { results: sqlite.prepare(sql).all(...values) }; },
+    async run() { return sqlite.prepare(sql).run(...values); },
+  }; } } };
+}
+
+test("visitor SQL keeps concurrent sessions distinct, rejects stale heartbeats and tombstones withdrawals", async () => {
+  const { sqlite, db } = visitorDatabase();
+  const api = loader()("lib/visitors/server.ts");
+  const runtime = { db, cf: { country: "IN" }, enabled: true, local: false, key: "", geoLimit: 0 };
+  const now = Date.now();
+  const make = () => ({ id: crypto.randomUUID(), sequence: 1, current: "/work", pages: [{ path: "/work", views: 1, seconds: 0, depth: 20 }] });
+  const first = make(), second = make();
+  try {
+    await Promise.all([api.recordVisit(runtime, first, new Headers({ "user-agent": "Chrome/1 Windows", "cf-connecting-ip": "8.8.8.8" }), now), api.recordVisit(runtime, second, new Headers(), now)]);
+    let report = await api.readVisitors(runtime, 1, null);
+    assert.equal(report.total, 2); assert.equal(report.live, 2);
+    assert.equal(report.visits[0].locationSource, "Cloudflare");
+    assert.ok(!JSON.stringify(report).includes("8.8.8.8"));
+    await api.recordVisit(runtime, { ...first, sequence: 3 }, new Headers(), now + 60000);
+    await api.recordVisit(runtime, { ...first, sequence: 2, current: "/" }, new Headers(), now + 120000);
+    assert.equal(sqlite.prepare("SELECT sequence FROM visitor_sessions WHERE id=?").get(first.id).sequence, 3);
+    await api.forgetVisit(runtime, first.id);
+    await api.recordVisit(runtime, { ...first, sequence: 4 }, new Headers(), now + 180000);
+    report = await api.readVisitors(runtime, 1, null);
+    assert.equal(report.total, 1); assert.equal(report.visits[0].id, second.id);
+    assert.equal(sqlite.prepare("SELECT data FROM visitor_sessions WHERE id=?").get(first.id).data, "{}");
+    await api.recordVisit(runtime, { ...second, sequence: 2, ended: true }, new Headers(), now + 1000);
+    report = await api.readVisitors(runtime, 1, null);
+    assert.equal(report.total, 1); assert.equal(report.live, 0, "A final short-visit beacon closes presence without losing its history");
+  } finally { sqlite.close(); }
+});
+
+test("IPstack uses HTTPS, a shared monthly quota and coarse fallback without exposing the key", async () => {
+  const { sqlite, db } = visitorDatabase();
+  const { visitLocation, publicIp } = loader()("lib/visitors/server.ts");
+  const oldFetch = globalThis.fetch; let calls = 0;
+  const runtime = { db, cf: { country: "IN", city: "Fallback" }, local: false, key: "private-test-key", geoLimit: 1 };
+  globalThis.fetch = async url => { calls++; assert.equal(url.protocol, "https:"); assert.equal(url.hostname, "api.ipstack.com"); return Response.json({ city: "City", country_name: "India" }); };
+  try {
+    for (const ip of ["127.0.0.1", "10.0.0.1", "192.168.1.1", "::1", "fc00::1", "::ffff:127.0.0.1", "not-an-ip"]) assert.equal(publicIp(ip), false);
+    assert.equal((await visitLocation(runtime, "8.8.8.8")).locationSource, "IPstack");
+    const fallback = await visitLocation(runtime, "1.1.1.1");
+    assert.equal(fallback.locationSource, "Cloudflare"); assert.equal(calls, 1);
+    assert.ok(!JSON.stringify(fallback).includes(runtime.key));
+    await visitLocation({ ...runtime, local: true }, "8.8.8.8"); assert.equal(calls, 1);
+  } finally { globalThis.fetch = oldFetch; sqlite.close(); }
+});
+
+test("visitor API rejects absent consent, privacy signals, cross-origin and oversized payloads", async () => {
+  let writes = 0;
+  const api = loader({
+    "@/lib/request-origin": { requestOriginMatches: req => req.headers.get("origin") === "https://studio.test" },
+    "@/lib/visitors/server": { visitorRuntime: async () => ({ enabled: true, local: true }), visitorRateLimited: () => false, recordVisit: async () => writes++ },
+  })("app/api/visits/route.ts");
+  const valid = { consent: true, id: crypto.randomUUID(), sequence: 1, current: "/work", pages: [{ path: "/work", views: 1, seconds: 0, depth: 20 }] };
+  const request = (body, headers = {}) => new Request("https://studio.test/api/visits", { method: "POST", headers: { origin: "https://studio.test", "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
+  assert.equal((await api.POST(request({ ...valid, consent: false }))).status, 400);
+  assert.equal((await api.POST(request(valid, { origin: "https://evil.test" }))).status, 403);
+  assert.equal((await api.POST(request(valid, { "sec-gpc": "1" }))).status, 204);
+  assert.equal((await api.POST(request({ ...valid, extra: "x".repeat(17000) }))).status, 400);
+  assert.equal(writes, 0);
+  assert.equal((await api.POST(request(valid))).status, 204); assert.equal(writes, 1);
+});
+
+test("visitor dashboard is owner-only, never available to signed-out or editor accounts", async () => {
+  let user = null, reads = 0;
+  const api = loader({
+    "@/lib/portal/auth": { getPortalUser: async () => user },
+    "@/lib/visitors/server": { visitorRuntime: async () => ({}), readVisitors: async () => { reads++; return { visits: [] }; } },
+  })("app/api/portal/visitors/route.ts");
+  const req = { nextUrl: new URL("https://studio.test/api/portal/visitors") };
+  assert.equal((await api.GET(req)).status, 401);
+  user = { role: "editor" }; assert.equal((await api.GET(req)).status, 403);
+  user = { role: "owner", setup: true }; assert.equal((await api.GET(req)).status, 403);
+  assert.equal(reads, 0);
+  user = { role: "owner", setup: false }; assert.equal((await api.GET(req)).status, 200); assert.equal(reads, 1);
+});
+
+test("contact budgets migrate without losing custom choices and stay with renamed/reordered types", () => {
+  const app = loader();
+  const { sanitizeContent } = app("lib/content/sanitize.ts");
+  const legacy = json("content/site-content.json");
+  delete legacy.home.contact.form.projectOptions;
+  legacy.home.contact.form.projectTypes = ["Film", "Logo"];
+  legacy.home.contact.form.budgets = ["Under ₹50K", "Let's discuss"];
+  const migrated = sanitizeContent(legacy);
+  const options = migrated.home.contact.form.projectOptions;
+  assert.deepEqual(options, [
+    { name: "Film", budgets: ["Under ₹50K", "Let's discuss"] },
+    { name: "Logo", budgets: ["Under ₹50K", "Let's discuss"] },
+  ]);
+  options[1].budgets = ["₹10K–₹20K", "Custom quote"];
+  options[1].name = "Title logo";
+  options.reverse();
+  const saved = sanitizeContent(migrated);
+  assert.deepEqual(saved.home.contact.form.projectOptions, options);
+  assert.deepEqual(sanitizeContent(saved), saved);
+  assert.deepEqual(saved.home.contact.form.projectTypes, ["Title logo", "Film"]);
+  assert.deepEqual(app("lib/contact/options.ts").budgetsForProject(options, "missing"), []);
+});
+
+test("contact options are bounded, sanitized and checked in the portal", () => {
+  const app = loader();
+  const { contactProjects } = app("lib/contact/options.ts");
+  assert.deepEqual(contactProjects({ projectOptions: [null, {}, { name: " Film ", budgets: [" A ", "a", null, ""] }, { name: "film", budgets: ["B"] }] }), [{ name: "Film", budgets: ["A"] }]);
+  assert.equal(contactProjects({ projectOptions: Array.from({ length: 80 }, (_, i) => ({ name: `Type ${i}`, budgets: Array.from({ length: 50 }, (_, n) => `Budget ${n}`) })) }).length, 50);
+  assert.equal(contactProjects({ projectOptions: [{ name: "Long", budgets: ["a".repeat(150)] }] })[0].budgets[0].length, 100);
+  const content = app("lib/content/defaults.ts").defaultContent();
+  assert.equal(app("app/portal/validate.ts").contentProblems(content).filter(p => p.path.includes("projectOptions")).length, 0);
+  content.home.contact.form.projectOptions = [{ name: "Film", budgets: ["", "A", "a"] }, { name: "film", budgets: [] }];
+  const errors = app("app/portal/validate.ts").contentProblems(content);
+  for (const path of ["0.budgets", "1.name", "1.budgets"]) assert.ok(errors.some(p => p.path === `home.contact.form.projectOptions.${path}`));
+});
+
+const contactEnquiry = { name: "Test Person", email: "test@example.com", phone: "+919876543210", company: "", projectType: "Film", budget: "Film budget", timeline: "", message: "Please discuss the artwork for our film." };
+const contactChoices = [{ name: "Film", budgets: ["Film budget"] }, { name: "Logo", budgets: ["Logo budget"] }];
+
+test("contact validation rejects another project's budget and accepts an optional empty budget", () => {
+  const { validateContact } = loader()("lib/contact/validate.ts");
+  assert.deepEqual(validateContact(contactEnquiry, contactChoices).errors, {});
+  assert.ok(validateContact({ ...contactEnquiry, projectType: "Logo" }, contactChoices).errors.budget);
+  assert.ok(validateContact({ ...contactEnquiry, projectType: "Unknown" }, contactChoices).errors.projectType);
+  assert.deepEqual(validateContact({ ...contactEnquiry, budget: "" }, contactChoices).errors, {});
+});
+
+test("contact server checks published project budgets before saving or emailing", async () => {
+  let saved = 0;
+  let unavailable = false;
+  const app = loader({
+    "@/lib/request-origin": { requestOriginMatches: () => true },
+    "@/lib/rate-limit": { isRateLimited: () => false },
+    "@/lib/content/store": { getContent: async () => { if (unavailable) throw new Error("Storage unavailable"); return { home: { contact: { form: { projectOptions: contactChoices } } } }; } },
+    "@/lib/contact/inbox": { findRecentDuplicate: async () => { saved++; return true; } },
+    "@/lib/portal/activity": { clientIp: () => "test" },
+    "@/lib/portal/mail": {}, "@/lib/portal/users": {},
+  });
+  const { POST } = app("app/api/contact/route.ts");
+  const request = (body) => new Request("https://example.com/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const bad = await POST(request({ ...contactEnquiry, budget: "Logo budget" }));
+  assert.equal(bad.status, 422);
+  assert.ok((await bad.json()).fields.budget);
+  assert.equal(saved, 0);
+  assert.equal((await POST(request(contactEnquiry))).status, 200);
+  assert.equal(saved, 1);
+  unavailable = true;
+  assert.equal((await POST(request(contactEnquiry))).status, 503);
+  assert.equal(saved, 1, "Never save an enquiry with unverified choices during a storage failure");
+});
+
+test("contact form changes budget choices and clears a previous selection without submitting", () => {
+  const slots = []; let cursor = 0;
+  const state = (initial) => { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => { slots[i] = typeof v === "function" ? v(slots[i]) : v; }]; };
+  const content = loader()("lib/content/defaults.ts").defaultContent();
+  content.home.contact.form.projectOptions = clone(contactChoices);
+  const { Contact } = loader({
+    react: { useState: state, useRef: value => state({ current: value })[0] },
+    "@/lib/content/context": { useContent: () => content, tx: () => ({}) },
+    "@/lib/content/tx": { edSection: () => ({}) },
+    "@/components/fx/render-fx": { renderFx: value => value },
+    "@/components/SocialLogo": { SocialLogo: () => null },
+    "./Contact.module.css": {},
+  })("components/sections/Contact.tsx");
+  const nodes = (node) => !node || typeof node !== "object" ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
+  const render = () => { cursor = 0; const tree = nodes(Contact()); return id => tree.find(n => n.props?.id === id).props; };
+  let ui = render(); assert.equal(ui("budget").disabled, true);
+  ui("projectType").onChange({ target: { value: "Film" } });
+  ui = render(); assert.equal(ui("budget").disabled, false);
+  ui("budget").onChange({ target: { value: "Film budget" } });
+  ui = render(); assert.equal(ui("budget").value, "Film budget");
+  ui("projectType").onChange({ target: { value: "Logo" } });
+  ui = render(); assert.equal(ui("budget").value, "");
+  assert.deepEqual(nodes(ui("budget").children).filter(n => n.type === "option").map(n => n.props.value), ["", "Logo budget"]);
+  ui("budget").onChange({ target: { value: "Logo budget" } });
+  content.home.contact.form.projectOptions[1].budgets = ["Updated quote"];
+  assert.equal(render()("budget").value, "", "Removed choices cannot be submitted from a live preview");
+});
+
 test("Brand Promotions is service 08 and legacy combined cards split without losing saved artwork", () => {
   const { sanitizeContent } = loader()("lib/content/sanitize.ts");
   const saved = json("content/site-content.json");
@@ -448,9 +737,34 @@ test("compact rail opens after the intro while desktop restores the glass top na
   assert.match(source, /panePath\(pane.w, pane.h, true\)/, "Preserve the original shaped glass pane");
   assert.match(source, /aria-label=\{item.label\}/, "Icon-only links keep accessible names");
   assert.match(source, /aria-current=\{item.id === activeId \? "page" : undefined\}/);
-  assert.match(css, /\.mobileActive \.mobileLabel, \.mobileLink:focus-visible \.mobileLabel/);
+  assert.match(source, /setTimeout\(\(\) => setLabelId\(null\), 2000\)/);
+  assert.match(source, /clearTimeout\(labelTimer.current\)/);
+  assert.match(source, /data-nav-label data-visible=\{open && !!labelId\} aria-hidden="true"/);
+  assert.doesNotMatch(source, /styles.mobileLabel/, "Labels cannot float over the reading area");
+  assert.match(css, /\.compactLabel\[data-visible="true"\]/);
+  assert.match(css, /\.mobileActive \.mobileIcon, \.mobileLink:focus-visible \.mobileIcon \{\s*color: var\(--tone\);\s*filter: drop-shadow\(0 0 6px var\(--tone\)\)/);
+  assert.match(css, /background: transparent;\s*box-shadow: none;/, "No square highlight behind active icons");
+  assert.match(source, /data-open=\{open\} inert=\{!open\} aria-hidden=\{!open\}/, "Keep the rail mounted for fade-out, but inert when closed");
+  assert.match(css, /\.mobileActive::after \{ opacity: 1; \}/);
   assert.match(css, /max-height: calc\(100svh/, "Short tablet screens can scroll the rail");
   assert.match(source, /menuButtonRef.current\?\.focus\(\)/, "Escape returns focus to the toggle");
+});
+
+test("compact reading gutters protect content without resizing the intro or portal preview", () => {
+  const css = readFileSync(path.join(root, "app/globals.css"), "utf8");
+  const founder = readFileSync(path.join(root, "components/sections/Founder.module.css"), "utf8");
+  const process = readFileSync(path.join(root, "components/sections/Process.module.css"), "utf8");
+  const services = readFileSync(path.join(root, "components/sections/Services.module.css"), "utf8");
+  const clients = readFileSync(path.join(root, "components/sections/Clients.module.css"), "utf8");
+  assert.match(css, /@media \(max-width: 1199px\)/);
+  assert.match(css, /html:not\(\.portal-preview\) \.site-main \.container:not\(#top \.container\)/);
+  assert.match(css, /padding-inline-end: max\(clamp\(20px, 5vw, 64px\), var\(--nav-content-end\)\)/);
+  assert.doesNotMatch(css, /html\[data-section-menu-open\].*padding/, "Opening the menu must not reflow the page");
+  assert.match(founder, /width: min\(100%, 168px\);\s*aspect-ratio: 1/);
+  assert.match(process, /\.headRow \{\s*display: flex;\s*flex-wrap: wrap/);
+  assert.match(process, /\.note \{[^}]*white-space: normal/);
+  assert.match(services, /minmax\(min\(100%, 260px\), 1fr\)/);
+  assert.match(clients, /font-size: clamp\(16px, 8.6cqi, 44px\)/);
 });
 
 test("new pointer navigation cancels the previous route's scroll restoration", () => {

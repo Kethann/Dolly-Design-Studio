@@ -20,10 +20,10 @@
   margin: 0 0 var(--section-head-gap);
 }
 
-/* Cards side by side, as many as fit: four across on a wide screen, then two, then one. */
+/* Keep a readable card width; columns adapt to the actual space available. */
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: clamp(14px, 1.8vw, 24px);
 }
 
@@ -151,6 +151,8 @@
   font-weight: 700;
   font-size: clamp(20px, 2vw, 26px);
   margin: 0;
+  line-height: 1.25;
+  text-wrap: balance;
 }
 
 .desc {

@@ -53,7 +53,7 @@ export function AccountPanel({ me }: { me: PortalUser }) {
       setUsers(d.users ?? []);
       setEmailRecovery(!!d.emailRecovery);
     }).catch(() => {
-      if (active) setStatus({ kind: "error", message: "Couldn’t load the account list. Reopen People & passwords to try again." });
+      if (active) setStatus({ kind: "error", message: "Couldn’t load the account list. Reopen Account & access to try again." });
     });
     return () => { active = false; };
   }, []);

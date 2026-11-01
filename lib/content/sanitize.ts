@@ -1,4 +1,5 @@
 import { CATEGORIES, LANGUAGES, LEGACY_CATEGORIES } from "@/content/types";
+import { contactProjects } from "@/lib/contact/options";
 import { CARD_LINK_BY_ICON, CARD_LINK_VALUES, CARD_OPENS_OWN_PAGE } from "./card-links";
 import { cleanExtra } from "./process";
 import { ZOOM_MAX, ZOOM_MIN, cleanAdjust } from "./adjust";
@@ -80,6 +81,14 @@ export function sanitizeContent(input: unknown): SiteContent {
   const def = defaultContent();
   const merged = merge(def, input) as SiteContent;
   const src = isObj(input) ? input : {};
+
+  // Do not let new defaults replace the creator's legacy project names or shared budgets.
+  const rawHome = isObj(src.home) ? src.home : {};
+  const rawContact = isObj(rawHome.contact) ? rawHome.contact : {};
+  const rawForm = isObj(rawContact.form) ? rawContact.form : {};
+  const contactForm = merged.home.contact.form;
+  contactForm.projectOptions = contactProjects({ ...contactForm, projectOptions: rawForm.projectOptions });
+  contactForm.projectTypes = contactForm.projectOptions.map((project) => project.name);
 
   // Menu: the destinations are fixed, only the words change.
   const navIn = Array.isArray(src.nav) ? src.nav : [];

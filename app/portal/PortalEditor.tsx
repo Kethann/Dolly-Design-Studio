@@ -39,9 +39,11 @@ import edit from "./edit.module.css";
 import type { PageKey, SiteContent } from "@/lib/content/types";
 import { sanitizeContent } from "@/lib/content/sanitize";
 import mac from "./mac.module.css";
-import { ProofTableEditor } from "./ProofTableEditor";
+import { ProofTableEditor, DISC_GROUPS } from "./ProofTableEditor";
+import { canOpenPortalTool } from "./tool-access";
 import { AccountPanel } from "./AccountPanel";
 import { ActivityPanel } from "./ActivityPanel";
+import { VisitorsPanel } from "./VisitorsPanel";
 import { InboxPanel } from "./InboxPanel";
 import { BreakdownsEditor } from "./BreakdownsEditor";
 import { SweepEditor } from "./SweepEditor";
@@ -92,7 +94,7 @@ function previewFocus(
   target: ColourTarget,
 ): { to: string; at: "start" | "end"; label: string; intro?: boolean } | null {
   if (tab === "intro") return { to: "top", at: "start", label: "The opening", intro: true };
-  if (tab === "slate") return { to: "collaborations", at: "end", label: "Slate" };
+  if (tab === "slate") return { to: "collaborations", at: "end", label: "Glass title circle" };
   if (tab === "background" && target !== "top" && target !== "project") {
     return { to: target, at: "start", label: SECTION_NAMES[target] };
   }
@@ -123,6 +125,7 @@ type Tab =
   | "playback"
   | "account"
   | "activity"
+  | "visitors"
   | "inbox";
 
 interface WinDef {
@@ -142,25 +145,26 @@ interface WinDef {
 const WINDOWS: Record<Tab, WinDef> = {
   home: { title: "Home page", hint: "Edit the home page: press Edit on any section in the preview.", glyph: "home", tint: ["#ffb347", "#e8742a"], w: 460, h: 700 },
   work: { title: "Work & projects", hint: "The gallery and every project: press Edit on the page, or on a single poster.", glyph: "work", tint: ["#ffcf5c", "#e8a31a"], w: 440, h: 620 },
-  site: { title: "Studio details & menu", hint: "Studio name, phone, email, social links, menu words, footer and the text Google shows.", glyph: "site", tint: ["#ff9aa2", "#e0556a"], w: 440, h: 640 },
+  site: { title: "Studio & site settings", hint: "Contact details, social links, navigation labels, studio copyright and search-engine descriptions. The creator watermark is code-managed.", glyph: "site", tint: ["#ff9aa2", "#e0556a"], w: 440, h: 640 },
   projects: { title: "Projects", hint: "Add, remove and edit your projects — posters, credits and descriptions.", glyph: "projects", tint: ["#c9a0ff", "#7b4be0"], w: 480, h: 720 },
   breakdowns: { title: "Breakdowns", hint: "Layered artworks that fall apart into labelled layers when someone hovers them.", glyph: "breakdowns", tint: ["#ffa56b", "#e0562a"], w: 480, h: 720 },
-  slate: { title: "Title disc", hint: "The silver title disc: its words, images, projector light and motion.", glyph: "slate", tint: ["#9fe0ff", "#3b8be0"], w: 460, h: 720 },
-  media: { title: "Images", hint: "Your picture library. Upload once, then pick the picture anywhere.", glyph: "media", tint: ["#7fe3c0", "#1fa57a"], w: 520, h: 600 },
+  slate: { title: "Glass title circle", hint: "Title artwork, rotation, glass tint, shadow and projector light. Desktop, tablet and mobile have separate beam-position controls.", glyph: "slate", tint: ["#9fe0ff", "#3b8be0"], w: 460, h: 720 },
+  media: { title: "Image library", hint: "Upload PNG or JPG/JPEG images, choose thumbnails and manage selections. Add videos inside Photos & BTS cards, not here.", glyph: "media", tint: ["#7fe3c0", "#1fa57a"], w: 520, h: 600 },
   type: { title: "Fonts & text styles", hint: "Change the fonts, or the size, weight and colour of any text.", glyph: "type", tint: ["#f4f4f4", "#9a9aa5"], w: 460, h: 680 },
   background: { title: "Page background", hint: "The background colour, its gradient style, and the colours of each section.", glyph: "background", tint: ["#ff7eb3", "#7a3ad2"], w: 440, h: 700 },
-  theme: { title: "Brand & glass", hint: "The gold accents, the text colour, the glass colours and the menu lamp colours.", glyph: "colours", tint: ["#ffbf80", "#e0563a"], w: 420, h: 480 },
-  glass: { title: "Logo glass", hint: "The tinted glass over the stars and the soft shield behind the logo.", glyph: "glass", tint: ["#a8e6ff", "#4a7de0"], w: 420, h: 560 },
+  theme: { title: "Brand colours & navigation", hint: "Site-wide accent and text colours, glass surfaces and active navigation glow. For the title circle's tint, open Glass title circle.", glyph: "drop", tint: ["#ffbf80", "#e0563a"], w: 420, h: 480 },
+  glass: { title: "Logo backdrop", hint: "The tinted layer over the stars and the soft shield behind the studio logo. This is separate from the rotating title circle.", glyph: "glass", tint: ["#a8e6ff", "#4a7de0"], w: 420, h: 560 },
   colours: { title: "Star colours", hint: "Which colours the stars are, and how much of each.", glyph: "colours", tint: ["#ffd86b", "#ee6b4a"], w: 420, h: 520 },
-  finish: { title: "Star look", hint: "How the stars shine: glow, size, metal and depth.", glyph: "finish", tint: ["#fff3a8", "#e8b04b"], w: 420, h: 680 },
-  layers: { title: "Star groups", hint: "The front, back and big stars: how many and how large.", glyph: "layers", tint: ["#b9b2ff", "#5a4be0"], w: 440, h: 700 },
+  finish: { title: "Star appearance", hint: "Star glow, surface finish, size and depth. These settings do not change heading text effects.", glyph: "finish", tint: ["#fff3a8", "#e8b04b"], w: 420, h: 680 },
+  layers: { title: "Star layers & density", hint: "Control the number and size of foreground, background and large corner stars.", glyph: "layers", tint: ["#b9b2ff", "#5a4be0"], w: 440, h: 700 },
   motion: { title: "Star movement", hint: "How the stars drift, stream out of the logo and follow the mouse.", glyph: "motion", tint: ["#8fe9d8", "#1e9fb0"], w: 420, h: 620 },
   intro: { title: "Opening animation", hint: "The stars that fly in and draw the logo when the site opens.", glyph: "intro", tint: ["#ff8a8a", "#d23a5a"], w: 440, h: 700 },
   cursor: { title: "Cursor & glow", hint: "The pen that follows the mouse, and the glow when you hover.", glyph: "cursor", tint: ["#ffe28a", "#d9892a"], w: 420, h: 600 },
   playback: { title: "Preview controls", hint: "Replay the opening animation, or pause it on any moment to adjust.", glyph: "playback", tint: ["#d0d0d8", "#6a6a78"], w: 560, h: 250, small: true },
-  account: { title: "People & passwords", hint: "Your username, email and password; who can sign in, their roles, and the email codes.", glyph: "account", tint: ["#9bb4c9", "#4a6075"], w: 560, h: 680 },
+  account: { title: "Account & access", hint: "Your sign-in details, password and email codes. Owners can also manage portal users and roles.", glyph: "account", tint: ["#9bb4c9", "#4a6075"], w: 560, h: 680 },
   inbox: { title: "Enquiries", hint: "Messages sent through the contact form on your site: read, reply, archive or delete them.", glyph: "inbox", tint: ["#ffd36a", "#e8742a"], w: 520, h: 680 },
   activity: { title: "Activity log", hint: "Who signed in, and what each person published, uploaded or changed.", glyph: "activity", tint: ["#9bc4ff", "#4a6075"], w: 520, h: 680 },
+  visitors: { title: "Visitor analytics", hint: "Consenting visits, approximate location, device and pages explored. Owners only; tracking requires server setup.", glyph: "visitors", tint: ["#9bc4ff", "#4a6075"], w: 620, h: 720 },
 };
 
 /** One taskbar item: its short name under the icon, and its colour (each group has its own). */
@@ -172,15 +176,15 @@ const DOCK: DockGroup[] = [
       dockItem("home", "Home", "#ffc566"),
       dockItem("work", "Work", "#ffc566"),
       dockItem("breakdowns", "Breakdowns", "#ffc566"),
-      dockItem("slate", "Slate", "#ffc566"),
+      dockItem("slate", "Title circle", "#ffc566"),
       dockItem("site", "Studio", "#ffc566"),
     ],
   },
   { name: "Library", items: [dockItem("media", "Images", "#7fe3c0"), dockItem("type", "Fonts", "#7fe3c0")] },
-  { name: "Page look", items: [dockItem("background", "Backdrop", "#ff8fc0"), dockItem("theme", "Brand", "#ff8fc0", "drop"), dockItem("glass", "Logo glass", "#ff8fc0")] },
+  { name: "Appearance", items: [dockItem("background", "Background", "#ff8fc0"), dockItem("theme", "Brand", "#ff8fc0"), dockItem("glass", "Logo layer", "#ff8fc0")] },
   { name: "Stars", items: [dockItem("colours", "Palette", "#ffe27a"), dockItem("finish", "Shine", "#ffe27a"), dockItem("layers", "Groups", "#ffe27a"), dockItem("motion", "Motion", "#ffe27a")] },
   { name: "Animation", items: [dockItem("intro", "Opening", "#ff9a8a"), dockItem("cursor", "Cursor", "#ff9a8a"), dockItem("playback", "Preview", "#ff9a8a")] },
-  { name: "Studio", items: [dockItem("inbox", "Enquiries", "#9bc4ff"), dockItem("account", "People", "#9bc4ff"), dockItem("activity", "Activity", "#9bc4ff")] },
+  { name: "Management", items: [dockItem("inbox", "Enquiries", "#9bc4ff"), dockItem("visitors", "Visitors", "#9bc4ff"), dockItem("account", "Account", "#9bc4ff"), dockItem("activity", "Activity", "#9bc4ff")] },
 ];
 
 const DESIGN_WORDS: Partial<Record<Tab, string>> = {
@@ -194,17 +198,18 @@ const DESIGN_WORDS: Partial<Record<Tab, string>> = {
   intro: "intro opening animation reveal sweep star timing loader",
   cursor: "cursor pen glow hover logo colour size",
   breakdowns: "breakdown breakdowns layers psd photoshop png layer explode labels hover how we work",
-  slate: "slate disc cd silver glass cards titles projector focus spin speed tilt gap bloom desaturation images add upload reorder",
+  slate: `slate disc cd silver circle glass cards titles projector focus spin speed tilt gap bloom desaturation images add upload reorder ${DISC_GROUPS.flatMap(group => [group.title, ...group.fields.flatMap(field => [field.label, field.hint ?? ""])]).join(" ")}`,
   media: "images pictures photos upload library files",
   type: "fonts typography typeface upload font file ttf otf woff size weight regular spacing text style headings paragraphs",
   playback: "play pause hold scrub timeline intro preview",
   account: "users people password login sign in security owner editor account username email reset forgot otp code two-step smtp gmail",
   inbox: "enquiries inbox contact form messages submissions leads email phone reply clients",
   activity: "activity log history audit who signed in logged in changes published uploaded when",
+  visitors: "visitors analytics live visits history location ipstack device pages explored traffic",
 };
 
 const fieldWords = (fields: Field[]): string[] =>
-  fields.flatMap((f) => [f.label, ...(f.kind === "list" ? fieldWords(f.fields) : [])]);
+  fields.flatMap((f) => [f.label, "hint" in f ? f.hint ?? "" : "", ...(f.kind === "list" ? fieldWords(f.fields) : [])]);
 
 /** Everything the search can find: each window, and each section of each content page with its field names. */
 const SEARCH_ENTRIES: SpotEntry[] = [
@@ -233,7 +238,7 @@ const JUMP_TO: { label: string; to: string; at?: "start" | "end" }[] = [
   { label: "About our agency", to: "agency" },
   { label: "Clients & collaborations", to: "clients" },
   { label: "About the founder", to: "about" },
-  { label: "Projects slate", to: "collaborations", at: "end" },
+  { label: "Glass title circle", to: "collaborations", at: "end" },
   { label: "Project gallery", to: "work" },
   { label: "How we work", to: "process" },
   { label: "Our services", to: "services" },
@@ -714,7 +719,8 @@ export function PortalEditor({
   /** The pages the taskbar switches between; every other item opens as a sheet. */
   const PAGE_TABS: Partial<Record<Tab, PageKey>> = { home: "home", work: "work", projects: "work", breakdowns: "breakdowns" };
   /** Choose a taskbar item. */
-  function selectTab(id: Tab) {
+  function selectTab(id: Tab, reveal = false) {
+    if (!canOpenPortalTool(user, id)) return;
     const page = PAGE_TABS[id];
     if (page) {
       setPreviewRoute(page);
@@ -728,7 +734,7 @@ export function PortalEditor({
       openModal({ kind: "page", page: "site" });
       return;
     }
-    if (id === tab && sheetOpen) {
+    if (id === tab && sheetOpen && !reveal) {
       setSheetOpen(false); // the same item again folds its sheet away
       return;
     }
@@ -1894,7 +1900,7 @@ export function PortalEditor({
 
           {tab === "slate" && (
             <>
-              <ContentEditor page={CONTENT_PAGES.slate} goto={goto?.tab === "slate" ? goto : undefined} onFocus={(to) => showInPreview({ to, at: "end", label: "Slate" })} />
+              <ContentEditor page={CONTENT_PAGES.slate} goto={goto?.tab === "slate" ? goto : undefined} onFocus={(to) => showInPreview({ to, at: "end", label: "Glass title circle" })} />
               <ProofTableEditor
                 value={draft.proofTable}
                 projects={contentDraft.projects.map((p) => ({ slug: p.slug, title: p.title }))}
@@ -2019,6 +2025,7 @@ export function PortalEditor({
           )}
           {tab === "account" && <AccountPanel me={user} />}
           {tab === "activity" && <ActivityPanel me={user} />}
+          {tab === "visitors" && <VisitorsPanel />}
           {tab === "inbox" && <InboxPanel onCount={setUnread} />}
     </>
   );
@@ -2026,13 +2033,14 @@ export function PortalEditor({
   function pickSearch(e: SpotEntry) {
     setSpotlight(false);
     const id = e.tab as Tab;
+    if (!canOpenPortalTool(user, id)) return;
     if (e.section && ["home", "work", "site", "slate", "projects"].includes(id)) {
       // A section found by search: its editing window opens straight away (on the right page).
       if (id === "home" || id === "work" || id === "projects") setPreviewRoute(id === "home" ? "home" : "work");
       openModal({ kind: "section", page: id, id: e.section });
       return;
     }
-    selectTab(id);
+    selectTab(id, true);
   }
 
   const menus: MenuDef[] = [
@@ -2040,7 +2048,7 @@ export function PortalEditor({
       label: "Portal",
       items: [
         { label: `Signed in as ${user.name || user.username}`, disabled: true },
-        { label: "People & passwords", onClick: () => selectTab("account") },
+        { label: WINDOWS.account.title, onClick: () => selectTab("account") },
         { label: "View site", onClick: () => window.open("/", "_blank", "noopener,noreferrer") },
         { label: "Discard unsaved changes", disabled: !dirty || publishing, onClick: discard },
         { label: "Randomize the look", disabled: !!user.setup, onClick: () => update(randomLook(draft)) },
@@ -2277,9 +2285,9 @@ export function PortalEditor({
 
         {modalEl}
 
-        {spotlight && <Spotlight entries={user.setup ? SEARCH_ENTRIES.filter((e) => e.tab === "account") : SEARCH_ENTRIES} onPick={pickSearch} onClose={() => setSpotlight(false)} />}
+        {spotlight && <Spotlight entries={SEARCH_ENTRIES.filter((e) => canOpenPortalTool(user, e.tab))} onPick={pickSearch} onClose={() => setSpotlight(false)} />}
 
-        <Dock groups={DOCK} badges={{ inbox: unread }} open={open} minimized={noneMinimised} disabled={(id) => !!user.setup && id !== "account"} onToggle={(id) => selectTab(id as Tab)} />
+        <Dock groups={DOCK.map(group => ({ ...group, items: group.items.filter(item => item.id !== "visitors" || canOpenPortalTool(user, item.id)) }))} badges={{ inbox: unread }} open={open} minimized={noneMinimised} disabled={(id) => !canOpenPortalTool(user, id)} onToggle={(id) => selectTab(id as Tab)} />
       </div>
     </EditorProvider>
   );

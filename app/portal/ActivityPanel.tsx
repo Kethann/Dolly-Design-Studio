@@ -14,7 +14,7 @@ const GROUPS: { id: Group; label: string }[] = [
   { id: "sign-ins", label: "Sign-ins" },
   { id: "changes", label: "Published changes" },
   { id: "uploads", label: "Uploads" },
-  { id: "account", label: "People & passwords" },
+  { id: "account", label: "Account & access" },
 ];
 
 /** What happened, as the rest of a sentence that starts with the person's name. */

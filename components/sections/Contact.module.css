@@ -30,7 +30,7 @@
   overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(30px, 5vw, 54px);
+  font-size: clamp(26px, 5vw, 54px);
   text-align: center;
   max-width: 800px;
   margin: 0 auto 14px;
@@ -224,6 +224,11 @@
   font-family: var(--font-body);
   font-size: 14px;
   border-radius: 4px;
+}
+
+.field select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .field input:focus,

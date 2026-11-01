@@ -3,7 +3,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 const dialogs = 'dialog[open], [role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]';
-const controls = 'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
+const controls = 'button:not(:disabled):not([tabindex="-1"]), a[href]:not([tabindex="-1"]), input:not(:disabled):not([tabindex="-1"]), select:not(:disabled):not([tabindex="-1"]), textarea:not(:disabled):not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])';
 
 /** Only the frontmost dialog handles Escape and contains keyboard focus. */
 export function bindDialogFocus(box: HTMLElement, onClose: () => void) {
