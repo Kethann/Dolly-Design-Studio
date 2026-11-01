@@ -29,6 +29,23 @@ test("portal window geometry stays visible at every edge, minimum size and viewp
   assert.deepEqual(resizeWindow(rect,"se",100,50,bounds),{x:300,y:200,width:700,height:450});
 });
 
+test("wide portal windows can move right and left while retaining a reachable title bar", () => {
+  const { moveWindow, constrainWindow } = loader()("app/portal/window-geometry.ts");
+  for (const width of [240, 320, 390, 729, 1024, 1920]) {
+    const bounds = { x: 8, y: 28, width: width - 16, height: 484 };
+    const original = { x: 8, y: 28, width: bounds.width, height: 460 };
+    assert.equal(moveWindow({ ...original, x: 108 }, bounds).x, Math.min(108, width - 8 - 220));
+    for (const x of [-10000, -100, 0, 100, 10000]) {
+      const moved = moveWindow({ ...original, x, y: 10000 }, bounds);
+      const visible = Math.min(moved.x + moved.width, bounds.x + bounds.width) - Math.max(moved.x, bounds.x);
+      assert.ok(visible >= Math.min(220, moved.width), "Enough header remains for dragging back or double-clicking to maximize");
+      assert.ok(moved.y >= bounds.y && moved.y + 96 <= bounds.y + bounds.height);
+      const recovered = constrainWindow(moved, bounds);
+      assert.ok(recovered.x >= bounds.x && recovered.x + recovered.width <= bounds.x + bounds.width);
+    }
+  }
+});
+
 test("portal windows move, resize, restore, cancel, and release pointer capture without remounting content", () => {
   const originals=new Map(["window","document","Element","HTMLElement"].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
   class Node extends EventTarget {
@@ -65,6 +82,12 @@ test("portal windows move, resize, restore, cancel, and release pointer capture 
   try {
     cleanup=loader()("app/portal/panel-window.ts").bindPanelWindow(box);
     assert.equal(box.hasAttribute("data-window-custom"),false,"Initial CSS layout remains unchanged");
+    viewport.height=260;viewport.offsetTop=40;viewport.dispatchEvent(new Event("resize"));
+    let defaultFit=box.getBoundingClientRect();
+    assert.ok(defaultFit.top>=48 && defaultFit.top+defaultFit.height<=292,"An untouched window also fits above the mobile keyboard");
+    viewport.height=800;viewport.offsetTop=0;viewport.dispatchEvent(new Event("scroll"));
+    assert.equal(box.hasAttribute("data-window-custom"),false,"Closing the keyboard restores the original default auto-height");
+    assert.equal(box.style.height,undefined);
     fire(box,"pointerdown",input);assert.equal(root.hasAttribute("data-portal-window-drag"),false,"Inputs cannot drag the window");
     fire(box,"pointerdown",header);fire(win,"pointerup",header);
     assert.equal(box.hasAttribute("data-window-custom"),false,"A title click alone does not fix the default auto-height");
@@ -82,19 +105,149 @@ test("portal windows move, resize, restore, cancel, and release pointer capture 
     fire(box,"keydown",handle,{key:"ArrowDown"});assert.equal(box.style.height,"410px");
     fire(box,"pointerdown",header);fire(win,"pointermove",header,{clientX:350,clientY:300});fire(win,"pointercancel",header);
     assert.equal(box.style.left,"160px","Cancelled touch restores the pre-drag geometry");
+    fire(box,"pointerdown",header,{clientX:300,clientY:180});
+    fire(win,"pointerup",header,{clientX:1100,clientY:180});
+    assert.equal(box.style.left,"960px", "Rightward drag is not blocked by the window's far edge");
+    fire(box,"keydown",header,{key:"ArrowRight",shiftKey:true});
+    assert.equal(box.style.left,"972px", "Keyboard movement leaves 220px of title bar visible");
+    fire(box,"click",maximize);
+    fire(box,"pointerdown",header,{clientX:600,clientY:20});fire(win,"pointerup",header,{clientX:600,clientY:20});
+    assert.equal(box.hasAttribute("data-window-fullscreen"),true,"A maximized title click does not restore the window");
+    fire(box,"pointerdown",header,{clientX:600,clientY:20});
+    fire(win,"pointermove",header,{clientX:700,clientY:80});
+    assert.equal(box.hasAttribute("data-window-fullscreen"),false);
+    assert.equal(box.style.width,"750px");assert.equal(box.style.left,"325px");assert.equal(box.style.top,"60px");
+    fire(win,"pointercancel",header);
+    assert.equal(box.hasAttribute("data-window-fullscreen"),true,"Cancelled restore-drag returns to maximized state");
+    fire(box,"pointerdown",header,{clientX:600,clientY:20});
+    fire(win,"pointermove",header,{clientX:700,clientY:80});
+    fire(win,"pointerup",header,{clientX:740,clientY:90});
+    assert.equal(box.style.left,"365px");assert.equal(box.style.top,"70px");
+    assert.equal(box.hasAttribute("data-window-fullscreen"),false);
     win.innerWidth=390;win.innerHeight=300;viewport.width=390;viewport.height=300;win.dispatchEvent(new Event("resize"));
     const rect=box.getBoundingClientRect();assert.ok(rect.left+rect.width<=382 && rect.top+rect.height<=292);
-    fire(box,"click",reset);assert.equal(box.hasAttribute("data-window-custom"),false);assert.equal(box.style.height,undefined);
-    fire(box,"click",maximize);fire(box,"click",maximize);assert.equal(box.hasAttribute("data-window-custom"),false,"Restore returns to default auto layout when it was never resized");
+    win.innerWidth=1200;win.innerHeight=800;viewport.width=1200;viewport.height=800;viewport.dispatchEvent(new Event("resize"));
+    assert.equal(box.style.width,"750px");assert.equal(box.style.height,"410px");assert.equal(box.style.left,"365px","Keyboard/rotation fitting does not discard the user's chosen geometry");
+    win.innerWidth=390;win.innerHeight=300;viewport.width=390;viewport.height=300;win.dispatchEvent(new Event("resize"));
+    fire(box,"click",reset);
+    defaultFit=box.getBoundingClientRect();
+    assert.ok(defaultFit.left>=8 && defaultFit.left+defaultFit.width<=382 && defaultFit.top+defaultFit.height<=292,"Reset remains visible in a short viewport");
+    fire(box,"click",maximize);fire(box,"click",maximize);
+    assert.deepEqual(box.getBoundingClientRect(),defaultFit,"Restore returns to the fitted default layout");
     fire(box,"keydown",header,{key:"ArrowDown"});
     viewport.width=360;viewport.height=240;viewport.offsetLeft=20;viewport.offsetTop=30;viewport.dispatchEvent(new Event("resize"));
     const visible=box.getBoundingClientRect();assert.ok(visible.left>=28 && visible.top>=38 && visible.top+visible.height<=262,"On-screen keyboards and zoom keep controls in the visible viewport");
     fire(box,"click",maximize);assert.equal(box.style.left,"20px");assert.equal(box.style.top,"30px");assert.equal(box.style.height,"240px");
     fire(box,"click",reset);
+    win.visualViewport = undefined; win.innerWidth = 729; win.innerHeight = 500;
+    win.dispatchEvent(new Event("resize"));
+    const capturePointer = header.setPointerCapture;
+    header.setPointerCapture = () => { throw new Error("Capture unavailable"); };
+    fire(box,"pointerdown",header);
+    fire(win,"pointermove",header,{clientX:300,clientY:100,pointerId:2});
+    assert.equal(box.hasAttribute("data-window-custom"),false,"Another pointer cannot move the window");
+    fire(win,"pointerup",header,{clientX:300,clientY:100});
+    assert.equal(box.style.left,"300px","Dragging works without visualViewport or pointer capture");
+    assert.equal(root.hasAttribute("data-portal-window-drag"),false);
+    header.setPointerCapture = capturePointer;
     fire(box,"pointerdown",header);cleanup();cleanup=undefined;
     assert.equal(header.hasPointerCapture(1),false);assert.equal(root.hasAttribute("data-portal-window-drag"),false);
     fire(box,"click",maximize);assert.equal(box.hasAttribute("data-window-fullscreen"),false,"Unmount removes all listeners");
   } finally {cleanup?.();for(const [key,descriptor] of originals){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}}
+});
+
+test("glass image cleanup works with native bitmaps and HTML-image fallbacks", () => {
+  const { releaseDiscImage } = loader()("lib/content/disc.ts");
+  let closed = 0;
+  releaseDiscImage({ close() { closed++; } });
+  assert.equal(closed, 1);
+  const image = { src: "blob:decoded-artwork" };
+  releaseDiscImage(image);
+  assert.equal(image.src, "");
+  const scene = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  assert.doesNotMatch(scene, /instanceof ImageBitmap/);
+  assert.match(scene, /releaseDiscImage\(bitmap\)/);
+});
+
+test("responsive form, touch controls and long service copy are scoped to their available space", () => {
+  const contact = readFileSync(path.join(root, "components/sections/Contact.module.css"), "utf8");
+  assert.match(contact, /\.row2\s*\{[^}]*repeat\(auto-fit, minmax\(min\(100%, 220px\), 1fr\)\)/);
+  assert.doesNotMatch(contact, /@media \(min-width: 560px\)/, "A wide viewport can still contain a narrow form column");
+  assert.match(contact, /\.projectChoices\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/, "Long service choices receive the full form column");
+  assert.match(contact, /@media \(pointer: coarse\)[\s\S]*?font-size: 16px;\s*min-height: 48px/);
+  const windowCss = readFileSync(path.join(root, "app/portal/window.module.css"), "utf8");
+  assert.match(windowCss, /\.actions button, \.titlebar > button \{ width: 44px; height: 44px; \}/);
+  assert.match(windowCss, /\.window select, \.window textarea \{ font-size: 16px; min-height: 44px; \}/);
+  const portal = readFileSync(path.join(root, "app/portal/portal.module.css"), "utf8");
+  assert.match(portal, /@media \(pointer: coarse\)\s*\{\s*\.range \{ height: 44px; \}/);
+  const services = readFileSync(path.join(root, "components/sections/Services.module.css"), "utf8");
+  for (const selector of ["dialogTitle", "dialogStory", "dialogList li"]) {
+    assert.match(services, new RegExp(`\\.${selector}\\s*\\{[^}]*overflow-wrap: anywhere`));
+  }
+  assert.match(services, /\.dialogClose, \.dialogStep button \{ width: 44px; height: 44px; \}/);
+  assert.match(services, /\.card:hover, \.card:focus-visible, \.card:hover \.media img \{ transform: none; \}/);
+});
+
+test("glass title angle, colour and glow controls form independent responsive groups", () => {
+  const css = new Proxy({}, { get: (_target, key) => key === "__esModule" ? false : key });
+  const app = loader({
+    react: { useState: value => [typeof value === "function" ? value() : value, () => {}], useRef: value => ({ current: value }), useEffect() {} },
+    "./DeleteDialog": { useConfirmDelete: () => ({ ask() {}, dialog: null }) },
+    "./ContentEditor": { useMedia: () => ({}), ImagePicker: () => null },
+    "./reorder": { useReorder: () => ({ attach() {}, item: () => ({}), grip: () => null }) },
+    "./portal.module.css": css,
+  });
+  const { ProofTableEditor } = app("app/portal/ProofTableEditor.tsx");
+  const nodes = node => !node || typeof node !== "object" ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
+  let patch;
+  const item = { film: "Sample", tag: "Title", year: 2026, slug: "sample", src: "", titleColor: "#123456", titleGlowColor: "#abcdef", titleGlowIntensity: .5 };
+  const tree = nodes(ProofTableEditor({ value: { enabled: true, items: [item], disc: {} }, projects: [{ slug: "sample", title: "Sample" }], onChange: value => { patch = value; }, onShow() {} }));
+  const groups = tree.filter(node => node.props?.className === "slotTintGroup");
+  assert.equal(groups.length, 6);
+  assert.deepEqual(groups.map(group => nodes(group).find(node => node.props?.label)?.props.label), ["This title — rotation angle", "This title — size", "This title — blend opacity", "Title colour", "Title glow colour", "Title glow intensity"]);
+  const edge = tree.find(node => node.props?.label === "Arc edge thickness");
+  assert.equal(edge.props.min, .1); assert.equal(edge.props.max, 1); assert.equal(edge.props.value, .25);
+  edge.props.onChange(.15);
+  assert.equal(patch.disc.edgeThickness, .15);
+  const titleSize = nodes(groups[1]).find(node => node.props?.label === "This title — size");
+  assert.equal(titleSize.props.value, 1);
+  titleSize.props.onChange(.55); assert.equal(patch.items[0].titleScale, .55);
+  const titleOpacity = nodes(groups[2]).find(node => node.props?.label === "This title — blend opacity");
+  assert.equal(titleOpacity.props.value, 1);
+  titleOpacity.props.onChange(0); assert.equal(patch.items[0].titleOpacity, 0);
+  const blend = nodes(groups[2]).find(node => node.type === "select");
+  assert.equal(blend.props.value, "normal");
+  blend.props.onChange({ target: { value: "screen" } }); assert.equal(patch.items[0].titleBlend, "screen");
+  const shared = tree.find(node => node.props?.label === "Title rotation angle");
+  assert.equal(shared.props.format(35), "35°");
+  shared.props.onChange(35);
+  assert.equal(patch.disc.slotRotation, 35);
+  assert.ok(tree.some(node => node.props?.label === "Gap between titles"));
+  const angle = nodes(groups[0]).find(node => node.props?.label === "This title — rotation angle");
+  assert.equal(angle.props.value, 0);
+  angle.props.onChange(-45);
+  assert.equal(patch.items[0].titleRotation, -45);
+  assert.equal(patch.items[0].titleColor, "#123456");
+  assert.equal(nodes(groups[0]).find(node => node.type === "button").props.disabled, true);
+  const customTree = nodes(ProofTableEditor({ value: { enabled: true, items: [{ ...item, titleRotation: 0 }], disc: { slotRotation: 35 } }, projects: [], onChange: value => { patch = value; }, onShow() {} }));
+  assert.equal(customTree.find(node => node.props?.label === "This title — rotation angle").props.value, 0, "An explicit zero overrides the shared angle");
+  const resetAngle = customTree.find(node => node.type === "button" && node.props.children === "Use shared title angle");
+  assert.equal(resetAngle.props.disabled, false);
+  resetAngle.props.onClick();
+  assert.equal(patch.items[0].titleRotation, undefined);
+  const inheritedTree = nodes(ProofTableEditor({ value: { enabled: true, items: patch.items, disc: { slotRotation: 35 } }, projects: [], onChange() {}, onShow() {} }));
+  assert.equal(inheritedTree.find(node => node.props?.label === "This title — rotation angle").props.value, 35);
+  nodes(groups[3]).find(node => node.type === "button").props.onClick();
+  assert.equal(patch.items[0].titleColor, undefined);
+  assert.equal(patch.items[0].titleGlowColor, "#abcdef");
+  nodes(groups[5]).find(node => node.props?.label === "Title glow intensity").props.onChange(1.5);
+  assert.equal(patch.items[0].titleGlowIntensity, 1.5);
+  const source = readFileSync(path.join(root, "app/portal/portal.module.css"), "utf8");
+  assert.match(source, /\.slotTint\s*\{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 260px\), 1fr\)\)/);
+  assert.match(source, /\.slotGrid\s*\{[^}]*grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 240px\), 1fr\)\)/);
+  assert.match(source, /\.controlRow\s*\{[^}]*flex-wrap: wrap/);
+  assert.match(source, /\.controlLabel\s*\{[^}]*flex: 1 1 140px/);
+  assert.match(source, /\.slotGrid > label\s*\{/);
 });
 
 test("every toolbar sheet and Studio editor exposes the same window controls without changing default sizes", () => {
@@ -449,36 +602,40 @@ test("contact placeholders are grey without dimming real dropdown choices", () =
   assert.match(css, /\.field select option:not\(:disabled\)\s*\{\s*color: var\(--ivory\);/);
 });
 
-test("Brand Promotions is service 08 and legacy combined cards split without losing saved artwork", () => {
-  const { sanitizeContent } = loader()("lib/content/sanitize.ts");
+test("services and enquiry choices match the seven requested services without splitting saved cards", () => {
+  const app = loader();
+  const { sanitizeContent } = app("lib/content/sanitize.ts");
   const saved = json("content/site-content.json");
   const current = sanitizeContent(saved);
-  assert.equal(current.services[6].name, "Musical Tours");
-  assert.equal(current.services[7].name, "Brand Promotions");
-  assert.equal(current.services[7].number, "08");
-  const legacy = clone(saved);
-  legacy.services = legacy.services.slice(0, 7);
-  Object.assign(legacy.services[6], {
-    name: "Musical Tours/Brand Promotions",
-    description: "Visual identities and promotional artwork for musical tours, live events and brand campaigns.",
-    deliverables: ["Tour posters", "Event artwork", "Brand campaigns"],
+  const names = ["Theatrical Films", "OTT/Television", "Indie Films", "Music Videos", "Title Designs", "Logo Designs", "Musical Tours/Brand Promotions"];
+  for (const content of [current, app("lib/content/defaults.ts").defaultContent()]) {
+    assert.deepEqual(content.services.map(service => service.name), names);
+    assert.deepEqual(content.home.contact.form.projectOptions.map(project => project.name), names);
+    assert.deepEqual(content.home.contact.form.projectTypes, names);
+    for (const project of content.home.contact.form.projectOptions) {
+      assert.deepEqual(project.budgets, saved.home.contact.form.budgets, "Existing budget ranges are preserved");
+      const result = app("lib/contact/validate.ts").validateContact({ ...contactEnquiry, projectType: project.name, budget: project.budgets[0] }, content.home.contact.form.projectOptions);
+      assert.deepEqual(result.errors, {}, `${project.name} can be submitted`);
+    }
+  }
+  const custom = clone(saved);
+  Object.assign(custom.services[6], {
     sample: "/images/uploads/tour.png", details: "Custom tour details", sampleZoom: 1.2,
   });
-  const split = sanitizeContent(legacy);
-  assert.equal(split.services.length, 8);
-  assert.deepEqual(split.services.slice(0, 6), current.services.slice(0, 6));
-  assert.equal(split.services[6].sample, "/images/uploads/tour.png");
-  assert.equal(split.services[6].details, "Custom tour details");
-  assert.equal(split.services[6].sampleZoom, 1.2);
-  assert.deepEqual(split.services[6].deliverables, ["Tour posters", "Event artwork"]);
-  assert.deepEqual(split.services[7], current.services[7]);
-  assert.deepEqual(sanitizeContent(split), split, "Repeated reads never duplicate card 08");
-  split.services.pop();
-  assert.equal(sanitizeContent(split).services.length, 7, "A later intentional deletion stays deleted");
-  legacy.services[6].description = "My edited description";
-  assert.equal(sanitizeContent(legacy).services[6].description, "My edited description");
-  legacy.services.push(...clone(current.services.slice(0, 3)));
-  assert.equal(sanitizeContent(legacy).services.length, 10, "Never displace custom cards at capacity");
+  const combined = sanitizeContent(custom);
+  assert.equal(combined.services.length, 7);
+  assert.equal(combined.services[6].name, names[6]);
+  assert.equal(combined.services[6].sample, "/images/uploads/tour.png");
+  assert.equal(combined.services[6].details, "Custom tour details");
+  assert.equal(combined.services[6].sampleZoom, 1.2);
+  assert.deepEqual(combined.services[6].deliverables, saved.services[6].deliverables);
+  assert.deepEqual(sanitizeContent(combined), combined, "Saving never recreates a separate Brand Promotions card");
+  combined.services.pop();
+  assert.equal(sanitizeContent(combined).services.length, 6, "Intentional deletions remain deleted");
+  custom.services[6].name = "Custom tour service";
+  custom.services.push({ number: "08", name: "Brand Promotions", description: "Custom brand service", deliverables: [], sample: "/images/uploads/brand.png" });
+  assert.equal(sanitizeContent(custom).services.length, 8, "Independently edited cards are never silently removed");
+  assert.equal(sanitizeContent(custom).services[7].sample, "/images/uploads/brand.png");
 });
 
 test("projector density follows image brightness bands without extinguishing the lamp", () => {
@@ -746,20 +903,49 @@ test("glass circle arrives fully visible and settles into a responsive backgroun
 test("glass scene feathers every edge into transparency without an extra rendering pass", () => {
   const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
   assert.match(source, /float sideX=mix\(vUv.x,1\.-vUv.x,mirror\)/);
-  assert.match(source, /smoothstep\(0\.,\.04,sideX\)\*\(1\.-smoothstep\(\.96,1\.,sideX\)\)/);
-  assert.match(source, /smoothstep\(0\.,\.06,vUv.y\)\*\(1\.-smoothstep\(\.92,1\.,vUv.y\)\)/);
+  assert.match(source, /softBoundary\(sideX,edgeFeather.x\)\*\(1\.-smoothstep\(\.96,1\.,sideX\)\)/);
+  assert.match(source, /softBoundary\(vUv.y,edgeFeather.y\)\*\(1\.-smoothstep\(\.92,1\.,vUv.y\)\)/);
+  assert.match(source, /return t\*t\*t\*\(t\*\(t\*6\.-15\.\)\+10\.\)/);
+  assert.match(source, /const feather = discViewportFeather\(width, height\)/);
+  assert.match(source, /edgeFeather.value.set\(feather.side, feather.bottom\)/);
   assert.match(source, /gl_FragColor\*=frame\*readable\*outgoing/, "Fade premultiplied colour and alpha, not a black overlay");
   assert.match(source, /composer.addPass\(renderPass\); composer.addPass\(bloom\); composer.addPass\(output\); composer.addPass\(antialias\)/);
 });
 
-test("upper glass arc keeps more coverage while all viewport boundaries still fade to transparent", () => {
+test("glass left and bottom blend softly across device sizes without obscuring the main arc", () => {
+  const { discViewportFeather, glassEase } = loader()("lib/content/disc.ts");
   const smooth = (a,b,x) => {const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
-  const frame = (x,y,top,outer) => smooth(0,.04,x)*(1-smooth(outer,1,x))*smooth(0,.06,y)*(1-smooth(top,1,y));
-  assert.equal(frame(.93,.9,.92,.96), 1, "Keep the upper/outer arc fully visible before its final feather");
-  assert.ok(frame(.93,.9,.8,.88) < .32, "The previous fade heavily obscured this part of the arc");
-  for (const [x,y] of [[0,.5],[1,.5],[.5,0],[.5,1]]) assert.equal(frame(x,y,.92,.96),0);
-  assert.equal(frame(.8,.2,.92,.96),frame(.8,.2,.8,.88), "Keep the lower blend unchanged");
-  assert.ok(frame(.98,.96,.92,.96)>0 && frame(.98,.96,.92,.96)<1, "Retain a soft upper corner, not a hard cutoff");
+  for (const [width,height] of [[320,680],[390,820],[640,820],[641,430],[820,466],[1024,582],[1440,818],[1920,1080],[3840,2160]]) {
+    const feather = discViewportFeather(width,height);
+    assert.ok(feather.side > .04 && feather.side <= .24);
+    assert.ok(feather.bottom > 0 && feather.bottom <= .20);
+    assert.ok(feather.side*width <= 240+1e-9 && feather.bottom*height <= 110+1e-9);
+    const frame = (x,y,mirror=false) => {
+      const side=mirror ? 1-x : x;
+      return glassEase(side/feather.side)*(1-smooth(.96,1,side))*glassEase(y/feather.bottom)*(1-smooth(.92,1,y));
+    };
+    for (const mirror of [false,true]) {
+      for (const [x,y] of [[0,.5],[1,.5],[.5,0],[.5,1]]) assert.equal(frame(x,y,mirror),0);
+      assert.equal(frame(mirror ? .07 : .93,.9,mirror),1,"Upper/outer arc remains visible");
+      assert.equal(frame(.5,.22,mirror),1,"Main lower sweep is not masked");
+    }
+    assert.ok(frame(24/width,.5)<.3,"Artwork is already faint 24 CSS pixels from the left boundary");
+    assert.equal(frame(feather.side/2,.5),.5);
+    assert.equal(frame(.5,feather.bottom/2),.5);
+    assert.equal(frame(feather.side/2,feather.bottom/2),.25,"Corner blends both axes");
+    assert.ok(frame(.5,feather.bottom*.001)<1e-7,"No visible step at the bottom");
+    let previous=0;
+    for(let i=0;i<=100;i++) {
+      const alpha=frame(feather.side*i/100,.5);
+      assert.ok(alpha>=previous && alpha<=1,"Continuous monotonic fade without a dark band");
+      previous=alpha;
+    }
+  }
+  for(const size of [0,-1,NaN,Infinity]) {
+    const feather=discViewportFeather(size,size);
+    assert.ok(Number.isFinite(feather.side) && feather.side>0);
+    assert.ok(Number.isFinite(feather.bottom) && feather.bottom>0);
+  }
 });
 
 test("glass framing follows the screen aspect ratio independently of copy", () => {
@@ -847,6 +1033,108 @@ test("title regions stay separated inside the glass rim", () => {
     assert.ok(Math.atan2(panel.innerHalfWidth, panel.inner) < panel.step / 2, "Adjacent titles cannot overlap");
     assert.ok(Math.abs(panel.step * count - Math.PI * 2) < 1e-10, "Adding titles redistributes them equally");
   }
+});
+
+test("title spacing changes the artwork footprint without moving its centre or the glass", () => {
+  const { discPanelLayout } = loader()("lib/content/disc.ts");
+  const original = discPanelLayout(8, 3, 1);
+  assert.ok(Math.abs(original.inner - .66) < 1e-12);
+  assert.ok(Math.abs(original.outer - .94) < 1e-12);
+  assert.ok(Math.abs(original.innerHalfWidth - .1092) < 1e-12);
+  for (let count = 1; count <= 8; count++) for (const size of [.7, 1]) {
+    let previous = Infinity;
+    for (const gap of [.5, 3, 6, 9, 12]) {
+      const panel = discPanelLayout(count, gap, size);
+      const footprint = Math.hypot((panel.outer - panel.inner) / 2, panel.innerHalfWidth);
+      assert.ok(footprint < previous, "Every increase of the gap visibly reduces the title footprint");
+      previous = footprint;
+      assert.ok(Math.abs((panel.inner + panel.outer) / 2 - .8) < 1e-12);
+      assert.ok(.8 + footprint < 1, "Any artwork rotation remains inside the glass rim");
+      assert.ok(footprint < .8 * Math.sin(Math.min(Math.PI / 2, panel.step / 2)), "Rotated neighbouring titles cannot overlap");
+    }
+  }
+});
+
+test("title rotation persists with bounded per-title overrides and unchanged legacy defaults", () => {
+  const read = loader();
+  const { sanitizeDisc } = read("lib/content/disc.ts");
+  const { sanitizeIntroSettings } = read("lib/intro/settings.ts");
+  for (const [input, expected] of [[undefined, 0], [NaN, 0], [Infinity, 0], ["45", 0], [-999, -180], [999, 180], [35, 35]]) {
+    assert.equal(sanitizeDisc({ slotRotation: input }).slotRotation, expected);
+  }
+  const settings = sanitizeIntroSettings(json("content/intro-settings.json"));
+  const base = settings.proofTable.items[0];
+  settings.proofTable.disc.slotRotation = 35;
+  for (const [input, expected] of [[undefined, undefined], [NaN, undefined], [Infinity, undefined], ["45", undefined], [-999, -180], [999, 180], [0, 0], [-45, -45]]) {
+    settings.proofTable.items = [{ ...base, titleRotation: input }];
+    const sanitized = sanitizeIntroSettings(settings);
+    assert.equal(sanitized.proofTable.items[0].titleRotation, expected);
+    assert.equal(sanitized.proofTable.items[0].src, base.src);
+    assert.equal(sanitized.proofTable.disc.slotRotation, 35);
+    const saved = sanitizeIntroSettings(JSON.parse(JSON.stringify(sanitized)));
+    assert.deepEqual(saved.proofTable, sanitized.proofTable);
+  }
+});
+
+test("rotated title projection samples agree with Three.js artwork transforms", async () => {
+  const { discPanelLayout, discTitlePoint, discProjectionCoverage, discProjectionWindow, discProjectionMask } = loader()("lib/content/disc.ts");
+  const { Vector3, Matrix4 } = await import("three");
+  for (const gap of [.5, 3, 12]) for (const size of [.7, 1]) {
+    const panel = discPanelLayout(8, gap, size), center = (panel.inner + panel.outer) / 2;
+    const window = discProjectionWindow(panel, .8, 1.1);
+    for (const scale of [.25, .6, 1]) for (const angle of [-Math.PI, -Math.PI / 2, -.35, 0, .75, Math.PI]) for (const orbit of [0, .2, 1, 3]) {
+      const matrix = new Matrix4().makeRotationZ(orbit)
+        .multiply(new Matrix4().makeTranslation(center, 0, 0))
+        .multiply(new Matrix4().makeRotationZ(angle)).multiply(new Matrix4().makeScale(scale, scale, scale));
+      let coverage = 0;
+      for (let row = 0; row < 5; row++) for (let col = 0; col < 5; col++) {
+        const u = (row + .5) / 5, v = (col + .5) / 5;
+        const world = new Vector3((u - .5) * (panel.outer - panel.inner), (v - .5) * panel.innerHalfWidth * 2, 0).applyMatrix4(matrix);
+        const point = discTitlePoint(panel, u, v, orbit, angle, undefined, scale);
+        assert.ok(Math.hypot(world.x - point.x, world.y - point.y) < 1e-12);
+        coverage += discProjectionMask(world.x, world.y, window, .75) / 25;
+      }
+      assert.ok(Math.abs(coverage - discProjectionCoverage(panel, window, orbit, .75, angle, scale)) < 1e-12);
+    }
+  }
+  const scene = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  const setImages = scene.slice(scene.indexOf("function setImages("));
+  assert.ok(setImages.indexOf("item.src === imageSources[i]") < setImages.indexOf("clearSlots();"), "Setting-only changes keep decoded textures alive");
+  assert.match(scene, /degToRad\(slot.rotation \?\? controls.slotRotation\)/);
+});
+
+test("arc thickness is bounded by today's broad edge and title size/blending survive saving", () => {
+  const read = loader(), { DISC_DEFAULTS, DISC_RANGES, sanitizeDisc } = read("lib/content/disc.ts");
+  const { sanitizeIntroSettings } = read("lib/intro/settings.ts");
+  assert.equal(DISC_DEFAULTS.edgeThickness, .25);
+  assert.deepEqual(DISC_RANGES.edgeThickness, [.1, 1, .01]);
+  for (const [input, expected] of [[undefined, .25], [NaN, .25], [Infinity, .25], [0, .1], [-1, .1], [2, 1], [.4, .4]]) {
+    assert.equal(sanitizeDisc({ edgeThickness: input }).edgeThickness, expected);
+  }
+  const settings = sanitizeIntroSettings(json("content/intro-settings.json"));
+  settings.proofTable.disc.edgeThickness = .2;
+  for (const mode of ["normal", "screen", "additive"]) for (const [size, opacity, expectedSize, expectedOpacity] of [[.25, 0, .25, 0], [.6, .35, .6, .35], [0, -2, .25, 0], [2, 5, 1, 1]]) {
+    Object.assign(settings.proofTable.items[0], { titleScale: size, titleOpacity: opacity, titleBlend: mode, titleRotation: -60 });
+    const saved = sanitizeIntroSettings(JSON.parse(JSON.stringify(settings)));
+    assert.equal(saved.proofTable.disc.edgeThickness, .2);
+    assert.equal(saved.proofTable.items[0].titleScale, expectedSize);
+    assert.equal(saved.proofTable.items[0].titleOpacity, expectedOpacity);
+    assert.equal(saved.proofTable.items[0].titleBlend, mode);
+    assert.equal(saved.proofTable.items[0].titleRotation, -60);
+  }
+  Object.assign(settings.proofTable.items[0], { titleScale: NaN, titleOpacity: Infinity, titleBlend: "invalid" });
+  const bad = sanitizeIntroSettings(settings).proofTable.items[0];
+  assert.equal(bad.titleScale, undefined);assert.equal(bad.titleOpacity, undefined);assert.equal(bad.titleBlend, undefined);
+  const scene = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  assert.match(scene, /thickness=clamp\(glassEdgeWidth,\.1,1\.\)/);
+  for (const term of [".006", ".018", ".017", ".0032", ".0024", ".015", ".0012"]) assert.ok(scene.includes(`${term}*thickness`));
+  assert.match(scene, /glassEdgeWidth.value = renderedControls.edgeThickness/);
+  assert.match(scene, /slot.image.visible = titleOpacity > 0/);
+  assert.match(scene, /slots.filter\(s => s.image.visible\)/, "Fully blended-out titles do not intercept clicks");
+  assert.match(scene, /sample.weight \* mask \* titleOpacity \* slot.titleScale \* slot.titleScale/, "Beam contribution tracks opacity and resized area");
+  assert.match(scene, /v: 1 - \(row \+ .5\) \/ COLOUR_GRID/, "CPU projector samples follow texture UV orientation");
+  assert.match(scene, /material.blendDst = THREE.OneMinusSrcColorFactor/);
+  assert.match(scene, /vec3 blended=mix\(c,clamp\(c,0\.,1\.\),screenBlend\)/, "Screen factors stay valid for HDR colours");
 });
 
 test("intro timing preserves normal playback and bounds long stalls without catching up", () => {
@@ -1319,8 +1607,8 @@ test("glass rim has two antialiased curved lips and stable opposing reflections 
   assert.match(pane, /float bevel=exp/);
   assert.match(pane, /float inner=exp/);
   assert.match(pane, /float shoulder=exp/);
-  assert.match(pane, /max\(\.0032,aa\*1.5\)/);
-  assert.match(pane, /max\(\.0024,aa\*1.25\)/);
+  assert.match(pane, /max\(\.0032\*thickness,aa\*1.5\)/);
+  assert.match(pane, /max\(\.0024\*thickness,aa\*1.25\)/);
   assert.match(pane, /vec2 radial=vProjector\/max\(length\(vProjector\),\.0001\)/);
   assert.match(pane, /pow\(abs\(dot\(radial/);
   assert.match(pane, /abs\(dot\(normalize\(vGlassNormal\),normalize\(vGlassView\)\)\)/, "Fresnel works on both faces");
@@ -1427,7 +1715,7 @@ test("disc mounts transparent title artwork without card or frame layers", () =>
   const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
   assert.doesNotMatch(source, /const glass = own\(/);
   assert.doesNotMatch(source, /EdgesGeometry\(panelGeometry/);
-  assert.match(source, /gl_FragColor=vec4\(c,outputAlpha\)/);
+  assert.match(source, /gl_FragColor=vec4\(blended\*mix\(1\.,outputAlpha,screenBlend\),outputAlpha\)/);
   assert.match(source, /mix\(c,artworkCore\*\(1\.\+slotGlow\*\.1\),titleInk\*focus\*\.5\)/);
   assert.match(source, /Float32BufferAttribute\(\[0, 0, 1, 0, 1, 1, 0, 1\], 2\)/);
   assert.match(source, /titleGlowIntensity/);

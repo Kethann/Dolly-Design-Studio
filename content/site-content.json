@@ -197,13 +197,13 @@
         "sendingButton": "Sending…",
         "successMessage": "Thank you — we’ll be in touch.",
         "projectTypes": [
-          "Theatrical poster campaign",
-          "First-look / motion poster",
-          "Title logo design",
-          "Typography",
-          "Campaign & social kit",
-          "Re-release artwork",
-          "Something else"
+          "Theatrical Films",
+          "OTT/Television",
+          "Indie Films",
+          "Music Videos",
+          "Title Designs",
+          "Logo Designs",
+          "Musical Tours/Brand Promotions"
         ],
         "budgets": [
           "Under ₹1L",
@@ -220,7 +220,7 @@
         ],
         "errors": {
           "generic": "Something went wrong.",
-          "missingFields": "Please fill in your name, email, phone number, project type and a short message (the fields marked below).",
+          "missingFields": "Please check the highlighted fields and try again.",
           "tooManyRequests": "Too many requests. Please try again later.",
           "sendFailed": "Could not send your message right now. Please email us directly.",
           "badRequest": "Invalid request body."
@@ -296,21 +296,17 @@
       "sample": ""
     },
     {
-      "name": "Musical Tours",
-      "description": "Visual identities and promotional artwork for musical tours and live events.",
+      "name": "Musical Tours/Brand Promotions",
+      "description": "Visual identities and promotional artwork for musical tours, live events and brand campaigns.",
       "deliverables": [
         "Tour posters",
-        "Event artwork"
+        "Event artwork",
+        "Brand campaigns",
+        "Promotional artwork",
+        "Social media creatives"
       ],
       "sample": "",
       "number": "07"
-    },
-    {
-      "number": "08",
-      "name": "Brand Promotions",
-      "description": "Campaign identities and promotional artwork that bring brands to life across print and digital media.",
-      "deliverables": ["Brand campaigns", "Promotional artwork", "Social media creatives"],
-      "sample": ""
     }
   ],
   "clients": [

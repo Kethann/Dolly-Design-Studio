@@ -31,6 +31,13 @@ export interface ProofItem {
   titleGlowColor?: string;
   /** Per-title projector glow multiplier, from 0 to 2. */
   titleGlowIntensity?: number;
+  /** Artwork angle in degrees around its own centre; absent uses the shared title angle. */
+  titleRotation?: number;
+  /** Relative to the shared title size, from 0.25 to 1. */
+  titleScale?: number;
+  /** Final opacity, including projected/glowing pixels, from 0 to 1. */
+  titleOpacity?: number;
+  titleBlend?: "normal" | "screen" | "additive";
 }
 
 export const proofTable = {

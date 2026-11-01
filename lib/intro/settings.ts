@@ -251,6 +251,14 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
           ...(typeof it.titleGlowColor === "string" && /^#[0-9a-f]{6}$/i.test(it.titleGlowColor) ? { titleGlowColor: it.titleGlowColor.toLowerCase() } : {}),
           ...(typeof it.titleGlowIntensity === "number" && Number.isFinite(it.titleGlowIntensity)
             ? { titleGlowIntensity: Math.min(2, Math.max(0, it.titleGlowIntensity)) } : {}),
+          ...(typeof it.titleRotation === "number" && Number.isFinite(it.titleRotation)
+            ? { titleRotation: Math.min(180, Math.max(-180, it.titleRotation)) } : {}),
+          ...(typeof it.titleScale === "number" && Number.isFinite(it.titleScale)
+            ? { titleScale: Math.min(1, Math.max(.25, it.titleScale)) } : {}),
+          ...(typeof it.titleOpacity === "number" && Number.isFinite(it.titleOpacity)
+            ? { titleOpacity: Math.min(1, Math.max(0, it.titleOpacity)) } : {}),
+          ...(["normal", "screen", "additive"].includes(it.titleBlend as string)
+            ? { titleBlend: it.titleBlend as "normal" | "screen" | "additive" } : {}),
         }))
     : d.items;
   return {

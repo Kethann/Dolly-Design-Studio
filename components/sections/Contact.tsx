@@ -202,7 +202,7 @@ export function Contact() {
               {err("company")}
             </div>
 
-            <div className={styles.row2}>
+            <div className={styles.projectChoices}>
               <div className={styles.field}>
                 <label htmlFor="projectType">{form.projectTypeLabel}</label>
                 <select id="projectType" name="projectType" required value={projectType} {...bad("projectType")} onChange={(e) => {

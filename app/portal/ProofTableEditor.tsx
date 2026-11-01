@@ -16,6 +16,7 @@ export const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; la
     { key: "spinSpeed", label: "Rotation speed", hint: "Zero stops rotation. Negative reverses it. Reduced-motion devices show the settled composition." },
     { key: "entranceDuration", label: "Arrival duration", hint: "The full circle keeps turning as it zooms in, then settles into its saved rotation speed without stopping. Plays once per page visit." },
     { key: "circleScale", label: "Circle size", hint: "Fine-tune the oversized arc. Desktop, tablet and mobile use their own framing." },
+    { key: "edgeThickness", label: "Arc edge thickness", hint: "10% is the slimmest; 25% is the new slim default. 100% restores the previous broad edge and is the maximum. Does not change disc size or placement." },
     { key: "discTilt", label: "Glass tilt", hint: "Keep this shallow for the broad circle in the reference." },
     { key: "discRoll", label: "Glass angle", hint: "Rotates the presentation of the glass surface." },
   ] },
@@ -69,10 +70,11 @@ export const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; la
     { key: "saturation", label: "Colour saturation", hint: "100% keeps the original colour; 0% makes the artwork monochrome." },
     { key: "vibrance", label: "Colour vibrance", hint: "Boosts muted colours more than colours that are already vivid." },
   ] },
-  { title: "Title appearance", fields: [
+  { title: "Title settings", fields: [
+    { key: "slotRotation", label: "Title rotation angle", hint: "Rotates each artwork around its own centre, not the glass. Positive angles turn anticlockwise. Individual titles can override this below." },
     { key: "slotSize", label: "Title size", hint: "Scales the transparent title artwork directly on the glass." },
-    { key: "slotGap", label: "Gap between titles", hint: "Spacing adjusts automatically to the number of uploaded titles." },
-    { key: "slotOpacity", label: "Artwork opacity" },
+    { key: "slotGap", label: "Gap between titles", hint: "Higher values leave more clear space by reducing each title footprint. Title centres stay evenly spaced around the glass; 3° is the original spacing." },
+    { key: "slotOpacity", label: "Artwork opacity", hint: "Shared base opacity. Each title's blend opacity below also fades its projected highlights and glow." },
     { key: "slotBlur", label: "Far-side softness", hint: "Optional mild softness for distant artwork. Front-facing and hovered titles stay sharp. Zero removes all blur." },
     { key: "unfocusedBrightness", label: "Unfocused image brightness" },
   ] },
@@ -101,7 +103,7 @@ export function ProofTableEditor({
   /** The card whose picture is being chosen. */
   const [picking, setPicking] = useState<number | null>(null);
   const [openDiscGroups, setOpenDiscGroups] = useState<ReadonlySet<string>>(
-    () => new Set(DISC_GROUPS.filter(group => group.title === "Circle & entrance" || group.title.startsWith("Desktop beam")).map(group => group.title)),
+    () => new Set(DISC_GROUPS.filter(group => group.title === "Circle & entrance" || group.title === "Title settings" || group.title.startsWith("Desktop beam")).map(group => group.title)),
   );
 
   const items = value.items;
@@ -195,7 +197,7 @@ export function ProofTableEditor({
           </div>;
           const [min, max, step] = DISC_RANGES[key];
           return <Slider key={key} label={label} hint={hint} value={disc[key]} min={min} max={max} step={step}
-            format={n => key === "entranceDuration" ? `${n.toFixed(1)} seconds` : key === "discTilt" || key === "discRoll" || key.endsWith("FocusAngle") || key === "focusAngle" || key === "slotGap" ? `${n}°` : key === "spinSpeed" ? `${Number(n.toFixed(2))} rad/s` : ["slotBlur", "rayLength", "rayElevation", "glowThreshold"].includes(key) ? String(Number(n.toFixed(2))) : `${Math.round(n * 100)}%`}
+            format={n => key === "entranceDuration" ? `${n.toFixed(1)} seconds` : key === "discTilt" || key === "discRoll" || key.endsWith("FocusAngle") || key === "focusAngle" || key === "slotGap" || key === "slotRotation" ? `${n}°` : key === "spinSpeed" ? `${Number(n.toFixed(2))} rad/s` : ["slotBlur", "rayLength", "rayElevation", "glowThreshold"].includes(key) ? String(Number(n.toFixed(2))) : `${Math.round(n * 100)}%`}
             onChange={next => onChange({ disc: { ...disc, [key]: next } })} />;
         })}
         {group.title === "Glass tint" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, glassTintColor: DISC_DEFAULTS.glassTintColor, glassOpacity: DISC_DEFAULTS.glassOpacity, desaturation: DISC_DEFAULTS.desaturation } })}>Reset glass tint</button>}
@@ -284,16 +286,54 @@ export function ProofTableEditor({
                 {picking === i && <ImagePicker value={it.src} onPick={(src) => patchItem(i, { src })} onClose={() => setPicking(null)} />}
               </div>
               <div className={`${styles.slotWide} ${styles.slotTint}`}>
-                <ColorRow label="Title colour" value={it.titleColor ?? "#ffffff"} onChange={(titleColor) => patchItem(i, { titleColor })} />
-                <button type="button" className={styles.linkButton} disabled={!it.titleColor}
-                  onClick={() => patchItem(i, { titleColor: undefined })}>Use uploaded title colour</button>
-                <ColorRow label="Title glow colour" value={it.titleGlowColor ?? it.titleColor ?? "#ffffff"}
-                  onChange={(titleGlowColor) => patchItem(i, { titleGlowColor })} />
-                <button type="button" className={styles.linkButton} disabled={!it.titleGlowColor}
-                  onClick={() => patchItem(i, { titleGlowColor: undefined })}>Match glow to artwork</button>
-                <Slider label="Title glow intensity" min={0} max={2} step={.05}
-                  value={it.titleGlowIntensity ?? 1} format={v => `${Math.round(v * 100)}%`}
-                  onChange={(titleGlowIntensity) => patchItem(i, { titleGlowIntensity })} />
+                <div className={styles.slotTintGroup}>
+                  <Slider label="This title — rotation angle" min={-180} max={180} step={1}
+                    hint="Changes this artwork only. Use the shared angle to follow Title settings again."
+                    value={it.titleRotation ?? disc.slotRotation} format={v => `${v}°`}
+                    onChange={(titleRotation) => patchItem(i, { titleRotation })} />
+                  <button type="button" className={styles.linkButton} disabled={it.titleRotation === undefined}
+                    onClick={() => patchItem(i, { titleRotation: undefined })}>Use shared title angle</button>
+                </div>
+                <div className={styles.slotTintGroup}>
+                  <Slider label="This title — size" min={.25} max={1} step={.01}
+                    hint="25%–100% of the shared title size. Keeps the artwork inside the glass and separated from its neighbours."
+                    value={it.titleScale ?? 1} format={v => `${Math.round(v * 100)}%`}
+                    onChange={(titleScale) => patchItem(i, { titleScale })} />
+                  <button type="button" className={styles.linkButton} disabled={it.titleScale === undefined}
+                    onClick={() => patchItem(i, { titleScale: undefined })}>Use shared title size</button>
+                </div>
+                <div className={styles.slotTintGroup}>
+                  <Slider label="This title — blend opacity" min={0} max={1} step={.01}
+                    hint="100% keeps the artwork solid; lower values blend it into the glass. 0% hides it, including its glow."
+                    value={it.titleOpacity ?? 1} format={v => `${Math.round(v * 100)}%`}
+                    onChange={(titleOpacity) => patchItem(i, { titleOpacity })} />
+                  <label className={styles.controlLabel}>Blend mode
+                    <select className={styles.select} aria-label={`Blend mode for ${it.film || `title ${i + 1}`}`}
+                      value={it.titleBlend ?? "normal"} onChange={e => patchItem(i, { titleBlend: e.target.value as ProofItem["titleBlend"] })}>
+                      <option value="normal">Normal — original artwork</option>
+                      <option value="screen">Screen — light over glass</option>
+                      <option value="additive">Additive — luminous</option>
+                    </select>
+                  </label>
+                  <button type="button" className={styles.linkButton} disabled={it.titleOpacity === undefined && it.titleBlend === undefined}
+                    onClick={() => patchItem(i, { titleOpacity: undefined, titleBlend: undefined })}>Reset title blend</button>
+                </div>
+                <div className={styles.slotTintGroup}>
+                  <ColorRow label="Title colour" value={it.titleColor ?? "#ffffff"} onChange={(titleColor) => patchItem(i, { titleColor })} />
+                  <button type="button" className={styles.linkButton} disabled={!it.titleColor}
+                    onClick={() => patchItem(i, { titleColor: undefined })}>Use uploaded title colour</button>
+                </div>
+                <div className={styles.slotTintGroup}>
+                  <ColorRow label="Title glow colour" value={it.titleGlowColor ?? it.titleColor ?? "#ffffff"}
+                    onChange={(titleGlowColor) => patchItem(i, { titleGlowColor })} />
+                  <button type="button" className={styles.linkButton} disabled={!it.titleGlowColor}
+                    onClick={() => patchItem(i, { titleGlowColor: undefined })}>Match glow to artwork</button>
+                </div>
+                <div className={styles.slotTintGroup}>
+                  <Slider label="Title glow intensity" min={0} max={2} step={.05}
+                    value={it.titleGlowIntensity ?? 1} format={v => `${Math.round(v * 100)}%`}
+                    onChange={(titleGlowIntensity) => patchItem(i, { titleGlowIntensity })} />
+                </div>
               </div>
             </div>
           </div>

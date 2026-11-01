@@ -188,6 +188,7 @@
 .row2 {
   min-width: 0;
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 16px;
 }
 
@@ -197,10 +198,12 @@
   color: var(--ivory);
 }
 
-@media (min-width: 560px) {
-  .row2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+/* Long service names use the full form column, including on split desktop layouts. */
+.projectChoices {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
 }
 
 .field {
@@ -245,6 +248,15 @@
 .field select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+@media (pointer: coarse) {
+  .field input,
+  .field select,
+  .field textarea {
+    font-size: 16px;
+    min-height: 48px;
+  }
 }
 
 .field input:focus,

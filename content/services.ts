@@ -69,20 +69,16 @@ export const services: Service[] = [
     "sample": ""
   },
   {
-    "name": "Musical Tours",
-    "description": "Visual identities and promotional artwork for musical tours and live events.",
+    "name": "Musical Tours/Brand Promotions",
+    "description": "Visual identities and promotional artwork for musical tours, live events and brand campaigns.",
     "deliverables": [
       "Tour posters",
-      "Event artwork"
+      "Event artwork",
+      "Brand campaigns",
+      "Promotional artwork",
+      "Social media creatives"
     ],
     "sample": "",
     "number": "07"
-  },
-  {
-    "number": "08",
-    "name": "Brand Promotions",
-    "description": "Campaign identities and promotional artwork that bring brands to life across print and digital media.",
-    "deliverables": ["Brand campaigns", "Promotional artwork", "Social media creatives"],
-    "sample": ""
   }
 ];

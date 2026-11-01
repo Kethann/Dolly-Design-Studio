@@ -367,6 +367,7 @@
   font-weight: 700;
   font-size: clamp(26px, 3.4vw, 40px);
   line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 .dialogStory {
   margin: 0;
@@ -375,6 +376,7 @@
   color: var(--ivory);
   opacity: 0.88;
   white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 .dialogSub {
   margin-top: 6px;
@@ -395,6 +397,7 @@
   position: relative;
   padding-left: 22px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .dialogList li::before {
   content: "";
@@ -417,6 +420,8 @@
   gap: 14px;
 }
 .dialogCta {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 13px 22px;
   border-radius: 999px;
   border: 0;
@@ -468,6 +473,11 @@
   .dialog {
     animation: none;
   }
+  .card:hover, .card:focus-visible, .card:hover .media img { transform: none; }
+}
+
+@media (pointer: coarse) {
+  .dialogClose, .dialogStep button { width: 44px; height: 44px; }
 }
 
 /* A finger leaves no pointer to "hover": without this a tapped card would stay lifted and make the page jump. */

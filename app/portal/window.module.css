@@ -12,11 +12,11 @@
   z-index: 10030;
 }
 .window[data-window-fullscreen] { border-radius: 0; }
-.titlebar { cursor: grab; touch-action: none; user-select: none; }
+.titlebar { cursor: grab; touch-action: none; user-select: none; flex-wrap: wrap; }
 .titlebar > :first-child { flex: 1 1 140px; min-width: 0; }
+.titlebar p { overflow-wrap: anywhere; }
 .titlebar:focus-visible { outline: 2px solid #ffe9a6; outline-offset: -4px; }
 .window[data-window-dragging] .titlebar { cursor: grabbing; }
-.window[data-window-fullscreen] .titlebar { cursor: default; }
 .actions { display: flex; flex: none; gap: 5px; }
 .actions button {
   display: grid; place-items: center;
@@ -46,6 +46,8 @@
 }
 .window[data-window-fullscreen] > .handle { display: none; }
 @media (pointer: coarse) {
-  .actions button { width: 44px; height: 44px; }
+  .window input:not([type="range"]):not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+  .window select, .window textarea { font-size: 16px; min-height: 44px; }
+  .actions button, .titlebar > button { width: 44px; height: 44px; }
   .handle[data-window-resize="se"] { width: 32px; height: 32px; }
 }

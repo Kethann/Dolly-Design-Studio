@@ -4,13 +4,29 @@ export const DISC_SLOT_LIMIT = 8;
 export function visibleDiscItems<T>(items: readonly T[]): T[] {
   return items.slice(0, DISC_SLOT_LIMIT);
 }
+/** Safari/image fallbacks need not expose the global ImageBitmap constructor. */
+export function releaseDiscImage(image: { close: () => void } | { src: string }) {
+  if ("close" in image) image.close();
+  else image.src = "";
+}
+/** Canvas-edge blend in CSS pixels, independent of DPR and render quality.
+ * Keep the main sweep intact; only the copy-side and bottom boundary soften.
+ */
+export function discViewportFeather(width: number, height: number) {
+  const w = Number.isFinite(width) ? Math.max(1, width) : 1;
+  const h = Number.isFinite(height) ? Math.max(1, height) : 1;
+  return {
+    side: Math.min(.24, Math.min(240, Math.max(72, w * .18)) / w),
+    bottom: Math.min(.20, Math.min(110, Math.max(48, h * .14)) / h),
+  };
+}
 export const DISC_DEFAULTS = {
-  glassVersion: 1, entranceDuration: 3.6, circleScale: 1, glassOpacity: 0.22,
+  glassVersion: 1, entranceDuration: 3.6, circleScale: 1, glassOpacity: 0.22, edgeThickness: 0.25,
   glassTintColor: "#0d1014", shadowColor: "#050407", shadowOpacity: 168 / 255, shadowSpread: 1,
   spinSpeed: 0.09, focusAngle: -43, focusRadius: 0.8, rayIntensity: 0.8,
   rayLength: 5, bloom: 0.35, desaturation: 0.5, discTilt: -12, slotGap: 3,
   lightIntensity: 1, glowRadius: 0.75, glowThreshold: 0.72,
-  saturation: 1, vibrance: 0, slotSize: 1, slotOpacity: 1,
+  saturation: 1, vibrance: 0, slotSize: 1, slotOpacity: 1, slotRotation: 0,
   slotBlur: 0, unfocusedBrightness: 0.18,
   discRoll: -8, rayStyle: 0, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.25,
   rayMotion: 0.45, projectorSide: -1,
@@ -23,12 +39,13 @@ export type DiscControls = typeof DISC_DEFAULTS;
 export type DiscNumericKey = { [K in keyof DiscControls]: DiscControls[K] extends number ? K : never }[keyof DiscControls];
 export const DISC_RANGES: Record<DiscNumericKey, readonly [number, number, number]> = {
   glassVersion: [1, 1, 1], entranceDuration: [1.5, 6, 0.1], circleScale: [0.85, 1.15, 0.01], glassOpacity: [0, 0.65, 0.01],
+  edgeThickness: [0.1, 1, 0.01],
   shadowOpacity: [0, 1, 0.01], shadowSpread: [0.5, 1.6, 0.01],
   spinSpeed: [-0.5, 0.5, 0.01], focusAngle: [-180, 180, 1], focusRadius: [0.66, 0.9, 0.01],
   rayIntensity: [0, 3, 0.05], rayLength: [3, 9, 0.1], bloom: [0, 2, 0.05],
   desaturation: [0, 1, 0.05], discTilt: [-30, 0, 1], slotGap: [0.5, 12, 0.5],
   lightIntensity: [0, 2, 0.05], glowRadius: [0, 1, 0.05], glowThreshold: [0.1, 2, 0.05],
-  saturation: [0, 2, 0.05], vibrance: [0, 1, 0.05], slotSize: [0.7, 1, 0.05],
+  saturation: [0, 2, 0.05], vibrance: [0, 1, 0.05], slotSize: [0.7, 1, 0.05], slotRotation: [-180, 180, 1],
   slotOpacity: [0.2, 1, 0.05], slotBlur: [0, 6, 0.25], unfocusedBrightness: [0.05, 1, 0.05],
   discRoll: [-180, 180, 1], rayStyle: [0, 2, 1], rayElevation: [-2, 4, 0.1],
   raySpread: [0.3, 2, 0.05], rayPrism: [0, 1, 0.05],
@@ -146,6 +163,9 @@ export function sectorSize(count: number, gapDegrees: number) {
 /** Transparent title regions distributed evenly near the glass circle's rim. */
 export function discPanelLayout(count: number, gapDegrees: number, size: number) {
   const { step, width } = sectorSize(count, gapDegrees);
+  // Keep the saved/default 3-degree appearance. More gap reduces the complete
+  // artwork footprint, not only a wedge width already limited by the aspect cap.
+  size *= width / sectorSize(count, DISC_DEFAULTS.slotGap).width;
   const center = 0.8, halfHeight = 0.14 * size;
   const inner = center - halfHeight, outer = center + halfHeight;
   // The invisible placement region stays rectangular so a PNG is never warped into a wedge.
@@ -154,6 +174,17 @@ export function discPanelLayout(count: number, gapDegrees: number, size: number)
   const innerHalfWidth = halfWidth, outerHalfWidth = halfWidth;
   return { step, inner, outer, innerHalfWidth, outerHalfWidth,
     aspect: (outer - inner) / (halfWidth * 2) };
+}
+
+/** Rotate artwork about its own centre, then place it around the glass. */
+export function discTitlePoint(layout: ReturnType<typeof discPanelLayout>, u: number, v: number, orbit: number, rotation = 0, out = { x: 0, y: 0 }, scale = 1) {
+  const center = (layout.inner + layout.outer) / 2;
+  const x = (u - .5) * (layout.outer - layout.inner) * scale, y = (v - .5) * layout.innerHalfWidth * 2 * scale;
+  const c = Math.cos(rotation), s = Math.sin(rotation), oc = Math.cos(orbit), os = Math.sin(orbit);
+  const radial = center + x * c - y * s, tangent = x * s + y * c;
+  out.x = radial * oc - tangent * os;
+  out.y = radial * os + tangent * oc;
+  return out;
 }
 
 /** A title-sized projector window with bounded overscan so outer letters receive soft light too. */
@@ -179,16 +210,14 @@ export function discProjectionMask(x: number, y: number, window: ReturnType<type
 }
 
 /** Small fixed sample grid estimates how much artwork is inside the light for a smooth colour handoff. */
-export function discProjectionCoverage(layout: ReturnType<typeof discPanelLayout>, window: ReturnType<typeof discProjectionWindow>, angle: number, softness: number) {
-  const c = Math.cos(angle), s = Math.sin(angle);
+export function discProjectionCoverage(layout: ReturnType<typeof discPanelLayout>, window: ReturnType<typeof discProjectionWindow>, angle: number, softness: number, rotation = 0, scale = 1) {
+  const point = { x: 0, y: 0 };
   let coverage = 0;
   for (let row = 0; row < 5; row++) {
     const t = (row + .5) / 5;
-    const x = layout.inner + (layout.outer - layout.inner) * t;
-    const halfWidth = layout.innerHalfWidth + (layout.outerHalfWidth - layout.innerHalfWidth) * t;
     for (let col = 0; col < 5; col++) {
-      const y = ((col + .5) / 5 * 2 - 1) * halfWidth;
-      coverage += discProjectionMask(x * c - y * s, x * s + y * c, window, softness);
+      discTitlePoint(layout, t, (col + .5) / 5, angle, rotation, point, scale);
+      coverage += discProjectionMask(point.x, point.y, window, softness);
     }
   }
   return coverage / 25;

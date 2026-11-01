@@ -1,4 +1,4 @@
-import { constrainWindow, resizeWindow, type ResizeEdge, type WindowRect } from "./window-geometry";
+import { constrainWindow, moveWindow, resizeWindow, type ResizeEdge, type WindowRect } from "./window-geometry";
 
 const geometryKeys = ["left", "top", "width", "height"] as const;
 const interactive = "button,a,input,select,textarea,[contenteditable=true]";
@@ -7,8 +7,9 @@ const interactive = "button,a,input,select,textarea,[contenteditable=true]";
 export function bindPanelWindow(box: HTMLElement) {
   let custom: WindowRect | null = null;
   let restore: WindowRect | null = null;
+  let restingRect: WindowRect | null = null;
   let full = false;
-  let gesture: { id: number; x: number; y: number; rect: WindowRect; previous: WindowRect | null; edge?: ResizeEdge; capture: HTMLElement; moved?: boolean } | null = null;
+  let gesture: { id: number; x: number; y: number; rect: WindowRect; previous: WindowRect | null; wasFull: boolean; edge?: ResizeEdge; capture: HTMLElement; moved?: boolean } | null = null;
   const view = (margin = 8): WindowRect => {
     const viewport = window.visualViewport;
     const width = viewport?.width ?? window.innerWidth, height = viewport?.height ?? window.innerHeight;
@@ -24,6 +25,19 @@ export function bindPanelWindow(box: HTMLElement) {
     box.style.left = `${rect.x}px`; box.style.top = `${rect.y}px`;
     box.style.width = `${rect.width}px`; box.style.height = `${rect.height}px`;
   }
+  function clearGeometry() {
+    box.removeAttribute("data-window-custom");
+    geometryKeys.forEach(key => box.style.removeProperty(key));
+  }
+  function fitDefault() {
+    // Measure the CSS layout again, not the temporary keyboard/zoom fit. This
+    // restores the original auto-height when the visible viewport grows back.
+    clearGeometry();
+    const rect = measure(), bounds = view();
+    if (rect.x < bounds.x || rect.y < bounds.y || rect.x + rect.width > bounds.x + bounds.width || rect.y + rect.height > bounds.y + bounds.height) {
+      paint(constrainWindow(rect, bounds));
+    }
+  }
   function controls() {
     box.toggleAttribute("data-window-fullscreen", full);
     const button = box.querySelector<HTMLButtonElement>('[data-window-action="maximize"]');
@@ -34,19 +48,20 @@ export function bindPanelWindow(box: HTMLElement) {
       if (icon) icon.textContent = full ? "❐" : "□";
     }
   }
-  function reset() {
-    full = false; custom = null; restore = null;
-    box.removeAttribute("data-window-custom");
-    geometryKeys.forEach(key => box.style.removeProperty(key));
+  function reset(fit = true) {
+    full = false; custom = null; restore = null; restingRect = null;
+    clearGeometry();
     controls();
+    if (fit) fitDefault();
   }
   function maximize() {
     if (full) {
       full = false;
-      if (restore) { custom = constrainWindow(restore, view()); paint(custom); controls(); }
+      if (restore) { custom = restore; paint(moveWindow(custom, view())); controls(); }
       else reset();
     } else {
       restore = custom;
+      restingRect = measure();
       full = true;
       paint(view(0)); controls();
     }
@@ -56,7 +71,8 @@ export function bindPanelWindow(box: HTMLElement) {
     const active = gesture;
     gesture = null;
     if (cancel) {
-      if (active.previous) { custom = constrainWindow(active.previous, view()); paint(custom); }
+      if (active.wasFull) { full = true; custom = active.previous; paint(view(0)); controls(); }
+      else if (active.previous) { custom = active.previous; paint(moveWindow(custom, view())); }
       else reset();
     }
     box.removeAttribute("data-window-dragging");
@@ -64,15 +80,16 @@ export function bindPanelWindow(box: HTMLElement) {
     if (active.capture.hasPointerCapture(active.id)) active.capture.releasePointerCapture(active.id);
   }
   const down = (event: PointerEvent) => {
-    if (full || gesture || !event.isPrimary || event.button !== 0 || !(event.target instanceof Element)) return;
+    if (gesture || !event.isPrimary || event.button !== 0 || !(event.target instanceof Element)) return;
     const edge = event.target.closest<HTMLElement>("[data-window-resize]");
     const header = event.target.closest<HTMLElement>("[data-window-titlebar]");
+    if (full && edge) return;
     if (!edge && (!header || event.target.closest(interactive))) return;
     const capture = edge ?? header!;
     event.preventDefault();
     capture.focus({ preventScroll: true });
     const rect = measure();
-    gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, rect, previous: custom, edge: edge?.dataset.windowResize as ResizeEdge | undefined, capture };
+    gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, rect, previous: custom, wasFull: full, edge: edge?.dataset.windowResize as ResizeEdge | undefined, capture };
     box.setAttribute("data-window-dragging", "");
     document.documentElement.setAttribute("data-portal-window-drag", "");
     try { capture.setPointerCapture(event.pointerId); } catch { /* Window listeners still handle release. */ }
@@ -83,8 +100,21 @@ export function bindPanelWindow(box: HTMLElement) {
     const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
     if (!gesture.moved && Math.hypot(dx, dy) < 3) return;
     gesture.moved = true;
+    // Like a desktop window, dragging a maximized title bar restores it under
+    // the pointer. A click alone must not change its size or lose form state.
+    if (full) {
+      const ratio = Math.max(0, Math.min(1, (gesture.x - gesture.rect.x) / gesture.rect.width));
+      const restored = constrainWindow(restingRect ?? gesture.rect, view());
+      gesture.rect = { ...restored, x: event.clientX - restored.width * ratio,
+        y: event.clientY - Math.max(0, Math.min(36, gesture.y - gesture.rect.y)) };
+      gesture.x = event.clientX; gesture.y = event.clientY;
+      full = false; controls();
+      custom = moveWindow(gesture.rect, view());
+      paint(custom);
+      return;
+    }
     custom = gesture.edge ? resizeWindow(gesture.rect, gesture.edge, dx, dy, view())
-      : constrainWindow({ ...gesture.rect, x: gesture.rect.x + dx, y: gesture.rect.y + dy }, view());
+      : moveWindow({ ...gesture.rect, x: gesture.rect.x + dx, y: gesture.rect.y + dy }, view());
     paint(custom);
   };
   const up = (event: PointerEvent) => { if (gesture?.id === event.pointerId) { move(event); end(); } };
@@ -115,13 +145,14 @@ export function bindPanelWindow(box: HTMLElement) {
     const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
     const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
     const rect = measure();
-    custom = edge ? resizeWindow(rect, edge, dx, dy, view()) : constrainWindow({ ...rect, x: rect.x + dx, y: rect.y + dy }, view());
+    custom = edge ? resizeWindow(rect, edge, dx, dy, view()) : moveWindow({ ...rect, x: rect.x + dx, y: rect.y + dy }, view());
     paint(custom);
   };
   const resize = () => {
     end();
     if (full) paint(view(0));
-    else if (custom) { custom = constrainWindow(custom, view()); paint(custom); }
+    else if (custom) paint(constrainWindow(custom, view()));
+    else fitDefault();
   };
   box.addEventListener("pointerdown", down);
   box.addEventListener("lostpointercapture", cancelPointer);
@@ -135,6 +166,7 @@ export function bindPanelWindow(box: HTMLElement) {
   window.addEventListener("resize", resize);
   window.visualViewport?.addEventListener("resize", resize);
   window.visualViewport?.addEventListener("scroll", resize);
+  fitDefault();
   return () => {
     end();
     box.removeEventListener("pointerdown", down);
@@ -149,6 +181,6 @@ export function bindPanelWindow(box: HTMLElement) {
     window.removeEventListener("resize", resize);
     window.visualViewport?.removeEventListener("resize", resize);
     window.visualViewport?.removeEventListener("scroll", resize);
-    reset();
+    reset(false);
   };
 }

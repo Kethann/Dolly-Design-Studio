@@ -55,6 +55,17 @@ site/
 
 For an overall guide to the site's features, animation, performance choices,
 and technology keywords, see [`PROJECT-NOTES.md`](PROJECT-NOTES.md).
+
+In the portal, open **Title circle → Title settings** to adjust the shared title
+rotation angle, size and gap. Each artwork also has its own rotation slider and
+**Use shared title angle** reset. Each title also has a size control (25–100% of
+the shared size), blend opacity (0–100%), and Normal/Screen/Additive blending.
+Zero opacity hides the title and its light contribution. These angles rotate the
+artwork, not the glass. **Circle & entrance → Arc edge thickness** adjusts the
+rim from slim (10%) to its original broad edge (100%, the maximum), starting at 25%.
+Increasing the gap reduces the title footprints while keeping their centres evenly
+spaced; the original 3-degree spacing remains the default. Settings preview live
+without reloading unchanged images; use the portal's save action to persist them.
 For the cleanup results and before/after comparison, see [`CLEANUP-REPORT.md`](CLEANUP-REPORT.md).
 
 ## The intro (V1)

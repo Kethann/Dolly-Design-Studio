@@ -9,6 +9,18 @@ export function constrainWindow(rect: WindowRect, bounds: WindowRect): WindowRec
   return { width, height, x: clamp(rect.x, bounds.x, bounds.x + bounds.width - width), y: clamp(rect.y, bounds.y, bounds.y + bounds.height - height) };
 }
 
+/** A wide floating window may cross a side edge, but its title bar stays reachable.
+ * Resizing/viewport changes still use constrainWindow to bring the whole window back. */
+export function moveWindow(rect: WindowRect, bounds: WindowRect): WindowRect {
+  const sized = constrainWindow(rect, bounds);
+  const visibleWidth = Math.min(220, sized.width);
+  const visibleHeight = Math.min(96, sized.height);
+  return { ...sized,
+    x: clamp(rect.x, bounds.x - sized.width + visibleWidth, bounds.x + bounds.width - visibleWidth),
+    y: clamp(rect.y, bounds.y, bounds.y + bounds.height - visibleHeight),
+  };
+}
+
 export function resizeWindow(rect: WindowRect, edge: ResizeEdge, dx: number, dy: number, bounds: WindowRect): WindowRect {
   const start = constrainWindow(rect, bounds);
   let left = start.x, top = start.y, right = left + start.width, bottom = top + start.height;

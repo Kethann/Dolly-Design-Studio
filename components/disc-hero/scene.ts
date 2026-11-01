@@ -6,9 +6,10 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
 import { bindCircleDrag } from "./drag";
-import { DISC_DEFAULTS, sanitizeDisc, glassCircleComposition, glassArrivalSpinMultiplier, glassArrivalOpacity, glassEase, glassProjectorOrigin, discAimProfileForWidth, discPanelLayout, discProjectionWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, type DiscControls } from "../../lib/content/disc";
+import { DISC_DEFAULTS, sanitizeDisc, glassCircleComposition, glassArrivalSpinMultiplier, glassArrivalOpacity, glassEase, glassProjectorOrigin, discAimProfileForWidth, discPanelLayout, discTitlePoint, discProjectionWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, releaseDiscImage, discViewportFeather, type DiscControls } from "../../lib/content/disc";
 
-export type DiscImage = { src: string; label: string; titleColor?: string; glowColor?: string; glowIntensity?: number };
+export type DiscImage = { src: string; label: string; titleColor?: string; glowColor?: string; glowIntensity?: number; rotation?: number;
+  scale?: number; opacity?: number; blend?: "normal" | "screen" | "additive" };
 export type DiscScene = ReturnType<typeof createDiscScene>;
 const TAU = Math.PI * 2;
 const R = 2.35;
@@ -100,6 +101,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   // geometry, aiming, lighting and bloom ease together instead of jumping or flickering.
   // Reduced-motion users get the requested value immediately.
   const renderedControls = {
+    edgeThickness: controls.edgeThickness,
     circleScale: controls.circleScale, glassOpacity: controls.glassOpacity,
     discTilt: controls.discTilt, discRoll: controls.discRoll,
     spinSpeed: controls.spinSpeed,
@@ -143,13 +145,14 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   // environment capture or transmission framebuffer is needed for this glass treatment.
   const glassLight = { value: controls.lightIntensity };
   const glassOpacity = { value: controls.glassOpacity };
+  const glassEdgeWidth = { value: controls.edgeThickness };
   const glassTint = { value: new THREE.Color(controls.glassTintColor) };
   const targetGlassTint = glassTint.value.clone();
   let lastGlassTint = controls.glassTintColor;
   const glassMaterial = own(new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
     uniforms: { projectorTransform, projectorBounds, projectorSoftness, contactColour,
-      contactStrength, glassLight, glassOpacity, glassTint, uDesaturation: saturation, rays: raysUniform },
+      contactStrength, glassLight, glassOpacity, glassEdgeWidth, glassTint, uDesaturation: saturation, rays: raysUniform },
     vertexShader: `uniform mat4 projectorTransform; varying vec2 vGlass, vProjector;
       varying vec3 vGlassNormal, vGlassView;
       void main(){ vec4 world=modelMatrix*vec4(position,1.);
@@ -157,7 +160,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         vGlassNormal=normalMatrix*normal; vGlassView=-(viewMatrix*world).xyz;
         gl_Position=projectionMatrix*viewMatrix*world; }`,
     fragmentShader: `uniform vec4 projectorBounds; uniform vec3 contactColour, glassTint;
-      uniform float projectorSoftness, contactStrength, glassLight, glassOpacity, uDesaturation;
+      uniform float projectorSoftness, contactStrength, glassLight, glassOpacity, glassEdgeWidth, uDesaturation;
       varying vec2 vGlass, vProjector;
       varying vec3 vGlassNormal, vGlassView;
       ${rayShaderSource}
@@ -167,12 +170,13 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         float edge=1.-smoothstep(1.-aa,1.,r);
         // Rounded front/back lips, with a soft shoulder between them. Derivative
         // widths keep the two curves smooth even on small, low-DPR screens.
-        float bevel=exp(-pow((r-.994)/max(.0032,aa*1.5),2.));
-        float inner=exp(-pow((r-.982)/max(.0024,aa*1.25),2.))*.48;
-        float shoulder=exp(-pow((r-.983)/max(.015,aa*2.),2.))*.16;
+        float thickness=clamp(glassEdgeWidth,.1,1.);
+        float bevel=exp(-pow((r-(1.-.006*thickness))/max(.0032*thickness,aa*1.5),2.));
+        float inner=exp(-pow((r-(1.-.018*thickness))/max(.0024*thickness,aa*1.25),2.))*.48;
+        float shoulder=exp(-pow((r-(1.-.017*thickness))/max(.015*thickness,aa*2.),2.))*.16;
         // A fine concentric reflection reveals the pane across the left/top of
         // the composition, like the reference. This is glass, not a centre hole.
-        float innerArc=exp(-pow((r-.62)/max(.0012,aa),2.))*.23;
+        float innerArc=exp(-pow((r-.62)/max(.0012*thickness,aa),2.))*.23;
         // Broad opposite reflections stay in the fixed light frame, so rotating
         // artwork never makes the glass edge pulse or sparkle independently.
         vec2 radial=vProjector/max(length(vProjector),.0001);
@@ -207,7 +211,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   type ColourSample = { u: number; v: number; colour: THREE.Color; weight: number };
   type Slot = { group: THREE.Group; image: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; texture: THREE.CanvasTexture;
     bands: THREE.Vector4; samples: ColourSample[]; imageAspect: number; titleColor?: THREE.Color;
-    angle: number; weight: number; lift: number; scale: number };
+    angle: number; rotation?: number; titleScale: number; weight: number; lift: number; scale: number };
+  let imageSources: string[] = [];
   let slots: Slot[] = [], generation = 0, lastGap = controls.slotGap, lastSize = controls.slotSize;
   let layout = discPanelLayout(initial.length, controls.slotGap, controls.slotSize);
   let loader = new AbortController();
@@ -237,9 +242,41 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     }
     old.forEach(g => g.dispose());
   }
+  function setTitleBlend(material: THREE.ShaderMaterial, blend: DiscImage["blend"]) {
+    material.blending = blend === "screen" ? THREE.CustomBlending : blend === "additive" ? THREE.AdditiveBlending : THREE.NormalBlending;
+    material.uniforms.screenBlend.value = blend === "screen" ? 1 : 0;
+    // Screen uses premultiplied source RGB, so reducing opacity fades both
+    // contributions correctly and zero opacity cannot darken the background.
+    material.blendEquation = THREE.AddEquation;
+    material.blendSrc = THREE.OneFactor;
+    material.blendDst = THREE.OneMinusSrcColorFactor;
+    material.blendEquationAlpha = THREE.AddEquation;
+    material.blendSrcAlpha = THREE.OneFactor;
+    material.blendDstAlpha = THREE.OneMinusSrcAlphaFactor;
+  }
   function setImages(images: DiscImage[]) {
     images = visibleDiscItems(images);
+    // Artwork settings update in place: angle/colour sliders must not blank the
+    // circle by aborting and decoding the same textures again on every change.
+    if (images.length === slots.length && images.every((item, i) => item.src === imageSources[i])) {
+      images.forEach((item, i) => {
+        const slot = slots[i], uniforms = slot.image.material.uniforms;
+        slot.rotation = item.rotation;
+        slot.titleScale = THREE.MathUtils.clamp(item.scale ?? 1, .25, 1);
+        uniforms.titleOpacity.value = THREE.MathUtils.clamp(item.opacity ?? 1, 0, 1);
+        setTitleBlend(slot.image.material, item.blend);
+        uniforms.titleColour.value.set(item.titleColor ?? "#ffffff");
+        uniforms.useTitleColour.value = item.titleColor ? 1 : 0;
+        slot.titleColor = item.titleColor ? uniforms.titleColour.value : undefined;
+        uniforms.titleGlowColour.value.set(item.glowColor ?? "#ffffff");
+        uniforms.useTitleGlowColour.value = item.glowColor ? 1 : 0;
+        uniforms.titleGlowIntensity.value = THREE.MathUtils.clamp(item.glowIntensity ?? 1, 0, 2);
+      });
+      wake();
+      return;
+    }
     clearSlots();
+    imageSources = images.map(item => item.src);
     const gen = generation, signal = loader.signal;
     layout = discPanelLayout(images.length, controls.slotGap, controls.slotSize);
     const { step } = layout;
@@ -253,12 +290,13 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
       const customTitle = item.titleColor ? new THREE.Color(item.titleColor) : new THREE.Color(0xffffff);
       const customGlow = item.glowColor ? new THREE.Color(item.glowColor) : new THREE.Color(0xffffff);
-      const material = new THREE.ShaderMaterial({ transparent: true, uniforms: { map: { value: texture },
+      const material = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { map: { value: texture },
         imageSaturation, vibrance, imageOpacity, blur, dimBrightness, slotGlow,
         imageAspect: { value: 1 }, panelAspect: { value: layout.aspect }, rear: { value: 0 }, hover: { value: 0 },
         titleColour: { value: customTitle }, useTitleColour: { value: item.titleColor ? 1 : 0 },
         titleGlowColour: { value: customGlow }, useTitleGlowColour: { value: item.glowColor ? 1 : 0 },
         titleGlowIntensity: { value: THREE.MathUtils.clamp(item.glowIntensity ?? 1, 0, 2) },
+        titleOpacity: { value: THREE.MathUtils.clamp(item.opacity ?? 1, 0, 1) }, screenBlend: { value: 0 },
         projectorTransform, projectorBounds, projectorSoftness, projectorPower, contactColour, contactStrength, rays: raysUniform },
         vertexShader: `uniform mat4 projectorTransform; varying vec2 vProjector; varying vec2 vUv;
           void main(){ vec4 world=modelMatrix*vec4(position,1.);
@@ -266,7 +304,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
             vUv=uv; gl_Position=projectionMatrix*viewMatrix*world; }`,
         fragmentShader: `uniform sampler2D map;
         uniform float imageSaturation, vibrance, imageOpacity, blur, dimBrightness, slotGlow, projectorSoftness, projectorPower, contactStrength, rear, hover, imageAspect, panelAspect;
-        uniform float useTitleColour, useTitleGlowColour, titleGlowIntensity;
+        uniform float useTitleColour, useTitleGlowColour, titleGlowIntensity, titleOpacity, screenBlend;
         uniform vec3 contactColour, titleColour, titleGlowColour;
         uniform vec4 projectorBounds; varying vec2 vProjector; varying vec2 vUv;
         ${rayShaderSource}
@@ -313,13 +351,16 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
           // Bloom reads the emission, while this core blend keeps the uploaded logo's real
           // colour and detail visible instead of letting the glow bleach it into a white patch.
           c=mix(c,artworkCore*(1.+slotGlow*.1),titleInk*focus*.5);
-          float outputAlpha=max(tex.a*imageOpacity,titleInk*focus*.92);
-          gl_FragColor=vec4(c,outputAlpha); }` });
+          float outputAlpha=max(tex.a*imageOpacity,titleInk*focus*.92)*titleOpacity;
+          vec3 blended=mix(c,clamp(c,0.,1.),screenBlend);
+          gl_FragColor=vec4(blended*mix(1.,outputAlpha,screenBlend),outputAlpha); }` });
+      setTitleBlend(material, item.blend);
       const group = new THREE.Group(); group.rotation.z = i * step; panels.add(group);
       // Only the transparent PNG is mounted: no glass rectangle, border or opaque backing.
       const image = new THREE.Mesh(imageGeometry, material); image.position.z = 0.041; group.add(image);
       slots.push({ group, image, texture, bands: new THREE.Vector4(.55,.55,.55,.55),
-        samples: [], imageAspect: 1, titleColor: item.titleColor ? customTitle : undefined, angle: i * step, weight: 0, lift: 0, scale: 1 });
+        samples: [], imageAspect: 1, titleColor: item.titleColor ? customTitle : undefined, angle: i * step, rotation: item.rotation,
+        titleScale: THREE.MathUtils.clamp(item.scale ?? 1, .25, 1), weight: 0, lift: 0, scale: 1 });
     });
     // Decode one image at a time. Failed/CORS-blocked images leave the glass empty.
     void (async () => {
@@ -338,7 +379,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
             try { image.src = url; await image.decode(); bitmap = image; }
             finally { URL.revokeObjectURL(url); }
           }
-          const release = () => { if (bitmap instanceof ImageBitmap) bitmap.close(); else bitmap.src = ""; };
+          const release = () => releaseDiscImage(bitmap);
           if (destroyed || gen !== generation) { release(); return; }
           const slot = slots[i], thumb = slot.texture.image as HTMLCanvasElement, ctx = thumb.getContext("2d")!;
           const scale = Math.min(size / bitmap.width, size / bitmap.height);
@@ -361,7 +402,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
               const weight = pixels[p + 3] / 255 * peak * (.12 + chroma * 3);
               sr += red * weight; sg += green * weight; sb += blue * weight; total += weight;
             }
-            if (total > .0001) slot.samples.push({ u: (col + .5) / COLOUR_GRID, v: (row + .5) / COLOUR_GRID,
+            // Canvas rows start at the top; CanvasTexture UVs start at the bottom.
+            if (total > .0001) slot.samples.push({ u: (col + .5) / COLOUR_GRID, v: 1 - (row + .5) / COLOUR_GRID,
               colour: new THREE.Color(sr / total, sg / total, sb / total).convertSRGBToLinear(), weight: total / Math.max(1, (x1 - x0) * (y1 - y0)) });
           }
           // WebGL textures cannot change size after first upload; replace and release the placeholder.
@@ -453,6 +495,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const hullFace = [0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4, 0, 2, 1, 0, 3, 2];
   const localCorners = Array.from({ length: 4 }, () => new THREE.Vector3()), planeA = new THREE.Vector3(), planeB = new THREE.Vector3(), discNormal = new THREE.Vector3();
   const projectionAxis = new THREE.Vector3(0, 0, 1);
+  const titleSamplePoint = { x: 0, y: 0 };
   let projection = discProjectionWindow(layout, controls.focusRadius, controls.raySpread);
   let firstRays = true;
   let projectionLayout = layout, projectionRadius = controls.focusRadius, projectionSpread = controls.raySpread;
@@ -521,16 +564,22 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), controls.bloom, 0.75, 0.72);
   // Feather the complete scene in the existing antialias pass: no extra render target.
   const output = new OutputPass(), antialias = new ShaderPass({ ...FXAAShader,
-    uniforms: { ...FXAAShader.uniforms, arrival: { value: 0 }, entranceOpacity: { value: 0 }, scrollExit: { value: 0 }, portrait: { value: 0 }, mirror: { value: 0 } },
-    fragmentShader: `uniform float arrival, entranceOpacity, scrollExit, portrait, mirror;\n${FXAAShader.fragmentShader}`.replace(
+    uniforms: { ...FXAAShader.uniforms, arrival: { value: 0 }, entranceOpacity: { value: 0 }, scrollExit: { value: 0 }, portrait: { value: 0 }, mirror: { value: 0 }, edgeFeather: { value: new THREE.Vector2(.18, .14) } },
+    fragmentShader: `uniform float arrival, entranceOpacity, scrollExit, portrait, mirror;
+      uniform vec2 edgeFeather;
+      float softBoundary(float distanceToEdge, float featherWidth) {
+        float t=clamp(distanceToEdge/featherWidth,0.,1.);
+        return t*t*t*(t*(t*6.-15.)+10.);
+      }
+      ${FXAAShader.fragmentShader}`.replace(
       "gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );",
       `gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );
-       // Keep the reference arcs visible across the full stage; feather just
-       // the boundary so the lower sweep does not disappear halfway down.
-       // Mirror the treatment with the projector, without moving the circle or titles.
+       // Broad, zero-slope/acceleration fades remove clipped artwork at the
+       // copy-side and bottom. Preserve the upper/right arc and all geometry.
+       // Apply after bloom so glow cannot leave a hard rectangular seam.
        float sideX=mix(vUv.x,1.-vUv.x,mirror);
-       float frame=smoothstep(0.,.04,sideX)*(1.-smoothstep(.96,1.,sideX))
-         *smoothstep(0.,.06,vUv.y)*(1.-smoothstep(.92,1.,vUv.y));
+       float frame=softBoundary(sideX,edgeFeather.x)*(1.-smoothstep(.96,1.,sideX))
+         *softBoundary(vUv.y,edgeFeather.y)*(1.-smoothstep(.92,1.,vUv.y));
        float copyFade=mix(.48,1.,smoothstep(.20,.56,sideX));
        float mobileFade=mix(.03,1.,1.-smoothstep(.4,.74,vUv.y));
        float readable=mix(1.,mix(copyFade,mobileFade,portrait),arrival);
@@ -567,6 +616,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     composer.setPixelRatio(dpr); composer.setSize(width, height);
     fanMaterial.uniforms.viewport.value.set(Math.max(1, Math.floor(width * dpr)), Math.max(1, Math.floor(height * dpr)));
     antialias.uniforms.resolution.value.set(1 / Math.max(1, Math.floor(width * dpr)), 1 / Math.max(1, Math.floor(height * dpr)));
+    const feather = discViewportFeather(width, height);
+    antialias.uniforms.edgeFeather.value.set(feather.side, feather.bottom);
     camera.aspect = width / height;
     camera.updateProjectionMatrix(); camera.updateMatrixWorld(); wake();
   }
@@ -601,6 +652,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     glassTint.value.b = settleControl(glassTint.value.b, targetGlassTint.b, dt, 12);
     renderedControls.circleScale = settleControl(renderedControls.circleScale, controls.circleScale, dt, 10);
     renderedControls.glassOpacity = settleControl(renderedControls.glassOpacity, controls.glassOpacity, dt, 12);
+    renderedControls.edgeThickness = settleControl(renderedControls.edgeThickness, controls.edgeThickness, dt, 12);
+    glassEdgeWidth.value = renderedControls.edgeThickness;
     renderedControls.discTilt = settleControl(renderedControls.discTilt, controls.discTilt, dt, 12);
     renderedControls.discRoll = settleControl(renderedControls.discRoll, controls.discRoll, dt, 12);
     renderedControls.spinSpeed = settleControl(renderedControls.spinSpeed, controls.spinSpeed, dt, 12);
@@ -694,6 +747,10 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       slot.group.position.copy(restPosition);
       restRotation.setFromAxisAngle(projectionAxis, slot.angle);
       slot.group.quaternion.copy(restRotation).slerp(faceCamera, slot.lift);
+      slot.image.rotation.z = THREE.MathUtils.degToRad(slot.rotation ?? controls.slotRotation);
+      slot.image.scale.setScalar(slot.titleScale);
+      const titleOpacity = slot.image.material.uniforms.titleOpacity.value as number;
+      slot.image.visible = titleOpacity > 0;
       // A small hover lift stays attached to the continuously rotating glass.
       slot.group.scale.setScalar(slot.scale);
       slot.group.updateMatrixWorld(true);
@@ -701,19 +758,17 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       slot.image.material.uniforms.rear.value = THREE.MathUtils.smoothstep(-slotCenter.z / R, .1, .75);
       slot.image.material.uniforms.hover.value = Math.min(1, slot.lift * 3);
       const projectionAngle = slot.angle + disc.rotation.z - localFocus;
-      slot.weight = discProjectionCoverage(layout, projection, projectionAngle, renderedControls.glowRadius);
+      slot.weight = discProjectionCoverage(layout, projection, projectionAngle, renderedControls.glowRadius, slot.image.rotation.z, slot.titleScale) * titleOpacity;
       // Sample only title pigment actually inside the projector footprint. A title entering
       // halfway changes only from its illuminated half instead of recolouring the beam early.
       const fitX = slot.imageAspect > layout.aspect ? 1 : slot.imageAspect / layout.aspect;
       const fitY = slot.imageAspect > layout.aspect ? layout.aspect / slot.imageAspect : 1;
-      const cos = Math.cos(projectionAngle), sin = Math.sin(projectionAngle);
       let slotInkCoverage = 0;
       for (const sample of slot.samples) {
         const u = .5 + (sample.u - .5) * fitX, v = .5 + (sample.v - .5) * fitY;
-        const localX = layout.inner + (layout.outer - layout.inner) * u;
-        const localY = -layout.innerHalfWidth + layout.innerHalfWidth * 2 * v;
-        const mask = discProjectionMask(localX * cos - localY * sin, localX * sin + localY * cos, projection, renderedControls.glowRadius);
-        const sampleWeight = sample.weight * mask;
+        discTitlePoint(layout, u, v, projectionAngle, slot.image.rotation.z, titleSamplePoint, slot.titleScale);
+        const mask = discProjectionMask(titleSamplePoint.x, titleSamplePoint.y, projection, renderedControls.glowRadius);
+        const sampleWeight = sample.weight * mask * titleOpacity * slot.titleScale * slot.titleScale;
         if (sampleWeight <= .000001) continue;
         const colour = slot.titleColor ?? sample.colour;
         targetColor.r += colour.r * sampleWeight;
@@ -869,14 +924,18 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     invalidate: wake,
     hit(x: number, y: number) {
       pointer.set(x / width * 2 - 1, 1 - y / height * 2); raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(slots.map(s => s.image), false)[0];
+      const hit = raycaster.intersectObjects(slots.filter(s => s.image.visible).map(s => s.image), false)[0];
       if (hit) return slots.findIndex(s => s.image === hit.object);
       // Keep the original footprint hittable while it lifts away from the pointer.
       // This prevents hover flicker without leaving a card selected over empty canvas.
-      if (hovered >= 0 && slots[hovered] && restRay.copy(raycaster.ray).applyMatrix4(inverseDisc).intersectPlane(restPlane, restHit)) {
+      if (hovered >= 0 && slots[hovered]?.image.visible && restRay.copy(raycaster.ray).applyMatrix4(inverseDisc).intersectPlane(restPlane, restHit)) {
         const angle = slots[hovered].angle, c = Math.cos(angle), s = Math.sin(angle);
-        const radial = (restHit.x * c + restHit.y * s) / R;
-        const tangent = (-restHit.x * s + restHit.y * c) / R;
+        const center = (layout.inner + layout.outer) / 2;
+        const x = (restHit.x * c + restHit.y * s) / R - center;
+        const y = (-restHit.x * s + restHit.y * c) / R;
+        const rotation = slots[hovered].image.rotation.z, rc = Math.cos(rotation), rs = Math.sin(rotation);
+        const radial = center + (x * rc + y * rs) / slots[hovered].titleScale;
+        const tangent = (-x * rs + y * rc) / slots[hovered].titleScale;
         const fraction = (radial - layout.inner) / (layout.outer - layout.inner);
         if (fraction >= 0 && fraction <= 1 && Math.abs(tangent) <= layout.innerHalfWidth + (layout.outerHalfWidth - layout.innerHalfWidth) * fraction) return hovered;
       }
