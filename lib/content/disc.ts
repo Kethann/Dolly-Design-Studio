@@ -95,10 +95,12 @@ export function glassCircleComposition(width: number, height: number, progress: 
   const t = Math.min(1, Math.max(0, (progress - .12) / .88));
   const eased = t * t * t * (t * (t * 6 - 15) + 10);
   const mobile = width <= 640;
-  // Settle the wide-screen arc farther right and lower, along the marked edge.
-  // Only its final position changes; the full-circle arrival and phone pose stay intact.
-  const endX = mobile ? -.35 : .17;
-  const endY = .02;
+  // Keep the approved disc scale, but move its resting rim beneath the copy
+  // before it rises through the far-right edge. This gives the pane the broad,
+  // lower sweeping curve of the reference rather than a tight arc at right.
+  // The arrival and phone framing stay unchanged.
+  const endX = mobile ? -.35 : -.26;
+  const endY = mobile ? .02 : -.28;
   const endRadius = mobile ? .85 : 1.35;
   const startX = mobile ? .5 : .65;
   const startRadius = Math.min(.29, .38 * Math.max(1, width) / Math.max(1, height));

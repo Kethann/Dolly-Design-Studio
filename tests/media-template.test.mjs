@@ -616,8 +616,8 @@ test("upper glass arc keeps more coverage while all viewport boundaries still fa
 test("desktop glass arc shares the tablet reference pose without changing phone placement", () => {
   const { glassCircleComposition } = loader()("lib/content/disc.ts");
   const tablet = glassCircleComposition(930, 540, 1);
-  assert.ok(Math.abs(tablet.x - .17) < 1e-9, "Arc settles toward the marked right edge");
-  assert.ok(Math.abs(tablet.y - .02) < 1e-9, "Lower placement carries the arc down to the marked bottom edge");
+  assert.ok(Math.abs(tablet.x - -.26) < 1e-9, "Arc sweeps beneath the copy before rising at right");
+  assert.ok(Math.abs(tablet.y - -.28) < 1e-9, "The reference curve begins above the frame instead of at the lower-right edge");
   assert.ok(Math.abs(tablet.radius - 1.35) < 1e-9, "Moving does not resize the glass");
   assert.ok(Math.abs(glassCircleComposition(930, 540, 0).x - .65) < 1e-9, "Arrival remains unchanged");
   for (const width of [1024, 1025, 1440, 1920]) {
