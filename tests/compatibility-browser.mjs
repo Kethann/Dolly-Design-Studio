@@ -60,7 +60,7 @@ try {
  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
  for(const route of (process.argv.includes('--home-only') ? ['/?compatibility#agency'] : ['/?compatibility#agency','/work','/work/dacoit','/process/sketchboards','/process/photoshoot-bts','/breakdowns','/portal'])) {
   await viewport(390,844);await send('Page.navigate',{url:'http://localhost:3000'+route});
-  await waitFor('document.readyState==="complete" && (location.pathname==="/portal" || (!!document.querySelector("main") && getComputedStyle(document.querySelector("main")).opacity==="1" && !document.querySelector(".intro-curtain")))');
+  await waitFor('document.readyState==="complete" && (location.pathname==="/portal" || (!!document.querySelector("main") && getComputedStyle(document.querySelector("main")).opacity==="1" && (!document.querySelector(".intro-curtain") || getComputedStyle(document.querySelector(".intro-curtain")).display==="none" || getComputedStyle(document.querySelector(".intro-curtain")).visibility==="hidden")))');
   await evaluate('document.fonts.ready.then(()=>true)');
   for(const [width,height] of sizes) {
    await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<=600});

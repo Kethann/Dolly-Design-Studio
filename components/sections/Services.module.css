@@ -1,4 +1,4 @@
-.section { padding-block: clamp(32px, 5vw, 64px); }
+.section { padding-block: clamp(32px, 4vw, 40px); }
 .label {
   display: block; margin-bottom: 10px; font-family: var(--font-label); font-size: 11px;
   letter-spacing: .3em; text-transform: uppercase; color: var(--gold);
