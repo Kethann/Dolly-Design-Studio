@@ -72,11 +72,14 @@ export function validateContact(raw: Record<string, unknown>, projects?: readonl
   else if (/^(\d)\1+$/.test(digits)) errors.phone = "That phone number doesn’t look real.";
   else value.phone = normalizePhone(value.phone);
 
-  if (value.company.length > L.companyMax) errors.company = `Please keep this under ${L.companyMax} characters.`;
+  if (!value.company) errors.company = "Please enter your company or production name.";
+  else if (value.company.length > L.companyMax) errors.company = `Please keep this under ${L.companyMax} characters.`;
   if (!value.projectType) errors.projectType = "Please choose the kind of project.";
   else if (value.projectType.length > L.choiceMax) errors.projectType = "That choice isn’t valid.";
-  if (value.budget.length > L.choiceMax) errors.budget = "That choice isn’t valid.";
-  if (value.timeline.length > L.choiceMax) errors.timeline = "That choice isn’t valid.";
+  if (!value.budget) errors.budget = "Please choose a budget range.";
+  else if (value.budget.length > L.choiceMax) errors.budget = "That choice isn’t valid.";
+  if (!value.timeline) errors.timeline = "Please choose a timeline.";
+  else if (value.timeline.length > L.choiceMax) errors.timeline = "That choice isn’t valid.";
   if (projects) {
     if (value.projectType && !projects.some((project) => project.name === value.projectType)) errors.projectType = "Please choose an available project type.";
     if (value.budget && !budgetsForProject(projects, value.projectType).includes(value.budget)) errors.budget = "Please choose a budget for this project type.";

@@ -179,6 +179,10 @@ img {
   }
 }
 
+/* While a portal window is dragged, the preview iframe must not steal the pointer. */
+html[data-portal-window-drag] iframe { pointer-events: none !important; }
+html[data-portal-window-drag] { user-select: none; }
+
 /* Native hashes and smooth scrolling share the same fixed-header clearance. */
 main > section[id]:not(#top) {
   scroll-margin-top: var(--nav-h);
@@ -193,6 +197,14 @@ main > section[id]:not(#top) {
   inset: 0;
   z-index: 99;
   background: var(--stage);
+}
+
+/* Keep a fading cover during failed/slow loads too, rather than removing it in one frame. */
+.intro-curtain[data-revealed="true"] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.7s ease, visibility 0s 0.7s;
 }
 
 .intro-curtain::before {

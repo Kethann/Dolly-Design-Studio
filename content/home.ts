@@ -101,12 +101,14 @@ export const home = {
     /** Automatic travel direction; dragging remains available in either direction. */
     productionDirection: "left",
     productionSecondDirection: "right",
+    productionSpeed: "normal",
+    productionSecondSpeed: "normal",
     filmmakersDirection: "left",
     /** The shape of the round portraits in the Filmmakers & actors row: "round", "rounded" or "square". */
     portraitShape: "round",
-    /** How big the portraits are: "small", "medium" or "large". */
+    /** Names and portraits: "small", "medium", "large" (100%), "xlarge" (150%) or "xxlarge" (200%). */
     portraitSize: "large",
-    /** How big the production-house logos are: "small", "medium" or "large". */
+    /** Both logo rows: small/medium/large (half-size baseline), xlarge (150%) or xxlarge (200%). */
     logoSize: "large",
     /** Read out by screen readers before the list of names. */
     screenReaderIntro: "Clients and collaborators:",

@@ -15,6 +15,8 @@ export const PARTICLE_PRESETS = [
 ] as const;
 export interface TextEffectOptions {
   color?: string;
+  /** Optional text paint used only while a glow word is hovered or touched. */
+  hoverColor?: string;
   particleColor?: string;
   particleSize?: number;
   particleScatter?: number;
@@ -31,7 +33,7 @@ export function cleanEffectOptions(input: unknown): TextEffectOptions {
   if (!input || typeof input !== "object") return {};
   const source = input as Record<string, unknown>;
   const result: TextEffectOptions = {};
-  for (const key of ["color", "glowColor", "particleColor"] as const) {
+  for (const key of ["color", "hoverColor", "glowColor", "particleColor"] as const) {
     if (typeof source[key] === "string" && /^#[0-9a-f]{6}$/i.test(source[key])) result[key] = source[key].toLowerCase();
   }
   for (const key of Object.keys(PARTICLE_RANGES) as (keyof typeof PARTICLE_RANGES)[]) {
@@ -49,7 +51,8 @@ export function cleanEffectOptions(input: unknown): TextEffectOptions {
 export function effectStyle(input: TextEffectOptions): Record<string, string> {
   const options = cleanEffectOptions(input);
   return {
-    ...(options.color ? { color: options.color } : {}),
+    ...(options.color ? { "--fx-color": options.color } : {}),
+    ...(options.hoverColor ? { "--fx-hover-color": options.hoverColor } : {}),
     ...(options.glowColor ? { "--fx-glow-color": options.glowColor } : {}),
     ...(options.glowStrength !== undefined ? { "--fx-glow-opacity": `${options.glowStrength * 100}%` } : {}),
     ...(options.glowRadius !== undefined ? { "--fx-glow-radius": `${options.glowRadius}px` } : {}),
@@ -63,7 +66,7 @@ export function decodeEffect(mark: string): { text: string; effect: TextEffect; 
   const options: Record<string, unknown> = {};
   for (const setting of settings) {
     const [key, value] = setting.split("=");
-    if (["color", "glowColor", "glowMode", "particleColor"].includes(key)) options[key] = value;
+    if (["color", "hoverColor", "glowColor", "glowMode", "particleColor"].includes(key)) options[key] = value;
     if (["glowStrength", "glowRadius", ...Object.keys(PARTICLE_RANGES)].includes(key) && value?.trim()) options[key] = Number(value);
   }
   return { text: mark.slice(separator + 1), effect: effect as TextEffect, options: cleanEffectOptions(options) };

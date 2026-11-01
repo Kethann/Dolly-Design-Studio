@@ -170,13 +170,16 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         float bevel=exp(-pow((r-.994)/max(.0032,aa*1.5),2.));
         float inner=exp(-pow((r-.982)/max(.0024,aa*1.25),2.))*.48;
         float shoulder=exp(-pow((r-.983)/max(.015,aa*2.),2.))*.16;
+        // A fine concentric reflection reveals the pane across the left/top of
+        // the composition, like the reference. This is glass, not a centre hole.
+        float innerArc=exp(-pow((r-.62)/max(.0012,aa),2.))*.23;
         // Broad opposite reflections stay in the fixed light frame, so rotating
         // artwork never makes the glass edge pulse or sparkle independently.
         vec2 radial=vProjector/max(length(vProjector),.0001);
         float sweep=pow(abs(dot(radial,normalize(vec2(.65,.76)))),6.);
         float facing=clamp(abs(dot(normalize(vGlassNormal),normalize(vGlassView))),0.,1.);
         float fresnel=.04+.96*pow(1.-facing,5.);
-        float rim=(bevel+inner+shoulder)*(.7+.3*fresnel);
+        float rim=(bevel+inner+shoulder+innerArc)*(.7+.3*fresnel);
         vec2 p=discWindow(vProjector);
         float contact=contactReflection(p,rayField(p));
         // The smoked-black interior absorbs background light without becoming an opaque disc.
@@ -522,13 +525,13 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     fragmentShader: `uniform float arrival, entranceOpacity, scrollExit, portrait, mirror;\n${FXAAShader.fragmentShader}`.replace(
       "gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );",
       `gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );
-       // Keep the upper arc visible longer. Feather only the last 8% at the top
-       // and 4% at the exposed outer side; the copy-side and lower fades stay broad.
+       // Keep the reference arcs visible across the full stage; feather just
+       // the boundary so the lower sweep does not disappear halfway down.
        // Mirror the treatment with the projector, without moving the circle or titles.
        float sideX=mix(vUv.x,1.-vUv.x,mirror);
-       float frame=smoothstep(0.,.12,sideX)*(1.-smoothstep(.96,1.,sideX))
-         *smoothstep(0.,.22,vUv.y)*(1.-smoothstep(.92,1.,vUv.y));
-       float copyFade=mix(.025,1.,smoothstep(.26,.58,sideX));
+       float frame=smoothstep(0.,.04,sideX)*(1.-smoothstep(.96,1.,sideX))
+         *smoothstep(0.,.06,vUv.y)*(1.-smoothstep(.92,1.,vUv.y));
+       float copyFade=mix(.48,1.,smoothstep(.20,.56,sideX));
        float mobileFade=mix(.03,1.,1.-smoothstep(.4,.74,vUv.y));
        float readable=mix(1.,mix(copyFade,mobileFade,portrait),arrival);
        float exitT=clamp((scrollExit*(1.15-.15*vUv.x)-.03)/.97,0.,1.);

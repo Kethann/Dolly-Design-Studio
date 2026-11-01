@@ -11,6 +11,103 @@ const nativeRequire = createRequire(import.meta.url);
 const json = (file) => JSON.parse(readFileSync(path.join(root, file), "utf8"));
 const clone = (value) => structuredClone(value);
 
+test("portal window geometry stays visible at every edge, minimum size and viewport", () => {
+  const {constrainWindow,resizeWindow}=loader()("app/portal/window-geometry.ts");
+  for(const bounds of [{x:8,y:8,width:1184,height:784},{x:8,y:35,width:304,height:410},{x:0,y:0,width:240,height:150}]) {
+    const valid=rect=>{
+      assert.ok(rect.x>=bounds.x && rect.y>=bounds.y);
+      assert.ok(rect.width>=Math.min(320,bounds.width) && rect.height>=Math.min(180,bounds.height));
+      assert.ok(rect.x+rect.width<=bounds.x+bounds.width && rect.y+rect.height<=bounds.y+bounds.height);
+    };
+    for(const x of [-10000,0,200,10000]) for(const y of [-10000,0,200,10000]) {
+      const rect=constrainWindow({x,y,width:760,height:560},bounds);valid(rect);
+      for(const edge of ["n","s","e","w","ne","nw","se","sw"]) for(const delta of [-10000,-50,0,50,10000]) valid(resizeWindow(rect,edge,delta,-delta,bounds));
+    }
+  }
+  const bounds={x:0,y:0,width:1200,height:800}, rect={x:300,y:200,width:600,height:400};
+  assert.deepEqual(resizeWindow(rect,"nw",100,50,bounds),{x:400,y:250,width:500,height:350});
+  assert.deepEqual(resizeWindow(rect,"se",100,50,bounds),{x:300,y:200,width:700,height:450});
+});
+
+test("portal windows move, resize, restore, cancel, and release pointer capture without remounting content", () => {
+  const originals=new Map(["window","document","Element","HTMLElement"].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
+  class Node extends EventTarget {
+    constructor(kind,parent=null) {super();this.kind=kind;this.parent=parent;this.dataset={};this.attrs=new Map();this.style={removeProperty:key=>delete this.style[key]};this.captured=new Set();}
+    setAttribute(key,value){this.attrs.set(key,value);}
+    getAttribute(key){return this.attrs.get(key)??null;}
+    hasAttribute(key){return this.attrs.has(key);}
+    removeAttribute(key){this.attrs.delete(key);}
+    toggleAttribute(key,on){if(on)this.setAttribute(key,"");else this.removeAttribute(key);}
+    closest(selector){
+      if(selector==="[data-window-titlebar]" && this.kind==="header")return this;
+      if(selector==="[data-window-resize]" && this.kind==="resize")return this;
+      if(selector==="[data-window-action]" && this.dataset.windowAction)return this;
+      if(selector.startsWith("button,") && ["action","resize","input"].includes(this.kind))return this;
+      return this.parent?.closest(selector)??null;
+    }
+    focus(){this.focused=true;}
+    setPointerCapture(id){this.captured.add(id);}
+    hasPointerCapture(id){return this.captured.has(id);}
+    releasePointerCapture(id){this.captured.delete(id);}
+    getBoundingClientRect(){return {left:parseFloat(this.style.left??100),top:parseFloat(this.style.top??120),width:parseFloat(this.style.width??600),height:parseFloat(this.style.height??300)};}
+  }
+  const viewport=Object.assign(new EventTarget(),{width:1200,height:800,offsetLeft:0,offsetTop:0});
+  const win=Object.assign(new EventTarget(),{innerWidth:1200,innerHeight:800,visualViewport:viewport});
+  const root=new Node("root"), box=new Node("box"), header=new Node("header",box), input=new Node("input",header);
+  header.setAttribute("data-window-titlebar","");
+  const maximize=new Node("action",header), reset=new Node("action",header), handle=new Node("resize",box), icon={textContent:"□"};
+  maximize.dataset.windowAction="maximize";reset.dataset.windowAction="reset";handle.dataset.windowResize="se";
+  box.querySelector=()=>maximize;maximize.querySelector=()=>icon;
+  const values={window:win,document:{documentElement:root},Element:Node,HTMLElement:Node};
+  for(const [key,value] of Object.entries(values))Object.defineProperty(globalThis,key,{value,configurable:true,writable:true});
+  const fire=(target,type,source,props={})=>{const e=new Event(type,{cancelable:true});Object.defineProperty(e,"target",{value:source});Object.assign(e,{isPrimary:true,button:0,pointerId:1,clientX:100,clientY:100},props);target.dispatchEvent(e);return e;};
+  let cleanup;
+  try {
+    cleanup=loader()("app/portal/panel-window.ts").bindPanelWindow(box);
+    assert.equal(box.hasAttribute("data-window-custom"),false,"Initial CSS layout remains unchanged");
+    fire(box,"pointerdown",input);assert.equal(root.hasAttribute("data-portal-window-drag"),false,"Inputs cannot drag the window");
+    fire(box,"pointerdown",header);fire(win,"pointerup",header);
+    assert.equal(box.hasAttribute("data-window-custom"),false,"A title click alone does not fix the default auto-height");
+    fire(box,"pointerdown",header);assert.equal(header.hasPointerCapture(1),true);
+    fire(win,"pointermove",header,{clientX:200,clientY:150});fire(win,"pointerup",header,{clientX:200,clientY:150});
+    assert.equal(box.style.left,"200px");assert.equal(box.style.top,"170px");assert.equal(header.hasPointerCapture(1),false);
+    assert.equal(root.hasAttribute("data-portal-window-drag"),false);
+    fire(box,"pointerdown",handle);fire(win,"pointerup",handle,{clientX:250,clientY:200});
+    assert.equal(box.style.width,"750px");assert.equal(box.style.height,"400px");
+    fire(box,"click",maximize);assert.equal(box.style.width,"1200px");assert.equal(box.style.height,"800px");
+    assert.equal(maximize.getAttribute("aria-pressed"),"true");assert.equal(icon.textContent,"❐");
+    const escape=fire(box,"keydown",input,{key:"Escape"});assert.equal(escape.defaultPrevented,true);
+    assert.equal(box.style.left,"200px");assert.equal(box.style.width,"750px");
+    fire(box,"keydown",header,{key:"ArrowLeft",shiftKey:true});assert.equal(box.style.left,"160px");
+    fire(box,"keydown",handle,{key:"ArrowDown"});assert.equal(box.style.height,"410px");
+    fire(box,"pointerdown",header);fire(win,"pointermove",header,{clientX:350,clientY:300});fire(win,"pointercancel",header);
+    assert.equal(box.style.left,"160px","Cancelled touch restores the pre-drag geometry");
+    win.innerWidth=390;win.innerHeight=300;viewport.width=390;viewport.height=300;win.dispatchEvent(new Event("resize"));
+    const rect=box.getBoundingClientRect();assert.ok(rect.left+rect.width<=382 && rect.top+rect.height<=292);
+    fire(box,"click",reset);assert.equal(box.hasAttribute("data-window-custom"),false);assert.equal(box.style.height,undefined);
+    fire(box,"click",maximize);fire(box,"click",maximize);assert.equal(box.hasAttribute("data-window-custom"),false,"Restore returns to default auto layout when it was never resized");
+    fire(box,"keydown",header,{key:"ArrowDown"});
+    viewport.width=360;viewport.height=240;viewport.offsetLeft=20;viewport.offsetTop=30;viewport.dispatchEvent(new Event("resize"));
+    const visible=box.getBoundingClientRect();assert.ok(visible.left>=28 && visible.top>=38 && visible.top+visible.height<=262,"On-screen keyboards and zoom keep controls in the visible viewport");
+    fire(box,"click",maximize);assert.equal(box.style.left,"20px");assert.equal(box.style.top,"30px");assert.equal(box.style.height,"240px");
+    fire(box,"click",reset);
+    fire(box,"pointerdown",header);cleanup();cleanup=undefined;
+    assert.equal(header.hasPointerCapture(1),false);assert.equal(root.hasAttribute("data-portal-window-drag"),false);
+    fire(box,"click",maximize);assert.equal(box.hasAttribute("data-window-fullscreen"),false,"Unmount removes all listeners");
+  } finally {cleanup?.();for(const [key,descriptor] of originals){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else delete globalThis[key];}}
+});
+
+test("every toolbar sheet and Studio editor exposes the same window controls without changing default sizes", () => {
+  const source=readFileSync(path.join(root,"app/portal/PortalEditor.tsx"),"utf8");
+  assert.match(source,/<PanelWindow key=\{tab\}/,"Each newly opened tool starts with the original layout");
+  const modal=readFileSync(path.join(root,"app/portal/EditModal.tsx"),"utf8");
+  assert.match(modal,/usePanelWindow\(box\)/);assert.match(modal,/<WindowActions \/>/);assert.match(modal,/<WindowHandles \/>/);
+  assert.match(modal,/useDialogFocus\(box, cancel\)/,"Modal focus and unsaved-change confirmation remain in place");
+  const css=readFileSync(path.join(root,"app/portal/edit.module.css"),"utf8");
+  assert.match(css,/width: min\(760px, calc\(100vw - 24px\)\)/);
+  assert.match(css,/bottom: var\(--portal-sheet-bottom, 132px\)/);
+});
+
 test("portal search accepts colour variants, ranks names and bounds results", () => {
   const { searchSettings } = loader()("app/portal/search-settings.ts");
   const entries = [
@@ -237,15 +334,20 @@ test("contact options are bounded, sanitized and checked in the portal", () => {
   for (const path of ["0.budgets", "1.name", "1.budgets"]) assert.ok(errors.some(p => p.path === `home.contact.form.projectOptions.${path}`));
 });
 
-const contactEnquiry = { name: "Test Person", email: "test@example.com", phone: "+919876543210", company: "", projectType: "Film", budget: "Film budget", timeline: "", message: "Please discuss the artwork for our film." };
+const contactEnquiry = { name: "Test Person", email: "test@example.com", phone: "+919876543210", company: "Test Production", projectType: "Film", budget: "Film budget", timeline: "Within a month", message: "Please discuss the artwork for our film." };
 const contactChoices = [{ name: "Film", budgets: ["Film budget"] }, { name: "Logo", budgets: ["Logo budget"] }];
 
-test("contact validation rejects another project's budget and accepts an optional empty budget", () => {
+test("contact validation requires every visible field and rejects another project's budget", () => {
   const { validateContact } = loader()("lib/contact/validate.ts");
   assert.deepEqual(validateContact(contactEnquiry, contactChoices).errors, {});
   assert.ok(validateContact({ ...contactEnquiry, projectType: "Logo" }, contactChoices).errors.budget);
   assert.ok(validateContact({ ...contactEnquiry, projectType: "Unknown" }, contactChoices).errors.projectType);
-  assert.deepEqual(validateContact({ ...contactEnquiry, budget: "" }, contactChoices).errors, {});
+  for (const field of Object.keys(contactEnquiry)) {
+    for (const missing of [undefined, null, "", " \t\n "]) {
+      const errors = validateContact({ ...contactEnquiry, [field]: missing }, contactChoices).errors;
+      assert.deepEqual(Object.keys(errors), field === "projectType" ? [field, "budget"] : [field], `${field} cannot be missing or blank; budgets also need a valid project`);
+    }
+  }
 });
 
 test("contact server checks published project budgets before saving or emailing", async () => {
@@ -261,6 +363,14 @@ test("contact server checks published project budgets before saving or emailing"
   });
   const { POST } = app("app/api/contact/route.ts");
   const request = (body) => new Request("https://example.com/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  for (const field of Object.keys(contactEnquiry)) {
+    for (const missing of [undefined, null, "", " \t\n "]) {
+      const response = await POST(request({ ...contactEnquiry, [field]: missing }));
+      assert.equal(response.status, 422, `${field} is required even when browser checks are bypassed`);
+      assert.deepEqual(Object.keys((await response.json()).fields), [field]);
+    }
+  }
+  assert.equal(saved, 0, "Incomplete enquiries never reach storage or email");
   const bad = await POST(request({ ...contactEnquiry, budget: "Logo budget" }));
   assert.equal(bad.status, 422);
   assert.ok((await bad.json()).fields.budget);
@@ -272,7 +382,7 @@ test("contact server checks published project budgets before saving or emailing"
   assert.equal(saved, 1, "Never save an enquiry with unverified choices during a storage failure");
 });
 
-test("contact form changes budget choices and clears a previous selection without submitting", () => {
+test("contact form changes budgets, requires all visible fields, and shows accessible inline errors", async (t) => {
   const slots = []; let cursor = 0;
   const state = (initial) => { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => { slots[i] = typeof v === "function" ? v(slots[i]) : v; }]; };
   const content = loader()("lib/content/defaults.ts").defaultContent();
@@ -286,18 +396,57 @@ test("contact form changes budget choices and clears a previous selection withou
     "./Contact.module.css": {},
   })("components/sections/Contact.tsx");
   const nodes = (node) => !node || typeof node !== "object" ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
-  const render = () => { cursor = 0; const tree = nodes(Contact()); return id => tree.find(n => n.props?.id === id).props; };
+  let tree;
+  const render = () => { cursor = 0; tree = nodes(Contact()); return id => tree.find(n => n.props?.id === id).props; };
   let ui = render(); assert.equal(ui("budget").disabled, true);
+  for (const field of Object.keys(contactEnquiry)) assert.equal(ui(field).required, true, `${field} has required semantics`);
+  assert.ok(!ui("website").required, "The hidden anti-spam trap must remain empty");
+  const checkPlaceholders = () => {
+    for (const id of ["projectType", "budget", "timeline"]) {
+      const options = nodes(ui(id).children).filter(n => n.type === "option");
+      assert.equal(options[0].props.value, "");
+      assert.equal(options[0].props.disabled, true, `${id}: placeholder cannot be selected`);
+      assert.ok(!options[0].props.hidden, `${id}: placeholder stays visible in the menu`);
+      assert.ok(options.slice(1).every(option => !option.props.disabled), `${id}: real choices remain enabled`);
+    }
+  };
+  checkPlaceholders();
   ui("projectType").onChange({ target: { value: "Film" } });
   ui = render(); assert.equal(ui("budget").disabled, false);
+  checkPlaceholders();
   ui("budget").onChange({ target: { value: "Film budget" } });
   ui = render(); assert.equal(ui("budget").value, "Film budget");
   ui("projectType").onChange({ target: { value: "Logo" } });
   ui = render(); assert.equal(ui("budget").value, "");
+  checkPlaceholders();
   assert.deepEqual(nodes(ui("budget").children).filter(n => n.type === "option").map(n => n.props.value), ["", "Logo budget"]);
   ui("budget").onChange({ target: { value: "Logo budget" } });
   content.home.contact.form.projectOptions[1].budgets = ["Updated quote"];
   assert.equal(render()("budget").value, "", "Removed choices cannot be submitted from a live preview");
+  t.mock.method(globalThis, "FormData", function () {
+    return new Map(Object.entries({ ...contactEnquiry, company: "  ", budget: "", timeline: "" }));
+  });
+  const fetchMock = t.mock.method(globalThis, "fetch", async () => { throw new Error("Incomplete forms must not submit"); });
+  let focused;
+  await tree.find(n => n.type === "form").props.onSubmit({
+    preventDefault() {},
+    currentTarget: { querySelector: selector => ({ focus: () => { focused = selector; } }) },
+  });
+  ui = render();
+  assert.equal(fetchMock.mock.callCount(), 0);
+  assert.equal(focused, '[name="company"]', "Focus moves to the first missing field");
+  for (const field of ["company", "budget", "timeline"]) {
+    assert.equal(ui(field)["aria-invalid"], true);
+    assert.equal(ui(field)["aria-describedby"], `err-${field}`);
+    assert.equal(ui(`err-${field}`).role, "alert");
+    assert.ok(ui(`err-${field}`).children);
+  }
+});
+
+test("contact placeholders are grey without dimming real dropdown choices", () => {
+  const css = readFileSync(path.join(root, "components/sections/Contact.module.css"), "utf8");
+  assert.match(css, /\.field select:has\(option\[value=""\]:checked\),\s*\.field select option:disabled\s*\{\s*color: #aaa;/);
+  assert.match(css, /\.field select option:not\(:disabled\)\s*\{\s*color: var\(--ivory\);/);
 });
 
 test("Brand Promotions is service 08 and legacy combined cards split without losing saved artwork", () => {
@@ -597,15 +746,15 @@ test("glass circle arrives fully visible and settles into a responsive backgroun
 test("glass scene feathers every edge into transparency without an extra rendering pass", () => {
   const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
   assert.match(source, /float sideX=mix\(vUv.x,1\.-vUv.x,mirror\)/);
-  assert.match(source, /smoothstep\(0\.,\.12,sideX\)\*\(1\.-smoothstep\(\.96,1\.,sideX\)\)/);
-  assert.match(source, /smoothstep\(0\.,\.22,vUv.y\)\*\(1\.-smoothstep\(\.92,1\.,vUv.y\)\)/);
+  assert.match(source, /smoothstep\(0\.,\.04,sideX\)\*\(1\.-smoothstep\(\.96,1\.,sideX\)\)/);
+  assert.match(source, /smoothstep\(0\.,\.06,vUv.y\)\*\(1\.-smoothstep\(\.92,1\.,vUv.y\)\)/);
   assert.match(source, /gl_FragColor\*=frame\*readable\*outgoing/, "Fade premultiplied colour and alpha, not a black overlay");
   assert.match(source, /composer.addPass\(renderPass\); composer.addPass\(bloom\); composer.addPass\(output\); composer.addPass\(antialias\)/);
 });
 
 test("upper glass arc keeps more coverage while all viewport boundaries still fade to transparent", () => {
   const smooth = (a,b,x) => {const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
-  const frame = (x,y,top,outer) => smooth(0,.12,x)*(1-smooth(outer,1,x))*smooth(0,.22,y)*(1-smooth(top,1,y));
+  const frame = (x,y,top,outer) => smooth(0,.04,x)*(1-smooth(outer,1,x))*smooth(0,.06,y)*(1-smooth(top,1,y));
   assert.equal(frame(.93,.9,.92,.96), 1, "Keep the upper/outer arc fully visible before its final feather");
   assert.ok(frame(.93,.9,.8,.88) < .32, "The previous fade heavily obscured this part of the arc");
   for (const [x,y] of [[0,.5],[1,.5],[.5,0],[.5,1]]) assert.equal(frame(x,y,.92,.96),0);
@@ -613,15 +762,16 @@ test("upper glass arc keeps more coverage while all viewport boundaries still fa
   assert.ok(frame(.98,.96,.92,.96)>0 && frame(.98,.96,.92,.96)<1, "Retain a soft upper corner, not a hard cutoff");
 });
 
-test("desktop glass arc shares the tablet reference pose without changing phone placement", () => {
+test("glass framing follows the screen aspect ratio independently of copy", () => {
   const { glassCircleComposition } = loader()("lib/content/disc.ts");
   const tablet = glassCircleComposition(930, 540, 1);
-  assert.ok(Math.abs(tablet.x - -.26) < 1e-9, "Arc sweeps beneath the copy before rising at right");
-  assert.ok(Math.abs(tablet.y - -.28) < 1e-9, "The reference curve begins above the frame instead of at the lower-right edge");
-  assert.ok(Math.abs(tablet.radius - 1.35) < 1e-9, "Moving does not resize the glass");
+  assert.ok(tablet.y < 0 && tablet.radius > 1, "An oversized circle centred above the stage creates the sweeping arc");
   assert.ok(Math.abs(glassCircleComposition(930, 540, 0).x - .65) < 1e-9, "Arrival remains unchanged");
   for (const width of [1024, 1025, 1440, 1920]) {
-    assert.deepEqual(glassCircleComposition(width, 748, 1), tablet);
+    const pose = glassCircleComposition(width, width * 540 / 930, 1);
+    for (const key of ["x", "y", "radius", "reveal"]) {
+      assert.ok(Math.abs(pose[key] - tablet[key]) < 1e-9, "Same aspect ratio preserves proportions at every size");
+    }
   }
   const phone = glassCircleComposition(390, 820, 1);
   for (const [key, value] of Object.entries({ x: -.35, y: .02, radius: .85, reveal: 1 })) {
@@ -699,7 +849,7 @@ test("title regions stay separated inside the glass rim", () => {
   }
 });
 
-test("intro timing counts slow visible frames equally and excludes loading and hidden time", () => {
+test("intro timing preserves normal playback and bounds long stalls without catching up", () => {
   const { createIntroFrameClock } = loader()("lib/intro/frame-clock.ts");
   const duration = fps => {
     const clock = createIntroFrameClock(); let t = 0;
@@ -707,9 +857,10 @@ test("intro timing counts slow visible frames equally and excludes loading and h
     for (let i = 0; i <= fps * 8; i++) t += clock.step(2500 + i * 1000 / fps);
     return t;
   };
-  for (const fps of [2, 15, 30, 60, 120]) assert.ok(Math.abs(duration(fps) - 8) < .00001);
+  for (const fps of [10, 15, 30, 60, 120]) assert.ok(Math.abs(duration(fps) - 8) < .00001);
   const clock = createIntroFrameClock();
-  assert.equal(clock.step(4000), 0); assert.equal(clock.step(4400), .4);
+  assert.equal(clock.step(4000), 0); assert.equal(clock.step(4400), .1);
+  assert.equal(clock.step(4416), .016, "A stall is discarded rather than creating a catch-up burst");
   clock.reset(); assert.equal(clock.step(14000), 0); assert.equal(clock.step(14100), .1);
   assert.equal(clock.step(14050), 0); assert.equal(clock.step(NaN), 0);
   assert.equal(clock.step(14200), .1);
@@ -722,6 +873,81 @@ test("intro timing counts slow visible frames equally and excludes loading and h
   assert.match(scene, /clock.step\(performance.now\(\)\)/, "Shared RAF timestamps cannot defer the handoff");
   assert.ok(scene.indexOf("if (!paused && t >= T.end)") < scene.indexOf("adapt(dt)"), "Skip rendering the fully transparent final frame");
   assert.match(scene, /removeEventListener\("visibilitychange", onVisibility\)/);
+});
+
+test("mobile toolbar resizes keep the intro playing; rotation and major resizes use a fade", () => {
+  const { introLayoutChanged: changed } = loader()("lib/intro/viewport.ts");
+  for (const [w,h] of [[390,844],[768,1024],[1440,900]]) {
+    assert.equal(changed(w,h,w,h-80),false);
+    assert.equal(changed(w,h,w+1,h),false);
+    assert.equal(changed(w,h,h,w),true);
+    assert.equal(changed(w,h,w,h/2),true);
+  }
+  const scene = readFileSync(path.join(root,"components/intro/StarIntro.tsx"),"utf8");
+  assert.doesNotMatch(scene,/t = T.fadeStart/,"No resize/Escape jump to the completed logo");
+  assert.match(scene,/if \(introLayoutChanged\(vw, vh, w, h\)\) fadeToPage\(\)/);
+  assert.match(scene,/if \(!wrap \|\| !overlay \|\| exitRequested\) return/,"A late chunk cannot start an intro after timeout");
+  assert.match(scene,/clearTimeout\(exitTimer\)/);
+});
+
+test("intro loader waits for a rendered frame and first-render work stays outside playback", () => {
+  const source = readFileSync(path.join(root,"components/IntroLoader.tsx"),"utf8");
+  assert.match(source,/const READY = 1;/);
+  const scene = readFileSync(path.join(root,"components/intro/StarIntro.tsx"),"utf8");
+  const frame = scene.slice(scene.indexOf("function frame("),scene.indexOf("function onVisibility("));
+  assert.ok(frame.indexOf("composer.render()") < frame.indexOf("reportIntroProgress(1)"));
+  assert.match(frame,/firstFrameShown = true;\s*clock.reset\(\);/);
+  assert.match(frame,/playAfter = performance.now\(\) \+ \(onTime \|\| paused \? 0 : 700\)/);
+  assert.match(frame,/catch \(error\)[\s\S]*fadeToPage\(\)/,"RAF errors must not wait for a hard cut");
+});
+
+test("intro safety deadlines pause while hidden and cancel all listeners", () => {
+  const originals = new Map(["document","performance","setTimeout","clearTimeout"].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
+  const handlers = new Set(), timers = new Map();
+  let now=0, id=0, ended=0;
+  const doc={hidden:false,addEventListener:(_,fn)=>handlers.add(fn),removeEventListener:(_,fn)=>handlers.delete(fn)};
+  const values={document:doc,performance:{now:()=>now},setTimeout:(fn,delay)=>{timers.set(++id,{fn,at:now+delay});return id;},clearTimeout:key=>timers.delete(key)};
+  for(const [key,value] of Object.entries(values)) Object.defineProperty(globalThis,key,{value,writable:true,configurable:true});
+  const advance=ms=>{now+=ms;for(const [key,timer] of [...timers]) if(timer.at<=now){timers.delete(key);timer.fn();}};
+  const visibility=hidden=>{doc.hidden=hidden;[...handlers].forEach(fn=>fn());};
+  try {
+    const {visibleTimeout}=loader()("lib/intro/visible-timeout.ts");
+    const stop=visibleTimeout(()=>ended++,5000);
+    advance(1800); visibility(true); visibility(true);
+    advance(60000); assert.equal(ended,0); assert.equal(timers.size,0);
+    visibility(false); visibility(false); assert.equal(timers.size,1);
+    advance(3199); assert.equal(ended,0);
+    advance(1); assert.equal(ended,1); assert.equal(handlers.size,0);
+    stop(); stop();
+    visibility(true);
+    const cancel=visibleTimeout(()=>ended++,1000);
+    advance(20000); assert.equal(timers.size,0);
+    visibility(false); assert.equal(timers.size,1);
+    cancel(); advance(2000); assert.equal(ended,1); assert.equal(handlers.size,0);
+  } finally {for(const [key,descriptor] of originals) {if(descriptor) Object.defineProperty(globalThis,key,descriptor); else delete globalThis[key];}}
+});
+
+test("lightweight intro reveals before fading, traverses the logo width, and cancels delayed callbacks", () => {
+  const original=Object.getOwnPropertyDescriptor(globalThis,"window");
+  const win=Object.assign(new EventTarget(),{matchMedia:()=>({matches:false})});
+  Object.defineProperty(globalThis,"window",{value:win,configurable:true});
+  const effects=[],refs=[],steps=[],events=[];
+  let completion, hold, cleanup;
+  const timeline={to(target,options){steps.push({target,options});return this;},kill(){events.push("kill-timeline");}};
+  const gsap={timeline(options){completion=options.onComplete;return timeline;},delayedCall(_,fn){hold={fn,killed:false,kill(){this.killed=true;}};return hold;},to(_,options){events.push("fade");return options;},killTweensOf(){}};
+  try {
+    const {IntroFirstLight}=loader({react:{useRef:()=>{const ref={current:null};refs.push(ref);return ref;},useEffect:fn=>effects.push(fn)},gsap,"./IntroFirstLight.module.css":{}})("components/IntroFirstLight.tsx");
+    IntroFirstLight({onReveal:()=>events.push("reveal"),onDone:()=>events.push("done")});
+    refs.forEach(ref=>{ref.current={style:{},getBoundingClientRect:()=>({width:800})};});
+    cleanup=effects[0]();
+    steps[0].target.x=100; steps[0].options.onUpdate();
+    assert.match(refs[1].current.style.transform,/translateX\(800px\)/);
+    completion(); hold.fn();
+    assert.deepEqual(events.slice(0,2),["reveal","fade"]);
+    cleanup();cleanup=undefined;
+    assert.equal(hold.killed,true);
+    hold.fn();assert.equal(events.filter(e=>e==="reveal").length,1,"No callback after unmount");
+  } finally {cleanup?.();if(original) Object.defineProperty(globalThis,"window",original);else delete globalThis.window;}
 });
 
 test("compact rail opens after the intro while desktop restores the glass top navigation", () => {
@@ -830,9 +1056,7 @@ test("production tracks keep independent images, order and empty lists through m
   delete legacy.clientsSecond;
   legacy.clients = [{ name: "Studio A", logo: "/images/uploads/a.png", alt: "A" }];
   const migrated = sanitizeContent(legacy);
-  assert.deepEqual(migrated.clientsSecond, migrated.clients);
-  assert.notEqual(migrated.clientsSecond, migrated.clients);
-  assert.notEqual(migrated.clientsSecond[0], migrated.clients[0]);
+  assert.deepEqual(migrated.clientsSecond, [], "A legacy row must not copy row one's logos");
   const next = clone(migrated);
   next.clientsSecond = [{ name: "Studio B", logo: "/images/uploads/b.png" }, { name: "Studio C", logo: "/images/uploads/c.jpg" }];
   const saved = sanitizeContent(JSON.parse(JSON.stringify(next)));
@@ -853,6 +1077,205 @@ test("production tracks keep independent images, order and empty lists through m
   assert.ok(contentProblems(saved).some(p => p.path === "clientsSecond.0.name"));
   const unsafe = sanitizeContent({ ...saved, clientsSecond: [{ name: "Safe", logo: "javascript:alert(1)" }, null] });
   assert.deepEqual(unsafe.clientsSecond, [{ name: "Safe", logo: "" }]);
+});
+
+test("production logo rows use half-sized layout dimensions without shrinking the people row or editor controls", () => {
+  const css = readFileSync(path.join(root,"components/sections/Clients.module.css"),"utf8");
+  assert.match(css,/\.viewport\[data-marquee="clients"\],\s*\.viewport\[data-marquee="clientsSecond"\]\s*\{\s*--track-scale: 0\.5;/);
+  assert.match(css,/\.viewport\s*\{\s*--track-scale: 1;/);
+  assert.match(css,/--media-h: calc\(clamp\(112px, 12vw, 180px\) \* var\(--track-scale\)\)/);
+  assert.match(css,/padding-block: calc\(22px \* var\(--track-scale\)\)/);
+  assert.match(css,/height: calc\(clamp\(84px, 9vw, 132px\) \* var\(--logo-scale, 1\) \* var\(--track-scale\)\)/);
+  assert.match(css,/width: calc\(clamp\(190px, 22vw, 320px\) \* var\(--logo-scale, 1\) \* var\(--track-scale\)\)/);
+  assert.match(css,/--gap: calc\(clamp\(64px, 9vw, 130px\) \* var\(--track-scale\)\)/);
+  assert.match(css,/padding-top: 76px/,"Portal touch targets retain their full-size space");
+  assert.doesNotMatch(css,/transform:\s*scale\(0\.5\)/,"Use measurable layout sizes, not a transform that breaks marquee coverage");
+});
+
+test("people track settings enlarge both names and photos and save independently of logos", () => {
+  const read=loader();
+  const {sanitizeContent}=read("lib/content/sanitize.ts");
+  const content=sanitizeContent(json("content/site-content.json"));
+  const originalLogo=content.home.clients.logoSize;
+  const fields=read("app/portal/content-schema.ts").findSection("home","clients").section.fields;
+  const field=fields.find(f=>f.path==="home.clients.portraitSize");
+  assert.deepEqual(field.options,["small","medium","large","xlarge","xxlarge"]);
+  for(const size of field.options) {
+    content.home.clients.portraitSize=size;
+    const saved=sanitizeContent(content);
+    assert.equal(saved.home.clients.portraitSize,size);
+    assert.equal(saved.home.clients.logoSize,originalLogo);
+  }
+  content.home.clients.portraitSize="invalid";
+  assert.equal(sanitizeContent(content).home.clients.portraitSize,"large");
+  const css=readFileSync(path.join(root,"components/sections/Clients.module.css"),"utf8");
+  assert.match(css,/\[data-marquee="collaborators"\]\[data-size="xlarge"\] \{ --track-scale: 1\.5;/);
+  assert.match(css,/\[data-marquee="collaborators"\]\[data-size="xxlarge"\] \{ --track-scale: 2;/);
+  assert.match(css,/font-size: calc\(clamp\(22px, 3\.2vw, 38px\) \* var\(--track-scale\)\)/);
+  assert.match(css,/\.portrait\s*\{[^}]*width: var\(--media-h\);\s*height: var\(--media-h\);/);
+});
+
+test("production track size presets save for both rows without changing the people track", () => {
+  const read=loader(), {sanitizeContent}=read("lib/content/sanitize.ts");
+  const content=sanitizeContent(json("content/site-content.json"));
+  const peopleSize=content.home.clients.portraitSize;
+  const fields=read("app/portal/content-schema.ts").findSection("home","clients").section.fields;
+  const field=fields.find(f=>f.path==="home.clients.logoSize");
+  assert.deepEqual(field.options,["small","medium","large","xlarge","xxlarge"]);
+  assert.match(field.hint,/half-size/);
+  for(const size of field.options) {
+    content.home.clients.logoSize=size;
+    const saved=sanitizeContent(content);
+    assert.equal(saved.home.clients.logoSize,size);
+    assert.equal(saved.home.clients.portraitSize,peopleSize);
+  }
+  content.home.clients.logoSize="invalid";
+  assert.equal(sanitizeContent(content).home.clients.logoSize,"large");
+  const css=readFileSync(path.join(root,"components/sections/Clients.module.css"),"utf8").replaceAll("\r\n","\n");
+  for(const [size,scale] of [["xlarge","0.75"],["xxlarge","1"]]) {
+    assert.ok(css.includes(`.viewport[data-marquee="clients"][data-logo="${size}"],\n.viewport[data-marquee="clientsSecond"][data-logo="${size}"] { --track-scale: ${scale}; }`));
+  }
+});
+
+test("logo assignments are unique and a row transfer preserves the complete entry", () => {
+  const read = loader();
+  const { uniqueClientTracks, moveClientTrack } = read("lib/content/client-tracks.ts");
+  const { sanitizeContent } = read("lib/content/sanitize.ts");
+  const { contentProblems } = read("app/portal/validate.ts");
+  const a = { name: "A", logo: "/images/uploads/a.png", alt: "Original artwork" };
+  const b = { name: "B", logo: "/images/uploads/b.png" };
+  const c = { name: "C", logo: "/images/uploads/c.png" };
+  assert.deepEqual(uniqueClientTracks([a,b], [{ ...a, name: "Renamed A" },c]), {clients:[a,b],clientsSecond:[c]});
+  const content = sanitizeContent(json("content/site-content.json"));
+  content.clients = [a,b]; content.clientsSecond = [c];
+  const moved = moveClientTrack(content,"clients",0);
+  assert.deepEqual(moved.clients,[b]); assert.deepEqual(moved.clientsSecond,[c,a]);
+  assert.deepEqual(content.clients,[a,b], "Transfer does not mutate the original draft / Cancel snapshot");
+  assert.deepEqual(sanitizeContent(moved).clientsSecond,[c,a]);
+  const back = moveClientTrack(moved,"clientsSecond",1);
+  assert.deepEqual(back.clients,[b,a]); assert.deepEqual(back.clientsSecond,[c]);
+  content.clientsSecond = [a,c];
+  assert.ok(contentProblems(content).some(p => p.path === "clientsSecond.0.logo"));
+  assert.deepEqual(sanitizeContent(content).clientsSecond,[c], "Existing duplicate assignments are removed without removing unique row-two images");
+  content.home.clients.productionSpeed = "slow"; content.home.clients.productionSecondSpeed = "fast";
+  const saved = sanitizeContent(content);
+  assert.equal(saved.home.clients.productionSpeed,"slow"); assert.equal(saved.home.clients.productionSecondSpeed,"fast");
+});
+
+test("normal text colour and hover colour remain independent, including always-on glow", () => {
+  const fx = loader()("lib/content/text-effects.ts");
+  const options = { color: "#fff195", hoverColor: "#ffffff", glowColor: "#ffcc00", glowMode: "always" };
+  const decoded = fx.decodeEffect(fx.applyTextEffect("[[4+]]", "glow", options).slice(2,-2));
+  assert.deepEqual(decoded.options, options);
+  assert.deepEqual(fx.effectStyle(options), {"--fx-color":"#fff195", "--fx-hover-color":"#ffffff", "--fx-glow-color":"#ffcc00"});
+  const css = readFileSync(path.join(root,"components/fx/TextEffect.module.css"),"utf8");
+  assert.match(css,/\.word\s*\{[^}]*color:\s*var\(--fx-color, inherit\)/);
+  assert.match(css,/\.glow:hover, \.glow:active\s*\{\s*color:\s*var\(--fx-hover-color, var\(--fx-color, inherit\)\)/);
+  const always = css.match(/\.glow\[data-fx-trigger="always"\]\s*\{([^}]+)\}/)[1];
+  assert.match(always,/text-shadow:/);
+  assert.doesNotMatch(always,/(?:^|;)\s*color:/,"Always-on glow must not activate hover text colour at rest");
+});
+
+test("draft logo controls retain their indexes while duplicates and blank names are being corrected", () => {
+  const read = loader();
+  const { sanitizeContent } = read("lib/content/sanitize.ts");
+  const content = sanitizeContent(json("content/site-content.json"));
+  const a = { name: "A", logo: "/images/a.png" };
+  const blank = { name: "", logo: "/images/blank.png" };
+  const b = { name: "B", logo: "/images/b.png" };
+  content.clients = [a]; content.clientsSecond = [a,blank,b];
+  const preview = sanitizeContent(content, { preserveClientSlots: true });
+  const received = sanitizeContent(preview, { preserveClientSlots: true });
+  assert.deepEqual(received.clientsSecond, [a,blank,b]);
+  assert.equal(received.clientsSecond[2].name, "B", "Edit index still points to the original draft entry");
+  assert.deepEqual(sanitizeContent(content).clientsSecond, [b], "Published content never includes duplicate or blank assignments");
+  const problems = read("app/portal/validate.ts").contentProblems(content);
+  assert.ok(problems.some(p => p.path === "clientsSecond.0.logo"));
+  assert.ok(problems.some(p => p.path === "clientsSecond.1.name"));
+});
+
+test("marquee resumes after leaving the viewport, resizes, and stops cleanly", () => {
+  const effects = [], refs = [], frames = new Map(), observers = {};
+  let copies = 2, viewportWidth = 1920, itemWidth = 240.125, frameId = 0;
+  let now = performance.now();
+  const target = () => Object.assign(new EventTarget(), { style: {}, dataset: {}, getBoundingClientRect: () => ({ width: 0 }) });
+  const vp = target(), tr = target(), first = target(), doc = target(), win = target();
+  Object.defineProperty(vp, "clientWidth", { get: () => viewportWidth });
+  first.children = [{ getBoundingClientRect: () => ({ width: itemWidth }) }];
+  first.getBoundingClientRect = () => ({ width: copies * itemWidth });
+  tr.getBoundingClientRect = () => ({ width: 2 * copies * itemWidth });
+  tr.firstElementChild = first;
+  doc.documentElement = { hasAttribute: () => false, dataset: {} };
+  doc.hidden = false;
+  win.matchMedia = () => Object.assign(target(), { matches: false });
+  win.clearTimeout = clearTimeout; win.setTimeout = setTimeout;
+  const observer = key => class {
+    constructor(callback) { observers[key] = callback; }
+    observe() {}
+    disconnect() {}
+  };
+  const globals = { window: win, document: doc, ResizeObserver: observer("resize"), MutationObserver: observer("mode"), IntersectionObserver: observer("seen"),
+    requestAnimationFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelAnimationFrame: id => frames.delete(id) };
+  const previous = Object.fromEntries(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  for (const [key,value] of Object.entries(globals)) Object.defineProperty(globalThis,key,{value, configurable:true,writable:true});
+  let cleanup;
+  try {
+    const { useDragMarquee } = loader({react: {
+      useRef: value => { const ref = {current:value}; refs.push(ref); return ref; },
+      useState: () => [copies, value => { copies = value; }],
+      useEffect: fn => effects.push(fn),
+    }})("components/sections/useDragMarquee.ts");
+    const hook = useDragMarquee({pixelsPerSecond:32,reverse:false,itemCount:1});
+    hook.viewport.current = vp; hook.track.current = tr;
+    effects[0](); cleanup = effects[1](); observers.resize();
+    const advance = count => { for(let i=0;i<count;i++) { now += 16; const pending = [...frames.values()]; frames.clear(); pending.forEach(fn=>fn(now)); } };
+    advance(20);
+    const moving = tr.style.transform;
+    advance(20); assert.notEqual(tr.style.transform,moving);
+    vp.dispatchEvent(Object.assign(new Event("pointerenter"),{pointerType:"mouse"}));
+    advance(150); assert.equal(frames.size,0,"Hover deliberately pauses the row");
+    observers.seen([{isIntersecting:false}]); observers.seen([{isIntersecting:true}]);
+    const paused = tr.style.transform;
+    advance(30); assert.notEqual(tr.style.transform,paused,"Returning resumes without a stale hover pause");
+    viewportWidth = 5120; itemWidth = 180.75;
+    observers.resize(); observers.resize(); advance(20);
+    const x = Number(tr.style.transform.match(/translate3d\(([-.\d]+)px/)[1]);
+    assert.ok(x <= 0 && x + 2 * copies * itemWidth >= viewportWidth,"Resized copies cover the viewport");
+    refs[3].current = {pixelsPerSecond:48,reverse:true,itemCount:1};
+    advance(200);
+    const beforeRight = Number(tr.style.transform.match(/translate3d\(([-.\d]+)px/)[1]);
+    advance(2);
+    const afterRight = Number(tr.style.transform.match(/translate3d\(([-.\d]+)px/)[1]);
+    assert.ok(afterRight > beforeRight,"Updated direction moves right after easing");
+    doc.hidden = true; doc.dispatchEvent(new Event("visibilitychange"));
+    assert.equal(frames.size,0);
+    doc.hidden = false; doc.dispatchEvent(new Event("visibilitychange"));
+    advance(2); assert.ok(frames.size > 0);
+    cleanup(); cleanup = undefined;
+    assert.equal(frames.size,0); assert.equal(tr.style.transform,"");
+  } finally {
+    cleanup?.();
+    for (const key of Object.keys(globals)) { if(previous[key]) Object.defineProperty(globalThis,key,previous[key]); else delete globalThis[key]; }
+  }
+});
+
+test("marquee coverage and fractional wrap remain seamless over thousands of cycles", () => {
+  const { wrapMarquee, marqueeRepeats } = loader()("components/sections/marqueeMotion.ts");
+  for (const viewport of [320,768,1920,5120]) for (const sequence of [88.25,571.5,2400.125]) {
+    const copies = marqueeRepeats(viewport,sequence), half = copies * sequence;
+    assert.ok(half >= viewport);
+    for (const direction of [-1,1]) {
+      let x=0;
+      for (let i=0;i<15000;i++) {
+        const next=wrapMarquee(x+direction*37.375,half);
+        assert.ok(next <= 0 && next > -half);
+        assert.ok(next+2*half >= viewport, "Two copies always cover the full viewport");
+        const jump=(next-x-direction*37.375)/half;
+        assert.ok(Math.abs(jump-Math.round(jump))<1e-9, "Wrap changes by an exact copy, with no fractional gap");
+        x=next;
+      }
+    }
+  }
 });
 
 test("all three track directions are independently editable and survive saving", () => {
@@ -1191,7 +1614,7 @@ test("text colour and glow options stay with their own marked number through edi
   assert.equal(moved.home.stats[1].value, encoded);
   assert.deepEqual(moved.home.stats[0], neighbour);
   assert.equal(fx.applyTextEffect(encoded, "glow", {}), "[[glow|30+]]");
-  assert.deepEqual(fx.effectStyle(options), {color:"#12abcd", "--fx-glow-color":"#ef3456", "--fx-glow-opacity":"45%", "--fx-glow-radius":"18px"});
+  assert.deepEqual(fx.effectStyle(options), {"--fx-color":"#12abcd", "--fx-glow-color":"#ef3456", "--fx-glow-opacity":"45%", "--fx-glow-radius":"18px"});
   assert.equal(read("lib/content/process.ts").slugify(fx.applyTextEffect("[[My Heading]]", "glow", options)), "my-heading");
 });
 

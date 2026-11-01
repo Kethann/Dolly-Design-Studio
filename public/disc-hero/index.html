@@ -101,6 +101,14 @@ export function glassArrivalSpinMultiplier(progress) {
     const t = Math.min(1, Math.max(0, progress));
     return t < .24 ? .6 + 1.8 * glassEase(t / .24) : 1 + 1.4 * (1 - glassEase((t - .24) / .76));
 }
+// [stage aspect, centre x, centre y, radius in stage heights], calibrated with
+// the renderer's 36-degree camera and default glass tilt/roll.
+const GLASS_REFERENCE_FRAMES = [
+    [1.2, -.2774, -.2865, 1.5002],
+    [882 / 501, .0331, -.6068, 1.7031],
+    [1920 / 938, .1587, -.7229, 1.7463],
+    [2.4, .2749, -.7873, 1.7512],
+];
 /** Screen-fraction composition: full circle on arrival, oversized arc behind the copy at rest.
  * Scroll affects only feathering, so reversing the scroll never restarts the entrance. */
 export function glassCircleComposition(width, height, progress) {
@@ -108,11 +116,19 @@ export function glassCircleComposition(width, height, progress) {
     const t = Math.min(1, Math.max(0, (progress - .12) / .88));
     const eased = t * t * t * (t * (t * 6 - 15) + 10);
     const mobile = width <= 640;
-    // Settle the wide-screen arc farther right and lower, along the marked edge.
-    // Only its final position changes; the full-circle arrival and phone pose stay intact.
-    const endX = mobile ? -.35 : .17;
-    const endY = .02;
-    const endRadius = mobile ? .85 : 1.35;
+    // Fit the perspective-projected rim to the reference at the upper-right,
+    // middle-right and lower-middle of the STAGE, never to the copy's dimensions.
+    // Radius is in stage-height units: one fixed radius would crop the circle
+    // differently on a wide desktop and a narrow tablet.
+    const aspect = Math.max(1.2, Math.min(2.4, width / Math.max(1, height)));
+    const frames = GLASS_REFERENCE_FRAMES;
+    const upper = frames.findIndex(frame => frame[0] >= aspect);
+    const a = frames[Math.max(0, upper - 1)], b = frames[Math.max(0, upper)];
+    const blend = a === b ? 0 : (aspect - a[0]) / (b[0] - a[0]);
+    const fitted = (index) => a[index] + (b[index] - a[index]) * blend;
+    const endX = mobile ? -.35 : fitted(1);
+    const endY = mobile ? .02 : fitted(2);
+    const endRadius = mobile ? .85 : fitted(3);
     const startX = mobile ? .5 : .65;
     const startRadius = Math.min(.29, .38 * Math.max(1, width) / Math.max(1, height));
     return { x: startX + (endX - startX) * eased, y: .46 + (endY - .46) * eased,
@@ -474,13 +490,16 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         float bevel=exp(-pow((r-.994)/max(.0032,aa*1.5),2.));
         float inner=exp(-pow((r-.982)/max(.0024,aa*1.25),2.))*.48;
         float shoulder=exp(-pow((r-.983)/max(.015,aa*2.),2.))*.16;
+        // A fine concentric reflection reveals the pane across the left/top of
+        // the composition, like the reference. This is glass, not a centre hole.
+        float innerArc=exp(-pow((r-.62)/max(.0012,aa),2.))*.23;
         // Broad opposite reflections stay in the fixed light frame, so rotating
         // artwork never makes the glass edge pulse or sparkle independently.
         vec2 radial=vProjector/max(length(vProjector),.0001);
         float sweep=pow(abs(dot(radial,normalize(vec2(.65,.76)))),6.);
         float facing=clamp(abs(dot(normalize(vGlassNormal),normalize(vGlassView))),0.,1.);
         float fresnel=.04+.96*pow(1.-facing,5.);
-        float rim=(bevel+inner+shoulder)*(.7+.3*fresnel);
+        float rim=(bevel+inner+shoulder+innerArc)*(.7+.3*fresnel);
         vec2 p=discWindow(vProjector);
         float contact=contactReflection(p,rayField(p));
         // The smoked-black interior absorbs background light without becoming an opaque disc.
@@ -872,13 +891,13 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
     const output = new OutputPass(), antialias = new ShaderPass({ ...FXAAShader,
         uniforms: { ...FXAAShader.uniforms, arrival: { value: 0 }, entranceOpacity: { value: 0 }, scrollExit: { value: 0 }, portrait: { value: 0 }, mirror: { value: 0 } },
         fragmentShader: `uniform float arrival, entranceOpacity, scrollExit, portrait, mirror;\n${FXAAShader.fragmentShader}`.replace("gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );", `gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );
-       // Keep the upper arc visible longer. Feather only the last 8% at the top
-       // and 4% at the exposed outer side; the copy-side and lower fades stay broad.
+       // Keep the reference arcs visible across the full stage; feather just
+       // the boundary so the lower sweep does not disappear halfway down.
        // Mirror the treatment with the projector, without moving the circle or titles.
        float sideX=mix(vUv.x,1.-vUv.x,mirror);
-       float frame=smoothstep(0.,.12,sideX)*(1.-smoothstep(.96,1.,sideX))
-         *smoothstep(0.,.22,vUv.y)*(1.-smoothstep(.92,1.,vUv.y));
-       float copyFade=mix(.025,1.,smoothstep(.26,.58,sideX));
+       float frame=smoothstep(0.,.04,sideX)*(1.-smoothstep(.96,1.,sideX))
+         *smoothstep(0.,.06,vUv.y)*(1.-smoothstep(.92,1.,vUv.y));
+       float copyFade=mix(.48,1.,smoothstep(.20,.56,sideX));
        float mobileFade=mix(.03,1.,1.-smoothstep(.4,.74,vUv.y));
        float readable=mix(1.,mix(copyFade,mobileFade,portrait),arrival);
        float exitT=clamp((scrollExit*(1.15-.15*vUv.x)-.03)/.97,0.,1.);

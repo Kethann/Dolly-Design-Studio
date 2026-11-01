@@ -1,5 +1,6 @@
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "@/lib/content/limits";
 import type { SiteContent } from "@/lib/content/types";
+import { clientLogoKey } from "@/lib/content/client-tracks";
 import { CONTACT_CHOICE_LENGTH, MAX_CONTACT_BUDGETS, MAX_CONTACT_PROJECTS } from "@/lib/contact/options";
 
 /** Something that must be fixed before the creator's changes can be kept: where it is, and what to do. */
@@ -51,6 +52,15 @@ export function contentProblems(c: SiteContent): Problem[] {
   c.clientsSecond?.forEach((x, i) => {
     if (blank(x.name)) out.push({ path: `clientsSecond.${i}.name`, message: "Give this production house a name." });
   });
+  const assignedLogos = new Map<string, string>();
+  for (const list of ["clients", "clientsSecond"] as const) {
+    c[list].forEach((item, i) => {
+      if (!item.logo && blank(item.name)) return;
+      const key = clientLogoKey(item), assigned = assignedLogos.get(key);
+      if (assigned) out.push({ path: `${list}.${i}.${item.logo ? "logo" : "name"}`, message: `Already assigned to ${assigned}. Choose another image or move the existing entry to this row.` });
+      else assignedLogos.set(key, list === "clients" ? "row 1" : "row 2");
+    });
+  }
   c.collaborators.forEach((x, i) => {
     if (blank(x.name)) out.push({ path: `collaborators.${i}.name`, message: "Give this person a name." });
   });

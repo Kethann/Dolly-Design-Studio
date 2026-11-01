@@ -32,6 +32,7 @@ import { createAdaptiveQuality } from "@/lib/intro/adaptive-quality";
 import { planStream, streamPose } from "@/lib/intro/stream";
 import { T } from "@/lib/intro/timeline";
 import { createIntroFrameClock } from "@/lib/intro/frame-clock";
+import { introLayoutChanged } from "@/lib/intro/viewport";
 import {
   bezier,
   clamp01,
@@ -91,6 +92,8 @@ export interface StarIntroProps {
   startAt?: number;
   /** Hold the `startAt` frame instead of playing on (portal preview). */
   paused?: boolean;
+  /** Fade the current frame if the safety deadline is reached; never seek to a different beat. */
+  exitRequested?: boolean;
   /** Fixed seed for a repeatable star layout (portal preview); random otherwise. */
   seed?: number;
   /** Reports the playhead a few times a second (portal preview). */
@@ -99,10 +102,11 @@ export interface StarIntroProps {
   onFirstFrame?: () => void;
 }
 
-export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed, onTime, onFirstFrame }: StarIntroProps) {
+export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, exitRequested = false, seed, onTime, onFirstFrame }: StarIntroProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const vignetteRef = useRef<HTMLDivElement>(null);
+  const exitRef = useRef<(() => void) | null>(null);
   const { settings } = useIntroSettings();
   // The latest settings, read every frame, so portal changes show instantly without restarting the intro.
   const settingsRef = useRef(settings);
@@ -114,7 +118,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const wrap = wrapRef.current;
     const overlay = overlayRef.current;
     const vignette = vignetteRef.current;
-    if (!wrap || !overlay) return;
+    if (!wrap || !overlay || exitRequested) return;
 
     let renderer: THREE.WebGLRenderer;
     try {
@@ -573,7 +577,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       setFx(shiverGlint, shiverLight * 0.85, r * (1 + 2.2 * shiverLight), t * 0.8);
     }
 
-    // --- loop: driven by real elapsed time so it lasts the same on every machine ----------
+    // --- loop: normal real-time motion, with large rendering stalls bounded ----------
     let t = Math.max(0, startAt);
     let revealed = false;
     let finished = false;
@@ -581,6 +585,8 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     const clock = createIntroFrameClock();
     let lastReport = 0;
     let firstFrameShown = false;
+    let playAfter = 0;
+    let exitTimer: ReturnType<typeof setTimeout> | undefined;
     // Never below full resolution: a softer render would blur the stars as they form the logo.
     const adapt = createAdaptiveQuality(
       dpr,
@@ -622,23 +628,44 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       onDone();
     }
 
+    function fadeToPage() {
+      if (finished) return;
+      finished = true;
+      cancelAnimationFrame(raf);
+      markRevealed();
+      reportIntroProgress(1);
+      // Keep the actual last frame: seeking to fadeStart flashes a fully formed
+      // logo on rotation, Escape, or a GPU stall halfway through the formation.
+      overlay!.style.transition = "opacity 700ms ease";
+      overlay!.style.opacity = "0";
+      exitTimer = setTimeout(onDone, 750);
+    }
+    exitRef.current = fadeToPage;
+
     function frame(now: number) {
       raf = 0;
       if (finished || document.hidden) { clock.reset(); return; }
-      // Choreography is a pure function of time. Dropping slow-frame time stretches
-      // the intro on phones/tablets; count it normally, but never count a hidden tab.
-      // RAF's timestamp can already be stale after another canvas did expensive work
-      // in this batch. Read the current clock so that work cannot delay the hand-off.
+      // Let the loader dissolve before playback. First-render shader/texture work
+      // is loading, not elapsed choreography; subsequent long stalls cannot skip beats.
+      if (performance.now() < playAfter) clock.reset();
       const dt = clock.step(performance.now());
       if (!paused) t += dt;
       // At the end the overlay is fully transparent: do not spend another GPU frame
       // drawing it before unmounting (especially costly on mobile and software GPUs).
       if (!paused && t >= T.end) { onTime?.(t); return finish(); }
-      adapt(dt);
-      update(t);
-      composer.render();
+      try {
+        adapt(dt);
+        update(t);
+        composer.render();
+      } catch (error) {
+        console.warn("[intro] rendering failed, fading to page", error);
+        fadeToPage();
+        return;
+      }
       if (!firstFrameShown) {
         firstFrameShown = true;
+        clock.reset();
+        playAfter = performance.now() + (onTime || paused ? 0 : 700);
         reportIntroProgress(1); // on screen: the loader fades away as the stars come in
         onFirstFrame?.();
       }
@@ -654,18 +681,6 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
       if (t >= T.end) return finish();
       raf = requestAnimationFrame(frame);
     }
-    // Compile every shader up front — including the big star, glints and glass that only appear later —
-    // so nothing stutters mid-show while the GPU builds a program.
-    reportIntroProgress(0.75); // the scene is built
-    const appearLater = [bigStar, glass.mesh, ...fxSprites].filter((o) => !o.visible);
-    appearLater.forEach((o) => (o.visible = true));
-    renderer.compile(scene, camera);
-    renderer.compile(front, camera);
-    appearLater.forEach((o) => (o.visible = false));
-    reportIntroProgress(0.92); // shaders compiled
-    clock.reset(); // compilation is loading time, not part of the eight-second choreography
-    raf = requestAnimationFrame(frame);
-
     function onVisibility() {
       clock.reset();
       if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
@@ -699,7 +714,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     }
     const SCROLL_KEYS = new Set(["ArrowDown", "PageDown", "End", " ", "Spacebar"]);
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && t < T.fadeStart) t = T.fadeStart;
+      if (e.key === "Escape") fadeToPage();
       else if (SCROLL_KEYS.has(e.key)) playOnInPage();
     }
     function onWheel(e: WheelEvent) {
@@ -712,22 +727,18 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     function onTouchMove(e: TouchEvent) {
       if (touchY - (e.touches[0]?.clientY ?? touchY) > 24) playOnInPage(); // a swipe up = scrolling down
     }
-    // The on-screen layout is baked in at the start; if the window changes size, hand off cleanly.
+    // Mobile browser toolbars generate resize events too. Do not seek, rebuild
+    // buffers, or interrupt the show for those small height-only changes.
     function onResize() {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      renderer.setSize(w, h, false);
-      composer.setSize(w, h);
-      backdrop.setAspect(w / h);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
       if (detached) overlay!.style.height = `${h}px`;
-      if (t < T.fadeStart) t = T.fadeStart;
+      if (introLayoutChanged(vw, vh, w, h)) fadeToPage();
     }
     // If the GPU drops the context mid-show, go straight to the page rather than freezing.
     function onContextLost(e: Event) {
       e.preventDefault();
-      finish();
+      fadeToPage();
     }
 
     lockScroll();
@@ -739,7 +750,28 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     document.addEventListener("visibilitychange", onVisibility);
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
 
+    // Compile later-visible objects too; the first composer render warms its
+    // post-processing passes while the loader remains in place.
+    reportIntroProgress(0.75);
+    const appearLater = [bigStar, glass.mesh, ...fxSprites].filter((o) => !o.visible);
+    try {
+      appearLater.forEach((o) => (o.visible = true));
+      renderer.compile(scene, camera);
+      renderer.compile(front, camera);
+      reportIntroProgress(0.92);
+      clock.reset();
+      raf = requestAnimationFrame(frame);
+    } catch (error) {
+      console.warn("[intro] shader preparation failed, fading to page", error);
+      fadeToPage();
+    } finally {
+      appearLater.forEach((o) => (o.visible = false));
+    }
+
     return () => {
+      finished = true;
+      exitRef.current = null;
+      clearTimeout(exitTimer);
       cancelAnimationFrame(raf);
       if (scrollLocked) unlockScroll();
       window.removeEventListener("keydown", onKey);
@@ -774,6 +806,10 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, seed,
     // Runs once per mount; the preview remounts it (new key) to apply new settings or a new start time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (exitRequested) exitRef.current?.();
+  }, [exitRequested]);
 
   return (
     <div ref={overlayRef} className={styles.overlay} data-intro-scene aria-hidden="true">

@@ -88,6 +88,15 @@ export function glassArrivalSpinMultiplier(progress: number) {
   return t < .24 ? .6 + 1.8 * glassEase(t / .24) : 1 + 1.4 * (1 - glassEase((t - .24) / .76));
 }
 
+// [stage aspect, centre x, centre y, radius in stage heights], calibrated with
+// the renderer's 36-degree camera and default glass tilt/roll.
+const GLASS_REFERENCE_FRAMES = [
+  [1.2, -.2774, -.2865, 1.5002],
+  [882 / 501, .0331, -.6068, 1.7031],
+  [1920 / 938, .1587, -.7229, 1.7463],
+  [2.4, .2749, -.7873, 1.7512],
+] as const;
+
 /** Screen-fraction composition: full circle on arrival, oversized arc behind the copy at rest.
  * Scroll affects only feathering, so reversing the scroll never restarts the entrance. */
 export function glassCircleComposition(width: number, height: number, progress: number) {
@@ -95,13 +104,19 @@ export function glassCircleComposition(width: number, height: number, progress: 
   const t = Math.min(1, Math.max(0, (progress - .12) / .88));
   const eased = t * t * t * (t * (t * 6 - 15) + 10);
   const mobile = width <= 640;
-  // Keep the approved disc scale, but move its resting rim beneath the copy
-  // before it rises through the far-right edge. This gives the pane the broad,
-  // lower sweeping curve of the reference rather than a tight arc at right.
-  // The arrival and phone framing stay unchanged.
-  const endX = mobile ? -.35 : -.26;
-  const endY = mobile ? .02 : -.28;
-  const endRadius = mobile ? .85 : 1.35;
+  // Fit the perspective-projected rim to the reference at the upper-right,
+  // middle-right and lower-middle of the STAGE, never to the copy's dimensions.
+  // Radius is in stage-height units: one fixed radius would crop the circle
+  // differently on a wide desktop and a narrow tablet.
+  const aspect = Math.max(1.2, Math.min(2.4, width / Math.max(1, height)));
+  const frames = GLASS_REFERENCE_FRAMES;
+  const upper = frames.findIndex(frame => frame[0] >= aspect);
+  const a = frames[Math.max(0, upper - 1)], b = frames[Math.max(0, upper)];
+  const blend = a === b ? 0 : (aspect - a[0]) / (b[0] - a[0]);
+  const fitted = (index: 1 | 2 | 3) => a[index] + (b[index] - a[index]) * blend;
+  const endX = mobile ? -.35 : fitted(1);
+  const endY = mobile ? .02 : fitted(2);
+  const endRadius = mobile ? .85 : fitted(3);
   const startX = mobile ? .5 : .65;
   const startRadius = Math.min(.29, .38 * Math.max(1, width) / Math.max(1, height));
   return { x: startX + (endX - startX) * eased, y: .46 + (endY - .46) * eased,

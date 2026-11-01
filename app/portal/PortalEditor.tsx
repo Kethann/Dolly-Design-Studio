@@ -31,6 +31,7 @@ import { postFile, prepareImage } from "./upload";
 import { Dock, MenuBar, type DockGroup, type MenuDef } from "./mac";
 import { PageBar } from "./PageBar";
 import { EditModal, ItemEditor, ItemTools, SectionEditor, sectionPaths } from "./EditModal";
+import { PanelWindow } from "./PanelWindow";
 import type { PreviewRoute } from "./PageBar";
 import { extraOf } from "@/lib/content/process";
 import { MAX_BREAKDOWNS } from "@/lib/content/limits";
@@ -313,7 +314,7 @@ export function PortalEditor({
   // Content (text, lists, projects, images, fonts) is saved separately from the design settings.
   const [contentSaved, setContentSaved] = useState(initialContent);
   const [contentDraft, setContentDraft] = useState(initialContent);
-  const previewContent = useMemo(() => sanitizeContent(contentDraft), [contentDraft]);
+  const previewContent = useMemo(() => sanitizeContent(contentDraft, { preserveClientSlots: true }), [contentDraft]);
   const [images, setImages] = useState<string[]>([]);
   const [removable, setRemovable] = useState<string[]>([]);
   const [libraryAttempt, setLibraryAttempt] = useState(0);
@@ -2265,22 +2266,11 @@ export function PortalEditor({
 
         {/* The sheet: stars, colours, fonts, account… shown over the bottom of the preview, so what changes stays in view. */}
         {sheetOpen && !modal && (
-          <section className={edit.sheet} aria-labelledby="sheet-title">
-            <header className={edit.head}>
-              <div className={edit.headText}>
-                <h2 id="sheet-title" className={edit.title}>
-                  {WINDOWS[tab].title}
-                </h2>
-                {tab !== "playback" && tab !== "account" && tab !== "activity" && tab !== "inbox" && <p className={edit.hint}>{WINDOWS[tab].hint}</p>}
-              </div>
-              <button type="button" className={edit.close} aria-label="Close" onClick={() => setSheetOpen(false)}>
-                ×
-              </button>
-            </header>
-            <div className={edit.sheetBody} key={tab}>
-              {renderPanel(tab)}
-            </div>
-          </section>
+          <PanelWindow key={tab} title={WINDOWS[tab].title}
+            hint={tab !== "playback" && tab !== "account" && tab !== "activity" && tab !== "inbox" ? WINDOWS[tab].hint : undefined}
+            onClose={() => setSheetOpen(false)}>
+            {renderPanel(tab)}
+          </PanelWindow>
         )}
 
         {modalEl}

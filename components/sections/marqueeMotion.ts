@@ -1,3 +1,13 @@
+/** Keep the rendered origin inside one measured copy, even after a long drag. */
+export function wrapMarquee(x: number, width: number) {
+  return width > 0 ? -(((-x % width) + width) % width) : 0;
+}
+
+/** Each identical copy must cover the viewport before it is safe to wrap. */
+export function marqueeRepeats(viewport: number, sequence: number) {
+  return sequence > 0 ? Math.max(2, Math.ceil(viewport / sequence) + 1) : 2;
+}
+
 /** Recent pointer samples, bounded independently of pointer-event frequency. */
 export function createMarqueeVelocity() {
   const samples: { x: number; time: number }[] = [];

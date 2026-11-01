@@ -20,7 +20,7 @@ export function defaultContent(): SiteContent {
     home: { ...home, contact: { ...home.contact, form: { ...home.contact.form, projectOptions: contactProjects(home.contact.form) } } },
     services,
     clients,
-    clientsSecond: clients,
+    clientsSecond: [],
     collaborators,
     testimonials,
     projects,

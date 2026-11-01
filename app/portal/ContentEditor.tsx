@@ -6,6 +6,7 @@ import { TextEffectSettings } from "./TextEffectSettings";
 import { VideoField, type VideoValue } from "./VideoField";
 import { createPortal } from "react-dom";
 import { resizedSrc } from "@/lib/images";
+import { isClientTrack, moveClientTrack } from "@/lib/content/client-tracks";
 import { editableFx, selectedEffect, selectedEffectOptions, applyTextEffect, markEffectWords, plainFx, type TextEffect, type TextEffectOptions } from "@/lib/content/text-effects";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { allFonts } from "@/lib/content/fonts";
@@ -969,6 +970,12 @@ function ListField({ field, path }: { field: Extract<Field, { kind: "list" }>; p
                   </span>
                 )}
               </div>
+              {isClientTrack(path) && <div className={styles.cardBody}>
+                <button type="button" className={styles.link} onClick={() => {
+                  update(c => moveClientTrack(c, path, i));
+                  setOpenIndex(null);
+                }}>Move to row {path === "clients" ? "2" : "1"}</button>
+              </div>}
               {open && !compact && (
                 <div className={styles.cardBody}>
                   {field.fields.map((f) => (
@@ -1066,6 +1073,7 @@ function FieldInner({ field, base = "" }: { field: Field; base?: string }) {
               </option>
             ))}
           </select>
+          {field.hint && <span className={styles.hint}>{field.hint}</span>}
         </label>
       );
     }

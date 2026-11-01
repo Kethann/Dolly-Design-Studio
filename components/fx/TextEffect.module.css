@@ -1,5 +1,6 @@
-.word { display: inline; }
-.glow { --fx-glow-paint: color-mix(in srgb, var(--fx-glow-color, currentColor) var(--fx-glow-opacity, 100%), transparent); transition: text-shadow 180ms ease; }
+.word { display: inline; color: var(--fx-color, inherit); }
+.glow { --fx-glow-paint: color-mix(in srgb, var(--fx-glow-color, currentColor) var(--fx-glow-opacity, 100%), transparent); transition: color 180ms ease, text-shadow 180ms ease; }
+.glow:hover, .glow:active { color: var(--fx-hover-color, var(--fx-color, inherit)); }
 .glow:hover, .glow:active, .glow[data-fx-trigger="always"] {
   text-shadow: 0 0 calc(var(--fx-glow-radius, 12px) * .4167) var(--fx-glow-paint), 0 0 var(--fx-glow-radius, 12px) var(--fx-glow-paint);
 }

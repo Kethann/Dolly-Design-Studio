@@ -1,5 +1,5 @@
 /**
- * The intro's beats, in seconds of real (wall-clock) time. Every visual is a
+ * The intro's beats, in playback seconds (long stalls and hidden time are excluded). Every visual is a
  * pure function of `t`, so the whole show stays in sync, Esc can simply jump
  * `t` forward to the hand-off, and the portal preview can hold any frame.
  */

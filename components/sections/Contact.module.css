@@ -191,6 +191,12 @@
   gap: 16px;
 }
 
+.formNote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ivory);
+}
+
 @media (min-width: 560px) {
   .row2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -224,6 +230,16 @@
   font-family: var(--font-body);
   font-size: 14px;
   border-radius: 4px;
+}
+
+.field select:has(option[value=""]:checked),
+.field select option:disabled {
+  color: #aaa;
+}
+
+.field select option:not(:disabled) {
+  color: var(--ivory);
+  background: var(--velvet);
 }
 
 .field select:disabled {

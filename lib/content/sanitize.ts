@@ -1,5 +1,6 @@
 import { CATEGORIES, LANGUAGES, LEGACY_CATEGORIES } from "@/content/types";
 import { contactProjects } from "@/lib/contact/options";
+import { uniqueClientTracks } from "./client-tracks";
 import { CARD_LINK_BY_ICON, CARD_LINK_VALUES, CARD_OPENS_OWN_PAGE } from "./card-links";
 import { cleanExtra } from "./process";
 import { ZOOM_MAX, ZOOM_MIN, cleanAdjust } from "./adjust";
@@ -77,7 +78,7 @@ const str = (v: unknown, fallback = "") => (typeof v === "string" ? v : fallback
 const strs = (v: unknown) => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && !!s.trim()) : []);
 
 /** The creator's content, made safe: defaults for anything missing, bounded sizes, valid projects and styles. */
-export function sanitizeContent(input: unknown): SiteContent {
+export function sanitizeContent(input: unknown, options: { preserveClientSlots?: boolean } = {}): SiteContent {
   const def = defaultContent();
   const merged = merge(def, input) as SiteContent;
   const src = isObj(input) ? input : {};
@@ -188,12 +189,15 @@ export function sanitizeContent(input: unknown): SiteContent {
     const name = str(raw.name).trim();
     const logo = str(raw.logo);
     const alt = str(raw.alt).trim().slice(0, 200);
-    return name ? [{ name, logo: logo.startsWith("/images/") ? logo : "", ...(alt ? { alt } : {}) }] : [];
+    return name || options.preserveClientSlots ? [{ name, logo: logo.startsWith("/images/") ? logo : "", ...(alt ? { alt } : {}) }] : [];
   });
   merged.clients = cleanClients(merged.clients);
-  // Older documents repeated track 1. Copy once on migration; an explicit empty
-  // second list stays empty, and neither track shares mutable entry objects.
-  merged.clientsSecond = cleanClients(Object.hasOwn(src, "clientsSecond") ? merged.clientsSecond : merged.clients);
+  // A missing row two starts empty. Remove only duplicate assignments, retaining
+  // every unique logo in its saved row and keeping the original media files.
+  merged.clientsSecond = cleanClients(Object.hasOwn(src, "clientsSecond") ? merged.clientsSecond : []);
+  // Draft previews must keep source indexes: an invalid/duplicate slot still has
+  // an Edit button, and validation prevents publishing it. Public content is unique.
+  if (!options.preserveClientSlots) Object.assign(merged, uniqueClientTracks(merged.clients, merged.clientsSecond));
   merged.collaborators = (merged.collaborators as unknown[]).flatMap((raw) => {
     if (typeof raw === "string") return raw.trim() ? [{ name: raw.trim(), photo: "" }] : [];
     if (!isObj(raw)) return [];
@@ -314,11 +318,13 @@ export function sanitizeContent(input: unknown): SiteContent {
   f.photoX = num(f.photoX, 0, 100, 50);
   f.photoY = num(f.photoY, 0, 100, 50);
   merged.home.clients.portraitShape = oneOf(merged.home.clients.portraitShape, SHAPES, "round");
-  merged.home.clients.portraitSize = oneOf(merged.home.clients.portraitSize, SIZES, "large");
-  merged.home.clients.logoSize = oneOf(merged.home.clients.logoSize, SIZES, "large");
+  merged.home.clients.portraitSize = oneOf(merged.home.clients.portraitSize, [...SIZES, "xlarge", "xxlarge"], "large");
+  merged.home.clients.logoSize = oneOf(merged.home.clients.logoSize, [...SIZES, "xlarge", "xxlarge"], "large");
   const DIRECTIONS = ["left", "right"] as const;
   merged.home.clients.productionDirection = oneOf(merged.home.clients.productionDirection, DIRECTIONS, "left");
   merged.home.clients.productionSecondDirection = oneOf(merged.home.clients.productionSecondDirection, DIRECTIONS, "right");
+  merged.home.clients.productionSpeed = oneOf(merged.home.clients.productionSpeed, ["slow", "normal", "fast"], "normal");
+  merged.home.clients.productionSecondSpeed = oneOf(merged.home.clients.productionSecondSpeed, ["slow", "normal", "fast"], "normal");
   merged.home.clients.filmmakersDirection = oneOf(merged.home.clients.filmmakersDirection, DIRECTIONS, "left");
   if (merged.home.founder.photo && !merged.home.founder.photo.startsWith("/images/")) merged.home.founder.photo = "";
 

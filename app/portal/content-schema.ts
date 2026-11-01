@@ -15,7 +15,7 @@ export type Field =
   | { kind: "text" | "area"; path: string; label: string; style?: boolean; hint?: string; /** Offer the particle effect: words in [[double brackets]] (the page must show this text with renderFx). */ fx?: boolean }
   | { kind: "number"; path: string; label: string; min: number; max: number }
   | { kind: "bool"; path: string; label: string }
-  | { kind: "select"; path: string; label: string; options: readonly string[]; /** Take the choices from a list in the content instead (e.g. "categories"). */ optionsFrom?: string }
+  | { kind: "select"; path: string; label: string; hint?: string; options: readonly string[]; /** Take the choices from a list in the content instead (e.g. "categories"). */ optionsFrom?: string }
   /** The project types: add, rename, reorder and remove them (projects follow a rename). */
   | { kind: "categories"; path: string; label: string }
   | { kind: "checks"; path: string; label: string; options: readonly string[] }
@@ -166,11 +166,9 @@ const home: SchemaPage = {
         { kind: "text", path: "home.clients.title", label: "Heading", style: true },
         { kind: "text", path: "home.clients.rowLabels.clients", label: "Production houses caption" },
         { kind: "text", path: "home.clients.rowLabels.collaborators", label: "Filmmakers & actors caption" },
-        { kind: "select", path: "home.clients.productionDirection", label: "Production track 1 — automatic direction", options: ["left", "right"] },
-        { kind: "select", path: "home.clients.productionSecondDirection", label: "Production track 2 — automatic direction", options: ["left", "right"] },
         { kind: "select", path: "home.clients.filmmakersDirection", label: "Filmmakers & actors — automatic direction", options: ["left", "right"] },
-        { kind: "select", path: "home.clients.logoSize", label: "Logo size (small, medium or large)", options: ["small", "medium", "large"] },
-        { kind: "select", path: "home.clients.portraitSize", label: "Portrait size (small, medium or large)", options: ["small", "medium", "large"] },
+        { kind: "select", path: "home.clients.logoSize", label: "Production logos — track size (both rows)", hint: "Large keeps the current half-size layout; xlarge is 150% and xxlarge is 200% of that size. Enlarges the logos, row height and spacing together. Does not change filmmakers & actors.", options: ["small", "medium", "large", "xlarge", "xxlarge"] },
+        { kind: "select", path: "home.clients.portraitSize", label: "Filmmakers & actors — track size", hint: "Changes names, photos and spacing together. Large keeps the current size; xlarge is 150%, xxlarge is 200%. Does not change the logo rows.", options: ["small", "medium", "large", "xlarge", "xxlarge"] },
         { kind: "select", path: "home.clients.portraitShape", label: "Portrait shape (round, rounded or square)", options: ["round", "rounded", "square"] },
         {
           kind: "list",
@@ -181,9 +179,11 @@ const home: SchemaPage = {
           blank: () => ({ name: "New client", logo: "" }),
           fields: [
             { kind: "text", path: "name", label: "Name" },
-            { kind: "image", path: "logo", label: "Logo", hint: "Choose a logo for track 1. A transparent PNG works best.", alt: "alt" },
+            { kind: "image", path: "logo", label: "Logo or image", hint: "Only shown in row 1. Choose an image, or use Move to row 2 to transfer this entry.", alt: "alt" },
           ],
         },
+        { kind: "select", path: "home.clients.productionDirection", label: "Row 1 — scroll direction", options: ["left", "right"] },
+        { kind: "select", path: "home.clients.productionSpeed", label: "Row 1 — scroll speed", options: ["slow", "normal", "fast"] },
         {
           kind: "list",
           path: "clientsSecond",
@@ -193,9 +193,11 @@ const home: SchemaPage = {
           blank: () => ({ name: "New production house", logo: "" }),
           fields: [
             { kind: "text", path: "name", label: "Name" },
-            { kind: "image", path: "logo", label: "Logo", hint: "Choose a logo for track 2. Changes here do not affect track 1.", alt: "alt" },
+            { kind: "image", path: "logo", label: "Logo or image", hint: "Only shown in row 2. Each image belongs to one row. Use Move to row 1 to transfer this entry.", alt: "alt" },
           ],
         },
+        { kind: "select", path: "home.clients.productionSecondDirection", label: "Row 2 — scroll direction", options: ["left", "right"] },
+        { kind: "select", path: "home.clients.productionSecondSpeed", label: "Row 2 — scroll speed", options: ["slow", "normal", "fast"] },
         {
           kind: "list",
           path: "collaborators",

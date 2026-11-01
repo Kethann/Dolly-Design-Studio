@@ -176,6 +176,7 @@ export function Contact() {
           </div>
 
           <form className={styles.form} onSubmit={onSubmit} onBlur={onLeave} noValidate>
+            <p className={styles.formNote}>All fields are required.</p>
             <div className={styles.row2}>
               <div className={styles.field}>
                 <label htmlFor="name">{form.nameLabel}</label>
@@ -197,7 +198,8 @@ export function Contact() {
 
             <div className={styles.field}>
               <label htmlFor="company">{form.companyLabel}</label>
-              <input id="company" name="company" type="text" autoComplete="organization" />
+              <input id="company" name="company" type="text" required autoComplete="organization" maxLength={CONTACT_LIMITS.companyMax} {...bad("company")} />
+              {err("company")}
             </div>
 
             <div className={styles.row2}>
@@ -220,11 +222,11 @@ export function Contact() {
               </div>
               <div className={styles.field}>
                 <label htmlFor="budget">{form.budgetLabel}</label>
-                <select id="budget" name="budget" value={budget} disabled={!projectType} {...bad("budget")} onChange={(e) => {
+                <select id="budget" name="budget" required value={budget} disabled={!projectType} {...bad("budget")} onChange={(e) => {
                   setSelection({ projectType, budget: e.target.value });
                   setFieldErrors((previous) => ({ ...previous, budget: undefined }));
                 }}>
-                  <option value="">
+                  <option value="" disabled>
                     {projectType ? form.selectPlaceholder : "Choose a project type first"}
                   </option>
                   {budgets.map((b) => (
@@ -239,7 +241,7 @@ export function Contact() {
 
             <div className={styles.field}>
               <label htmlFor="timeline">{form.timelineLabel}</label>
-              <select id="timeline" name="timeline" defaultValue="">
+              <select id="timeline" name="timeline" required defaultValue="" {...bad("timeline")}>
                 <option value="" disabled>
                   {form.selectPlaceholder}
                 </option>
@@ -249,6 +251,7 @@ export function Contact() {
                   </option>
                 ))}
               </select>
+              {err("timeline")}
             </div>
 
             <div className={styles.field}>

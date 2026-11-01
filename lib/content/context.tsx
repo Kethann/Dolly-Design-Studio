@@ -25,7 +25,7 @@ export function ContentProvider({ initial, children }: { initial: SiteContent; c
     function onMessage(e: MessageEvent) {
       if (e.origin !== window.location.origin || e.source !== window.parent) return;
       const msg = e.data as PortalToSite;
-      if (msg?.source === "dds-portal" && msg.type === "content") setContent(sanitizeContent(msg.content));
+      if (msg?.source === "dds-portal" && msg.type === "content") setContent(sanitizeContent(msg.content, { preserveClientSlots: true }));
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);

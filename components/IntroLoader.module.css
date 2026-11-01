@@ -32,7 +32,7 @@
 @keyframes loader-out {
   from {
     opacity: var(--loader-from, 1);
-    transform: scale(1);
+    transform: var(--loader-transform, scale(1));
   }
   60% {
     opacity: calc(var(--loader-from, 1) * 0.35);

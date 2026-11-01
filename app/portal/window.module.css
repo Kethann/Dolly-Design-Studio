@@ -1,0 +1,51 @@
+.window { min-width: 0; }
+.window > footer { padding-inline-end: 32px; } /* Leave the resize grip clear of Save/Cancel. */
+.window[data-window-custom] {
+  position: fixed;
+  bottom: auto;
+  right: auto;
+  max-width: none;
+  max-height: none;
+  translate: none;
+  transform: none;
+  animation: none;
+  z-index: 10030;
+}
+.window[data-window-fullscreen] { border-radius: 0; }
+.titlebar { cursor: grab; touch-action: none; user-select: none; }
+.titlebar > :first-child { flex: 1 1 140px; min-width: 0; }
+.titlebar:focus-visible { outline: 2px solid #ffe9a6; outline-offset: -4px; }
+.window[data-window-dragging] .titlebar { cursor: grabbing; }
+.window[data-window-fullscreen] .titlebar { cursor: default; }
+.actions { display: flex; flex: none; gap: 5px; }
+.actions button {
+  display: grid; place-items: center;
+  width: 32px; height: 32px;
+  border: 1px solid var(--p-line-strong); border-radius: 50%;
+  background: rgba(255,255,255,.05); color: var(--p-muted);
+  cursor: pointer; font-size: 20px; line-height: 1;
+}
+.actions button:hover { color: var(--p-text); background: rgba(255,255,255,.12); }
+.actions button:focus-visible, .handle:focus-visible { outline: 2px solid #ffe9a6; outline-offset: -2px; }
+.handle {
+  position: absolute; z-index: 5; padding: 0; margin: 0;
+  border: 0; border-radius: 0; background: transparent;
+  touch-action: none;
+}
+.handle[data-window-resize="n"] { top: 0; left: 20px; right: 20px; height: 6px; cursor: ns-resize; }
+.handle[data-window-resize="s"] { bottom: 0; left: 20px; right: 20px; height: 6px; cursor: ns-resize; }
+.handle[data-window-resize="e"] { right: 0; top: 20px; bottom: 20px; width: 6px; cursor: ew-resize; }
+.handle[data-window-resize="w"] { left: 0; top: 20px; bottom: 20px; width: 6px; cursor: ew-resize; }
+.handle[data-window-resize="nw"] { top: 0; left: 0; width: 18px; height: 18px; cursor: nwse-resize; }
+.handle[data-window-resize="ne"] { top: 0; right: 0; width: 18px; height: 18px; cursor: nesw-resize; }
+.handle[data-window-resize="sw"] { bottom: 0; left: 0; width: 18px; height: 18px; cursor: nesw-resize; }
+.handle[data-window-resize="se"] { bottom: 0; right: 0; width: 22px; height: 22px; cursor: nwse-resize; }
+.handle[data-window-resize="se"]::after {
+  content: ""; position: absolute; right: 5px; bottom: 5px; width: 9px; height: 9px;
+  border-right: 2px solid var(--p-muted); border-bottom: 2px solid var(--p-muted); border-radius: 0 0 3px;
+}
+.window[data-window-fullscreen] > .handle { display: none; }
+@media (pointer: coarse) {
+  .actions button { width: 44px; height: 44px; }
+  .handle[data-window-resize="se"] { width: 32px; height: 32px; }
+}

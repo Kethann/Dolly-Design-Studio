@@ -7,6 +7,7 @@ import { settleHandoff } from "@/lib/intro/handoff";
 import type { PreviewRun } from "@/lib/intro/preview-protocol";
 import { IntroFirstLight } from "./IntroFirstLight";
 import { introProgress, reportIntroProgress } from "@/lib/intro/loading";
+import { visibleTimeout } from "@/lib/intro/visible-timeout";
 
 // three.js only loads for visitors who actually get the 3D intro…
 const loadStarIntro = () =>
@@ -22,7 +23,7 @@ if (
   window.location.pathname === "/" &&
   window.location.hash.length <= 1 &&
   !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
-  (!window.matchMedia("(pointer: coarse)").matches || canRun3D()) // cheap eligibility check; do not create a GPU context during hydration
+  canRun3D() // cheap eligibility check; do not create a GPU context during hydration
 ) {
   void loadStarIntro().catch(() => {}); // the mounted dynamic component/error boundary handles load failure
 }
@@ -97,6 +98,7 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
   const { settings, preview, run } = useIntroSettings();
   const [mode, setMode] = useState<Mode>("deciding");
   const [shown, setShown] = useState<PreviewRun[]>([]);
+  const [exiting, setExiting] = useState(false);
 
   /** Show the page without (or after) the 3D intro; the hero's star field then lays out its own stars. */
   function skip() {
@@ -130,9 +132,8 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
     // Read media queries directly: child effects run before MotionProvider's,
     // so the context values aren't populated yet at this point.
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const isTouch = window.matchMedia("(pointer: coarse)").matches;
-    // Desktops with WebGL, and phones and tablets that can run it smoothly, all get the same 3D intro.
-    const next = !reducedMotion && (!isTouch || canRun3D()) && supportsWebGL() ? "stars" : "fallback";
+    // Apply the same hardware/data-saver checks to laptops, phones and tablets.
+    const next = !reducedMotion && canRun3D() && supportsWebGL() ? "stars" : "fallback";
     if (next === "fallback") reportIntroProgress(1); // the light version needs no loading
     setMode(next);
     // Decide once on mount; onReveal is a stable setter from the parent.
@@ -148,6 +149,7 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
       return;
     }
     setMode(supportsWebGL() ? "stars" : "fallback");
+    setExiting(false);
     // (Effects can run twice in development: never add the same run twice.)
     setShown((runs) => (runs.some((r) => r.key === run.key) ? runs : [...runs, run]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -156,13 +158,25 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
   // Safety nets: whatever happens (slow chunk load, GPU trouble), the page appears: after 5s if the show has not started, and after 14s at the latest. Not for held preview frames.
   useEffect(() => {
     if ((mode !== "stars" && mode !== "fallback") || run?.paused) return;
-    const slowLoad = setTimeout(() => {
-      if (introProgress() < 1) skip(); // still loading after 5s: show the page now
+    let exitTimer: ReturnType<typeof setTimeout> | undefined;
+    const endGracefully = () => {
+      if (exitTimer !== undefined) return;
+      setExiting(true);
+      if (introProgress() < 1) settleHandoff();
+      reportIntroProgress(1);
+      onReveal();
+      // A mounted scene fades its current frame. If the chunk never arrived,
+      // the persistent curtain still fades into the page, with no late intro.
+      exitTimer = setTimeout(skip, 800);
+    };
+    const slowLoad = visibleTimeout(() => {
+      if (introProgress() < 1) endGracefully();
     }, LOAD_FAILSAFE_MS);
-    const hardStop = setTimeout(skip, FAILSAFE_MS);
+    const hardStop = visibleTimeout(endGracefully, FAILSAFE_MS);
     return () => {
-      clearTimeout(slowLoad);
-      clearTimeout(hardStop);
+      slowLoad();
+      hardStop();
+      clearTimeout(exitTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, run]);
@@ -179,6 +193,7 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
               onDone={r.key === latest ? skip : noop}
               startAt={r.at}
               paused={r.paused}
+              exitRequested={exiting && r.key === latest}
               seed={r.seed}
               onTime={r.key === latest ? reportTime : undefined}
               onFirstFrame={() => setShown((runs) => runs.filter((x) => x.key >= r.key))}
@@ -197,6 +212,7 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
           onDone={skip}
           startAt={run?.at}
           paused={run?.paused}
+          exitRequested={exiting}
           seed={run?.seed}
           onTime={preview ? reportTime : undefined}
         />
@@ -205,7 +221,7 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
   if (mode === "fallback")
     return (
       <IntroErrorBoundary onError={skip}>
-        <IntroFirstLight onDone={skip} />
+        <IntroFirstLight onReveal={() => { settleHandoff(); onReveal(); }} onDone={skip} exitRequested={exiting} />
       </IntroErrorBoundary>
     );
   return null;

@@ -8,7 +8,7 @@ import { adjustStyle } from "@/lib/content/adjust";
 import styles from "./Clients.module.css";
 import { renderFx } from "@/components/fx/render-fx";
 import { resizedSrc, srcSetFor } from "@/lib/images";
-import { AddContent } from "@/components/PreviewControls";
+import { AddContent, EditSectionContent } from "@/components/PreviewControls";
 
 interface Item {
   name: string;
@@ -20,14 +20,12 @@ interface Item {
   alt?: string;
 }
 
-/** The items repeated so one copy is always wider than a screen. */
-const fill = (items: Item[]) => items.length ? Array.from({ length: Math.max(2, Math.ceil(14 / items.length)) }, () => items).flat() : [];
+type RowProps = { items: Item[]; label: string; reverse?: boolean; speed?: string; shape?: string; size?: string; logoSize?: string; list: string };
 
-type RowProps = { items: Item[]; label: string; reverse?: boolean; shape?: string; size?: string; logoSize?: string; list: string };
-
-function MarqueeTrack({ items, label, reverse, shape, size, logoSize, list, secondary = false }: RowProps & { secondary?: boolean }) {
-  const fillItems = fill(items);
-  const { viewport, track } = useDragMarquee({ seconds: list === "collaborators" ? 140 : 120, reverse });
+function MarqueeTrack({ items, label, reverse, speed, shape, size, logoSize, list, secondary = false }: RowProps & { secondary?: boolean }) {
+  const pixelsPerSecond = speed === "slow" ? 18 : speed === "fast" ? 48 : list === "collaborators" ? 24 : 32;
+  const { viewport, track, repeats } = useDragMarquee({ pixelsPerSecond, reverse, itemCount: items.length });
+  const fillItems = Array.from({ length: repeats }, () => items).flat();
   /** Each saved list has its own controls; only visual loop repeats are hidden in the portal. */
   const mark = (copy: number, i: number) => (copy === 0 && i < items.length ? edItem(list, i, items[i].name) : { "data-ed-dup": "" });
   const hasPictures = items.some((it) => it.logo || it.photo);
@@ -46,12 +44,12 @@ function MarqueeTrack({ items, label, reverse, shape, size, logoSize, list, seco
                         <img
                           src={resizedSrc((it.logo || it.photo) as string, it.photo ? 384 : 640)}
                           srcSet={srcSetFor((it.logo || it.photo) as string, [160, 320, 640, 1080])}
-                          sizes={it.photo ? "180px" : "320px"}
+                          sizes={it.photo ? size === "xxlarge" ? "360px" : size === "xlarge" ? "270px" : "180px" : logoSize === "xxlarge" ? "320px" : logoSize === "xlarge" ? "240px" : "160px"}
                           alt={it.alt || ""}
                           draggable={false}
                           style={it.photo ? adjustStyle(it, "photo") : undefined}
                           className={it.photo ? styles.portrait : styles.logo}
-                          loading="lazy"
+                          loading="eager"
                           decoding="async"
                         />
                       ) : (
@@ -75,15 +73,18 @@ function MarqueeTrack({ items, label, reverse, shape, size, logoSize, list, seco
   );
 }
 
-function Row(props: RowProps & { secondaryItems?: Item[]; secondaryReverse?: boolean }) {
+function Row(props: RowProps & { secondaryItems?: Item[]; secondaryReverse?: boolean; secondarySpeed?: string }) {
   return (
-    <div className={styles.row}>
+    <div className={styles.row} data-row={props.list}>
       <span className={styles.rowLabel}><span>{props.label}</span><span className={styles.dragHint} aria-hidden="true">Hold & drag ↔</span></span>
+      {props.list === "clients" && <EditSectionContent section="home:clients" label={`Row 1 · ${props.items.length} logos · ${props.reverse ? "Right →" : "← Left"} · Manage row`} />}
+      {props.list === "collaborators" && <EditSectionContent section="home:clients" label="Filmmakers & actors · Track size & settings" />}
       <AddContent list={props.list} label={props.list === "clients" ? "Add to production track 1" : "Add collaborator"} count={props.items.length} />
       {props.items.length > 0 && <MarqueeTrack {...props} />}
       {props.secondaryItems && <>
+        <EditSectionContent section="home:clients" label={`Row 2 · ${props.secondaryItems.length} logos · ${props.secondaryReverse ? "Right →" : "← Left"} · Manage row`} />
         <AddContent list="clientsSecond" label="Add to production track 2" count={props.secondaryItems.length} />
-        {props.secondaryItems.length > 0 && <MarqueeTrack {...props} items={props.secondaryItems} list="clientsSecond" reverse={props.secondaryReverse ?? true} secondary />}
+        {props.secondaryItems.length > 0 && <MarqueeTrack {...props} items={props.secondaryItems} list="clientsSecond" speed={props.secondarySpeed} reverse={props.secondaryReverse ?? true} secondary />}
       </>}
     </div>
   );
@@ -103,7 +104,7 @@ export function Clients() {
       </div>
 
       <div className={styles.rows}>
-        <Row items={clients} list="clients" label={labels.clients} logoSize={home.clients.logoSize} reverse={home.clients.productionDirection === "right"} secondaryReverse={home.clients.productionSecondDirection !== "left"} secondaryItems={clientsSecond} />
+        <Row items={clients} list="clients" label={labels.clients} logoSize={home.clients.logoSize} speed={home.clients.productionSpeed} secondarySpeed={home.clients.productionSecondSpeed} reverse={home.clients.productionDirection === "right"} secondaryReverse={home.clients.productionSecondDirection !== "left"} secondaryItems={clientsSecond} />
         <Row items={collaborators} list="collaborators" label={labels.collaborators} shape={home.clients.portraitShape} size={home.clients.portraitSize} reverse={home.clients.filmmakersDirection === "right"} />
       </div>
       <p className="sr-only">

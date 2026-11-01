@@ -20,7 +20,7 @@ export function renderFx(text: string): ReactNode {
     const { text: word, effect, options } = decodeEffect(part);
     const style = effectStyle(options) as CSSProperties;
     if (effect === "particles") return <ParticleText key={i} color={options.color} options={options}>{word}</ParticleText>;
-    if (effect === "none") return options.color ? <span key={i} style={style}>{word}</span> : <Fragment key={i}>{word}</Fragment>;
+    if (effect === "none") return options.color ? <span key={i} className={styles.word} style={style}>{word}</span> : <Fragment key={i}>{word}</Fragment>;
     return <span key={i} style={style} className={`${styles.word} ${styles[effect]}`} data-text-effect={effect} data-fx-trigger={options.glowMode}>
       {word}{effect === "sheen" && <span aria-hidden="true" className={styles.shine}>{word}</span>}
     </span>;

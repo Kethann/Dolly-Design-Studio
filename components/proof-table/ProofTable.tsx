@@ -85,9 +85,6 @@ export function ProofTable() {
     const observer = new IntersectionObserver(([e]) => { visible = e.isIntersecting && e.intersectionRatio >= .18; scene.current?.setActive(visible); syncScroll(); }, { threshold: [0, .18] }); observer.observe(host);
     const resize = new ResizeObserver(() => { scene.current?.resize(host.clientWidth, host.clientHeight); syncBeamOrigin(); });
     resize.observe(host);
-    if (copy.current) resize.observe(copy.current);
-    if (headline.current) resize.observe(headline.current);
-    if (body.current) resize.observe(body.current);
     window.addEventListener("scroll", onScroll, { passive: true });
     let press: { x: number; y: number } | null = null;
     const down = (e: PointerEvent) => { press = { x: e.clientX, y: e.clientY }; };
@@ -129,7 +126,7 @@ export function ProofTable() {
   };
   return (
     <section id={proofTable.id} className={styles.section} style={glassBackdropStyle(viewControls) as CSSProperties} data-projector-side={viewControls.projectorSide} aria-labelledby="disc-slate-title">
-      <div className={`container ${styles.layout}`}>
+      <div className={styles.layout}>
       <div ref={copy} className={styles.copy}>
         <span className={styles.overline}>{renderFx(slate.overline)}</span>
         <h2 ref={headline} id="disc-slate-title" className={styles.headline}>{slate.headline.map((line, i) => <span key={i}>{renderFx(line)}</span>)}</h2>

@@ -32,6 +32,8 @@ export function TextEffectSettings({ effect, value, disabled, onChange }: {
         <p className={styles.hint}>Hover or tap the marked words in the page preview. Dot colour can differ from the normal text. These controls do not add more particles.</p>
       </>}
       {effect === "glow" && <>
+        <ColorRow label="Hover text colour" value={value.hoverColor ?? value.color ?? "#fff195"} onChange={hoverColor => patch({ hoverColor })} />
+        <button type="button" className={styles.link} disabled={!value.hoverColor} onClick={() => patch({ hoverColor: undefined })}>Keep normal text colour on hover</button>
         <ColorRow label="Glow colour" value={value.glowColor ?? value.color ?? "#fff195"} onChange={glowColor => patch({ glowColor })} />
         <button type="button" className={styles.link} disabled={!value.glowColor} onClick={() => patch({ glowColor: undefined })}>Match glow to text colour</button>
         <Slider label="Glow strength" min={0} max={100} step={5} value={(value.glowStrength ?? 1) * 100} format={v => `${Math.round(v)}%`} onChange={v => patch({ glowStrength: v / 100 })} />

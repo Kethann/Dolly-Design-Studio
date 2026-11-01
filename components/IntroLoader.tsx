@@ -54,8 +54,8 @@ const TAIL = Array.from({ length: TAIL_SEGMENTS }, (_, j) => {
  * stars appear. Rendered on the server, so it's there from the very first paint; both spins are pure CSS, so they keep
  * turning smoothly even while the scene is being built.
  */
-/** The loading step after which the loader fades away (the 3D intro's shaders are compiled), and how long the fade takes (matches the CSS). */
-const READY = 0.92;
+/** Only release the loader after the complete first frame, including post-processing, has rendered. */
+const READY = 1;
 const FADE_MS = 700;
 
 export function IntroLoader() {
@@ -78,13 +78,13 @@ export function IntroLoader() {
       shown += (goal - shown) * 0.12;
       const pct = String(Math.floor((target >= READY ? 1 : shown) * 100));
       if (rootRef.current?.getAttribute("aria-valuenow") !== pct) rootRef.current?.setAttribute("aria-valuenow", pct);
-      // The loader goes as soon as the last loading step is done (the shaders are compiled: the first frame is a moment away),
-      // not after the reading has crept up to 100% and the first frame is on screen. It is then gone before the intro's stars
-      // and their glow appear, so the two never overlap.
+      // Shader compilation alone is not enough: bloom/texture uploads can still stall the first render.
       if (target >= READY) {
         // Fade out from however visible it is right now (it may still be fading in on a fast load), so there is no jump.
         if (rootRef.current) {
-          rootRef.current.style.setProperty("--loader-from", getComputedStyle(rootRef.current).opacity);
+          const current = getComputedStyle(rootRef.current);
+          rootRef.current.style.setProperty("--loader-from", current.opacity);
+          rootRef.current.style.setProperty("--loader-transform", current.transform);
           rootRef.current.setAttribute("data-done", "");
         }
         doneTimer = window.setTimeout(() => setGone(true), FADE_MS + 50);

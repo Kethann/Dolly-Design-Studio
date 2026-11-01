@@ -1,25 +1,28 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { createMarqueeVelocity, marqueeGlide } from "./marqueeMotion";
+import { useEffect, useRef, useState } from "react";
+import { createMarqueeVelocity, marqueeGlide, marqueeRepeats, wrapMarquee } from "./marqueeMotion";
 
 /**
  * A row that drifts sideways on its own and can be held and dragged either way, like a track: let go and it glides on
  * with the speed you gave it, then settles back into its slow drift. It loops without a seam (the track holds two
  * equal copies and wraps by one), pauses while the pointer rests on it, and a trackpad's sideways swipe moves it too.
- * Up-and-down touches still scroll the page. `seconds` is how long one full copy takes to drift past.
+ * Up-and-down touches still scroll the page. Speed is in CSS pixels/second, independent of logo count.
  *
  * While the portal is editing the page, the row holds only the real entries (no repeats): it doesn't drift or loop, but it can
  * still be held and dragged (from edge to edge of the entries) to bring any entry into view, and the Edit buttons follow it.
  */
-export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?: boolean }) {
+export function useDragMarquee({ pixelsPerSecond, reverse, itemCount }: { pixelsPerSecond: number; reverse?: boolean; itemCount: number }) {
   const viewport = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
-  const config = useRef({ seconds, reverse });
+  const [repeats, setRepeats] = useState(2);
+  const remeasure = useRef<(() => void) | null>(null);
+  const config = useRef({ pixelsPerSecond, reverse, itemCount });
   useEffect(() => {
     // Live portal changes must not reset the track position or interrupt a held drag.
-    config.current = { seconds, reverse };
-  }, [seconds, reverse]);
+    config.current = { pixelsPerSecond, reverse, itemCount };
+    remeasure.current?.();
+  }, [pixelsPerSecond, reverse, itemCount]);
 
   useEffect(() => {
     const vp = viewport.current;
@@ -31,6 +34,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
     let x = 0;
     let vel = 0; // px/s from a flick, fading out
     let half = 0;
+    let sequenceWidth = 0;
     let factor = 1; // 1 = drifting, 0 = still (pointer resting on it, or being dragged)
     let direction = config.current.reverse ? 1 : -1;
     let last = 0;
@@ -52,13 +56,24 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
     let clickMarker = "";
 
     const measure = () => {
-      all = tr.scrollWidth;
+      const first = tr.firstElementChild as HTMLElement | null;
+      if (!first) return;
+      all = tr.getBoundingClientRect().width;
       room = vp.clientWidth;
-      half = all / 2;
+      // Measure ONE copy in fractional CSS pixels. scrollWidth / 2 rounds and
+      // can include overflowing text or differently loaded duplicate images.
+      half = first.getBoundingClientRect().width;
+      if (!editMode) {
+        const sequence = Array.from(first.children).slice(0, config.current.itemCount)
+          .reduce((sum, item) => sum + item.getBoundingClientRect().width, 0);
+        setRepeats(marqueeRepeats(room, sequence));
+        if (sequenceWidth > 0 && sequence !== sequenceWidth && !dragging) x = x / sequenceWidth * sequence;
+        sequenceWidth = sequence;
+      }
       start();
     };
     const wrap = () => {
-      if (half > 0) x = ((x % half) - half) % half;
+      x = wrapMarquee(x, half);
     };
 
     const tick = (now: number) => {
@@ -84,7 +99,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
         if (paused && factor < 0.001) factor = 0;
         if (!dragging) {
           direction += ((config.current.reverse ? 1 : -1) - direction) * (1 - Math.exp(-dt * 8));
-          const drift = reduced || !half ? 0 : (direction * half) / Math.max(1, config.current.seconds);
+          const drift = reduced || !half ? 0 : direction * config.current.pixelsPerSecond;
           const glide = marqueeGlide(vel, dt);
           x += drift * factor * dt + glide.distance; vel = glide.velocity;
         }
@@ -201,10 +216,13 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
     const changeMotion = () => { reduced = motion.matches; vel = 0; start(); };
     const noNativeDrag = (e: Event) => e.preventDefault();
 
+    remeasure.current = measure;
     measure();
     const resize = new ResizeObserver(measure);
     resize.observe(tr);
     resize.observe(vp);
+    if (tr.firstElementChild) resize.observe(tr.firstElementChild);
+    tr.addEventListener("load", measure, true);
     const mode = new MutationObserver(() => {
       const next = document.documentElement.hasAttribute("data-dds-edit");
       if (next === editMode) return;
@@ -215,7 +233,7 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
     const seen = new IntersectionObserver(([entry]) => {
       onScreen = entry.isIntersecting;
       if (onScreen) start();
-      else { cancelAnimationFrame(frame); frame = 0; vel = 0; release(); tr.style.willChange = ""; }
+      else { cancelAnimationFrame(frame); frame = 0; vel = 0; hover = false; release(); tr.style.willChange = ""; }
     });
     seen.observe(vp);
 
@@ -236,11 +254,13 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
 
     return () => {
       disposed = true;
+      remeasure.current = null;
       if (frame) cancelAnimationFrame(frame);
       window.clearTimeout(clickTimer);
       if (clickMarker && document.documentElement.dataset.ddsDragged === clickMarker) delete document.documentElement.dataset.ddsDragged;
       delete vp.dataset.drag;
       resize.disconnect();
+      tr.removeEventListener("load", measure, true);
       mode.disconnect();
       seen.disconnect();
       vp.removeEventListener("pointerdown", down);
@@ -262,5 +282,5 @@ export function useDragMarquee({ seconds, reverse }: { seconds: number; reverse?
     };
   }, []);
 
-  return { viewport, track };
+  return { viewport, track, repeats };
 }

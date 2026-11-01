@@ -2,7 +2,10 @@
 
 import { useConfirmDelete } from "./DeleteDialog";
 import { useRef, type ReactNode } from "react";
+import { isClientTrack, moveClientTrack } from "@/lib/content/client-tracks";
 import { useDialogFocus } from "./dialog-focus";
+import { usePanelWindow, WindowActions, WindowHandles } from "./PanelWindow";
+import windowStyles from "./window.module.css";
 import { FieldView, ProblemsProvider, getAt, moveItem, setAt, useEditor } from "./ContentEditor";
 import { findList, findSection, type Field } from "./content-schema";
 import type { Problem } from "./validate";
@@ -36,6 +39,7 @@ export function EditModal({
   onSave: () => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
+  usePanelWindow(box);
   const cancel = () => {
     if (!changed || window.confirm("Discard the changes you made here?")) onCancel();
   };
@@ -44,8 +48,8 @@ export function EditModal({
   const blocked = problems.length > 0;
   return (
     <div className={styles.backdrop} onMouseDown={(e) => e.target === e.currentTarget && cancel()}>
-      <div ref={box} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="edit-title" tabIndex={-1}>
-        <header className={styles.head}>
+      <div ref={box} className={`${styles.dialog} ${windowStyles.window}`} role="dialog" aria-modal="true" aria-labelledby="edit-title" tabIndex={-1}>
+        <header className={`${styles.head} ${windowStyles.titlebar}`} data-window-titlebar role="group" tabIndex={0} aria-label={`Move ${title} window using arrow keys`} title="Drag to move; double-click to maximize or restore">
           <div className={styles.headText}>
             <h2 id="edit-title" className={styles.title}>
               {title}
@@ -53,6 +57,7 @@ export function EditModal({
             {hint && <p className={styles.hint}>{hint}</p>}
           </div>
           {headerExtra}
+          <WindowActions />
           <button type="button" className={styles.close} aria-label="Cancel and close" onClick={cancel}>
             ×
           </button>
@@ -85,6 +90,7 @@ export function EditModal({
             Keep changes
           </button>
         </footer>
+        <WindowHandles />
       </div>
     </div>
   );
@@ -155,7 +161,10 @@ export function ItemTools({ list, index, onIndex, onDeleted }: { list: string; i
       >
         →
       </button>
-      <button
+      {isClientTrack(list) ? <button type="button" onClick={() => {
+        update(c => moveClientTrack(c, list, index));
+        onDeleted();
+      }}>Move to row {list === "clients" ? "2" : "1"}</button> : <button
         type="button"
         title="Duplicate"
         aria-label="Duplicate"
@@ -167,7 +176,7 @@ export function ItemTools({ list, index, onIndex, onDeleted }: { list: string; i
         }}
       >
         ⧉
-      </button>
+      </button>}
       <button
         type="button"
         title={canDelete ? "Delete" : "This list needs at least one"}

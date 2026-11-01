@@ -33,3 +33,13 @@ export function EditContent({ item, label }: { item: string; label: string }) {
     </div>
   );
 }
+
+/** Row controls use the existing section editor and its independent lists. */
+export function EditSectionContent({ section, label }: { section: string; label: string }) {
+  return <div className={styles.controls} data-ed-ui>
+    <button type="button" onClick={event => {
+      event.preventDefault(); event.stopPropagation();
+      send({ source: "dds-site", type: "edit-open", section });
+    }}>{label}</button>
+  </div>;
+}
