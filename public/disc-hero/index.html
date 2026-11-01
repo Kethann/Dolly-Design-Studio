@@ -872,11 +872,13 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
     const output = new OutputPass(), antialias = new ShaderPass({ ...FXAAShader,
         uniforms: { ...FXAAShader.uniforms, arrival: { value: 0 }, entranceOpacity: { value: 0 }, scrollExit: { value: 0 }, portrait: { value: 0 }, mirror: { value: 0 } },
         fragmentShader: `uniform float arrival, entranceOpacity, scrollExit, portrait, mirror;\n${FXAAShader.fragmentShader}`.replace("gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );", `gl_FragColor = ApplyFXAA( tDiffuse, resolution.xy, vUv );
-       // Wide transparent shoulders soften the glass, tint and bloom together.
-       // UV y=1 is the top: the old 3% fade left a visible horizontal boundary.
-       float frame=smoothstep(0.,.12,vUv.x)*(1.-smoothstep(.88,1.,vUv.x))
-         *smoothstep(0.,.22,vUv.y)*(1.-smoothstep(.80,1.,vUv.y));
-       float copyFade=mix(.025,1.,smoothstep(.26,.58,mix(vUv.x,1.-vUv.x,mirror)));
+       // Keep the upper arc visible longer. Feather only the last 8% at the top
+       // and 4% at the exposed outer side; the copy-side and lower fades stay broad.
+       // Mirror the treatment with the projector, without moving the circle or titles.
+       float sideX=mix(vUv.x,1.-vUv.x,mirror);
+       float frame=smoothstep(0.,.12,sideX)*(1.-smoothstep(.96,1.,sideX))
+         *smoothstep(0.,.22,vUv.y)*(1.-smoothstep(.92,1.,vUv.y));
+       float copyFade=mix(.025,1.,smoothstep(.26,.58,sideX));
        float mobileFade=mix(.03,1.,1.-smoothstep(.4,.74,vUv.y));
        float readable=mix(1.,mix(copyFade,mobileFade,portrait),arrival);
        float exitT=clamp((scrollExit*(1.15-.15*vUv.x)-.03)/.97,0.,1.);

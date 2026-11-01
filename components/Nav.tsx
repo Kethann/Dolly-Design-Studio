@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import { useContent } from "@/lib/content/context";
 import { LOGO_BODY_PATH, LOGO_VIEWBOX } from "@/content/generated/logo-paths";
 import { glideLock, glideLocked, goToSection, isPlainClick } from "@/lib/section-nav";
-import { freezeScroll, releaseScroll } from "@/lib/smooth-scroll";
 import { DEFAULT_MENU_TONES } from "@/lib/content/types";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import { NavIcon } from "./NavIcon";
@@ -34,12 +33,14 @@ export function Nav() {
   const { settings } = useIntroSettings();
   // The portal's "Corner logo (top left)" glow switch decides whether the logo takes the colour effect when the cursor is on it.
   const logoGlowOn = settings.logoGlow.enabled && settings.logoGlow.places.navLogo;
-  const [open, setOpen] = useState(false);
-  const [tablet, setTablet] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [compact, setCompact] = useState(false);
+  const focusOnOpen = useRef(false);
   const [activeSection, setActiveSection] = useState<string>("");
   /** The corner logo: hidden on the first section of the home page (the big logo is there), then eased in. */
   const [pastFirst, setPastFirst] = useState(false);
   const logoShown = pathname !== "/" || pastFirst;
+  const open = compact && logoShown && !dismissed;
   const linksRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -52,18 +53,18 @@ export function Nav() {
   const toneOf = (id: string) => `var(--tone-${id}, ${DEFAULT_MENU_TONES[id] ?? "#ffc857"})`;
 
   useEffect(() => {
-    const query = window.matchMedia("(min-width: 641px)");
-    const sync = () => setTablet(query.matches);
+    const query = window.matchMedia("(max-width: 1199px)");
+    const sync = () => setCompact(query.matches);
     sync(); query.addEventListener("change", sync);
     return () => query.removeEventListener("change", sync);
   }, []);
 
   useEffect(() => {
-    if (!tablet || !open) return;
+    if (!open) return;
     // The old section-progress squares must not sit underneath the expanded icon rail.
-    document.documentElement.setAttribute("data-tablet-menu-open", "");
-    return () => document.documentElement.removeAttribute("data-tablet-menu-open");
-  }, [tablet, open]);
+    document.documentElement.setAttribute("data-section-menu-open", "");
+    return () => document.documentElement.removeAttribute("data-section-menu-open");
+  }, [open]);
 
   // The item for the place you are: the full gallery (and a project on the home page), the Breakdowns page (it belongs to
   // "How we work"), or the home-page section in view.
@@ -171,52 +172,49 @@ export function Nav() {
   const glideOnHome = (id?: string) => (e: React.MouseEvent) => {
     if (pathname !== "/" || !isPlainClick(e)) return;
     e.preventDefault();
-    if (!tablet) setOpen(false);
-    // Tablet keeps its in-page rail visible; phone releases its full-screen menu first.
+    // Both phone and tablet keep the non-modal rail available after navigation.
     requestAnimationFrame(() => goToSection(id));
   };
 
-  // While the mobile menu is open the page behind it must not scroll (Lenis would keep scrolling a page that only has overflow hidden).
+  // Automatic appearance must not steal focus or freeze scrolling. Only explicitly
+  // reopening the rail moves keyboard focus into it; Tab remains native/non-modal.
   useEffect(() => {
     if (!open) return;
-    if (!tablet) freezeScroll();
-    const focusFrame = requestAnimationFrame(() => {
+    const focusFrame = focusOnOpen.current ? requestAnimationFrame(() => {
       const menu = menuRef.current;
       (menu?.querySelector<HTMLAnchorElement>('a[aria-current="page"]') ?? menu?.querySelector<HTMLAnchorElement>("a"))?.focus({ preventScroll: true });
-    });
+    }) : 0;
+    focusOnOpen.current = false;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setOpen(false);
+        setDismissed(true);
         menuButtonRef.current?.focus();
       }
-      if (tablet && ["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key) && menuRef.current?.contains(document.activeElement)) {
+      if (["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key) && menuRef.current?.contains(document.activeElement)) {
         const items = Array.from(menuRef.current.querySelectorAll<HTMLAnchorElement>("a"));
         const at = items.indexOf(document.activeElement as HTMLAnchorElement);
         const next = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : (at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
         e.preventDefault(); items[next]?.focus();
-      }
-      if (!tablet && e.key === "Tab") {
-        const items = [menuButtonRef.current, ...Array.from(menuRef.current?.querySelectorAll<HTMLAnchorElement>("a") ?? [])].filter(Boolean) as HTMLElement[];
-        const first = items[0], last = items[items.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => {
       cancelAnimationFrame(focusFrame);
       window.removeEventListener("keydown", onKey);
-      if (!tablet) releaseScroll();
     };
-  }, [open, tablet]);
+  }, [open]);
 
-  // Phone overlays close on navigation; the tablet rail stays available and highlights the destination.
+  // A fresh page or return to the opening section restores the default-open rail.
+  // Within the page, an explicit close stays closed while scrolling other sections.
   useEffect(() => {
-    if (!tablet) setOpen(false); // eslint-disable-line react-hooks/set-state-in-effect -- close phone overlay on navigation or breakpoint change
-  }, [pathname, tablet]);
+    setDismissed(false); // eslint-disable-line react-hooks/set-state-in-effect -- reset the navigation preference for a new route
+  }, [pathname]);
+  useEffect(() => {
+    if (!logoShown) setDismissed(false); // eslint-disable-line react-hooks/set-state-in-effect -- next exit from the opening section starts with the rail available
+  }, [logoShown]);
 
   return (
-    <header className={styles.nav} data-chrome>
+    <header className={styles.nav} data-chrome data-shown={logoShown} inert={!logoShown}>
       <Link
         href="/"
         className={styles.brand}
@@ -301,7 +299,7 @@ export function Nav() {
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
           aria-controls={open ? "mobile-navigation" : undefined}
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => { focusOnOpen.current = !open; setDismissed(open); }}
           data-cursor="link"
         >
           <span style={open ? { transform: "translateY(6.5px) rotate(45deg)" } : undefined} />
@@ -311,7 +309,7 @@ export function Nav() {
       </div>
 
       {open && (
-        <nav ref={menuRef} id="mobile-navigation" className={styles.mobileMenu} aria-label={tablet ? "Section navigation" : "Mobile"} data-lenis-prevent>
+        <nav ref={menuRef} id="mobile-navigation" className={styles.mobileMenu} aria-label="Section navigation" data-lenis-prevent>
           {navItems.map((item) => (
             <Link
               key={item.id}
@@ -320,7 +318,7 @@ export function Nav() {
               aria-current={item.id === activeId ? "page" : undefined}
               className={`${styles.mobileLink} ${item.id === activeId ? styles.mobileActive : ""}`}
               style={{ ["--tone" as string]: toneOf(item.id) }}
-              onClick={item.id === "work" ? () => { if (!tablet) setOpen(false); } : glideOnHome(item.id)}
+              onClick={item.id === "work" ? undefined : glideOnHome(item.id)}
             >
               <NavIcon id={item.id} className={styles.mobileIcon} />
               <span className={styles.mobileLabel}>{item.label}</span>

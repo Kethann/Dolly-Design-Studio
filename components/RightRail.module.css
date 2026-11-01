@@ -33,6 +33,4 @@
   box-shadow: 0 0 10px rgba(255, 241, 149, 0.4);
 }
 
-@media (min-width: 641px) {
-  :global(html[data-tablet-menu-open]) .rail { visibility: hidden; pointer-events: none; }
-}
+:global(html[data-section-menu-open]) .rail { visibility: hidden; pointer-events: none; }

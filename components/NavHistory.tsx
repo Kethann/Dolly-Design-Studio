@@ -115,6 +115,8 @@ export function NavHistory() {
     };
     window.addEventListener("wheel", halt, { passive: true });
     window.addEventListener("touchstart", halt, { passive: true });
+    // A fresh mouse/pen navigation must win over the previous route's settling loop too.
+    window.addEventListener("pointerdown", halt, { passive: true });
     window.addEventListener("keydown", halt);
     const started = performance.now();
     const WINDOW_MS = 4000; // how long the landing keeps itself right while the page settles
@@ -142,6 +144,7 @@ export function NavHistory() {
       ro.disconnect();
       window.removeEventListener("wheel", halt);
       window.removeEventListener("touchstart", halt);
+      window.removeEventListener("pointerdown", halt);
       window.removeEventListener("keydown", halt);
     };
   }, [pathname]);

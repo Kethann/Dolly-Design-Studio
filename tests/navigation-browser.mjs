@@ -43,16 +43,18 @@ await mkdir(output,{recursive:true});
 try {
   await send('Page.enable'); await send('Runtime.enable');
   await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
-  if(!process.argv.includes('--intro-only'))for(const [width,height,name] of [[820,1180,'tablet-portrait'],[1024,768,'tablet-landscape'],[1180,600,'tablet-short'],[1440,900,'desktop'],[1920,1080,'desktop-wide']]){
+  if(!process.argv.includes('--intro-only'))for(const [width,height,name] of [[320,568,'phone-small'],[390,844,'phone'],[820,1180,'tablet-portrait'],[1024,768,'tablet-landscape'],[1180,600,'tablet-short']]){
     await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
     await send('Page.navigate',{url:'http://localhost:3000/?navigation-check#clients'});
-    await until(`!!document.querySelector('header button[aria-label="Open menu"]') && !document.querySelector('.intro-curtain')`);
+    await until(`!!document.querySelector('#clients') && !document.querySelector('.intro-curtain')`);
     await evaluate(`document.querySelector('#clients').scrollIntoView({behavior:'instant'})`); await wait(250);
-    await click('header button[aria-label="Open menu"]');
     await until(`document.querySelector('#mobile-navigation')?.getAttribute('aria-label') === 'Section navigation'`);
+    await until(`document.querySelector('#mobile-navigation a[aria-current="page"]')?.getAttribute('href')==='/#clients'`);
+    assert.ok(await evaluate(`!document.querySelector('#mobile-navigation').contains(document.activeElement)`),'Automatic opening does not steal focus');
     assert.equal(await evaluate('document.documentElement.style.overflow'),'','Tablet menu does not lock page scrolling');
     assert.equal(await evaluate('location.hash'),'#clients','Opening hamburger does not navigate');
-    assert.ok(await evaluate(`(()=>{const b=document.querySelector('#mobile-navigation').getBoundingClientRect();return b.width<=241&&b.left>innerWidth*.55&&b.right<=innerWidth&&b.bottom<=innerHeight})()`),'Compact right-edge rail fits screen');
+    assert.ok(await evaluate(`(()=>{const b=document.querySelector('#mobile-navigation').getBoundingClientRect();const a=document.querySelector('#mobile-navigation a').getBoundingClientRect();return b.width<=241&&a.left>innerWidth*.7&&b.left>=0&&b.right<=innerWidth&&b.bottom<=innerHeight})()`),'Compact right-edge rail fits screen');
+    assert.ok(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'No horizontal overflow');
     assert.equal(await evaluate(`Array.from(document.querySelectorAll('#mobile-navigation a span')).filter(e=>getComputedStyle(e).visibility==='visible').length`),1,'Only active/focused label appears');
     assert.ok(await evaluate(`Array.from(document.querySelectorAll('#mobile-navigation a')).every(e=>e.getAttribute('aria-label')&&e.getBoundingClientRect().height>=44)`),'All icons have accessible names and touch targets');
     const shot=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(output,name+'.png'),Buffer.from(shot.data,'base64'));
@@ -62,30 +64,49 @@ try {
     await click('#mobile-navigation a[href="/work"]');
     await until(`location.pathname==='/work' && document.querySelector('#mobile-navigation a[aria-current="page"]')?.getAttribute('href')==='/work'`);
     await evaluate('history.back()');
-    await until(`location.pathname==='/' && location.hash==='#services'`);
+    await until(`location.pathname==='/' && location.hash==='#services' && document.querySelector('#mobile-navigation a[aria-current="page"]')?.getAttribute('href')==='/#services'`);
+    await wait(250); // Wait for route effects before testing the subsequent user key press.
     await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
     await until(`!document.querySelector('#mobile-navigation')`);
     assert.equal(await evaluate(`document.activeElement?.getAttribute('aria-label')`),'Open menu');
+    await evaluate(`document.querySelector('#clients').scrollIntoView({behavior:'instant'})`); await wait(250);
+    assert.equal(await evaluate(`!!document.querySelector('#mobile-navigation')`),false,'Explicit close persists while scrolling');
     await click('header button[aria-label="Open menu"]');
+    await until(`document.querySelector('#mobile-navigation')?.contains(document.activeElement)`);
     await send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
-    await until(`!!document.querySelector('#mobile-navigation')`);
-    assert.equal(await evaluate('document.documentElement.style.overflow'),'','Growing to desktop keeps the non-modal rail usable');
-    assert.ok(await evaluate(`document.querySelector('header button[aria-label="Close menu"]').getBoundingClientRect().width>=44`));
-    assert.equal(await evaluate(`document.querySelector('nav[aria-label="Primary"]').getBoundingClientRect().width`),0);
-    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
     await until(`!document.querySelector('#mobile-navigation')`);
+    assert.equal(await evaluate(`document.documentElement.hasAttribute('data-section-menu-open')`),false);
+    assert.equal(await evaluate(`document.querySelector('header button').getBoundingClientRect().width`),0);
+    assert.ok(await evaluate(`document.querySelector('nav[aria-label="Primary"]').getBoundingClientRect().width>500`));
+    await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
+    await until(`!!document.querySelector('#mobile-navigation')`);
+    await click('header[data-chrome] > a');
+    await until(`document.querySelector('header[data-chrome]')?.inert && !document.querySelector('#mobile-navigation')`);
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('header[data-chrome]')).visibility`),'hidden','Opening section remains undisturbed');
+    await evaluate(`document.querySelector('#agency').scrollIntoView({behavior:'instant'})`);
+    await until(`!!document.querySelector('#mobile-navigation')`);
     console.log(name+': rail placement, labels, section links, work route, Back, Escape and resize passed');
   }
-  if(!process.argv.includes('--intro-only')){
-    await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false});
-    await send('Page.navigate',{url:'http://localhost:3000/?navigation-phone#clients'});
-    await until(`!!document.querySelector('header button[aria-label="Open menu"]') && !document.querySelector('.intro-curtain')`);
-    await click('header button[aria-label="Open menu"]');await until(`!!document.querySelector('#mobile-navigation')`);
-    assert.equal(await evaluate('document.documentElement.style.overflow'),'hidden','Phone retains modal scroll lock');
-    await click('#mobile-navigation a[href="/#services"]');
-    await until(`!document.querySelector('#mobile-navigation') && location.hash==='#services'`);
-    assert.equal(await evaluate('document.documentElement.style.overflow'),'');
-    console.log('Phone menu and desktop navigation remain functional');
+  if(!process.argv.includes('--intro-only'))for(const width of [1200,1440,1920]){
+    await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false});
+    await send('Page.navigate',{url:'http://localhost:3000/?navigation-desktop#clients'});
+    await until(`!!document.querySelector('#clients') && !document.querySelector('.intro-curtain')`);
+    await evaluate(`document.querySelector('#clients').scrollIntoView({behavior:'instant'})`);
+    await until(`document.querySelector('header[data-chrome]')?.dataset.shown==='true'`);
+    assert.equal(await evaluate(`!!document.querySelector('#mobile-navigation')`),false);
+    assert.equal(await evaluate(`document.querySelector('header button').getBoundingClientRect().width`),0);
+    assert.ok(await evaluate(`(()=>{const p=document.querySelector('nav[aria-label="Primary"]'),b=p.getBoundingClientRect(),logo=document.querySelector('header>a').getBoundingClientRect();return b.width>500&&b.left>logo.right+30&&b.right<=innerWidth&&p.querySelector('svg[viewBox]').getBoundingClientRect().width>500})()`),'Original glass bar fits without logo overlap');
+    await click('nav[aria-label="Primary"] a[href="/#services"]');
+    await until(`document.querySelector('nav[aria-label="Primary"] a[aria-current="page"]')?.getAttribute('href')==='/#services'`);
+    const shot=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(output,'desktop-'+width+'.png'),Buffer.from(shot.data,'base64'));
+    await click('nav[aria-label="Primary"] a[href="/work"]');
+    await until(`location.pathname==='/work'`);
+    await evaluate('history.back()');
+    await until(`location.pathname==='/' && location.hash==='#services' && document.querySelector('nav[aria-label="Primary"] a[aria-current="page"]')?.getAttribute('href')==='/#services'`);
+    await wait(250);
+    await click('header[data-chrome] > a');
+    await until(`document.querySelector('header[data-chrome]')?.inert`);
+    console.log(width+': desktop glass bar, routing, Back, intro visibility and no overlap passed');
   }
   if(process.argv.includes('--intro') || process.argv.includes('--intro-only')){
     // Measure the actual intro callback (not PMREM warm-up draws or the loader fade).

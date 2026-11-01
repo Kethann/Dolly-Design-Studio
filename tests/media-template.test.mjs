@@ -307,10 +307,21 @@ test("glass circle arrives fully visible and settles into a responsive backgroun
 
 test("glass scene feathers every edge into transparency without an extra rendering pass", () => {
   const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
-  assert.match(source, /smoothstep\(0\.,\.12,vUv.x\)\*\(1\.-smoothstep\(\.88,1\.,vUv.x\)\)/);
-  assert.match(source, /smoothstep\(0\.,\.22,vUv.y\)\*\(1\.-smoothstep\(\.80,1\.,vUv.y\)\)/);
+  assert.match(source, /float sideX=mix\(vUv.x,1\.-vUv.x,mirror\)/);
+  assert.match(source, /smoothstep\(0\.,\.12,sideX\)\*\(1\.-smoothstep\(\.96,1\.,sideX\)\)/);
+  assert.match(source, /smoothstep\(0\.,\.22,vUv.y\)\*\(1\.-smoothstep\(\.92,1\.,vUv.y\)\)/);
   assert.match(source, /gl_FragColor\*=frame\*readable\*outgoing/, "Fade premultiplied colour and alpha, not a black overlay");
   assert.match(source, /composer.addPass\(renderPass\); composer.addPass\(bloom\); composer.addPass\(output\); composer.addPass\(antialias\)/);
+});
+
+test("upper glass arc keeps more coverage while all viewport boundaries still fade to transparent", () => {
+  const smooth = (a,b,x) => {const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
+  const frame = (x,y,top,outer) => smooth(0,.12,x)*(1-smooth(outer,1,x))*smooth(0,.22,y)*(1-smooth(top,1,y));
+  assert.equal(frame(.93,.9,.92,.96), 1, "Keep the upper/outer arc fully visible before its final feather");
+  assert.ok(frame(.93,.9,.8,.88) < .32, "The previous fade heavily obscured this part of the arc");
+  for (const [x,y] of [[0,.5],[1,.5],[.5,0],[.5,1]]) assert.equal(frame(x,y,.92,.96),0);
+  assert.equal(frame(.8,.2,.92,.96),frame(.8,.2,.8,.88), "Keep the lower blend unchanged");
+  assert.ok(frame(.98,.96,.92,.96)>0 && frame(.98,.96,.92,.96)<1, "Retain a soft upper corner, not a hard cutoff");
 });
 
 test("desktop glass arc shares the tablet reference pose without changing phone placement", () => {
@@ -424,19 +435,29 @@ test("intro timing counts slow visible frames equally and excludes loading and h
   assert.match(scene, /removeEventListener\("visibilitychange", onVisibility\)/);
 });
 
-test("tablet and desktop icon rail stays non-modal and preserves real navigation links", () => {
+test("compact rail opens after the intro while desktop restores the glass top navigation", () => {
   const source = readFileSync(path.join(root, "components/Nav.tsx"), "utf8");
   const css = readFileSync(path.join(root, "components/Nav.module.css"), "utf8");
-  assert.match(source, /matchMedia\("\(min-width: 641px\)"\)/);
-  assert.doesNotMatch(css, /min-width: 1200px/, "Desktop must not restore the full-width menu or hide the toggle");
-  assert.match(source, /if \(!tablet\) freezeScroll\(\)/);
-  assert.match(source, /if \(!tablet\) releaseScroll\(\)/);
-  assert.match(source, /if \(!tablet && e.key === "Tab"\)/, "Only the phone overlay traps focus");
+  assert.match(source, /matchMedia\("\(max-width: 1199px\)"\)/);
+  assert.match(css, /@media \(min-width: 1200px\)\s*\{\s*\.links \{ display: flex; \}\s*\.right \{ display: none; \}/);
+  assert.match(source, /const open = compact && logoShown && !dismissed/);
+  assert.doesNotMatch(source, /freezeScroll|releaseScroll|e.key === "Tab"/, "Neither compact layout traps focus or locks scrolling");
+  assert.match(source, /data-shown=\{logoShown\} inert=\{!logoShown\}/);
+  assert.match(source, /focusOnOpen.current \? requestAnimationFrame/);
+  assert.match(source, /removeAttribute\("data-section-menu-open"\)/);
+  assert.match(source, /panePath\(pane.w, pane.h, true\)/, "Preserve the original shaped glass pane");
   assert.match(source, /aria-label=\{item.label\}/, "Icon-only links keep accessible names");
   assert.match(source, /aria-current=\{item.id === activeId \? "page" : undefined\}/);
   assert.match(css, /\.mobileActive \.mobileLabel, \.mobileLink:focus-visible \.mobileLabel/);
   assert.match(css, /max-height: calc\(100svh/, "Short tablet screens can scroll the rail");
   assert.match(source, /menuButtonRef.current\?\.focus\(\)/, "Escape returns focus to the toggle");
+});
+
+test("new pointer navigation cancels the previous route's scroll restoration", () => {
+  const source = readFileSync(path.join(root, "components/NavHistory.tsx"), "utf8");
+  assert.match(source, /addEventListener\("pointerdown", halt, \{ passive: true \}\)/);
+  assert.match(source, /removeEventListener\("pointerdown", halt\)/);
+  assert.match(source, /if \(stop \|\| age > WINDOW_MS\) return/);
 });
 
 test("track swipe velocity follows speed, reversal and hold time instead of event rate", () => {

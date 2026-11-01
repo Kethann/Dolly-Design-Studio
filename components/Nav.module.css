@@ -14,7 +14,11 @@
   padding-top: var(--nav-pad);
   box-sizing: border-box;
   background: linear-gradient(to bottom, color-mix(in srgb, var(--stage) 85%, transparent), transparent);
+  transition: opacity .25s ease, visibility .25s;
 }
+
+/* No added chrome on the opening section; the intro's own logo and animation stay untouched. */
+.nav[data-shown="false"] { opacity: 0; visibility: hidden; pointer-events: none; }
 
 /* A strip of frosted glass behind the whole bar, so the moving stars never compete with the words. It fades out towards the
    bottom edge, so there is no hard line where it ends. (On the ::before, because a backdrop filter on the bar itself would
@@ -140,8 +144,6 @@
   pointer-events: none;
   overflow: visible;
 }
-
-/* Desktop shares the quiet hamburger header and in-page icon rail with tablet. */
 
 .link {
   position: relative;
@@ -348,9 +350,9 @@
   text-shadow: 0 0 22px var(--tone);
 }
 
-/* Tablet and desktop: a compact in-page rail, aligned under the right-hand hamburger.
+/* Phone and tablet: a compact in-page rail, aligned under the right-hand hamburger.
    Only labels expand left; the icons never shift when the active section changes. */
-@media (min-width: 641px) {
+@media (max-width: 1199px) {
   .mobileMenu {
     inset: calc(var(--nav-h) + 12px) max(calc(clamp(20px, 5vw, 48px) - 8px), env(safe-area-inset-right)) auto auto;
     width: min(240px, calc(100vw - 40px));
@@ -422,8 +424,15 @@
   }
   .mobileLink:focus-visible { outline: 2px solid var(--tone); outline-offset: 2px; }
 }
+/* Keep these overrides after the compact controls' base rules. */
+@media (min-width: 1200px) {
+  .links { display: flex; }
+  .right { display: none; }
+  .mobileMenu { display: none; }
+}
 @keyframes railAppear { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
+  .nav { transition: none; }
   .mobileMenu { animation: none; }
   .mobileLabel, .menuButton span { transition: none; }
 }
