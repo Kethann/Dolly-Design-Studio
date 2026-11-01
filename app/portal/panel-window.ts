@@ -96,6 +96,9 @@ export function bindPanelWindow(box: HTMLElement) {
   };
   const move = (event: PointerEvent) => {
     if (!gesture || event.pointerId !== gesture.id) return;
+    // Recover a release lost outside the browser/over an iframe. A later hover
+    // must not carry the window along with it.
+    if (event.type === "pointermove" && event.buttons === 0) { end(); return; }
     event.preventDefault();
     const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
     if (!gesture.moved && Math.hypot(dx, dy) < 3) return;
@@ -110,16 +113,27 @@ export function bindPanelWindow(box: HTMLElement) {
       gesture.x = event.clientX; gesture.y = event.clientY;
       full = false; controls();
       custom = moveWindow(gesture.rect, view());
+      gesture.rect = custom;
       paint(custom);
       return;
     }
     custom = gesture.edge ? resizeWindow(gesture.rect, gesture.edge, dx, dy, view())
       : moveWindow({ ...gesture.rect, x: gesture.rect.x + dx, y: gesture.rect.y + dy }, view());
     paint(custom);
+    if (!gesture.edge) {
+      // Rebase at the clamped position: reversing direction at a boundary
+      // responds immediately, without having to undo off-screen pointer travel.
+      gesture.rect = custom; gesture.x = event.clientX; gesture.y = event.clientY;
+    }
   };
-  const up = (event: PointerEvent) => { if (gesture?.id === event.pointerId) { move(event); end(); } };
-  const cancelPointer = (event: PointerEvent) => { if (gesture?.id === event.pointerId) end(event.type === "pointercancel"); };
-  const blur = () => end(true);
+  const up = (event: PointerEvent) => {
+    if (gesture?.id !== event.pointerId) return;
+    // Some cancelled touch/pen releases report 0,0; retain the last real move.
+    if (!(gesture.moved && event.clientX === 0 && event.clientY === 0)) move(event);
+    end();
+  };
+  const cancelPointer = (event: PointerEvent) => { if (gesture?.id === event.pointerId) end(); };
+  const blur = () => end();
   const click = (event: MouseEvent) => {
     if (!(event.target instanceof Element)) return;
     const action = event.target.closest<HTMLElement>("[data-window-action]")?.dataset.windowAction;
@@ -149,6 +163,8 @@ export function bindPanelWindow(box: HTMLElement) {
     paint(custom);
   };
   const resize = () => {
+    // Pinch zoom/keyboard viewport events during a drag terminate it at the
+    // visible position; explicit Escape remains the only rollback gesture.
     end();
     if (full) paint(view(0));
     else if (custom) paint(constrainWindow(custom, view()));

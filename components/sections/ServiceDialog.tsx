@@ -10,7 +10,7 @@ import { adjustStyle } from "@/lib/content/adjust";
 import { freezeScroll, releaseScroll } from "@/lib/smooth-scroll";
 import { goToSection } from "@/lib/section-nav";
 import styles from "./Services.module.css";
-import { MediaPlaceholder } from "@/components/MediaPlaceholder";
+import { ServiceIcon } from "./ServiceIcon";
 import { AddContent, EditContent } from "@/components/PreviewControls";
 
 /**
@@ -91,15 +91,16 @@ export function ServiceDialog({
         aria-label={plainFx(s.name)}
         tabIndex={-1}
         data-lenis-prevent
+        data-has-media={pictures.length > 0}
         onClick={(e) => e.stopPropagation()}
       >
         <button type="button" className={styles.dialogClose} onClick={onClose} aria-label="Close" data-cursor="link">
           ✕
         </button>
 
-        <div className={styles.dialogMedia}>
+        {current && <div className={styles.dialogMedia}>
           <div className={styles.dialogShot} data-fit={contain ? "contain" : "cover"}>
-            {current ? <Image key={current.src} style={current.style} src={versionedSrc(current.src)} alt={current.alt || plainFx(s.name)} fill sizes="(max-width: 860px) 92vw, 520px" quality={90} {...placeholderProps(current.src)} /> : <MediaPlaceholder />}
+            <Image key={current.src} style={current.style} src={versionedSrc(current.src)} alt={current.alt || plainFx(s.name)} fill sizes="(max-width: 860px) 92vw, 520px" quality={90} {...placeholderProps(current.src)} />
           </div>
           {current?.item && <EditContent item={current.item} label="Edit this image" />}
           {pictures.length > 1 && (
@@ -111,9 +112,10 @@ export function ServiceDialog({
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
         <div className={styles.dialogBody}>
+          {!current && <ServiceIcon name={plainFx(s.name)} />}
           <span className={styles.num}>{s.number}</span>
           <h3 className={styles.dialogTitle}>{renderFx(s.name)}</h3>
           <EditContent item={`services.${index}`} label="Edit this service" />

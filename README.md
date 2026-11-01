@@ -62,11 +62,20 @@ rotation angle, size and gap. Each artwork also has its own rotation slider and
 the shared size), blend opacity (0–100%), and Normal/Screen/Additive blending.
 Zero opacity hides the title and its light contribution. These angles rotate the
 artwork, not the glass. **Circle & entrance → Arc edge thickness** adjusts the
-rim from slim (10%) to its original broad edge (100%, the maximum), starting at 25%.
+single rim reflection from ultra-thin (1%) to broad (100%), starting at 8%.
+There are no secondary lips or inner rings. Edge lighting works on clear glass;
+surface reflection no longer controls title glow. The editor identifies the
+active beam-position profile using the actual preview width.
 Increasing the gap reduces the title footprints while keeping their centres evenly
 spaced; the original 3-degree spacing remains the default. Settings preview live
 without reloading unchanged images; use the portal's save action to persist them.
 For the cleanup results and before/after comparison, see [`CLEANUP-REPORT.md`](CLEANUP-REPORT.md).
+
+Services use spacious, two-column icon-led panels, distinct from BTS/Breakdowns,
+with the same icon glow and palette. All eight categories, including separate
+Musical Tours and Brand Promotions, remain editable. Full deliverables,
+sample artwork and galleries are shown in the service dialog; services without
+images use a compact single-column dialog, never an empty poster placeholder.
 
 ## The intro (V1)
 

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ProofItem } from "@/content/proof-table";
 import { PROOF_LIMITS, type ProofTableSettings } from "@/lib/intro/settings";
 import { ColorRow, Section, Slider, Toggle } from "./controls";
-import { DISC_DEFAULTS, DISC_RANGES, DISC_SLOT_LIMIT, sanitizeDisc, type DiscControls } from "@/lib/content/disc";
+import { DISC_DEFAULTS, DISC_RANGES, DISC_SLOT_LIMIT, sanitizeDisc, discAimProfileForWidth, type DiscControls } from "@/lib/content/disc";
 import { ImagePicker, useMedia } from "./ContentEditor";
 import styles from "./portal.module.css";
 import { moveTo, useReorder } from "./reorder";
@@ -16,7 +16,7 @@ export const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; la
     { key: "spinSpeed", label: "Rotation speed", hint: "Zero stops rotation. Negative reverses it. Reduced-motion devices show the settled composition." },
     { key: "entranceDuration", label: "Arrival duration", hint: "The full circle keeps turning as it zooms in, then settles into its saved rotation speed without stopping. Plays once per page visit." },
     { key: "circleScale", label: "Circle size", hint: "Fine-tune the oversized arc. Desktop, tablet and mobile use their own framing." },
-    { key: "edgeThickness", label: "Arc edge thickness", hint: "10% is the slimmest; 25% is the new slim default. 100% restores the previous broad edge and is the maximum. Does not change disc size or placement." },
+    { key: "edgeThickness", label: "Arc edge thickness", hint: "1% is an ultra-fine edge; 8% is the thin default. 100% is the broadest single reflection. No extra inner rings. Disc size and placement stay unchanged." },
     { key: "discTilt", label: "Glass tilt", hint: "Keep this shallow for the broad circle in the reference." },
     { key: "discRoll", label: "Glass angle", hint: "Rotates the presentation of the glass surface." },
   ] },
@@ -32,11 +32,11 @@ export const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; la
   ] },
   { title: "Projector & light", fields: [
     { key: "projectorSide", label: "Projector side" },
-    { key: "lightIntensity", label: "Glass edge light", hint: "Controls the soft reflection along the glass edge." },
+    { key: "lightIntensity", label: "Glass edge light", hint: "Controls only the fine edge reflection, even when glass opacity is zero. Zero turns the edge light off." },
     { key: "rayIntensity", label: "Projector brightness", hint: "The beam, haze and landing reflection automatically follow the focused artwork's colour." },
     { key: "beamGlow", label: "Beam glow", hint: "The soft haze filling the beam. 100% is the normal look; up to 300%." },
     { key: "rayStrength", label: "Ray strength", hint: "How bright and defined the moving streaks inside the beam are." },
-    { key: "surfaceReflection", label: "Surface reflection", hint: "Artwork-coloured light where the steady projector touches the glass." },
+    { key: "surfaceReflection", label: "Surface reflection", hint: "Only the light landing on the glass surface. Zero removes it without disabling the beam, edge light or title glow." },
     { key: "rayStyle", label: "Ray style" },
     { key: "rayMotion", label: "Ray movement", hint: "Gentle, irregular motion with steady brightness. Zero keeps the beam still. Pause and reduced motion stop animation." },
     { key: "raySpread", label: "Ray spread", hint: "Includes a soft overscan so the outer letters are illuminated. Increase for more surrounding light; decrease for a tighter beam." },
@@ -89,12 +89,15 @@ export function ProofTableEditor({
   projects,
   onChange,
   onShow,
+  previewWidth = 1440,
 }: {
   value: ProofTableSettings;
   projects: { slug: string; title: string }[];
   onChange: (patch: Partial<ProofTableSettings>) => void;
   /** Scrolls the preview to the section's final view. */
   onShow: () => void;
+  /** Actual iframe width, not the selected device label on a smaller screen. */
+  previewWidth?: number;
 }) {
   const media = useMedia();
   const { ask: askDelete, dialog: deleteDialog } = useConfirmDelete();
@@ -103,13 +106,15 @@ export function ProofTableEditor({
   /** The card whose picture is being chosen. */
   const [picking, setPicking] = useState<number | null>(null);
   const [openDiscGroups, setOpenDiscGroups] = useState<ReadonlySet<string>>(
-    () => new Set(DISC_GROUPS.filter(group => group.title === "Circle & entrance" || group.title === "Title settings" || group.title.startsWith("Desktop beam")).map(group => group.title)),
+    () => new Set(["Circle & entrance", "Title settings", "Projector & light"]),
   );
 
   const items = value.items;
   const latestItems = useRef(items);
   useEffect(() => { latestItems.current = items; }, [items]);
   const disc = sanitizeDisc(value.disc);
+  const aimProfile = discAimProfileForWidth(previewWidth);
+  const activeBeamGroup = `${aimProfile[0].toUpperCase()}${aimProfile.slice(1)} beam`;
   const setItems = (next: ProofItem[]) => { latestItems.current = next; onChange({ items: next }); };
   const patchItem = (i: number, patch: Partial<ProofItem>) =>
     setItems(items.map((it, j) => (j === i ? { ...it, ...patch } : it)));
@@ -158,6 +163,7 @@ export function ProofTableEditor({
           <button type="button" className={styles.ghostButton} onClick={onShow}>Show it in the preview ↓</button>
           <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, ...sanitizeDisc({ ...disc, glassVersion: 0 }), circleScale: 1, entranceDuration: 3.6 } })}>Restore reference placement</button>
           <p className={styles.controlHint}>In the portal preview, cyan marks the beam origin and gold marks its landing point. These guides are never shown on the public site.</p>
+          <p className={styles.controlHint} role="status">Live beam controls: {aimProfile} ({Math.round(previewWidth)}px preview). Use the matching beam-position group below; other device groups are saved for those screen sizes.</p>
         </div>
         <div className={styles.control}>
           <button type="button" className={styles.ghostButton} disabled={full} onClick={() => addCard()}>+ Add title</button>
@@ -176,7 +182,7 @@ export function ProofTableEditor({
             return next;
           });
         }}>
-        <summary>{group.title}<span>{group.fields.length} controls</span></summary>
+        <summary>{group.title}<span>{group.title.startsWith(activeBeamGroup) ? "Active preview · " : ""}{group.fields.length} controls</span></summary>
         <div className={styles.sectionBody}>
         {group.fields.map(({ key, label, hint }) => {
           if (key === "glassTintColor" || key === "shadowColor") return <ColorRow key={key} label={label} hint={hint} value={disc[key]}
@@ -201,6 +207,8 @@ export function ProofTableEditor({
             onChange={next => onChange({ disc: { ...disc, [key]: next } })} />;
         })}
         {group.title === "Glass tint" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, glassTintColor: DISC_DEFAULTS.glassTintColor, glassOpacity: DISC_DEFAULTS.glassOpacity, desaturation: DISC_DEFAULTS.desaturation } })}>Reset glass tint</button>}
+        {group.title === "Circle & entrance" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, edgeThickness: DISC_DEFAULTS.edgeThickness } })}>Use ultra-thin edge</button>}
+        {group.title === "Projector & light" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, ...Object.fromEntries(group.fields.map(({ key }) => [key, DISC_DEFAULTS[key]])) } })}>Reset lighting only</button>}
         {group.title === "Shadow behind the glass" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, shadowColor: DISC_DEFAULTS.shadowColor, shadowOpacity: DISC_DEFAULTS.shadowOpacity, shadowSpread: DISC_DEFAULTS.shadowSpread } })}>Reset shadow</button>}
         </div>
       </details>)}

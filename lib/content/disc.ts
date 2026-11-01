@@ -21,7 +21,7 @@ export function discViewportFeather(width: number, height: number) {
   };
 }
 export const DISC_DEFAULTS = {
-  glassVersion: 1, entranceDuration: 3.6, circleScale: 1, glassOpacity: 0.22, edgeThickness: 0.25,
+  glassVersion: 1, entranceDuration: 3.6, circleScale: 1, glassOpacity: 0.22, edgeThickness: 0.08,
   glassTintColor: "#0d1014", shadowColor: "#050407", shadowOpacity: 168 / 255, shadowSpread: 1,
   spinSpeed: 0.09, focusAngle: -43, focusRadius: 0.8, rayIntensity: 0.8,
   rayLength: 5, bloom: 0.35, desaturation: 0.5, discTilt: -12, slotGap: 3,
@@ -39,7 +39,7 @@ export type DiscControls = typeof DISC_DEFAULTS;
 export type DiscNumericKey = { [K in keyof DiscControls]: DiscControls[K] extends number ? K : never }[keyof DiscControls];
 export const DISC_RANGES: Record<DiscNumericKey, readonly [number, number, number]> = {
   glassVersion: [1, 1, 1], entranceDuration: [1.5, 6, 0.1], circleScale: [0.85, 1.15, 0.01], glassOpacity: [0, 0.65, 0.01],
-  edgeThickness: [0.1, 1, 0.01],
+  edgeThickness: [0.01, 1, 0.01],
   shadowOpacity: [0, 1, 0.01], shadowSpread: [0.5, 1.6, 0.01],
   spinSpeed: [-0.5, 0.5, 0.01], focusAngle: [-180, 180, 1], focusRadius: [0.66, 0.9, 0.01],
   rayIntensity: [0, 3, 0.05], rayLength: [3, 9, 0.1], bloom: [0, 2, 0.05],

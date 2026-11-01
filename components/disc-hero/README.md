@@ -8,7 +8,7 @@ The homepage's `collaborations` section uses a transparent glass circle, not the
 - Entrance opacity eases from transparent to visible over the first 22% of the approach. Rotation gathers gently from 0.6× to 2.4× saved speed, then settles to 1× without stopping or resetting its angle. Quintic easing gives the fades and rotation hand-offs zero slope and acceleration at their endpoints. Pause freezes both entrance and rotation.
 - Title PNGs stay rigidly attached to the rotating glass. There are no opaque cards, clock marks, metallic backing, generated captions or centre hole.
 - A steady diagonal projector enters from above the desktop/tablet scene and the upper outside corner on phones. `glassProjectorOrigin` keeps the source above the frame even when editing offsets. A fixed surface-space window illuminates only the title pixels currently passing through it. The beam returns to neutral cool light over empty glass.
-- A slim bevel, fine inner concentric reflection and broad, low-energy lamp reflection give the pane a glass surface without adding a clock, metallic reflections or another mesh. The reflection stays anchored to the lamp while subtle surface variation rotates. A wider quintic feather blends the copy-side and bottom into transparency after bloom, fading both colour and alpha. Its CSS-pixel bounds are independent of DPR/render quality; the opposite and top edges keep their narrow fades. The circle, title transforms and main lower sweep are unchanged, with no extra ring, mesh or render target.
+- One thin antialiased edge reflection gives the pane a glass surface, without secondary lips, shoulders or concentric rings. The reflection stays anchored to the lamp while subtle surface variation rotates. A wider quintic feather blends the copy-side and bottom into transparency after bloom, fading both colour and alpha. Its CSS-pixel bounds are independent of DPR/render quality; the opposite and top edges keep their narrow fades. The circle, title transforms and main lower sweep are unchanged, with no extra ring, mesh or render target.
 - A subtle neutral-black tint fills the same pane by default. The portal's **Glass tint** group controls its colour, opacity and colour softness; RGB changes ease without rebuilding geometry or textures. The **Shadow behind the glass** group independently controls backdrop colour, opacity and spread, using the existing feathered CSS layer. Zero opacity removes the respective tint/backdrop, and each group can reset without changing motion or artwork. These values persist in `proofTable.disc`; old documents receive the original appearance defaults.
 - The light-contact sheen is confined to the projector footprint. Airborne haze softens before landing so the coloured logo, not a white patch, stays visible. Tint and reflection share the original mesh and rendering budget.
 - Colour uses an 8×8 pigment grid per image, sampled once at load. Each frame only the overlapping pigment contributes; there are no per-frame canvas reads. The same ray uniforms drive the volume, dust and surface reflection.
@@ -18,17 +18,23 @@ The homepage's `collaborations` section uses a transparent glass circle, not the
 
 ## Portal controls
 
-**Circle & entrance → Arc edge thickness** ranges from 10% (slim) to 100%
-(the original broad edge and maximum); the new default is 25%. It narrows the rim
-reflections and their separation, not the circle's radius or placement. Pixel
-derivatives keep narrow edges antialiased on low-DPR screens.
+**Circle & entrance → Arc edge thickness** ranges from 1% (ultra-thin) to 100%
+(the broadest single reflection); the new default is 8%. It narrows the reflection,
+not the circle's radius or placement. Pixel derivatives and subpixel coverage keep
+small settings distinguishable on low-DPR screens. **Use ultra-thin edge** changes
+only this setting, preserving saved geometry, artwork and lighting choices.
+
+Edge light is independent of tint opacity. Surface reflection affects only the
+glass landing, not title glow. Beam haze and ray-strength controls also govern
+the dust, so switching both off leaves no floating light particles. **Reset
+lighting only** restores projector controls without resetting titles or geometry.
 
 **Title settings** contains shared angle, size and gap controls. Each title can
 override its angle, use 25–100% of the shared size, fade its complete print/glow
 with blend opacity, and choose Normal, Screen or Additive blending. Hidden titles
 do not receive clicks or tint the projector. Changes reuse decoded images.
 
-Under **Glass title circle**, edit arrival duration, rotation speed, circle size, glass visibility, tilt, projector, glow and artwork settings. Beam aim has separate desktop (1025px+), tablet (641–1024px) and mobile (up to 640px) values. Calibration guides appear only in portal preview.
+Under **Glass title circle**, edit arrival duration, rotation speed, circle size, glass visibility, tilt, projector, glow and artwork settings. Beam aim has separate desktop (1025px+), tablet (641–1024px) and mobile (up to 640px) values. The editor marks the active group from the iframe's actual width, including when a desktop preview is constrained by a small screen. Calibration guides appear only in portal preview.
 
 The first eight saved entries occupy equally spaced positions; additional entries stay saved in the editor. PNGs preserve their aspect ratio. Resetting appearance never changes images or their order. `glassVersion: 1` migrates old CD angles and beam coordinates to the reference composition once, retaining artwork, colours, ordering and light preferences.
 

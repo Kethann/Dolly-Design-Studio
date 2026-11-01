@@ -77,6 +77,63 @@ const slugify = (s: string) =>
 const str = (v: unknown, fallback = "") => (typeof v === "string" ? v : fallback);
 const strs = (v: unknown) => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && !!s.trim()) : []);
 
+const LEGACY_TOUR_BRAND = "musical tours/brand promotions";
+const LEGACY_TOUR_BRAND_DESCRIPTION = "Visual identities and promotional artwork for musical tours, live events and brand campaigns.";
+const TOUR_DESCRIPTION = "Visual identities and promotional artwork for musical tours and live events.";
+const BRAND_DESCRIPTION = "Campaign visuals and promotional artwork that make brands stand out across screens and events.";
+
+/** Split the old combined category on read, keeping any uploaded artwork and custom copy with its tour card. */
+function splitTourAndBrand(items: unknown[]): unknown[] {
+  const names = new Set(items.filter(isObj).map((item) => str(item.name).trim().toLowerCase()));
+  const legacy = items.find((item) => isObj(item) && str(item.name).trim().toLowerCase() === LEGACY_TOUR_BRAND);
+  const existingTour = items.find((item) => isObj(item) && str(item.name).trim().toLowerCase() === "musical tours");
+  if (isObj(legacy) && isObj(existingTour)) {
+    const savedSample = str(legacy.sample);
+    const tourSample = str(existingTour.sample);
+    const extraImage = tourSample && savedSample && tourSample !== savedSample
+      ? [{ src: savedSample, alt: "Musical tour artwork", ...Object.fromEntries(Object.entries(cleanAdjust(legacy, "sample")).map(([key, value]) => [key.replace(/^sample/, "src"), value])) }]
+      : [];
+    const extraDetails = [str(existingTour.details), str(legacy.details),
+      legacy.description !== LEGACY_TOUR_BRAND_DESCRIPTION && legacy.description !== existingTour.description ? str(legacy.description) : ""]
+      .filter(Boolean);
+    const legacyDeliverables = Array.isArray(legacy.deliverables) && legacy.deliverables.join("|") === "Tour posters|Event artwork|Brand campaigns|Promotional artwork|Social media creatives"
+      ? [] : strs(legacy.deliverables);
+    return items.flatMap((item) => {
+      if (item === legacy) return names.has("brand promotions") ? [] : [{
+        name: "Brand Promotions", description: BRAND_DESCRIPTION,
+        deliverables: ["Brand campaigns", "Promotional artwork", "Social media creatives"], sample: "",
+      }];
+      if (item === existingTour) return [{
+        ...existingTour,
+        sample: tourSample || savedSample,
+        ...(!tourSample ? cleanAdjust(legacy, "sample") : {}),
+        gallery: [...(Array.isArray(existingTour.gallery) ? existingTour.gallery : []), ...extraImage, ...(Array.isArray(legacy.gallery) ? legacy.gallery : [])].slice(0, 12),
+        details: [...new Set(extraDetails)].join("\n\n"),
+        deliverables: [...new Set([...strs(existingTour.deliverables), ...legacyDeliverables])],
+      }];
+      return [item];
+    });
+  }
+  return items.flatMap((item) => {
+    if (!isObj(item) || str(item.name).trim().toLowerCase() !== LEGACY_TOUR_BRAND) return [item];
+    const tour = {
+      ...item,
+      name: "Musical Tours",
+      description: item.description === LEGACY_TOUR_BRAND_DESCRIPTION ? TOUR_DESCRIPTION : item.description,
+      deliverables: Array.isArray(item.deliverables) && item.deliverables.join("|") === "Tour posters|Event artwork|Brand campaigns|Promotional artwork|Social media creatives"
+        ? ["Tour posters", "Event artwork", "Show promotions"] : item.deliverables,
+    };
+    const brand = {
+      name: "Brand Promotions", description: BRAND_DESCRIPTION,
+      deliverables: ["Brand campaigns", "Promotional artwork", "Social media creatives"],
+      sample: "", gallery: [], details: "",
+    };
+    if (!names.has("musical tours") && !names.has("brand promotions")) return [tour, brand];
+    if (!names.has("musical tours")) return [tour];
+    return [item];
+  });
+}
+
 /** The creator's content, made safe: defaults for anything missing, bounded sizes, valid projects and styles. */
 export function sanitizeContent(input: unknown, options: { preserveClientSlots?: boolean } = {}): SiteContent {
   const def = defaultContent();
@@ -88,7 +145,15 @@ export function sanitizeContent(input: unknown, options: { preserveClientSlots?:
   const rawContact = isObj(rawHome.contact) ? rawHome.contact : {};
   const rawForm = isObj(rawContact.form) ? rawContact.form : {};
   const contactForm = merged.home.contact.form;
-  contactForm.projectOptions = contactProjects({ ...contactForm, projectOptions: rawForm.projectOptions });
+  const contactOptions = contactProjects({ ...contactForm, projectOptions: rawForm.projectOptions });
+  const contactNames = new Set(contactOptions.map((project) => project.name.trim().toLowerCase()));
+  contactForm.projectOptions = contactOptions.flatMap((project) => {
+    if (project.name.trim().toLowerCase() !== LEGACY_TOUR_BRAND) return [project];
+    return [
+      ...(!contactNames.has("musical tours") ? [{ ...project, name: "Musical Tours" }] : []),
+      ...(!contactNames.has("brand promotions") ? [{ ...project, name: "Brand Promotions", budgets: [...project.budgets] }] : []),
+    ];
+  });
   contactForm.projectTypes = contactForm.projectOptions.map((project) => project.name);
 
   // Menu: the destinations are fixed, only the words change.
@@ -148,7 +213,7 @@ export function sanitizeContent(input: unknown, options: { preserveClientSlots?:
   }) as SiteContent["projects"];
 
   // Services are numbered by their position.
-  merged.services = (merged.services as unknown[]).flatMap((raw, i) => {
+  merged.services = splitTourAndBrand(merged.services as unknown[]).flatMap((raw, i) => {
     if (!isObj(raw)) return [];
     return [
       {

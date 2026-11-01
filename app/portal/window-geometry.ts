@@ -9,24 +9,25 @@ export function constrainWindow(rect: WindowRect, bounds: WindowRect): WindowRec
   return { width, height, x: clamp(rect.x, bounds.x, bounds.x + bounds.width - width), y: clamp(rect.y, bounds.y, bounds.y + bounds.height - height) };
 }
 
-/** A wide floating window may cross a side edge, but its title bar stays reachable.
+/** Allow a little horizontal travel even for full-width windows, never hide most of one.
  * Resizing/viewport changes still use constrainWindow to bring the whole window back. */
 export function moveWindow(rect: WindowRect, bounds: WindowRect): WindowRect {
   const sized = constrainWindow(rect, bounds);
-  const visibleWidth = Math.min(220, sized.width);
-  const visibleHeight = Math.min(96, sized.height);
+  const overscan = Math.min(120, sized.width * .2, bounds.width * .15);
   return { ...sized,
-    x: clamp(rect.x, bounds.x - sized.width + visibleWidth, bounds.x + bounds.width - visibleWidth),
-    y: clamp(rect.y, bounds.y, bounds.y + bounds.height - visibleHeight),
+    x: clamp(rect.x, bounds.x - overscan, bounds.x + bounds.width - sized.width + overscan),
+    y: clamp(rect.y, bounds.y, bounds.y + bounds.height - sized.height),
   };
 }
 
 export function resizeWindow(rect: WindowRect, edge: ResizeEdge, dx: number, dy: number, bounds: WindowRect): WindowRect {
-  const start = constrainWindow(rect, bounds);
+  // Keep the opposite edge anchored when a window is slightly beyond a side.
+  // Re-fitting the whole rectangle here would jump it on the first resize pixel.
+  const start = moveWindow(rect, bounds);
   let left = start.x, top = start.y, right = left + start.width, bottom = top + start.height;
   const minWidth = Math.min(320, bounds.width), minHeight = Math.min(180, bounds.height);
-  if (edge.includes("w")) left = clamp(left + dx, bounds.x, right - minWidth);
-  if (edge.includes("e")) right = clamp(right + dx, left + minWidth, bounds.x + bounds.width);
+  if (edge.includes("w")) left = clamp(left + dx, Math.max(Math.min(start.x, bounds.x), right - bounds.width), right - minWidth);
+  if (edge.includes("e")) right = clamp(right + dx, left + minWidth, Math.min(Math.max(right, bounds.x + bounds.width), left + bounds.width));
   if (edge.includes("n")) top = clamp(top + dy, bounds.y, bottom - minHeight);
   if (edge.includes("s")) bottom = clamp(bottom + dy, top + minHeight, bounds.y + bounds.height);
   return { x: left, y: top, width: right - left, height: bottom - top };

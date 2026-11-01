@@ -27,6 +27,13 @@ test("portal window geometry stays visible at every edge, minimum size and viewp
   const bounds={x:0,y:0,width:1200,height:800}, rect={x:300,y:200,width:600,height:400};
   assert.deepEqual(resizeWindow(rect,"nw",100,50,bounds),{x:400,y:250,width:500,height:350});
   assert.deepEqual(resizeWindow(rect,"se",100,50,bounds),{x:300,y:200,width:700,height:450});
+  const leftOutside={x:-80,y:100,width:600,height:400};
+  assert.deepEqual(resizeWindow(leftOutside,"e",10,0,bounds),{...leftOutside,width:610},"Resizing must not re-center a partly off-screen window");
+  const rightOutside={x:700,y:100,width:600,height:400};
+  assert.deepEqual(resizeWindow(rightOutside,"w",-10,0,bounds),{...rightOutside,x:690,width:610},"The opposite edge remains anchored");
+  for(const outside of [leftOutside,rightOutside]) for(const edge of ["w","e"]) for(const delta of [-10000,10000]) {
+    assert.ok(resizeWindow(outside,edge,delta,0,bounds).width<=bounds.width,"A partly off-screen resize cannot grow beyond the viewport");
+  }
 });
 
 test("wide portal windows can move right and left while retaining a reachable title bar", () => {
@@ -34,11 +41,11 @@ test("wide portal windows can move right and left while retaining a reachable ti
   for (const width of [240, 320, 390, 729, 1024, 1920]) {
     const bounds = { x: 8, y: 28, width: width - 16, height: 484 };
     const original = { x: 8, y: 28, width: bounds.width, height: 460 };
-    assert.equal(moveWindow({ ...original, x: 108 }, bounds).x, Math.min(108, width - 8 - 220));
+    assert.equal(moveWindow({ ...original, x: 108 }, bounds).x, Math.min(108, 8 + Math.min(120,bounds.width*.15)));
     for (const x of [-10000, -100, 0, 100, 10000]) {
       const moved = moveWindow({ ...original, x, y: 10000 }, bounds);
       const visible = Math.min(moved.x + moved.width, bounds.x + bounds.width) - Math.max(moved.x, bounds.x);
-      assert.ok(visible >= Math.min(220, moved.width), "Enough header remains for dragging back or double-clicking to maximize");
+      assert.ok(visible >= moved.width*.8-1e-9, "At least 80% of the window remains visible");
       assert.ok(moved.y >= bounds.y && moved.y + 96 <= bounds.y + bounds.height);
       const recovered = constrainWindow(moved, bounds);
       assert.ok(recovered.x >= bounds.x && recovered.x + recovered.width <= bounds.x + bounds.width);
@@ -77,7 +84,7 @@ test("portal windows move, resize, restore, cancel, and release pointer capture 
   box.querySelector=()=>maximize;maximize.querySelector=()=>icon;
   const values={window:win,document:{documentElement:root},Element:Node,HTMLElement:Node};
   for(const [key,value] of Object.entries(values))Object.defineProperty(globalThis,key,{value,configurable:true,writable:true});
-  const fire=(target,type,source,props={})=>{const e=new Event(type,{cancelable:true});Object.defineProperty(e,"target",{value:source});Object.assign(e,{isPrimary:true,button:0,pointerId:1,clientX:100,clientY:100},props);target.dispatchEvent(e);return e;};
+  const fire=(target,type,source,props={})=>{const e=new Event(type,{cancelable:true});Object.defineProperty(e,"target",{value:source});Object.assign(e,{isPrimary:true,button:0,buttons:1,pointerId:1,clientX:100,clientY:100},props);target.dispatchEvent(e);return e;};
   let cleanup;
   try {
     cleanup=loader()("app/portal/panel-window.ts").bindPanelWindow(box);
@@ -103,13 +110,13 @@ test("portal windows move, resize, restore, cancel, and release pointer capture 
     assert.equal(box.style.left,"200px");assert.equal(box.style.width,"750px");
     fire(box,"keydown",header,{key:"ArrowLeft",shiftKey:true});assert.equal(box.style.left,"160px");
     fire(box,"keydown",handle,{key:"ArrowDown"});assert.equal(box.style.height,"410px");
-    fire(box,"pointerdown",header);fire(win,"pointermove",header,{clientX:350,clientY:300});fire(win,"pointercancel",header);
-    assert.equal(box.style.left,"160px","Cancelled touch restores the pre-drag geometry");
+    fire(box,"pointerdown",header);fire(win,"pointermove",header,{clientX:350,clientY:300});fire(box,"keydown",header,{key:"Escape"});
+    assert.equal(box.style.left,"160px","Explicit Escape restores the pre-drag geometry");
     fire(box,"pointerdown",header,{clientX:300,clientY:180});
     fire(win,"pointerup",header,{clientX:1100,clientY:180});
-    assert.equal(box.style.left,"960px", "Rightward drag is not blocked by the window's far edge");
+    assert.equal(box.style.left,"562px", "Rightward travel is bounded without hiding most of the window");
     fire(box,"keydown",header,{key:"ArrowRight",shiftKey:true});
-    assert.equal(box.style.left,"972px", "Keyboard movement leaves 220px of title bar visible");
+    assert.equal(box.style.left,"562px", "Keyboard movement uses the same safe limit");
     fire(box,"click",maximize);
     fire(box,"pointerdown",header,{clientX:600,clientY:20});fire(win,"pointerup",header,{clientX:600,clientY:20});
     assert.equal(box.hasAttribute("data-window-fullscreen"),true,"A maximized title click does not restore the window");
@@ -117,7 +124,7 @@ test("portal windows move, resize, restore, cancel, and release pointer capture 
     fire(win,"pointermove",header,{clientX:700,clientY:80});
     assert.equal(box.hasAttribute("data-window-fullscreen"),false);
     assert.equal(box.style.width,"750px");assert.equal(box.style.left,"325px");assert.equal(box.style.top,"60px");
-    fire(win,"pointercancel",header);
+    fire(box,"keydown",header,{key:"Escape"});
     assert.equal(box.hasAttribute("data-window-fullscreen"),true,"Cancelled restore-drag returns to maximized state");
     fire(box,"pointerdown",header,{clientX:600,clientY:20});
     fire(win,"pointermove",header,{clientX:700,clientY:80});
@@ -147,9 +154,26 @@ test("portal windows move, resize, restore, cancel, and release pointer capture 
     fire(win,"pointermove",header,{clientX:300,clientY:100,pointerId:2});
     assert.equal(box.hasAttribute("data-window-custom"),false,"Another pointer cannot move the window");
     fire(win,"pointerup",header,{clientX:300,clientY:100});
-    assert.equal(box.style.left,"300px","Dragging works without visualViewport or pointer capture");
+    assert.equal(box.style.left,"227.95px","Dragging works without visualViewport or pointer capture and stays bounded");
     assert.equal(root.hasAttribute("data-portal-window-drag"),false);
     header.setPointerCapture = capturePointer;
+    fire(box,"click",reset);
+    fire(box,"pointerdown",header);
+    fire(win,"pointermove",header,{clientX:10000,clientY:100});
+    const boundaryLeft=parseFloat(box.style.left);
+    fire(win,"pointermove",header,{clientX:9990,clientY:100});
+    assert.equal(parseFloat(box.style.left),boundaryLeft-10,"Reverse immediately after reaching a drag boundary");
+    fire(win,"pointerup",header,{clientX:0,clientY:0});
+    assert.equal(parseFloat(box.style.left),boundaryLeft-10,"A zero-coordinate release cannot teleport the window");
+    fire(box,"pointerdown",header);
+    fire(win,"pointermove",header,{clientX:90,clientY:110});
+    const cancelledRect=box.getBoundingClientRect();
+    fire(win,"pointercancel",header);
+    assert.deepEqual(box.getBoundingClientRect(),cancelledRect,"Browser cancellation keeps the last valid position");
+    fire(box,"pointerdown",header);
+    fire(win,"pointermove",header,{clientX:300,clientY:100,buttons:0});
+    assert.deepEqual(box.getBoundingClientRect(),cancelledRect,"A missed release must not drag on hover");
+    assert.equal(root.hasAttribute("data-portal-window-drag"),false);
     fire(box,"pointerdown",header);cleanup();cleanup=undefined;
     assert.equal(header.hasPointerCapture(1),false);assert.equal(root.hasAttribute("data-portal-window-drag"),false);
     fire(box,"click",maximize);assert.equal(box.hasAttribute("data-window-fullscreen"),false,"Unmount removes all listeners");
@@ -185,7 +209,96 @@ test("responsive form, touch controls and long service copy are scoped to their 
     assert.match(services, new RegExp(`\\.${selector}\\s*\\{[^}]*overflow-wrap: anywhere`));
   }
   assert.match(services, /\.dialogClose, \.dialogStep button \{ width: 44px; height: 44px; \}/);
-  assert.match(services, /\.card:hover, \.card:focus-visible, \.card:hover \.media img \{ transform: none; \}/);
+  assert.match(services, /\.card:hover, \.card:focus-visible, \.card:hover \.moreArrow svg, \.card:focus-visible \.moreArrow svg \{ transform: none; \}/);
+});
+
+test("service categories stay spacious, icon-led and keyboard operable without losing saved details", () => {
+  const css=new Proxy({}, {get:(_target,key)=>key==="__esModule"?false:key});
+  const services=clone(json("content/site-content.json").services);
+  const original=clone(services);
+  let selected=null;
+  const Dialog=()=>null, Icon=()=>null;
+  const nodes=node=>!node||typeof node!=="object"?[]:Array.isArray(node)?node.flatMap(nodes):[node,...nodes(node.props?.children)];
+  const {Services}=loader({
+    react:{useState:()=>[selected,next=>{selected=next;}]},
+    "@/lib/content/context":{useContent:()=>({home:{services:{label:"Services",title:"Our services"}},services}),tx:path=>({"data-t":path})},
+    "@/components/fx/render-fx":{renderFx:value=>value},
+    "@/components/PreviewControls":{AddContent:()=>null},
+    "./ServiceDialog":{ServiceDialog:Dialog},"./ServiceIcon":{ServiceIcon:Icon},"./Services.module.css":css,
+  })("components/sections/Services.tsx");
+  const tree=nodes(Services()), cards=tree.filter(node=>node.type==="article");
+  assert.equal(cards.length,8);
+  assert.equal(tree.filter(node=>node.type===Icon).length,8);
+  assert.equal(tree.filter(node=>node.type==="img"||node.props?.className==="media"||node.props?.className==="chips").length,0);
+  cards.forEach((card,i)=>{
+    assert.equal(card.props.role,"button");assert.equal(card.props.tabIndex,0);
+    assert.equal(card.props["data-ed-item"],`services.${i}`);
+    assert.equal(card.props["data-glow-card"],true);
+    assert.equal(card.props.children.at(-1).props.className,"more","The action has its own row outside the icon/text region");
+    card.props.onClick();assert.equal(selected,i);
+    selected=null;
+    let prevented=false;
+    card.props.onKeyDown({key:"Enter",target:card,currentTarget:card,preventDefault(){prevented=true;}});
+    assert.equal(prevented,true);assert.equal(selected,i);
+    const dialog=nodes(Services()).find(node=>node.type===Dialog);
+    assert.equal(dialog.props.index,i);assert.deepEqual(dialog.props.services,services);
+    dialog.props.onClose();assert.equal(selected,null);
+  });
+  assert.deepEqual(services,original,"Simplifying the cards must not rewrite names, descriptions or images");
+  const stylesheet=readFileSync(path.join(root,"components/sections/Services.module.css"),"utf8");
+  assert.match(stylesheet,/\.cards\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(stylesheet,/grid-template-areas: "icon body" "action action"/);
+  assert.match(stylesheet,/@media \(max-width: 600px\)\s*\{[^}]*grid-template-areas: "icon" "body" "action"/s);
+  assert.match(stylesheet,/\.badge\.badge\s*\{[^}]*width: 116px/);
+  assert.ok(tree.filter(node=>node.type==="p"&&node.props?.["data-t"]==="services.description").length===8);
+  assert.doesNotMatch(stylesheet,/\.media\s*\{|\.chips\s*\{/);
+  assert.match(stylesheet,/\.card:focus-visible \.badge/);
+  assert.match(stylesheet,/\.card:hover \.badge:not\(\[data-tap\]\)/,"Touch hover does not leave the icon permanently lit");
+});
+
+test("service dialogs omit empty media but preserve galleries, editing and next/previous actions", () => {
+  const originalDocument=Object.getOwnPropertyDescriptor(globalThis,"document");
+  Object.defineProperty(globalThis,"document",{configurable:true,value:{body:{}}});
+  const css=new Proxy({}, {get:(_target,key)=>key==="__esModule"?false:key});
+  const Image=()=>null, Icon=()=>null;
+  let shot=0, selected=0, closed=false;
+  const nodes=node=>!node||typeof node!=="object"?[]:Array.isArray(node)?node.flatMap(nodes):[node,...nodes(node.props?.children)];
+  try {
+    const {ServiceDialog}=loader({
+      react:{useState:()=>[shot,next=>{shot=next;}],useRef:()=>({current:null}),useEffect(){}},
+      "react-dom":{createPortal:node=>node},"next/image":Image,
+      "@/components/fx/render-fx":{renderFx:value=>value,plainFx:value=>value},
+      "@/lib/images":{placeholderProps:()=>({}),versionedSrc:src=>src},
+      "@/lib/content/adjust":{adjustStyle:()=>({})},
+      "@/lib/smooth-scroll":{freezeScroll(){},releaseScroll(){}},"@/lib/section-nav":{goToSection(){}},
+      "@/components/PreviewControls":{AddContent:()=>null,EditContent:()=>null},
+      "./ServiceIcon":{ServiceIcon:Icon},"./Services.module.css":css,
+    })("components/sections/ServiceDialog.tsx");
+    const services=clone(json("content/site-content.json").services);
+    const render=()=>nodes(ServiceDialog({services,index:0,onIndex:value=>{selected=value;},onClose:()=>{closed=true;}}));
+    let tree=render();
+    assert.equal(tree.find(node=>node.props?.role==="dialog").props["data-has-media"],false);
+    assert.equal(tree.filter(node=>node.props?.className==="dialogMedia").length,0);
+    assert.equal(tree.filter(node=>node.type===Icon).length,1);
+    assert.equal(tree.find(node=>node.props?.className==="dialogStory").props.children,services[0].description);
+    tree.find(node=>node.props?.["aria-label"]==="Previous service").props.onClick();assert.equal(selected,services.length-1);
+    tree.find(node=>node.props?.["aria-label"]==="Next service").props.onClick();assert.equal(selected,1);
+    tree.find(node=>node.props?.["aria-label"]==="Close").props.onClick();assert.equal(closed,true);
+    services[0].sample="/images/sample.png";
+    services[0].gallery=[{src:"/images/gallery.png",alt:"Gallery artwork"}];
+    tree=render();
+    assert.equal(tree.find(node=>node.props?.role==="dialog").props["data-has-media"],true);
+    assert.equal(tree.find(node=>node.type===Image).props.src,"/images/sample.png");
+    tree.find(node=>node.props?.["aria-label"]==="Picture 2 of 2").props.onClick();
+    assert.equal(render().find(node=>node.type===Image).props.src,"/images/gallery.png");
+    services[0].sample="";shot=0;
+    assert.equal(render().find(node=>node.type===Image).props.src,"/images/gallery.png","Gallery-only services retain their artwork");
+  } finally {if(originalDocument)Object.defineProperty(globalThis,"document",originalDocument);else delete globalThis.document;}
+  const icon=readFileSync(path.join(root,"components/sections/ServiceIcon.tsx"),"utf8");
+  assert.match(icon,/import glow from "\.\/Process.module.css"/);
+  assert.match(icon,/className=\{glow.icon\}/);
+  assert.match(icon,/glass-glow/);
+  assert.ok(icon.indexOf('n.includes("tour")')<icon.indexOf('n.includes("music")'),"Tours have a distinct mark from music videos");
 });
 
 test("glass title angle, colour and glow controls form independent responsive groups", () => {
@@ -206,9 +319,18 @@ test("glass title angle, colour and glow controls form independent responsive gr
   assert.equal(groups.length, 6);
   assert.deepEqual(groups.map(group => nodes(group).find(node => node.props?.label)?.props.label), ["This title — rotation angle", "This title — size", "This title — blend opacity", "Title colour", "Title glow colour", "Title glow intensity"]);
   const edge = tree.find(node => node.props?.label === "Arc edge thickness");
-  assert.equal(edge.props.min, .1); assert.equal(edge.props.max, 1); assert.equal(edge.props.value, .25);
+  assert.equal(edge.props.min, .01); assert.equal(edge.props.max, 1); assert.equal(edge.props.value, .08);
   edge.props.onChange(.15);
   assert.equal(patch.disc.edgeThickness, .15);
+  const thinEdge = tree.find(node => node.type === "button" && node.props.children === "Use ultra-thin edge");
+  thinEdge.props.onClick(); assert.equal(patch.disc.edgeThickness,.08);
+  const resetLight = tree.find(node => node.type === "button" && node.props.children === "Reset lighting only");
+  resetLight.props.onClick(); assert.equal(patch.disc.lightIntensity,1); assert.equal(patch.disc.rayIntensity,.8);
+  for(const [previewWidth, expected] of [[390,"mobile"],[820,"tablet"],[1440,"desktop"]]) {
+    const previewTree=nodes(ProofTableEditor({value:{enabled:true,items:[],disc:{}},projects:[],onChange(){},onShow(){},previewWidth}));
+    const status=previewTree.find(node=>node.props?.role==="status");
+    assert.ok(status.props.children.includes(expected),"The editor identifies the actual active beam profile");
+  }
   const titleSize = nodes(groups[1]).find(node => node.props?.label === "This title — size");
   assert.equal(titleSize.props.value, 1);
   titleSize.props.onChange(.55); assert.equal(patch.items[0].titleScale, .55);
@@ -602,12 +724,12 @@ test("contact placeholders are grey without dimming real dropdown choices", () =
   assert.match(css, /\.field select option:not\(:disabled\)\s*\{\s*color: var\(--ivory\);/);
 });
 
-test("services and enquiry choices match the seven requested services without splitting saved cards", () => {
+test("tour and brand services stay distinct, including migrated saved content and enquiry choices", () => {
   const app = loader();
   const { sanitizeContent } = app("lib/content/sanitize.ts");
   const saved = json("content/site-content.json");
   const current = sanitizeContent(saved);
-  const names = ["Theatrical Films", "OTT/Television", "Indie Films", "Music Videos", "Title Designs", "Logo Designs", "Musical Tours/Brand Promotions"];
+  const names = ["Theatrical Films", "OTT/Television", "Indie Films", "Music Videos", "Title Designs", "Logo Designs", "Musical Tours", "Brand Promotions"];
   for (const content of [current, app("lib/content/defaults.ts").defaultContent()]) {
     assert.deepEqual(content.services.map(service => service.name), names);
     assert.deepEqual(content.home.contact.form.projectOptions.map(project => project.name), names);
@@ -618,24 +740,37 @@ test("services and enquiry choices match the seven requested services without sp
       assert.deepEqual(result.errors, {}, `${project.name} can be submitted`);
     }
   }
-  const custom = clone(saved);
-  Object.assign(custom.services[6], {
+  const legacy = clone(saved);
+  legacy.services.splice(7, 1);
+  Object.assign(legacy.services[6], {
+    name: "Musical Tours/Brand Promotions",
+    description: "Visual identities and promotional artwork for musical tours, live events and brand campaigns.",
+    deliverables: ["Tour posters", "Event artwork", "Brand campaigns", "Promotional artwork", "Social media creatives"],
     sample: "/images/uploads/tour.png", details: "Custom tour details", sampleZoom: 1.2,
   });
-  const combined = sanitizeContent(custom);
-  assert.equal(combined.services.length, 7);
-  assert.equal(combined.services[6].name, names[6]);
-  assert.equal(combined.services[6].sample, "/images/uploads/tour.png");
-  assert.equal(combined.services[6].details, "Custom tour details");
-  assert.equal(combined.services[6].sampleZoom, 1.2);
-  assert.deepEqual(combined.services[6].deliverables, saved.services[6].deliverables);
-  assert.deepEqual(sanitizeContent(combined), combined, "Saving never recreates a separate Brand Promotions card");
-  combined.services.pop();
-  assert.equal(sanitizeContent(combined).services.length, 6, "Intentional deletions remain deleted");
-  custom.services[6].name = "Custom tour service";
-  custom.services.push({ number: "08", name: "Brand Promotions", description: "Custom brand service", deliverables: [], sample: "/images/uploads/brand.png" });
-  assert.equal(sanitizeContent(custom).services.length, 8, "Independently edited cards are never silently removed");
-  assert.equal(sanitizeContent(custom).services[7].sample, "/images/uploads/brand.png");
+  legacy.home.contact.form.projectTypes.splice(6, 2, "Musical Tours/Brand Promotions");
+  const migrated = sanitizeContent(legacy);
+  assert.equal(migrated.services.length, 8);
+  assert.deepEqual(migrated.services.map(service => service.name), names);
+  assert.equal(migrated.services[6].sample, "/images/uploads/tour.png");
+  assert.equal(migrated.services[6].details, "Custom tour details");
+  assert.equal(migrated.services[6].sampleZoom, 1.2);
+  assert.equal(migrated.services[7].sample, "", "The brand card does not repeat tour artwork");
+  assert.deepEqual(migrated.services[7].deliverables, saved.services[7].deliverables);
+  assert.deepEqual(migrated.home.contact.form.projectTypes, names);
+  assert.deepEqual(sanitizeContent(migrated), migrated, "The split is stable after saving");
+  const partlySplit = clone(legacy);
+  partlySplit.services.push({ ...saved.services[6], sample: "/images/uploads/new-tour.png" }, saved.services[7]);
+  const preserved = sanitizeContent(partlySplit);
+  assert.deepEqual(preserved.services.map(service => service.name), names, "No combined card survives when both separate cards already exist");
+  assert.equal(preserved.services[6].sample, "/images/uploads/new-tour.png");
+  assert.ok(preserved.services[6].gallery.some(image => image.src === "/images/uploads/tour.png"), "Legacy artwork remains available in the tour gallery");
+  migrated.services.pop();
+  assert.equal(sanitizeContent(migrated).services.length, 7, "Intentional deletions remain deleted");
+  legacy.services[6].name = "Custom tour service";
+  legacy.services.push({ number: "08", name: "Brand Promotions", description: "Custom brand service", deliverables: [], sample: "/images/uploads/brand.png" });
+  assert.equal(sanitizeContent(legacy).services.length, 8, "Independently edited cards are never silently removed");
+  assert.equal(sanitizeContent(legacy).services[7].sample, "/images/uploads/brand.png");
 });
 
 test("projector density follows image brightness bands without extinguishing the lamp", () => {
@@ -1106,9 +1241,9 @@ test("rotated title projection samples agree with Three.js artwork transforms", 
 test("arc thickness is bounded by today's broad edge and title size/blending survive saving", () => {
   const read = loader(), { DISC_DEFAULTS, DISC_RANGES, sanitizeDisc } = read("lib/content/disc.ts");
   const { sanitizeIntroSettings } = read("lib/intro/settings.ts");
-  assert.equal(DISC_DEFAULTS.edgeThickness, .25);
-  assert.deepEqual(DISC_RANGES.edgeThickness, [.1, 1, .01]);
-  for (const [input, expected] of [[undefined, .25], [NaN, .25], [Infinity, .25], [0, .1], [-1, .1], [2, 1], [.4, .4]]) {
+  assert.equal(DISC_DEFAULTS.edgeThickness, .08);
+  assert.deepEqual(DISC_RANGES.edgeThickness, [.01, 1, .01]);
+  for (const [input, expected] of [[undefined, .08], [NaN, .08], [Infinity, .08], [0, .01], [-1, .01], [2, 1], [.4, .4]]) {
     assert.equal(sanitizeDisc({ edgeThickness: input }).edgeThickness, expected);
   }
   const settings = sanitizeIntroSettings(json("content/intro-settings.json"));
@@ -1126,8 +1261,8 @@ test("arc thickness is bounded by today's broad edge and title size/blending sur
   const bad = sanitizeIntroSettings(settings).proofTable.items[0];
   assert.equal(bad.titleScale, undefined);assert.equal(bad.titleOpacity, undefined);assert.equal(bad.titleBlend, undefined);
   const scene = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
-  assert.match(scene, /thickness=clamp\(glassEdgeWidth,\.1,1\.\)/);
-  for (const term of [".006", ".018", ".017", ".0032", ".0024", ".015", ".0012"]) assert.ok(scene.includes(`${term}*thickness`));
+  assert.match(scene, /thickness=clamp\(glassEdgeWidth,\.01,1\.\)/);
+  for (const term of [".006", ".0032"]) assert.ok(scene.includes(`${term}*thickness`));
   assert.match(scene, /glassEdgeWidth.value = renderedControls.edgeThickness/);
   assert.match(scene, /slot.image.visible = titleOpacity > 0/);
   assert.match(scene, /slots.filter\(s => s.image.visible\)/, "Fully blended-out titles do not intercept clicks");
@@ -1277,7 +1412,7 @@ test("compact reading gutters protect content without resizing the intro or port
   assert.match(founder, /width: min\(100%, 168px\);\s*aspect-ratio: 1/);
   assert.match(process, /\.headRow \{\s*display: flex;\s*flex-wrap: wrap/);
   assert.match(process, /\.note \{[^}]*white-space: normal/);
-  assert.match(services, /minmax\(min\(100%, 260px\), 1fr\)/);
+  assert.match(services, /@media \(max-width: 900px\)\s*\{\s*\.cards \{ grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(clients, /font-size: clamp\(16px, 8.6cqi, 44px\)/);
 });
 
@@ -1595,27 +1730,61 @@ test("smoked glass keeps its existing pane and reveals pigment through a bounded
   assert.match(source, /float tintAlpha=glassOpacity\*mix\(\.72,\.88/);
   assert.match(source, /float a=reflectionAlpha\+tintAlpha\*\(1\.-reflectionAlpha\)/);
   assert.match(source, /float landingHaze=1\.-\.48\*smoothstep\(\.78,1\.,along\)/);
-  assert.match(source, /contactColour\*\(contact\*\.42\+sheen\*\.06\*contactStrength\)/);
+  assert.match(source, /contactColour\*contactAlpha\*\(1\.-rimAlpha\)/);
   assert.equal((source.match(/new THREE\.CircleGeometry\(R, 192\)/g) ?? []).length, 1);
   assert.match(source, /projectorTransform\*world/, "Glass and artwork share the fixed light frame");
   assert.match(source, /artworkCore\*\(1\.\+slotGlow\*\.1\)/, "Preserve the original logo core under its glow");
 });
 
-test("glass rim has two antialiased curved lips and stable opposing reflections in the existing pane", () => {
+test("glass rim has one subpixel antialiased reflection without extra inner rings", () => {
   const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
   const pane = source.slice(source.indexOf("const glassMaterial"), source.indexOf("type ColourSample"));
   assert.match(pane, /float bevel=exp/);
-  assert.match(pane, /float inner=exp/);
-  assert.match(pane, /float shoulder=exp/);
-  assert.match(pane, /max\(\.0032\*thickness,aa\*1.5\)/);
-  assert.match(pane, /max\(\.0024\*thickness,aa\*1.25\)/);
+  assert.doesNotMatch(pane, /float (inner|shoulder|innerArc)=/);
+  assert.match(pane, /resolvedWidth=max\(lineWidth,aa\*\.55\)/);
+  assert.match(pane, /min\(1\.,lineWidth\/resolvedWidth\)/,"Thin settings reduce coverage instead of hitting a thick pixel floor");
   assert.match(pane, /vec2 radial=vProjector\/max\(length\(vProjector\),\.0001\)/);
   assert.match(pane, /pow\(abs\(dot\(radial/);
   assert.match(pane, /abs\(dot\(normalize\(vGlassNormal\),normalize\(vGlassView\)\)\)/, "Fresnel works on both faces");
   assert.doesNotMatch(pane, /sin\(atan\(vGlass|texture2D|sampler2D/, "No rotating highlight or extra texture allocations");
   assert.equal((pane.match(/new THREE\.Mesh/g) ?? []).length, 1);
   assert.equal((source.match(/composer.addPass\(/g) ?? []).length, 4);
-  assert.match(pane, /clamp\(a\*edge,0\.,\.65\)/, "Glass remains translucent");
+  assert.match(pane, /clamp\(a\*edge,0\.,1\.\)/, "Final alpha stays bounded");
+  assert.doesNotMatch(pane, /sqrt\(glassOpacity\)/,"Edge reflection remains independent of tint opacity");
+});
+
+test("lighting sliders persist independently and update their own render channels", () => {
+  const read=loader(), {DISC_DEFAULTS,DISC_RANGES}=read("lib/content/disc.ts");
+  const {sanitizeIntroSettings}=read("lib/intro/settings.ts");
+  const keys=["lightIntensity","rayIntensity","beamGlow","rayStrength","surfaceReflection","bloom","glowRadius","glowThreshold","raySpread","rayMotion","rayPrism","rayLength"];
+  for(const key of keys) for(const value of [DISC_RANGES[key][0],DISC_RANGES[key][1]]) {
+    const settings=sanitizeIntroSettings({proofTable:{disc:{...DISC_DEFAULTS,[key]:value}}});
+    const saved=sanitizeIntroSettings(JSON.parse(JSON.stringify(settings)));
+    assert.equal(saved.proofTable.disc[key],value);
+    for(const other of keys.filter(other=>other!==key)) assert.equal(saved.proofTable.disc[other],DISC_DEFAULTS[other]);
+  }
+  const source=readFileSync(path.join(root,"components/disc-hero/scene.ts"),"utf8");
+  for(const key of keys) assert.ok(source.includes(`renderedControls.${key} = settleControl(renderedControls.${key}, controls.${key}, dt`),`${key} keeps updating even in a paused preview`);
+  assert.match(source,/glassLight.value = renderedControls.lightIntensity/);
+  assert.match(source,/surfaceReflection.value = renderedControls.surfaceReflection/);
+  assert.doesNotMatch(source,/contactStrength.value =[^\n]*surfaceReflection/,"Title glow must not depend on the surface-only slider");
+  assert.match(source,/contactReflection\(p,rayField\(p\)\)\*surfaceReflection/);
+  assert.match(source,/\.1\*beamGlow\+rayField\(p\)\*1.3\*rayStrength/,"Dust obeys the same off controls as the beam");
+  const wrapper=readFileSync(path.join(root,"components/proof-table/ProofTable.tsx"),"utf8");
+  assert.match(wrapper,/Object.assign\(scene.current.controls, sanitizeDisc\(pt.disc\)\); scene.current.invalidate\(\)/);
+  const portal=readFileSync(path.join(root,"app/portal/PortalEditor.tsx"),"utf8");
+  assert.match(portal,/ResizeObserver\(\(\) => setPreviewWidth\(frame.clientWidth\)\)/);
+  assert.match(portal,/previewWidth=\{previewWidth\}/);
+  // Subpixel-width changes must remain distinguishable at low and high DPR.
+  for(const aa of [.00025,.001,.004]) {
+    let previous=0;
+    for(const thickness of [.01,.04,.08,.25,1]) {
+      const lineWidth=.0032*thickness, resolvedWidth=Math.max(lineWidth,aa*.55);
+      const integratedCoverage=resolvedWidth*Math.min(1,lineWidth/resolvedWidth);
+      assert.ok(integratedCoverage>previous);
+      previous=integratedCoverage;
+    }
+  }
 });
 
 test("glass tint and shadow controls sanitize, persist and remain isolated from artwork and the intro", () => {

@@ -539,6 +539,14 @@ export function PortalEditor({
 
   // --- preview ------------------------------------------------------------------------
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const [previewWidth, setPreviewWidth] = useState(1440);
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const observer = new ResizeObserver(() => setPreviewWidth(frame.clientWidth));
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, []);
   const stageRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const [playhead, setPlayhead] = useState(0);
@@ -1904,6 +1912,7 @@ export function PortalEditor({
               <ContentEditor page={CONTENT_PAGES.slate} goto={goto?.tab === "slate" ? goto : undefined} onFocus={(to) => showInPreview({ to, at: "end", label: "Glass title circle" })} />
               <ProofTableEditor
                 value={draft.proofTable}
+                previewWidth={previewWidth}
                 projects={contentDraft.projects.map((p) => ({ slug: p.slug, title: p.title }))}
                 onChange={(patch) => {
                   setDraft((d) => ({ ...d, proofTable: { ...d.proofTable, ...patch } }));

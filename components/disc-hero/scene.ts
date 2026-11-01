@@ -146,13 +146,14 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const glassLight = { value: controls.lightIntensity };
   const glassOpacity = { value: controls.glassOpacity };
   const glassEdgeWidth = { value: controls.edgeThickness };
+  const surfaceReflection = { value: controls.surfaceReflection };
   const glassTint = { value: new THREE.Color(controls.glassTintColor) };
   const targetGlassTint = glassTint.value.clone();
   let lastGlassTint = controls.glassTintColor;
   const glassMaterial = own(new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
     uniforms: { projectorTransform, projectorBounds, projectorSoftness, contactColour,
-      contactStrength, glassLight, glassOpacity, glassEdgeWidth, glassTint, uDesaturation: saturation, rays: raysUniform },
+      contactStrength, glassLight, glassOpacity, glassEdgeWidth, surfaceReflection, glassTint, uDesaturation: saturation, rays: raysUniform },
     vertexShader: `uniform mat4 projectorTransform; varying vec2 vGlass, vProjector;
       varying vec3 vGlassNormal, vGlassView;
       void main(){ vec4 world=modelMatrix*vec4(position,1.);
@@ -160,7 +161,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         vGlassNormal=normalMatrix*normal; vGlassView=-(viewMatrix*world).xyz;
         gl_Position=projectionMatrix*viewMatrix*world; }`,
     fragmentShader: `uniform vec4 projectorBounds; uniform vec3 contactColour, glassTint;
-      uniform float projectorSoftness, contactStrength, glassLight, glassOpacity, glassEdgeWidth, uDesaturation;
+      uniform float projectorSoftness, contactStrength, glassLight, glassOpacity, glassEdgeWidth, surfaceReflection, uDesaturation;
       varying vec2 vGlass, vProjector;
       varying vec3 vGlassNormal, vGlassView;
       ${rayShaderSource}
@@ -168,24 +169,23 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       void main(){
         float r=length(vGlass), aa=max(fwidth(r),.00025);
         float edge=1.-smoothstep(1.-aa,1.,r);
-        // Rounded front/back lips, with a soft shoulder between them. Derivative
-        // widths keep the two curves smooth even on small, low-DPR screens.
-        float thickness=clamp(glassEdgeWidth,.1,1.);
-        float bevel=exp(-pow((r-(1.-.006*thickness))/max(.0032*thickness,aa*1.5),2.));
-        float inner=exp(-pow((r-(1.-.018*thickness))/max(.0024*thickness,aa*1.25),2.))*.48;
-        float shoulder=exp(-pow((r-(1.-.017*thickness))/max(.015*thickness,aa*2.),2.))*.16;
-        // A fine concentric reflection reveals the pane across the left/top of
-        // the composition, like the reference. This is glass, not a centre hole.
-        float innerArc=exp(-pow((r-.62)/max(.0012*thickness,aa),2.))*.23;
+        // One fine reflection only: no second lip, shoulder or inner ring.
+        // Subpixel coverage decreases with width instead of a thick AA floor
+        // making the lowest slider values look identical.
+        float thickness=clamp(glassEdgeWidth,.01,1.);
+        float lineWidth=.0032*thickness;
+        float resolvedWidth=max(lineWidth,aa*.55);
+        float bevel=exp(-pow((r-(1.-.006*thickness))/resolvedWidth,2.))
+          *min(1.,lineWidth/resolvedWidth);
         // Broad opposite reflections stay in the fixed light frame, so rotating
         // artwork never makes the glass edge pulse or sparkle independently.
         vec2 radial=vProjector/max(length(vProjector),.0001);
         float sweep=pow(abs(dot(radial,normalize(vec2(.65,.76)))),6.);
         float facing=clamp(abs(dot(normalize(vGlassNormal),normalize(vGlassView))),0.,1.);
         float fresnel=.04+.96*pow(1.-facing,5.);
-        float rim=(bevel+inner+shoulder+innerArc)*(.7+.3*fresnel);
+        float rim=bevel*(.7+.3*fresnel);
         vec2 p=discWindow(vProjector);
-        float contact=contactReflection(p,rayField(p));
+        float contact=contactReflection(p,rayField(p))*surfaceReflection;
         // The smoked-black interior absorbs background light without becoming an opaque disc.
         // Reflection stays anchored to the projector; only faint surface variation rotates.
         float lampFacing=exp(-pow(atan(vProjector.y,vProjector.x)*1.5,2.));
@@ -195,13 +195,16 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         vec3 smokeTint=mix(glassTint,vec3(dot(glassTint,vec3(.2126,.7152,.0722))),uDesaturation);
         float tintAlpha=glassOpacity*mix(.72,.88,smoothstep(.2,.95,r));
         vec3 rimTint=mix(vec3(.48,.62,.76),vec3(.82,.9,.96),sweep);
-        vec3 reflection=rimTint*rim*(.48+sweep*.38+lampFacing*.24)*glassLight;
-        reflection+=contactColour*(contact*.42+sheen*.06*contactStrength);
-        float reflectionAlpha=clamp(rim*sqrt(glassOpacity)*(.62+sweep*.5)*min(glassLight,1.)+contact*.12+sheen*.04*contactStrength,0.,.48);
-        // Composite reflection over the tint in this same mesh: no new draw call or buffer.
+        // Independent layers: clear glass must still reflect at its edge, and
+        // surface-reflection settings must not extinguish title emission.
+        float rimAlpha=clamp(rim*(.62+sweep*.5)*glassLight,0.,.85);
+        float contactAlpha=clamp(contact*.12+sheen*.04*contactStrength*surfaceReflection,0.,.48);
+        float reflectionAlpha=rimAlpha+contactAlpha*(1.-rimAlpha);
         float a=reflectionAlpha+tintAlpha*(1.-reflectionAlpha);
-        vec3 c=(reflection*reflectionAlpha+smokeTint*tintAlpha*(1.-reflectionAlpha))/max(a,.0001);
-        gl_FragColor=vec4(c,clamp(a*edge,0.,.65));
+        vec3 reflection=rimTint*(.48+sweep*.38+lampFacing*.24)*rimAlpha
+          +contactColour*contactAlpha*(1.-rimAlpha);
+        vec3 c=(reflection+smokeTint*tintAlpha*(1.-reflectionAlpha))/max(a,.0001);
+        gl_FragColor=vec4(c,clamp(a*edge,0.,1.));
       }`,
   }));
   const glassPane = new THREE.Mesh(own(new THREE.CircleGeometry(R, 192)), glassMaterial);
@@ -540,8 +543,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   moteGeometry.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(moteCount * 3), 3));
   moteGeometry.setAttribute("seed", new THREE.Float32BufferAttribute(Array.from({ length: moteCount * 4 }, () => Math.random()), 4));
   const moteMaterial = own(new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    uniforms: { tint: { value: beamColor }, time: beamTime, motion: beamMotion, power: fanMaterial.uniforms.power, viewport: fanMaterial.uniforms.viewport, projectorBounds, sourceLocal, projectorFrame: { value: projectorFrame }, rays: raysUniform },
-    vertexShader: `attribute vec4 seed; uniform float time, motion, power; uniform vec2 viewport; uniform vec3 sourceLocal; uniform vec4 projectorBounds; uniform mat4 projectorFrame; varying float vLight;
+    uniforms: { tint: { value: beamColor }, time: beamTime, motion: beamMotion, power: fanMaterial.uniforms.power, beamGlow, rayStrength, viewport: fanMaterial.uniforms.viewport, projectorBounds, sourceLocal, projectorFrame: { value: projectorFrame }, rays: raysUniform },
+    vertexShader: `attribute vec4 seed; uniform float time, motion, power, beamGlow, rayStrength; uniform vec2 viewport; uniform vec3 sourceLocal; uniform vec4 projectorBounds; uniform mat4 projectorFrame; varying float vLight;
       ${rayShaderSource}
       void main(){
         float phase=seed.z+time*(.006+.012*seed.w)*motion;
@@ -551,7 +554,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         vec3 landing=vec3((mix(projectorBounds.x,projectorBounds.y,p.x*.5+.5))*2.35,p.y*halfWidth*2.35,${BEAM_PLANE.toFixed(3)});
         vec4 world=projectorFrame*vec4(mix(sourceLocal,landing,along),1.);
         float twinkle=.55+.45*sin(time*(1.1+seed.w*2.3)*motion+seed.x*60.);
-        vLight=beamBody(p)*(.1+rayField(p)*1.3)*twinkle*power*smoothstep(0.,.1,fract(phase))*(1.-smoothstep(.88,1.,fract(phase)));
+        vLight=beamBody(p)*(.1*beamGlow+rayField(p)*1.3*rayStrength)*twinkle*power*smoothstep(0.,.1,fract(phase))*(1.-smoothstep(.88,1.,fract(phase)));
         gl_Position=projectionMatrix*viewMatrix*world;
         gl_PointSize=(1.2+seed.w*2.2)*clamp(viewport.y/640.,.8,2.2);
       }`,
@@ -799,7 +802,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     imageBands.value.lerp(targetBands, motion.matches || dt === 0 ? 1 : 1 - Math.exp(-dt * 3));
     const energy = (imageBands.value.x + imageBands.value.y + imageBands.value.z + imageBands.value.w) * .25;
     const lampShimmer = 1 + renderedControls.rayMotion * (.035 * Math.sin(time * 3.1) + .025 * Math.sin(time * 7.3 + 1.2));
-    contactStrength.value = renderedControls.rayIntensity * (.62 + renderedControls.bloom * .68) * (.66 + energy * .34) * lampShimmer * renderedControls.surfaceReflection;
+    contactStrength.value = renderedControls.rayIntensity * (.62 + renderedControls.bloom * .68) * (.66 + energy * .34) * lampShimmer;
+    surfaceReflection.value = renderedControls.surfaceReflection;
     // The projector stays on the chosen side, independent of the rotating slots.
     // Changing the focus aims the beam; it never carries the projector around with the slot.
     const sourceZ = Math.max(4, anchor.z + 3);

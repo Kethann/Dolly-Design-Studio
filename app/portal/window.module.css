@@ -1,4 +1,6 @@
-.window { min-width: 0; }
+.window { min-width: 0; animation: window-appear .18s ease; }
+/* Geometry is measured for dragging; do not animate its position or scale. */
+@keyframes window-appear { from { opacity: 0; } }
 .window > footer { padding-inline-end: 32px; } /* Leave the resize grip clear of Save/Cancel. */
 .window[data-window-custom] {
   position: fixed;
