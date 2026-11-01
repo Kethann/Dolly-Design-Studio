@@ -73,10 +73,11 @@ try {
     // while deterministic unit tests verify exact velocity and refresh-rate-independent decay.
     assert.ok(fast > slow * 1.7 && fast > 5, name + ` speed-sensitive glide (${slow.toFixed(1)} slow / ${fast.toFixed(1)} fast)`);
     assert.ok(stopped < 1, 'Holding before release stops inertia');
-    await evaluate(`document.documentElement.setAttribute('data-dds-edit','')`);
+    await evaluate(`document.documentElement.setAttribute('data-dds-edit','1')`);
     await wait(250);
-    assert.equal(await evaluate(`Array.from(document.querySelectorAll('#clients [data-marquee]')).filter(e=>e.getClientRects().length).length`), 2, 'Editing shows one canonical track per list');
+    assert.equal(await evaluate(`Array.from(document.querySelectorAll('#clients [data-marquee]')).filter(e=>e.getClientRects().length).length`), 3, 'Editing shows all three independent lists');
     assert.equal(await evaluate(`document.querySelectorAll('#clients [data-ed-add-list="clients"]').length`), 1);
+    assert.equal(await evaluate(`document.querySelectorAll('#clients [data-ed-add-list="clientsSecond"]').length`), 1);
     const edit = await read(); await wait(200); assert.deepEqual(await read(), edit, 'Editing does not auto-drift');
     await evaluate(`document.documentElement.removeAttribute('data-dds-edit')`);
     await wait(250);
@@ -133,7 +134,28 @@ try {
     const start = await previewRead(); await wait(350); const end = await previewRead();
     directions.forEach((direction,i)=>assert.ok(direction==='right'?delta(start[i],end[i])>0:delta(start[i],end[i])<0,'Preview applies each independent direction'));
   }
+  // Distinct images and entries use independent paths, including when a track is empty.
+  content.clients = [{ name: 'Track one logo', logo: '/images/brand/logo.png' }];
+  content.clientsSecond = [{ name: 'Track two logo', logo: '/images/brand/og-image.jpg' }];
+  const previewDocument = `document.querySelector('#track-preview-check').contentDocument`;
+  for (const [width, height] of [[1440,900],[820,1180],[390,844]]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+    await evaluate(`document.querySelector('#track-preview-check').contentWindow.postMessage(${JSON.stringify({source:'dds-portal',type:'content',content})},location.origin)`);
+    await until(`${previewDocument}.querySelector('[data-ed-item="clientsSecond.0"] img')?.getAttribute('src')?.includes('og-image.jpg')`);
+    assert.ok(await evaluate(`${previewDocument}.querySelector('[data-ed-item="clients.0"] img').getAttribute('src').includes('logo.png')`));
+    await until(`${previewDocument}.querySelector('[data-ed-item="clientsSecond.0"] img')?.naturalWidth > 0`);
+    await evaluate(`${previewDocument}.documentElement.setAttribute('data-dds-edit','1')`);
+    assert.equal(await evaluate(`${previewDocument}.querySelectorAll('[data-ed-item="clientsSecond.0"]').length`), 1, 'Only one real edit target in track 2');
+    assert.ok(await evaluate(`${previewDocument}.querySelector('[data-ed-add-list="clientsSecond"]').getClientRects().length > 0`));
+    assert.ok(await evaluate(`${previewDocument}.documentElement.scrollWidth <= ${previewDocument}.documentElement.clientWidth + 1`), 'Independent logos do not overflow the page');
+  }
+  content.clientsSecond = [];
+  await evaluate(`document.querySelector('#track-preview-check').contentWindow.postMessage(${JSON.stringify({source:'dds-portal',type:'content',content})},location.origin)`);
+  await until(`!${previewDocument}.querySelector('[data-marquee="clientsSecond"]')`);
+  assert.ok(await evaluate(`!!${previewDocument}.querySelector('[data-ed-item="clients.0"] img')`), 'Clearing track 2 preserves track 1');
+  assert.ok(await evaluate(`${previewDocument}.querySelector('[data-ed-add-list="clientsSecond"]').getClientRects().length > 0`), 'Empty track 2 can still be refilled');
   await evaluate(`document.querySelector('#track-preview-check').remove()`);
+  console.log('Independent logos: desktop/tablet/mobile previews, unique edit targets and empty-track Add controls passed');
   console.log('Live direction settings: all tracks reverse independently without resetting position; no saved content changed');
   assert.deepEqual(errors, [], 'No browser exceptions');
   console.log('Screenshots: ' + output);

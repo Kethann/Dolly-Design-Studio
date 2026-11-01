@@ -50,7 +50,7 @@ function usesOf(content: unknown, urls: Set<string>): Map<string, string[]> {
     const name = item && typeof (item.title ?? item.name) === "string" ? String(item.title ?? item.name) : "";
     if (a === "projects") return name ? `Project “${name}”` : "A project";
     if (a === "breakdowns") return name ? `Breakdown “${name}”` : "A breakdown";
-    if (a === "clients") return name ? `Client ${name}` : "A client";
+    if (a === "clients" || a === "clientsSecond") return name ? `Production track ${a === "clients" ? 1 : 2}: ${name}` : "A production house";
     if (a === "collaborators") return name ? `Collaborator ${name}` : "A collaborator";
     if (a === "customFonts") return "The site's fonts";
     return `The ${String(a).replace(/([A-Z])/g, " $1").toLowerCase()} section`;

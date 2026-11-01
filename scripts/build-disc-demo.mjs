@@ -12,7 +12,8 @@ const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dolly · Glass title circle</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#000;color:#edf0f6;font-family:Arial,sans-serif}main{min-height:100svh;position:relative;overflow:hidden}
+*{box-sizing:border-box}body{margin:0;background:#000;color:#edf0f6;font-family:Arial,sans-serif}main{min-height:100svh;position:relative;overflow:hidden;isolation:isolate}
+main::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background-color:var(--glass-shadow-color,#050407);opacity:var(--glass-shadow-opacity,.6588235294);transform:scale(var(--glass-shadow-spread,1));transform-origin:62% 48%;mask-image:radial-gradient(ellipse at 62% 48%,#000 0%,rgb(0 0 0 / .6666667) 35%,rgb(0 0 0 / .1904762) 66%,transparent 85%),radial-gradient(ellipse 50% 50% at 50% 50%,#000 42%,transparent 100%);mask-composite:intersect;transition:background-color .25s,opacity .25s,transform .25s}@media(prefers-reduced-motion:reduce){main::before{transition:none}}
 canvas{display:block;width:100%;height:100svh;touch-action:pan-y}.caption{position:absolute;left:5vw;top:7vh;pointer-events:none}.caption small{font-size:10px;letter-spacing:.3em;color:#9da8b8}.caption h1{font-size:clamp(24px,4vw,54px);font-weight:500;letter-spacing:-.04em;margin:16px 0}.caption p{color:#8f99a8;font-size:12px;max-width:260px;line-height:1.6}
 footer{position:absolute;left:5vw;bottom:5vh;color:#8f99a8;font-size:11px;letter-spacing:.1em}button{background:#171a21;border:1px solid #414853;border-radius:30px;color:#edf0f6;padding:10px 18px;cursor:pointer;margin-right:18px}button:focus-visible{outline:2px solid #fff}.fallback{display:none;position:absolute;inset:35% 10%;text-align:center;line-height:1.7;color:#aeb8c7}.failed .fallback{display:block}.failed canvas{visibility:hidden}
 .caption h1{max-width:280px}.lil-gui{--background-color:#12151b;--widget-color:#252a34;--focus-color:#3d4659;--text-color:#ccd5e3;--title-background-color:#1b2029;--font-size:11px} @media(max-width:600px){.caption{top:5vh}.caption h1{max-width:200px}footer{right:5vw;font-size:9px}.lil-gui.root{max-width:calc(100vw - 24px)}}
@@ -47,10 +48,13 @@ try {
   demo=createDiscScene(canvas,images.map((src,i)=>({src,label:'TITLE '+(i+1)})),controls,fail);
   demo.setBeamOrigin(null,-.09);
   gui=new GUI({title:'Light & motion',width:270});
+  const refreshLook=()=>{for(const [key,value] of Object.entries(glassBackdropStyle(controls)))host.style.setProperty(key,String(value));demo.invalidate();};
+  refreshLook();
+  for(const key of ['glassTintColor','shadowColor'])gui.addColor(controls,key).onChange(refreshLook);
   for(const [key,range] of Object.entries(DISC_RANGES)) {
     if(key==='glassVersion')continue;
     const input=key==='projectorSide'?gui.add(controls,key,{'Left':-1,'Right':1}):key==='rayStyle'?gui.add(controls,key,{'Cinema projector':0,'Prismatic fan':1,'Soft light fan':2}):gui.add(controls,key,...range);
-    input.onChange(()=>demo.invalidate());
+    input.onChange(refreshLook);
   }
   gui.close();
   canvas.addEventListener('pointermove',event=>{if(event.pointerType!=='mouse'||event.buttons)return;const bounds=canvas.getBoundingClientRect();const x=event.clientX-bounds.left,y=event.clientY-bounds.top,index=demo.hit(x,y);demo.setHover(index);canvas.style.cursor=index<0?(demo.canDrag(x,y)?'grab':'default'):'pointer';},{passive:true});

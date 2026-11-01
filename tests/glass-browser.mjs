@@ -60,7 +60,8 @@ try {
   errors.length=0;
   const instrumentation = await send("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
     window.__glass={draws:0,arrival:0,exit:0,frames:0,artwork:false,opacity:0,entranceSamples:[]};
-    const gl=WebGL2RenderingContext.prototype, names=new WeakMap(), programs=new WeakMap(), titlePrograms=new WeakSet(), glassPrograms=new WeakSet(), locate=gl.getUniformLocation, scalar=gl.uniform1f, matrix=gl.uniformMatrix4fv;
+    const gl=WebGL2RenderingContext.prototype, names=new WeakMap(), programs=new WeakMap(), titlePrograms=new WeakSet(), glassPrograms=new WeakSet(), locate=gl.getUniformLocation, scalar=gl.uniform1f, matrix=gl.uniformMatrix4fv, triple=gl.uniform3f;
+    gl.uniform3f=function(u,r,g,b){if(names.get(u)==='glassTint')window.__glass.tint=[r,g,b];return triple.call(this,u,r,g,b);};
     gl.getUniformLocation=function(...a){const u=locate.apply(this,a);if(u){names.set(u,a[1]);programs.set(u,a[0]);if(a[1]==='imageAspect')titlePrograms.add(a[0]);if(a[1]==='glassOpacity')glassPrograms.add(a[0]);}return u;};
     gl.uniform1f=function(u,v){if(names.get(u)==='arrival'){window.__glass.arrival=v;window.__glass.frames++;}if(names.get(u)==='entranceOpacity'){window.__glass.opacity=v;if(window.__glass.entranceSamples.length<120)window.__glass.entranceSamples.push(v);}if(names.get(u)==='scrollExit')window.__glass.exit=v;if(names.get(u)==='imageAspect'&&v===3)window.__glass.artwork=true;return scalar.call(this,u,v);};
     gl.uniformMatrix4fv=function(u,t,v,...rest){if(names.get(u)==='modelMatrix'&&this.canvas.closest('#collaborations')){if(titlePrograms.has(programs.get(u)))window.__glass.titleMatrix=Array.from(v);if(glassPrograms.has(programs.get(u)))window.__glass.glassMatrix=Array.from(v);}return matrix.call(this,u,t,v,...rest);};
@@ -154,6 +155,18 @@ try {
     await until('document.querySelector("#fixture").contentWindow.__glass?.artwork');
     await pause(600);
     await screenshot(name+'-artwork');
+    // Exercise live settings through the same protocol as the portal, without saving.
+    const stablePose=await evaluate('document.querySelector("#fixture").contentWindow.__glass.glassMatrix');
+    await evaluate(`(() => {const f=document.querySelector('#fixture');window.fixtureSettings.proofTable.disc??={};window.originalDisc=structuredClone(window.fixtureSettings.proofTable.disc);Object.assign(window.fixtureSettings.proofTable.disc,{glassTintColor:'#224466',glassOpacity:.4,shadowColor:'#443322',shadowOpacity:.35,shadowSpread:1.3});f.contentWindow.postMessage({source:'dds-portal',type:'settings',settings:window.fixtureSettings},location.origin)})()`);
+    await until(`(()=>{const w=document.querySelector('#fixture').contentWindow,s=w.getComputedStyle(w.document.querySelector('#collaborations'),'::before');return w.__glass.tint?.[2]>.12 && s.backgroundColor==='rgb(68, 51, 34)' && Math.abs(Number(s.opacity)-.35)<.001})()`);
+    assert.deepEqual(await evaluate('document.querySelector("#fixture").contentWindow.__glass.glassMatrix'),stablePose,'Appearance changes never reset the circle pose');
+    assert.ok(await evaluate(`document.querySelector('#fixture').contentDocument.querySelector('#collaborations').style.getPropertyValue('--glass-shadow-spread')==='1.3'`));
+    await screenshot(name+'-tint-controls');
+    await evaluate(`(()=>{const f=document.querySelector('#fixture');window.fixtureSettings.proofTable.disc.shadowOpacity=0;f.contentWindow.postMessage({source:'dds-portal',type:'settings',settings:window.fixtureSettings},location.origin)})()`);
+    await until(`Number(document.querySelector('#fixture').contentWindow.getComputedStyle(document.querySelector('#fixture').contentDocument.querySelector('#collaborations'),'::before').opacity)===0`);
+    await evaluate(`(()=>{const f=document.querySelector('#fixture');window.fixtureSettings.proofTable.disc=window.originalDisc;f.contentWindow.postMessage({source:'dds-portal',type:'settings',settings:window.fixtureSettings},location.origin)})()`);
+    await until(`document.querySelector('#fixture').contentWindow.__glass.tint?.[2]<.02`);
+    console.log(name+': independent tint/shadow colours, spread, zero opacity and reset preview passed');
     assert.ok(await evaluate('document.querySelector("#fixture").contentDocument.documentElement.scrollWidth <= innerWidth+1'),name+' artwork bounds');
     // Find an actual hit through canvas pointer events, then exercise the retained popup and Escape.
     const point=await evaluate(`(() => {

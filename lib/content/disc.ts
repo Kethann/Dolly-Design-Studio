@@ -6,6 +6,7 @@ export function visibleDiscItems<T>(items: readonly T[]): T[] {
 }
 export const DISC_DEFAULTS = {
   glassVersion: 1, entranceDuration: 3.6, circleScale: 1, glassOpacity: 0.22,
+  glassTintColor: "#0d1014", shadowColor: "#050407", shadowOpacity: 168 / 255, shadowSpread: 1,
   spinSpeed: 0.09, focusAngle: -43, focusRadius: 0.8, rayIntensity: 0.8,
   rayLength: 5, bloom: 0.35, desaturation: 0.5, discTilt: -12, slotGap: 3,
   lightIntensity: 1, glowRadius: 0.75, glowThreshold: 0.72,
@@ -19,8 +20,10 @@ export const DISC_DEFAULTS = {
   mobileFocusAngle: -54, mobileFocusRadius: 0.8, mobileOriginOffsetX: 0, mobileOriginOffsetY: 0,
 };
 export type DiscControls = typeof DISC_DEFAULTS;
-export const DISC_RANGES: Record<keyof DiscControls, readonly [number, number, number]> = {
-  glassVersion: [1, 1, 1], entranceDuration: [1.5, 6, 0.1], circleScale: [0.85, 1.15, 0.01], glassOpacity: [0.05, 0.5, 0.01],
+export type DiscNumericKey = { [K in keyof DiscControls]: DiscControls[K] extends number ? K : never }[keyof DiscControls];
+export const DISC_RANGES: Record<DiscNumericKey, readonly [number, number, number]> = {
+  glassVersion: [1, 1, 1], entranceDuration: [1.5, 6, 0.1], circleScale: [0.85, 1.15, 0.01], glassOpacity: [0, 0.65, 0.01],
+  shadowOpacity: [0, 1, 0.01], shadowSpread: [0.5, 1.6, 0.01],
   spinSpeed: [-0.5, 0.5, 0.01], focusAngle: [-180, 180, 1], focusRadius: [0.66, 0.9, 0.01],
   rayIntensity: [0, 3, 0.05], rayLength: [3, 9, 0.1], bloom: [0, 2, 0.05],
   desaturation: [0, 1, 0.05], discTilt: [-30, 0, 1], slotGap: [0.5, 12, 0.5],
@@ -41,10 +44,14 @@ export const DISC_RANGES: Record<keyof DiscControls, readonly [number, number, n
 export function sanitizeDisc(input: unknown): DiscControls {
   const src = input && typeof input === "object" ? input as Record<string, unknown> : {};
   const out = { ...DISC_DEFAULTS };
-  for (const key of Object.keys(out) as (keyof DiscControls)[]) {
+  for (const key of Object.keys(DISC_RANGES) as DiscNumericKey[]) {
     const value = src[key];
     const [min, max] = DISC_RANGES[key];
     if (typeof value === "number" && Number.isFinite(value)) out[key] = key === "projectorSide" ? (value < 0 ? -1 : 1) : Math.min(max, Math.max(min, key === "rayStyle" ? Math.round(value) : value));
+  }
+  for (const key of ["glassTintColor", "shadowColor"] as const) {
+    const value = src[key];
+    if (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)) out[key] = value.toLowerCase();
   }
   // Old silver-CD poses would put the glass almost edge-on. Migrate presentation only;
   // keep artwork, colours, light strength, ordering and content untouched.
@@ -52,6 +59,16 @@ export function sanitizeDisc(input: unknown): DiscControls {
     for (const key of ["discTilt", "discRoll", "focusAngle", "focusRadius", "tabletFocusAngle", "tabletFocusRadius", "mobileFocusAngle", "mobileFocusRadius", "originOffsetX", "originOffsetY", "tabletOriginOffsetX", "tabletOriginOffsetY", "mobileOriginOffsetX", "mobileOriginOffsetY", "projectorSide"] as const) out[key] = DISC_DEFAULTS[key];
   }
   return out;
+}
+
+/** Scoped CSS values; never let arbitrary saved text become a CSS declaration. */
+export function glassBackdropStyle(input: unknown) {
+  const disc = sanitizeDisc(input);
+  return {
+    "--glass-shadow-color": disc.shadowColor,
+    "--glass-shadow-opacity": disc.shadowOpacity,
+    "--glass-shadow-spread": disc.shadowSpread,
+  };
 }
 
 /** Zero slope and acceleration at each end, shared by fades and rotation hand-offs. */

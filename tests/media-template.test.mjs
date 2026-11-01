@@ -465,22 +465,59 @@ test("track swipe velocity follows speed, reversal and hold time instead of even
   assert.equal(marqueeGlide(0, 1).distance, 0);
 });
 
-test("client tracks alternate without duplicating the portal's saved-list controls", () => {
+test("client tracks alternate with independent portal controls and no repeated-loop controls", () => {
   const source = readFileSync(path.join(root, "components/sections/Clients.tsx"), "utf8");
   const hook = readFileSync(path.join(root, "components/sections/useDragMarquee.ts"), "utf8");
   const css = readFileSync(path.join(root, "components/sections/Clients.module.css"), "utf8");
-  assert.match(source, /items=\{clients\}[^\n]* paired/);
+  assert.match(source, /items=\{clients\}[^\n]* secondaryItems=\{clientsSecond\}/);
   assert.match(source, /reverse=\{home.clients.productionDirection === "right"\}/);
   assert.match(source, /secondaryReverse=\{home.clients.productionSecondDirection !== "left"\}/);
   assert.match(source, /reverse=\{home.clients.filmmakersDirection === "right"\}/);
   assert.match(source, /reverse=\{props.secondaryReverse \?\? true\} secondary/);
-  assert.match(source, /!secondary && copy === 0/);
-  assert.equal((source.match(/<AddContent /g) ?? []).length, 1, "One Add control per group, not per visual copy");
-  assert.match(css, /html\[data-dds-edit\]\) \.secondaryTrack/);
+  assert.match(source, /copy === 0 && i < items.length/);
+  assert.match(source, /items=\{props.secondaryItems\} list="clientsSecond"/);
+  assert.match(source, /<AddContent list="clientsSecond"/);
+  assert.doesNotMatch(css, /html\[data-dds-edit\]\) \.secondaryTrack/);
   assert.match(css, /touch-action: pan-y/);
   assert.match(hook, /pointer !== null && e.pointerId === pointer\) cancel\(\)/, "Post-release lost capture must not cancel inertia");
   assert.match(hook, /disposed = true/);
   assert.match(hook, /motion.removeEventListener\("change", changeMotion\);\s*release\(\)/);
+});
+
+test("production tracks keep independent images, order and empty lists through migration and saving", () => {
+  const read = loader();
+  const { sanitizeContent } = read("lib/content/sanitize.ts");
+  const { findList } = read("app/portal/content-schema.ts");
+  const { reorderContent } = read("app/portal/reorder-content.ts");
+  const { contentProblems } = read("app/portal/validate.ts");
+  const { summarizeContent } = read("lib/portal/summary.ts");
+  const legacy = json("content/site-content.json");
+  delete legacy.clientsSecond;
+  legacy.clients = [{ name: "Studio A", logo: "/images/uploads/a.png", alt: "A" }];
+  const migrated = sanitizeContent(legacy);
+  assert.deepEqual(migrated.clientsSecond, migrated.clients);
+  assert.notEqual(migrated.clientsSecond, migrated.clients);
+  assert.notEqual(migrated.clientsSecond[0], migrated.clients[0]);
+  const next = clone(migrated);
+  next.clientsSecond = [{ name: "Studio B", logo: "/images/uploads/b.png" }, { name: "Studio C", logo: "/images/uploads/c.jpg" }];
+  const saved = sanitizeContent(JSON.parse(JSON.stringify(next)));
+  assert.deepEqual(saved.clients, migrated.clients);
+  assert.deepEqual(saved.clientsSecond, next.clientsSecond);
+  assert.match(summarizeContent(migrated, saved), /Clients & collaborators/);
+  for (const list of ["clients", "clientsSecond"]) {
+    assert.equal(findList(list).kind, "list");
+    assert.ok(findList(list).fields.some(f => f.kind === "image" && f.path === "logo"));
+  }
+  const reordered = reorderContent(saved, "clientsSecond", 0, 1);
+  assert.deepEqual(reordered.clientsSecond.map(c => c.name), ["Studio C", "Studio B"]);
+  assert.deepEqual(reordered.clients, saved.clients);
+  const empty = sanitizeContent({ ...saved, clientsSecond: [] });
+  assert.deepEqual(sanitizeContent(empty).clientsSecond, [], "Deleting all of track 2 must not restore track 1");
+  assert.deepEqual(sanitizeContent({ ...saved, clients: [] }).clientsSecond, saved.clientsSecond);
+  saved.clientsSecond[0].name = "";
+  assert.ok(contentProblems(saved).some(p => p.path === "clientsSecond.0.name"));
+  const unsafe = sanitizeContent({ ...saved, clientsSecond: [{ name: "Safe", logo: "javascript:alert(1)" }, null] });
+  assert.deepEqual(unsafe.clientsSecond, [{ name: "Safe", logo: "" }]);
 });
 
 test("all three track directions are independently editable and survive saving", () => {
@@ -508,7 +545,7 @@ test("all three track directions are independently editable and survive saving",
 
 test("smoked glass keeps its existing pane and reveals pigment through a bounded light landing", () => {
   const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
-  assert.match(source, /vec3 smokeTint=mix\(vec3\(\.004,\.005,\.007\),vec3\(\.005\),uDesaturation\)/);
+  assert.match(source, /vec3 smokeTint=mix\(glassTint,vec3\(dot\(glassTint,vec3\(\.2126,\.7152,\.0722\)\)\),uDesaturation\)/);
   assert.match(source, /float tintAlpha=glassOpacity\*mix\(\.72,\.88/);
   assert.match(source, /float a=reflectionAlpha\+tintAlpha\*\(1\.-reflectionAlpha\)/);
   assert.match(source, /float landingHaze=1\.-\.48\*smoothstep\(\.78,1\.,along\)/);
@@ -516,6 +553,57 @@ test("smoked glass keeps its existing pane and reveals pigment through a bounded
   assert.equal((source.match(/new THREE\.CircleGeometry\(R, 192\)/g) ?? []).length, 1);
   assert.match(source, /projectorTransform\*world/, "Glass and artwork share the fixed light frame");
   assert.match(source, /artworkCore\*\(1\.\+slotGlow\*\.1\)/, "Preserve the original logo core under its glow");
+});
+
+test("glass rim has two antialiased curved lips and stable opposing reflections in the existing pane", () => {
+  const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  const pane = source.slice(source.indexOf("const glassMaterial"), source.indexOf("type ColourSample"));
+  assert.match(pane, /float bevel=exp/);
+  assert.match(pane, /float inner=exp/);
+  assert.match(pane, /float shoulder=exp/);
+  assert.match(pane, /max\(\.0032,aa\*1.5\)/);
+  assert.match(pane, /max\(\.0024,aa\*1.25\)/);
+  assert.match(pane, /vec2 radial=vProjector\/max\(length\(vProjector\),\.0001\)/);
+  assert.match(pane, /pow\(abs\(dot\(radial/);
+  assert.match(pane, /abs\(dot\(normalize\(vGlassNormal\),normalize\(vGlassView\)\)\)/, "Fresnel works on both faces");
+  assert.doesNotMatch(pane, /sin\(atan\(vGlass|texture2D|sampler2D/, "No rotating highlight or extra texture allocations");
+  assert.equal((pane.match(/new THREE\.Mesh/g) ?? []).length, 1);
+  assert.equal((source.match(/composer.addPass\(/g) ?? []).length, 4);
+  assert.match(pane, /clamp\(a\*edge,0\.,\.65\)/, "Glass remains translucent");
+});
+
+test("glass tint and shadow controls sanitize, persist and remain isolated from artwork and the intro", () => {
+  const read = loader();
+  const { sanitizeDisc, DISC_DEFAULTS, glassBackdropStyle } = read("lib/content/disc.ts");
+  const { sanitizeIntroSettings } = read("lib/intro/settings.ts");
+  const settings = sanitizeIntroSettings(json("content/intro-settings.json"));
+  const original = clone(settings);
+  Object.assign(settings.proofTable.disc, { glassTintColor: "#AABBCC", glassOpacity: 0, shadowColor: "#123456", shadowOpacity: 0, shadowSpread: 1.4 });
+  const saved = sanitizeIntroSettings(JSON.parse(JSON.stringify(settings)));
+  assert.equal(saved.proofTable.disc.glassTintColor, "#aabbcc");
+  assert.equal(saved.proofTable.disc.glassOpacity, 0);
+  assert.equal(saved.proofTable.disc.shadowOpacity, 0);
+  assert.equal(saved.proofTable.disc.shadowSpread, 1.4);
+  assert.deepEqual(saved.proofTable.items, original.proofTable.items);
+  for (const key of Object.keys(original).filter(k => k !== "proofTable")) assert.deepEqual(saved[key], original[key]);
+  assert.deepEqual(glassBackdropStyle(saved.proofTable.disc), { "--glass-shadow-color": "#123456", "--glass-shadow-opacity": 0, "--glass-shadow-spread": 1.4 });
+  const invalid = sanitizeDisc({ glassTintColor: "url(evil)", shadowColor: "red;opacity:1", shadowOpacity: Infinity, shadowSpread: -12, glassOpacity: 99 });
+  assert.equal(invalid.glassTintColor, DISC_DEFAULTS.glassTintColor);
+  assert.equal(invalid.shadowColor, DISC_DEFAULTS.shadowColor);
+  assert.equal(invalid.shadowOpacity, DISC_DEFAULTS.shadowOpacity);
+  assert.equal(invalid.shadowSpread, .5);
+  assert.equal(invalid.glassOpacity, .65);
+  assert.equal(sanitizeDisc({shadowSpread:99,shadowOpacity:99}).shadowSpread,1.6);
+  assert.equal(sanitizeDisc({shadowSpread:99,shadowOpacity:99}).shadowOpacity,1);
+  const editor = readFileSync(path.join(root, "app/portal/ProofTableEditor.tsx"), "utf8");
+  for (const key of ["glassTintColor", "glassOpacity", "shadowColor", "shadowOpacity", "shadowSpread"]) {
+    assert.equal((editor.match(new RegExp(`key: "${key}"`, "g")) ?? []).length, 1, `One editor for ${key}`);
+  }
+  assert.match(editor, /Reset glass tint/);
+  assert.match(editor, /Reset shadow/);
+  const scene = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  assert.match(scene, /glassTint.value.r = settleControl/);
+  assert.match(scene, /targetGlassTint.set\(lastGlassTint\)/);
 });
 
 test("glass drag captures one pointer, preserves taps and suppresses a drag click", () => {

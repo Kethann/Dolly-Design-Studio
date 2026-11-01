@@ -19,6 +19,7 @@ export function defaultContent(): SiteContent {
     home,
     services,
     clients,
+    clientsSecond: clients,
     collaborators,
     testimonials,
     projects,

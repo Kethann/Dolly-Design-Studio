@@ -16,9 +16,18 @@ const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: st
     { key: "spinSpeed", label: "Rotation speed", hint: "Zero stops rotation. Negative reverses it. Reduced-motion devices show the settled composition." },
     { key: "entranceDuration", label: "Arrival duration", hint: "The full circle keeps turning as it zooms in, then settles into its saved rotation speed without stopping. Plays once per page visit." },
     { key: "circleScale", label: "Circle size", hint: "Fine-tune the oversized arc. Desktop, tablet and mobile use their own framing." },
-    { key: "glassOpacity", label: "Glass visibility", hint: "Subtle transparent surface and a fine light-catching edge." },
     { key: "discTilt", label: "Glass tilt", hint: "Keep this shallow for the broad circle in the reference." },
     { key: "discRoll", label: "Glass angle", hint: "Rotates the presentation of the glass surface." },
+  ] },
+  { title: "Glass tint", fields: [
+    { key: "glassTintColor", label: "Tint colour", hint: "Colours only the glass surface, not the uploaded titles or projector." },
+    { key: "glassOpacity", label: "Glass opacity", hint: "Zero removes the tinted surface; higher values make it denser. Light reflections remain visible." },
+    { key: "desaturation", label: "Tint colour softness", hint: "0% keeps your chosen colour; 100% makes the tint neutral grey." },
+  ] },
+  { title: "Shadow behind the glass", fields: [
+    { key: "shadowColor", label: "Shadow colour", hint: "The soft backdrop behind this section only. It does not change the page background." },
+    { key: "shadowOpacity", label: "Shadow opacity", hint: "Zero switches the backdrop off; 100% gives its strongest shading." },
+    { key: "shadowSpread", label: "Shadow spread", hint: "100% keeps the current size. Smaller concentrates it; larger spreads it softly." },
   ] },
   { title: "Projector & light", fields: [
     { key: "projectorSide", label: "Projector side" },
@@ -59,7 +68,6 @@ const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: st
   { title: "Artwork colour", fields: [
     { key: "saturation", label: "Colour saturation", hint: "100% keeps the original colour; 0% makes the artwork monochrome." },
     { key: "vibrance", label: "Colour vibrance", hint: "Boosts muted colours more than colours that are already vivid." },
-    { key: "desaturation", label: "Glass tint softness", hint: "Mutes the cool glass tint without changing the artwork." },
   ] },
   { title: "Title appearance", fields: [
     { key: "slotSize", label: "Title size", hint: "Scales the transparent title artwork directly on the glass." },
@@ -169,6 +177,8 @@ export function ProofTableEditor({
         <summary>{group.title}<span>{group.fields.length} controls</span></summary>
         <div className={styles.sectionBody}>
         {group.fields.map(({ key, label, hint }) => {
+          if (key === "glassTintColor" || key === "shadowColor") return <ColorRow key={key} label={label} hint={hint} value={disc[key]}
+            onChange={next => onChange({ disc: { ...disc, [key]: next } })} />;
           if (key === "projectorSide") return <div key={key} className={styles.control}>
             <label className={styles.controlLabel}>Projector side
               <select className={styles.select} aria-label="Projector side" value={disc.projectorSide} onChange={e => onChange({ disc: { ...disc, projectorSide: Number(e.target.value) } })}>
@@ -188,6 +198,8 @@ export function ProofTableEditor({
             format={n => key === "entranceDuration" ? `${n.toFixed(1)} seconds` : key === "discTilt" || key === "discRoll" || key.endsWith("FocusAngle") || key === "focusAngle" || key === "slotGap" ? `${n}°` : key === "spinSpeed" ? `${Number(n.toFixed(2))} rad/s` : ["slotBlur", "rayLength", "rayElevation", "glowThreshold"].includes(key) ? String(Number(n.toFixed(2))) : `${Math.round(n * 100)}%`}
             onChange={next => onChange({ disc: { ...disc, [key]: next } })} />;
         })}
+        {group.title === "Glass tint" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, glassTintColor: DISC_DEFAULTS.glassTintColor, glassOpacity: DISC_DEFAULTS.glassOpacity, desaturation: DISC_DEFAULTS.desaturation } })}>Reset glass tint</button>}
+        {group.title === "Shadow behind the glass" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, shadowColor: DISC_DEFAULTS.shadowColor, shadowOpacity: DISC_DEFAULTS.shadowOpacity, shadowSpread: DISC_DEFAULTS.shadowSpread } })}>Reset shadow</button>}
         </div>
       </details>)}
       <Section

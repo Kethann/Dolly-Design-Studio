@@ -173,7 +173,7 @@ export function sanitizeContent(input: unknown): SiteContent {
   }
 
   // Plain lists of words: no blanks.
-  merged.clients = (merged.clients as unknown[]).flatMap((raw) => {
+  const cleanClients = (items: unknown[]): SiteContent["clients"] => items.flatMap((raw) => {
     if (typeof raw === "string") return raw.trim() ? [{ name: raw.trim(), logo: "" }] : [];
     if (!isObj(raw)) return [];
     const name = str(raw.name).trim();
@@ -181,6 +181,10 @@ export function sanitizeContent(input: unknown): SiteContent {
     const alt = str(raw.alt).trim().slice(0, 200);
     return name ? [{ name, logo: logo.startsWith("/images/") ? logo : "", ...(alt ? { alt } : {}) }] : [];
   });
+  merged.clients = cleanClients(merged.clients);
+  // Older documents repeated track 1. Copy once on migration; an explicit empty
+  // second list stays empty, and neither track shares mutable entry objects.
+  merged.clientsSecond = cleanClients(Object.hasOwn(src, "clientsSecond") ? merged.clientsSecond : merged.clients);
   merged.collaborators = (merged.collaborators as unknown[]).flatMap((raw) => {
     if (typeof raw === "string") return raw.trim() ? [{ name: raw.trim(), photo: "" }] : [];
     if (!isObj(raw)) return [];

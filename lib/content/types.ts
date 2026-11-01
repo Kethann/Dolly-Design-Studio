@@ -138,6 +138,7 @@ export interface SiteContent {
   home: Omit<Widen<typeof home>, "stats"> & { stats: { value: number | string; suffix: string; label: string }[] };
   services: Service[];
   clients: ClientEntry[];
+  clientsSecond: ClientEntry[];
   collaborators: CollaboratorEntry[];
   testimonials: Testimonial[];
   projects: Project[];

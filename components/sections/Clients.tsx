@@ -27,9 +27,9 @@ type RowProps = { items: Item[]; label: string; reverse?: boolean; shape?: strin
 
 function MarqueeTrack({ items, label, reverse, shape, size, logoSize, list, secondary = false }: RowProps & { secondary?: boolean }) {
   const fillItems = fill(items);
-  const { viewport, track } = useDragMarquee({ seconds: list === "clients" ? 120 : 140, reverse });
-  /** What marks an entry for the portal's Edit button: only the first set of the first copy; repeats are hidden while editing. */
-  const mark = (copy: number, i: number) => (!secondary && copy === 0 && i < items.length ? edItem(list, i, items[i].name) : { "data-ed-dup": "" });
+  const { viewport, track } = useDragMarquee({ seconds: list === "collaborators" ? 140 : 120, reverse });
+  /** Each saved list has its own controls; only visual loop repeats are hidden in the portal. */
+  const mark = (copy: number, i: number) => (copy === 0 && i < items.length ? edItem(list, i, items[i].name) : { "data-ed-dup": "" });
   const hasPictures = items.some((it) => it.logo || it.photo);
   return (
       <div ref={viewport} className={`${styles.viewport}${secondary ? ` ${styles.secondaryTrack}` : ""}`} data-marquee={list} data-direction={reverse ? "right" : "left"} data-shape={shape} data-size={size} data-logo={logoSize} tabIndex={0} role="region" aria-label={`${label}${secondary ? ", second track" : ""}. Hold and drag sideways, or use the left and right arrow keys.`}>
@@ -75,21 +75,24 @@ function MarqueeTrack({ items, label, reverse, shape, size, logoSize, list, seco
   );
 }
 
-function Row(props: RowProps & { paired?: boolean; secondaryReverse?: boolean }) {
+function Row(props: RowProps & { secondaryItems?: Item[]; secondaryReverse?: boolean }) {
   return (
     <div className={styles.row}>
       <span className={styles.rowLabel}><span>{props.label}</span><span className={styles.dragHint} aria-hidden="true">Hold & drag ↔</span></span>
-      <AddContent list={props.list} label={props.list === "clients" ? "Add production house" : "Add collaborator"} count={props.items.length} />
-      <MarqueeTrack {...props} />
-      {props.paired && props.items.length > 0 && <MarqueeTrack {...props} reverse={props.secondaryReverse ?? true} secondary />}
+      <AddContent list={props.list} label={props.list === "clients" ? "Add to production track 1" : "Add collaborator"} count={props.items.length} />
+      {props.items.length > 0 && <MarqueeTrack {...props} />}
+      {props.secondaryItems && <>
+        <AddContent list="clientsSecond" label="Add to production track 2" count={props.secondaryItems.length} />
+        {props.secondaryItems.length > 0 && <MarqueeTrack {...props} items={props.secondaryItems} list="clientsSecond" reverse={props.secondaryReverse ?? true} secondary />}
+      </>}
     </div>
   );
 }
 
-/** Three independently directed tracks. Both production tracks share one saved list. */
+/** Three independently directed tracks, each with its own editable content. */
 export function Clients() {
-  const { home, clients, collaborators, testimonials } = useContent();
-  const names = [...clients.map((c) => c.name), ...collaborators.map((c) => c.name)];
+  const { home, clients, clientsSecond, collaborators, testimonials } = useContent();
+  const names = [...new Set([...clients, ...clientsSecond, ...collaborators].map((c) => c.name))];
   const labels = home.clients.rowLabels;
 
   return (
@@ -100,7 +103,7 @@ export function Clients() {
       </div>
 
       <div className={styles.rows}>
-        <Row items={clients} list="clients" label={labels.clients} logoSize={home.clients.logoSize} reverse={home.clients.productionDirection === "right"} secondaryReverse={home.clients.productionSecondDirection !== "left"} paired />
+        <Row items={clients} list="clients" label={labels.clients} logoSize={home.clients.logoSize} reverse={home.clients.productionDirection === "right"} secondaryReverse={home.clients.productionSecondDirection !== "left"} secondaryItems={clientsSecond} />
         <Row items={collaborators} list="collaborators" label={labels.collaborators} shape={home.clients.portraitShape} size={home.clients.portraitSize} reverse={home.clients.filmmakersDirection === "right"} />
       </div>
       <p className="sr-only">

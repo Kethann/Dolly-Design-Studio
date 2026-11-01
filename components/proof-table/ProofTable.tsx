@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { proofTable } from "@/content/proof-table";
 import { useContent } from "@/lib/content/context";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import { renderFx } from "@/components/fx/render-fx";
 import { resizedSrc } from "@/lib/images";
-import { sanitizeDisc, visibleDiscItems } from "@/lib/content/disc";
+import { sanitizeDisc, visibleDiscItems, glassBackdropStyle } from "@/lib/content/disc";
 import type { DiscScene } from "@/components/disc-hero/scene";
 import { DiscDetailCard } from "@/components/disc-hero/DiscDetailCard";
 import styles from "@/components/disc-hero/DiscHero.module.css";
@@ -128,7 +128,7 @@ export function ProofTable() {
     if (restoreFocus) stage.current?.focus({ preventScroll: true });
   };
   return (
-    <section id={proofTable.id} className={styles.section} data-projector-side={viewControls.projectorSide} aria-labelledby="disc-slate-title">
+    <section id={proofTable.id} className={styles.section} style={glassBackdropStyle(viewControls) as CSSProperties} data-projector-side={viewControls.projectorSide} aria-labelledby="disc-slate-title">
       <div className={`container ${styles.layout}`}>
       <div ref={copy} className={styles.copy}>
         <span className={styles.overline}>{renderFx(slate.overline)}</span>

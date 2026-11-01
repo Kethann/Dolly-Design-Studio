@@ -2,7 +2,8 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dolly · Glass title circle</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#000;color:#edf0f6;font-family:Arial,sans-serif}main{min-height:100svh;position:relative;overflow:hidden}
+*{box-sizing:border-box}body{margin:0;background:#000;color:#edf0f6;font-family:Arial,sans-serif}main{min-height:100svh;position:relative;overflow:hidden;isolation:isolate}
+main::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background-color:var(--glass-shadow-color,#050407);opacity:var(--glass-shadow-opacity,.6588235294);transform:scale(var(--glass-shadow-spread,1));transform-origin:62% 48%;mask-image:radial-gradient(ellipse at 62% 48%,#000 0%,rgb(0 0 0 / .6666667) 35%,rgb(0 0 0 / .1904762) 66%,transparent 85%),radial-gradient(ellipse 50% 50% at 50% 50%,#000 42%,transparent 100%);mask-composite:intersect;transition:background-color .25s,opacity .25s,transform .25s}@media(prefers-reduced-motion:reduce){main::before{transition:none}}
 canvas{display:block;width:100%;height:100svh;touch-action:pan-y}.caption{position:absolute;left:5vw;top:7vh;pointer-events:none}.caption small{font-size:10px;letter-spacing:.3em;color:#9da8b8}.caption h1{font-size:clamp(24px,4vw,54px);font-weight:500;letter-spacing:-.04em;margin:16px 0}.caption p{color:#8f99a8;font-size:12px;max-width:260px;line-height:1.6}
 footer{position:absolute;left:5vw;bottom:5vh;color:#8f99a8;font-size:11px;letter-spacing:.1em}button{background:#171a21;border:1px solid #414853;border-radius:30px;color:#edf0f6;padding:10px 18px;cursor:pointer;margin-right:18px}button:focus-visible{outline:2px solid #fff}.fallback{display:none;position:absolute;inset:35% 10%;text-align:center;line-height:1.7;color:#aeb8c7}.failed .fallback{display:block}.failed canvas{visibility:hidden}
 .caption h1{max-width:280px}.lil-gui{--background-color:#12151b;--widget-color:#252a34;--focus-color:#3d4659;--text-color:#ccd5e3;--title-background-color:#1b2029;--font-size:11px} @media(max-width:600px){.caption{top:5vh}.caption h1{max-width:200px}footer{right:5vw;font-size:9px}.lil-gui.root{max-width:calc(100vw - 24px)}}
@@ -22,6 +23,7 @@ export function visibleDiscItems(items) {
 }
 export const DISC_DEFAULTS = {
     glassVersion: 1, entranceDuration: 3.6, circleScale: 1, glassOpacity: 0.22,
+    glassTintColor: "#0d1014", shadowColor: "#050407", shadowOpacity: 168 / 255, shadowSpread: 1,
     spinSpeed: 0.09, focusAngle: -43, focusRadius: 0.8, rayIntensity: 0.8,
     rayLength: 5, bloom: 0.35, desaturation: 0.5, discTilt: -12, slotGap: 3,
     lightIntensity: 1, glowRadius: 0.75, glowThreshold: 0.72,
@@ -35,7 +37,8 @@ export const DISC_DEFAULTS = {
     mobileFocusAngle: -54, mobileFocusRadius: 0.8, mobileOriginOffsetX: 0, mobileOriginOffsetY: 0,
 };
 export const DISC_RANGES = {
-    glassVersion: [1, 1, 1], entranceDuration: [1.5, 6, 0.1], circleScale: [0.85, 1.15, 0.01], glassOpacity: [0.05, 0.5, 0.01],
+    glassVersion: [1, 1, 1], entranceDuration: [1.5, 6, 0.1], circleScale: [0.85, 1.15, 0.01], glassOpacity: [0, 0.65, 0.01],
+    shadowOpacity: [0, 1, 0.01], shadowSpread: [0.5, 1.6, 0.01],
     spinSpeed: [-0.5, 0.5, 0.01], focusAngle: [-180, 180, 1], focusRadius: [0.66, 0.9, 0.01],
     rayIntensity: [0, 3, 0.05], rayLength: [3, 9, 0.1], bloom: [0, 2, 0.05],
     desaturation: [0, 1, 0.05], discTilt: [-30, 0, 1], slotGap: [0.5, 12, 0.5],
@@ -56,11 +59,16 @@ export const DISC_RANGES = {
 export function sanitizeDisc(input) {
     const src = input && typeof input === "object" ? input : {};
     const out = { ...DISC_DEFAULTS };
-    for (const key of Object.keys(out)) {
+    for (const key of Object.keys(DISC_RANGES)) {
         const value = src[key];
         const [min, max] = DISC_RANGES[key];
         if (typeof value === "number" && Number.isFinite(value))
             out[key] = key === "projectorSide" ? (value < 0 ? -1 : 1) : Math.min(max, Math.max(min, key === "rayStyle" ? Math.round(value) : value));
+    }
+    for (const key of ["glassTintColor", "shadowColor"]) {
+        const value = src[key];
+        if (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value))
+            out[key] = value.toLowerCase();
     }
     // Old silver-CD poses would put the glass almost edge-on. Migrate presentation only;
     // keep artwork, colours, light strength, ordering and content untouched.
@@ -69,6 +77,15 @@ export function sanitizeDisc(input) {
             out[key] = DISC_DEFAULTS[key];
     }
     return out;
+}
+/** Scoped CSS values; never let arbitrary saved text become a CSS declaration. */
+export function glassBackdropStyle(input) {
+    const disc = sanitizeDisc(input);
+    return {
+        "--glass-shadow-color": disc.shadowColor,
+        "--glass-shadow-opacity": disc.shadowOpacity,
+        "--glass-shadow-spread": disc.shadowSpread,
+    };
 }
 /** Zero slope and acceleration at each end, shared by fades and rotation hand-offs. */
 export function glassEase(progress) {
@@ -430,25 +447,40 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
     // environment capture or transmission framebuffer is needed for this glass treatment.
     const glassLight = { value: controls.lightIntensity };
     const glassOpacity = { value: controls.glassOpacity };
+    const glassTint = { value: new THREE.Color(controls.glassTintColor) };
+    const targetGlassTint = glassTint.value.clone();
+    let lastGlassTint = controls.glassTintColor;
     const glassMaterial = own(new THREE.ShaderMaterial({
         transparent: true, depthWrite: false, side: THREE.DoubleSide,
         uniforms: { projectorTransform, projectorBounds, projectorSoftness, contactColour,
-            contactStrength, glassLight, glassOpacity, uDesaturation: saturation, rays: raysUniform },
+            contactStrength, glassLight, glassOpacity, glassTint, uDesaturation: saturation, rays: raysUniform },
         vertexShader: `uniform mat4 projectorTransform; varying vec2 vGlass, vProjector;
+      varying vec3 vGlassNormal, vGlassView;
       void main(){ vec4 world=modelMatrix*vec4(position,1.);
         vGlass=position.xy/2.35; vProjector=(projectorTransform*world).xy/2.35;
+        vGlassNormal=normalMatrix*normal; vGlassView=-(viewMatrix*world).xyz;
         gl_Position=projectionMatrix*viewMatrix*world; }`,
-        fragmentShader: `uniform vec4 projectorBounds; uniform vec3 contactColour;
+        fragmentShader: `uniform vec4 projectorBounds; uniform vec3 contactColour, glassTint;
       uniform float projectorSoftness, contactStrength, glassLight, glassOpacity, uDesaturation;
       varying vec2 vGlass, vProjector;
+      varying vec3 vGlassNormal, vGlassView;
       ${rayShaderSource}
       ${contactShader}
       void main(){
         float r=length(vGlass), aa=max(fwidth(r),.00025);
         float edge=1.-smoothstep(1.-aa,1.,r);
-        float bevel=exp(-pow((r-.993)/max(.0025,aa*1.5),2.));
-        float inner=exp(-pow((r-.987)/max(.0014,aa),2.))*.22;
-        float sweep=pow(max(0.,.5+.5*sin(atan(vGlass.y,vGlass.x)*2.+.8)),8.);
+        // Rounded front/back lips, with a soft shoulder between them. Derivative
+        // widths keep the two curves smooth even on small, low-DPR screens.
+        float bevel=exp(-pow((r-.994)/max(.0032,aa*1.5),2.));
+        float inner=exp(-pow((r-.982)/max(.0024,aa*1.25),2.))*.48;
+        float shoulder=exp(-pow((r-.983)/max(.015,aa*2.),2.))*.16;
+        // Broad opposite reflections stay in the fixed light frame, so rotating
+        // artwork never makes the glass edge pulse or sparkle independently.
+        vec2 radial=vProjector/max(length(vProjector),.0001);
+        float sweep=pow(abs(dot(radial,normalize(vec2(.65,.76)))),6.);
+        float facing=clamp(abs(dot(normalize(vGlassNormal),normalize(vGlassView))),0.,1.);
+        float fresnel=.04+.96*pow(1.-facing,5.);
+        float rim=(bevel+inner+shoulder)*(.7+.3*fresnel);
         vec2 p=discWindow(vProjector);
         float contact=contactReflection(p,rayField(p));
         // The smoked-black interior absorbs background light without becoming an opaque disc.
@@ -457,11 +489,12 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         float sheen=exp(-pow((vProjector.y+.12*vProjector.x-.035)/.14,2.))
           *smoothstep(.35,.85,r)*(1.-smoothstep(.97,1.,r))
           *exp(-dot(p*vec2(.7,.85),p*vec2(.7,.85)));
-        vec3 smokeTint=mix(vec3(.004,.005,.007),vec3(.005),uDesaturation);
+        vec3 smokeTint=mix(glassTint,vec3(dot(glassTint,vec3(.2126,.7152,.0722))),uDesaturation);
         float tintAlpha=glassOpacity*mix(.72,.88,smoothstep(.2,.95,r));
-        vec3 reflection=vec3(.53,.69,.82)*(bevel+inner)*(.32+sweep*.28+lampFacing*.42)*glassLight;
+        vec3 rimTint=mix(vec3(.48,.62,.76),vec3(.82,.9,.96),sweep);
+        vec3 reflection=rimTint*rim*(.48+sweep*.38+lampFacing*.24)*glassLight;
         reflection+=contactColour*(contact*.42+sheen*.06*contactStrength);
-        float reflectionAlpha=clamp((bevel+inner)*glassOpacity*(.55+sweep)+contact*.12+sheen*.04*contactStrength,0.,.48);
+        float reflectionAlpha=clamp(rim*sqrt(glassOpacity)*(.62+sweep*.5)*min(glassLight,1.)+contact*.12+sheen*.04*contactStrength,0.,.48);
         // Composite reflection over the tint in this same mesh: no new draw call or buffer.
         float a=reflectionAlpha+tintAlpha*(1.-reflectionAlpha);
         vec3 c=(reflection*reflectionAlpha+smokeTint*tintAlpha*(1.-reflectionAlpha))/max(a,.0001);
@@ -919,6 +952,14 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         const aimOriginY = aimProfile === "mobile" ? controls.mobileOriginOffsetY
             : aimProfile === "tablet" ? controls.tabletOriginOffsetY : controls.originOffsetY;
         controlsSettling = false;
+        if (lastGlassTint !== controls.glassTintColor) {
+            lastGlassTint = controls.glassTintColor;
+            targetGlassTint.set(lastGlassTint);
+        }
+        // Reuse two colours; paused previews keep drawing only until the new tint settles.
+        glassTint.value.r = settleControl(glassTint.value.r, targetGlassTint.r, dt, 12);
+        glassTint.value.g = settleControl(glassTint.value.g, targetGlassTint.g, dt, 12);
+        glassTint.value.b = settleControl(glassTint.value.b, targetGlassTint.b, dt, 12);
         renderedControls.circleScale = settleControl(renderedControls.circleScale, controls.circleScale, dt, 10);
         renderedControls.glassOpacity = settleControl(renderedControls.glassOpacity, controls.glassOpacity, dt, 12);
         renderedControls.discTilt = settleControl(renderedControls.discTilt, controls.discTilt, dt, 12);
@@ -1326,10 +1367,13 @@ try {
   demo=createDiscScene(canvas,images.map((src,i)=>({src,label:'TITLE '+(i+1)})),controls,fail);
   demo.setBeamOrigin(null,-.09);
   gui=new GUI({title:'Light & motion',width:270});
+  const refreshLook=()=>{for(const [key,value] of Object.entries(glassBackdropStyle(controls)))host.style.setProperty(key,String(value));demo.invalidate();};
+  refreshLook();
+  for(const key of ['glassTintColor','shadowColor'])gui.addColor(controls,key).onChange(refreshLook);
   for(const [key,range] of Object.entries(DISC_RANGES)) {
     if(key==='glassVersion')continue;
     const input=key==='projectorSide'?gui.add(controls,key,{'Left':-1,'Right':1}):key==='rayStyle'?gui.add(controls,key,{'Cinema projector':0,'Prismatic fan':1,'Soft light fan':2}):gui.add(controls,key,...range);
-    input.onChange(()=>demo.invalidate());
+    input.onChange(refreshLook);
   }
   gui.close();
   canvas.addEventListener('pointermove',event=>{if(event.pointerType!=='mouse'||event.buttons)return;const bounds=canvas.getBoundingClientRect();const x=event.clientX-bounds.left,y=event.clientY-bounds.top,index=demo.hit(x,y);demo.setHover(index);canvas.style.cursor=index<0?(demo.canDrag(x,y)?'grab':'default'):'pointer';},{passive:true});

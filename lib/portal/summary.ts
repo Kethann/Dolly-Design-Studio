@@ -9,7 +9,7 @@ export function summarizeContent(prev: SiteContent, next: SiteContent): string {
   const parts: string[] = [];
   if (differ(prev.home, next.home)) parts.push("Home page text");
   if (differ(prev.services, next.services)) parts.push("Services");
-  if (differ([prev.clients, prev.collaborators, prev.testimonials], [next.clients, next.collaborators, next.testimonials])) parts.push("Clients & collaborators");
+  if (differ([prev.clients, prev.clientsSecond, prev.collaborators, prev.testimonials], [next.clients, next.clientsSecond, next.collaborators, next.testimonials])) parts.push("Clients & collaborators");
 
   if (differ(prev.projects, next.projects)) {
     const before = new Map(prev.projects.map((p) => [p.slug, p]));

@@ -28,6 +28,9 @@ export function contentProblems(c: SiteContent): Problem[] {
   c.clients.forEach((x, i) => {
     if (blank(x.name)) out.push({ path: `clients.${i}.name`, message: "Give this client a name." });
   });
+  c.clientsSecond?.forEach((x, i) => {
+    if (blank(x.name)) out.push({ path: `clientsSecond.${i}.name`, message: "Give this production house a name." });
+  });
   c.collaborators.forEach((x, i) => {
     if (blank(x.name)) out.push({ path: `collaborators.${i}.name`, message: "Give this person a name." });
   });

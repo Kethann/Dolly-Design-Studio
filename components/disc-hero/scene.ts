@@ -143,25 +143,40 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   // environment capture or transmission framebuffer is needed for this glass treatment.
   const glassLight = { value: controls.lightIntensity };
   const glassOpacity = { value: controls.glassOpacity };
+  const glassTint = { value: new THREE.Color(controls.glassTintColor) };
+  const targetGlassTint = glassTint.value.clone();
+  let lastGlassTint = controls.glassTintColor;
   const glassMaterial = own(new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
     uniforms: { projectorTransform, projectorBounds, projectorSoftness, contactColour,
-      contactStrength, glassLight, glassOpacity, uDesaturation: saturation, rays: raysUniform },
+      contactStrength, glassLight, glassOpacity, glassTint, uDesaturation: saturation, rays: raysUniform },
     vertexShader: `uniform mat4 projectorTransform; varying vec2 vGlass, vProjector;
+      varying vec3 vGlassNormal, vGlassView;
       void main(){ vec4 world=modelMatrix*vec4(position,1.);
         vGlass=position.xy/2.35; vProjector=(projectorTransform*world).xy/2.35;
+        vGlassNormal=normalMatrix*normal; vGlassView=-(viewMatrix*world).xyz;
         gl_Position=projectionMatrix*viewMatrix*world; }`,
-    fragmentShader: `uniform vec4 projectorBounds; uniform vec3 contactColour;
+    fragmentShader: `uniform vec4 projectorBounds; uniform vec3 contactColour, glassTint;
       uniform float projectorSoftness, contactStrength, glassLight, glassOpacity, uDesaturation;
       varying vec2 vGlass, vProjector;
+      varying vec3 vGlassNormal, vGlassView;
       ${rayShaderSource}
       ${contactShader}
       void main(){
         float r=length(vGlass), aa=max(fwidth(r),.00025);
         float edge=1.-smoothstep(1.-aa,1.,r);
-        float bevel=exp(-pow((r-.993)/max(.0025,aa*1.5),2.));
-        float inner=exp(-pow((r-.987)/max(.0014,aa),2.))*.22;
-        float sweep=pow(max(0.,.5+.5*sin(atan(vGlass.y,vGlass.x)*2.+.8)),8.);
+        // Rounded front/back lips, with a soft shoulder between them. Derivative
+        // widths keep the two curves smooth even on small, low-DPR screens.
+        float bevel=exp(-pow((r-.994)/max(.0032,aa*1.5),2.));
+        float inner=exp(-pow((r-.982)/max(.0024,aa*1.25),2.))*.48;
+        float shoulder=exp(-pow((r-.983)/max(.015,aa*2.),2.))*.16;
+        // Broad opposite reflections stay in the fixed light frame, so rotating
+        // artwork never makes the glass edge pulse or sparkle independently.
+        vec2 radial=vProjector/max(length(vProjector),.0001);
+        float sweep=pow(abs(dot(radial,normalize(vec2(.65,.76)))),6.);
+        float facing=clamp(abs(dot(normalize(vGlassNormal),normalize(vGlassView))),0.,1.);
+        float fresnel=.04+.96*pow(1.-facing,5.);
+        float rim=(bevel+inner+shoulder)*(.7+.3*fresnel);
         vec2 p=discWindow(vProjector);
         float contact=contactReflection(p,rayField(p));
         // The smoked-black interior absorbs background light without becoming an opaque disc.
@@ -170,11 +185,12 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         float sheen=exp(-pow((vProjector.y+.12*vProjector.x-.035)/.14,2.))
           *smoothstep(.35,.85,r)*(1.-smoothstep(.97,1.,r))
           *exp(-dot(p*vec2(.7,.85),p*vec2(.7,.85)));
-        vec3 smokeTint=mix(vec3(.004,.005,.007),vec3(.005),uDesaturation);
+        vec3 smokeTint=mix(glassTint,vec3(dot(glassTint,vec3(.2126,.7152,.0722))),uDesaturation);
         float tintAlpha=glassOpacity*mix(.72,.88,smoothstep(.2,.95,r));
-        vec3 reflection=vec3(.53,.69,.82)*(bevel+inner)*(.32+sweep*.28+lampFacing*.42)*glassLight;
+        vec3 rimTint=mix(vec3(.48,.62,.76),vec3(.82,.9,.96),sweep);
+        vec3 reflection=rimTint*rim*(.48+sweep*.38+lampFacing*.24)*glassLight;
         reflection+=contactColour*(contact*.42+sheen*.06*contactStrength);
-        float reflectionAlpha=clamp((bevel+inner)*glassOpacity*(.55+sweep)+contact*.12+sheen*.04*contactStrength,0.,.48);
+        float reflectionAlpha=clamp(rim*sqrt(glassOpacity)*(.62+sweep*.5)*min(glassLight,1.)+contact*.12+sheen*.04*contactStrength,0.,.48);
         // Composite reflection over the tint in this same mesh: no new draw call or buffer.
         float a=reflectionAlpha+tintAlpha*(1.-reflectionAlpha);
         vec3 c=(reflection*reflectionAlpha+smokeTint*tintAlpha*(1.-reflectionAlpha))/max(a,.0001);
@@ -570,6 +586,14 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     const aimOriginY = aimProfile === "mobile" ? controls.mobileOriginOffsetY
       : aimProfile === "tablet" ? controls.tabletOriginOffsetY : controls.originOffsetY;
     controlsSettling = false;
+    if (lastGlassTint !== controls.glassTintColor) {
+      lastGlassTint = controls.glassTintColor;
+      targetGlassTint.set(lastGlassTint);
+    }
+    // Reuse two colours; paused previews keep drawing only until the new tint settles.
+    glassTint.value.r = settleControl(glassTint.value.r, targetGlassTint.r, dt, 12);
+    glassTint.value.g = settleControl(glassTint.value.g, targetGlassTint.g, dt, 12);
+    glassTint.value.b = settleControl(glassTint.value.b, targetGlassTint.b, dt, 12);
     renderedControls.circleScale = settleControl(renderedControls.circleScale, controls.circleScale, dt, 10);
     renderedControls.glassOpacity = settleControl(renderedControls.glassOpacity, controls.glassOpacity, dt, 12);
     renderedControls.discTilt = settleControl(renderedControls.discTilt, controls.discTilt, dt, 12);
