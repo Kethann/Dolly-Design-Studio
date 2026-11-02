@@ -6,7 +6,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
 import { bindCircleDrag } from "./drag";
-import { DISC_DEFAULTS, sanitizeDisc, glassCircleComposition, glassArrivalSpinMultiplier, glassArrivalOpacity, glassEase, glassProjectorOrigin, discAimProfileForWidth, discPanelLayout, discTitlePoint, discProjectionWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, releaseDiscImage, discViewportFeather, type DiscControls } from "../../lib/content/disc";
+import { DISC_DEFAULTS, sanitizeDisc, glassCircleComposition, glassArrivalSpinMultiplier, glassArrivalOpacity, glassEase, glassProjectorOrigin, discAimProfileForWidth, discPanelLayout, discFittedTitleLayout, discTitleInkBounds, discTitlePoint, discProjectionWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, releaseDiscImage, discViewportFeather, type DiscControls } from "../../lib/content/disc";
 
 export type DiscImage = { src: string; label: string; titleColor?: string; glowColor?: string; glowIntensity?: number; rotation?: number;
   scale?: number; opacity?: number; blend?: "normal" | "screen" | "additive" };
@@ -96,7 +96,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   let destroyed = false, active = false, paused = false, aimGuides = false, raf = 0, last = 0, elapsed = 0, firstPose = true;
   let width = 1, height = 1, quality = 1, slowFrames = 0, time = 0, hovered = -1, opened = -1, hoverSettling = false, controlsSettling = false;
   let arrival = 0, scrollExit = 0, smoothedExit = 0;
-  let dragging = false, dragAngle = 0, spinBlend = 1;
+  let dragging = false, dragAngle = 0, spinBlend = 1, flingSpeed = 0, lastDragAt = 0;
   // Portal sliders can emit much faster than a frame. Keep one small render-side state so
   // geometry, aiming, lighting and bloom ease together instead of jumping or flickering.
   // Reduced-motion users get the requested value immediately.
@@ -110,13 +110,14 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     raySpread: controls.raySpread, glowRadius: controls.glowRadius,
     rayIntensity: controls.rayIntensity, bloom: controls.bloom,
     lightIntensity: controls.lightIntensity, glowThreshold: controls.glowThreshold,
-    beamGlow: controls.beamGlow, rayStrength: controls.rayStrength,
+    beamGlow: controls.beamGlow, beamWidth: controls.beamWidth, rayStrength: controls.rayStrength,
     surfaceReflection: controls.surfaceReflection, rayPrism: controls.rayPrism,
     rayLength: controls.rayLength, rayElevation: controls.rayElevation,
     rayMotion: controls.rayMotion, saturation: controls.saturation,
     vibrance: controls.vibrance, desaturation: controls.desaturation,
     slotOpacity: controls.slotOpacity, slotBlur: controls.slotBlur,
     unfocusedBrightness: controls.unfocusedBrightness,
+    originGlow: controls.originGlow, titleGlass: controls.titleGlass, edgeLines: controls.edgeLines,
   };
   let beamOriginXFraction: number | null = null, beamOriginYFraction: number | null = null;
   const saturation = { value: controls.desaturation };
@@ -146,6 +147,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const glassLight = { value: controls.lightIntensity };
   const glassOpacity = { value: controls.glassOpacity };
   const glassEdgeWidth = { value: controls.edgeThickness };
+  const edgeLines = { value: controls.edgeLines }, titleGlass = { value: controls.titleGlass }, originGlow = { value: controls.originGlow };
   const surfaceReflection = { value: controls.surfaceReflection };
   const glassTint = { value: new THREE.Color(controls.glassTintColor) };
   const targetGlassTint = glassTint.value.clone();
@@ -153,7 +155,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const glassMaterial = own(new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
     uniforms: { projectorTransform, projectorBounds, projectorSoftness, contactColour,
-      contactStrength, glassLight, glassOpacity, glassEdgeWidth, surfaceReflection, glassTint, uDesaturation: saturation, rays: raysUniform },
+      contactStrength, glassLight, glassOpacity, glassEdgeWidth, edgeLines, surfaceReflection, glassTint, uDesaturation: saturation, rays: raysUniform },
     vertexShader: `uniform mat4 projectorTransform; varying vec2 vGlass, vProjector;
       varying vec3 vGlassNormal, vGlassView;
       void main(){ vec4 world=modelMatrix*vec4(position,1.);
@@ -161,7 +163,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         vGlassNormal=normalMatrix*normal; vGlassView=-(viewMatrix*world).xyz;
         gl_Position=projectionMatrix*viewMatrix*world; }`,
     fragmentShader: `uniform vec4 projectorBounds; uniform vec3 contactColour, glassTint;
-      uniform float projectorSoftness, contactStrength, glassLight, glassOpacity, glassEdgeWidth, surfaceReflection, uDesaturation;
+      uniform float projectorSoftness, contactStrength, glassLight, glassOpacity, glassEdgeWidth, edgeLines, surfaceReflection, uDesaturation;
       varying vec2 vGlass, vProjector;
       varying vec3 vGlassNormal, vGlassView;
       ${rayShaderSource}
@@ -169,7 +171,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       void main(){
         float r=length(vGlass), aa=max(fwidth(r),.00025);
         float edge=1.-smoothstep(1.-aa,1.,r);
-        // One fine reflection only: no second lip, shoulder or inner ring.
+        // The glass reflection itself is one fine rim (no lip or shoulder); the etched edge lines are added after it.
         // Subpixel coverage decreases with width instead of a thick AA floor
         // making the lowest slider values look identical.
         float thickness=clamp(glassEdgeWidth,.01,1.);
@@ -186,25 +188,53 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         float rim=bevel*(.7+.3*fresnel);
         vec2 p=discWindow(vProjector);
         float contact=contactReflection(p,rayField(p))*surfaceReflection;
-        // The smoked-black interior absorbs background light without becoming an opaque disc.
-        // Reflection stays anchored to the projector; only faint surface variation rotates.
+        // The reference reads as clear glass, not a uniformly frosted shape.
+        // Keep the body almost empty; light reveals only a soft grazing ribbon
+        // and the single rim, with the page texture visible through both.
         float lampFacing=exp(-pow(atan(vProjector.y,vProjector.x)*1.5,2.));
         float sheen=exp(-pow((vProjector.y+.12*vProjector.x-.035)/.14,2.))
           *smoothstep(.35,.85,r)*(1.-smoothstep(.97,1.,r))
           *exp(-dot(p*vec2(.7,.85),p*vec2(.7,.85)));
-        vec3 smokeTint=mix(glassTint,vec3(dot(glassTint,vec3(.2126,.7152,.0722))),uDesaturation);
-        float tintAlpha=glassOpacity*mix(.72,.88,smoothstep(.2,.95,r));
+        vec3 paneTint=mix(glassTint,vec3(dot(glassTint,vec3(.2126,.7152,.0722))),uDesaturation);
+        float tintAlpha=glassOpacity*mix(.06,.16,smoothstep(.2,.95,r));
+        float edgeWash=exp(-pow((1.-r)/.028,2.))*(.12+.88*sweep);
+        float faceSheen=exp(-pow((vProjector.y+.28*vProjector.x-.08)/.13,2.))
+          *smoothstep(.12,.7,r)*(1.-smoothstep(.94,1.,r));
+        float surfaceAlpha=clamp((edgeWash*.10+faceSheen*.055)*surfaceReflection*(.4+.6*fresnel),0.,.12);
         vec3 rimTint=mix(vec3(.48,.62,.76),vec3(.82,.9,.96),sweep);
         // Independent layers: clear glass must still reflect at its edge, and
         // surface-reflection settings must not extinguish title emission.
-        float rimAlpha=clamp(rim*(.62+sweep*.5)*glassLight,0.,.85);
+        float rimAlpha=clamp(rim*(1.05+sweep*.85)*glassLight,0.,.85);
         float contactAlpha=clamp(contact*.12+sheen*.04*contactStrength*surfaceReflection,0.,.48);
         float reflectionAlpha=rimAlpha+contactAlpha*(1.-rimAlpha);
+        reflectionAlpha+=surfaceAlpha*(1.-reflectionAlpha);
         float a=reflectionAlpha+tintAlpha*(1.-reflectionAlpha);
         vec3 reflection=rimTint*(.48+sweep*.38+lampFacing*.24)*rimAlpha
-          +contactColour*contactAlpha*(1.-rimAlpha);
-        vec3 c=(reflection+smokeTint*tintAlpha*(1.-reflectionAlpha))/max(a,.0001);
-        gl_FragColor=vec4(c,clamp(a*edge,0.,1.));
+          +contactColour*contactAlpha*(1.-rimAlpha)
+          +vec3(.72,.85,.98)*surfaceAlpha*(1.-rimAlpha)*(1.-contactAlpha);
+        vec3 c=(reflection+paneTint*tintAlpha*(1.-reflectionAlpha))/max(a,.0001);
+        // Real glass has thickness: a slim, slightly dark refraction band inside the rim, and two hairline
+        // reflections that are only bright where the light rakes along them. They stay in the fixed light frame.
+        float lw=max(.0013,aa*.8);
+        float thicknessShade=smoothstep(.925,.958,r)*(1.-smoothstep(.958,.975,r));
+        float outerLine=exp(-pow((r-.975)/lw,2.));
+        float innerLine=exp(-pow((r-.95)/(lw*.8),2.));
+        float nodes=0.;
+        for(int n=0;n<2;n++){
+          float na=n==0?.64:-2.18;
+          vec2 centre=.959*vec2(cos(na),sin(na));
+          nodes+=exp(-pow((length(vGlass-centre)-.019)/(lw*1.15),2.));
+        }
+        float lineLight=.14+.86*clamp(pow(sweep,1.4)*.75+lampFacing*.55,0.,1.);
+        float lineAlpha=clamp((outerLine*.75+innerLine*.55+nodes*.9)*lineLight*edgeLines,0.,.92);
+        // A touch of dispersion: the same hairline drifts from cool to warm around the circle.
+        vec3 lineColour=mix(vec3(.74,.84,.98),vec3(.98,.93,.86),clamp(sweep*.8+lampFacing*.25,0.,1.));
+        float shadeAlpha=thicknessShade*.16*clamp(edgeLines,0.,1.);
+        float a1=shadeAlpha+a*(1.-shadeAlpha);
+        c=(vec3(.015,.02,.04)*shadeAlpha+c*a*(1.-shadeAlpha))/max(a1,.0001);
+        float a2=lineAlpha+a1*(1.-lineAlpha);
+        c=(c*a1*(1.-lineAlpha)+lineColour*lineAlpha)/max(a2,.0001);
+        gl_FragColor=vec4(c,clamp(a2*edge,0.,1.));
       }`,
   }));
   const glassPane = new THREE.Mesh(own(new THREE.CircleGeometry(R, 192)), glassMaterial);
@@ -213,7 +243,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
 
   type ColourSample = { u: number; v: number; colour: THREE.Color; weight: number };
   type Slot = { group: THREE.Group; image: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>; texture: THREE.CanvasTexture;
-    bands: THREE.Vector4; samples: ColourSample[]; imageAspect: number; titleColor?: THREE.Color;
+    bands: THREE.Vector4; samples: ColourSample[]; imageAspect: number; loaded: boolean; titleLayout: ReturnType<typeof discPanelLayout>; titleColor?: THREE.Color;
     angle: number; rotation?: number; titleScale: number; weight: number; lift: number; scale: number };
   let imageSources: string[] = [];
   let slots: Slot[] = [], generation = 0, lastGap = controls.slotGap, lastSize = controls.slotSize;
@@ -224,11 +254,11 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const panels = new THREE.Group(); disc.add(panels);
   const geometries: THREE.BufferGeometry[] = [];
 
-  function clearSlots() {
+  function clearSlots(retainedCanvases = new Set<HTMLCanvasElement>()) {
     loader.abort(); loader = new AbortController(); generation++;
     for (const s of slots) {
       s.texture.dispose(); s.image.material.dispose();
-      s.texture.image.width = s.texture.image.height = 0;
+      if (!retainedCanvases.has(s.texture.image as HTMLCanvasElement)) s.texture.image.width = s.texture.image.height = 0;
     }
     geometries.forEach(g => g.dispose()); geometries.length = 0;
     panels.clear(); slots = []; hovered = opened = -1;
@@ -241,7 +271,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     geometries.push(imageGeometry);
     for (const slot of slots) {
       slot.image.geometry = imageGeometry;
-      slot.image.material.uniforms.panelAspect.value = layout.aspect;
+      slot.titleLayout = discFittedTitleLayout(layout, slot.imageAspect);
+      slot.image.material.uniforms.panelAspect.value = slot.titleLayout.aspect;
     }
     old.forEach(g => g.dispose());
   }
@@ -278,7 +309,18 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       wake();
       return;
     }
-    clearSlots();
+    // Keep decoded artwork alive across add/remove/reorder operations. Rebuilding
+    // the sector positions must not make every existing title vanish while it reloads.
+    const incoming = new Set(images.map(item => item.src));
+    const retained = new Map<string, { canvas: HTMLCanvasElement; aspect: number; bands: THREE.Vector4; samples: ColourSample[] }>();
+    slots.forEach((slot, index) => {
+      const src = imageSources[index];
+      if (src && incoming.has(src) && slot.loaded && !retained.has(src)) retained.set(src, {
+        canvas: slot.texture.image as HTMLCanvasElement, aspect: slot.imageAspect,
+        bands: slot.bands, samples: slot.samples,
+      });
+    });
+    clearSlots(new Set([...retained.values()].map(entry => entry.canvas)));
     imageSources = images.map(item => item.src);
     const gen = generation, signal = loader.signal;
     layout = discPanelLayout(images.length, controls.slotGap, controls.slotSize);
@@ -300,14 +342,15 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         titleGlowColour: { value: customGlow }, useTitleGlowColour: { value: item.glowColor ? 1 : 0 },
         titleGlowIntensity: { value: THREE.MathUtils.clamp(item.glowIntensity ?? 1, 0, 2) },
         titleOpacity: { value: THREE.MathUtils.clamp(item.opacity ?? 1, 0, 1) }, screenBlend: { value: 0 },
-        projectorTransform, projectorBounds, projectorSoftness, projectorPower, contactColour, contactStrength, rays: raysUniform },
+        projectorTransform, projectorBounds, projectorSoftness, projectorPower, contactColour, contactStrength, titleGlass, viewport: fanMaterial.uniforms.viewport, rays: raysUniform },
         vertexShader: `uniform mat4 projectorTransform; varying vec2 vProjector; varying vec2 vUv;
           void main(){ vec4 world=modelMatrix*vec4(position,1.);
             vProjector=(projectorTransform*world).xy/2.35;
             vUv=uv; gl_Position=projectionMatrix*viewMatrix*world; }`,
         fragmentShader: `uniform sampler2D map;
         uniform float imageSaturation, vibrance, imageOpacity, blur, dimBrightness, slotGlow, projectorSoftness, projectorPower, contactStrength, rear, hover, imageAspect, panelAspect;
-        uniform float useTitleColour, useTitleGlowColour, titleGlowIntensity, titleOpacity, screenBlend;
+        uniform float useTitleColour, useTitleGlowColour, titleGlowIntensity, titleOpacity, screenBlend, titleGlass;
+        uniform vec2 viewport;
         uniform vec3 contactColour, titleColour, titleGlowColour;
         uniform vec4 projectorBounds; varying vec2 vProjector; varying vec2 vUv;
         ${rayShaderSource}
@@ -316,6 +359,10 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
           float width=.32+.26*projectorSoftness;
           float t=clamp((edge-(1.-width))/width,0.,1.);
           return clamp(1.-t*t*t*(t*(t*6.-15.)+10.),0.,1.);
+        }
+        float inkAt(vec2 p){
+          vec4 t=texture2D(map,clamp(p,0.,1.),1.6); // softened, so the bevel follows letter shapes and not surface grain
+          return smoothstep(.1,.58,max(t.r,max(t.g,t.b)))*t.a;
         }
         void main(){
           float radial=(vProjector.x-projectorBounds.x)/(projectorBounds.y-projectorBounds.x);
@@ -341,7 +388,17 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
           vec2 lightWindow=discWindow(vProjector);
           float shafts=rayField(lightWindow);
           // Rays visibly travel across the print: lit where one lands, a little dimmer between them.
-          c=mix(vec3(grey)*dimBrightness,c*(1.+slotGlow*.3)*(.9+shafts*.32),focus);
+          // Out of the light the title is only glass: a clear cool body with a bevelled rim, carrying none of the
+          // artwork's colour or grain. The rim comes from the artwork's own letter shapes, so any upload gets it.
+          vec2 bevel=vec2(.0075,-.0075);
+          float inkSoft=inkAt(uv);
+          float rimLit=clamp(inkSoft-inkAt(uv-bevel),0.,1.), rimShade=clamp(inkSoft-inkAt(uv+bevel),0.,1.);
+          float glassRim=clamp(rimLit+rimShade*.4,0.,1.);
+          vec3 glassBody=vec3(.72,.85,1.)*(.2+rimLit*1.15+rimShade*.35);
+          // The light wipes the glass away: the original artwork shows in full wherever the beam lands, easing back
+          // to glass across the beam's soft edge.
+          float reveal=smoothstep(.1,.68,focus);
+          c=mix(glassBody,c*(1.+slotGlow*.12)*(.96+shafts*.14),reveal);
           c=mix(c,mix(tex.rgb,titleColour*sourcePeak,useTitleColour),hover*.85);
           // Extract the visible title ink from the uploaded artwork. There is deliberately no
           // baseline card emission: only bright/coloured title pixels cross the bloom threshold.
@@ -354,22 +411,41 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
           // Bloom reads the emission, while this core blend keeps the uploaded logo's real
           // colour and detail visible instead of letting the glow bleach it into a white patch.
           c=mix(c,artworkCore*(1.+slotGlow*.1),titleInk*focus*.5);
-          float outputAlpha=max(tex.a*imageOpacity,titleInk*focus*.92)*titleOpacity;
+          float glassAlpha=clamp((titleInk*(.08+dimBrightness*.55)+glassRim*.85)*titleGlass,0.,1.);
+          // Titles dissolve before they reach the edge of the frame; the glass circle itself carries on past it.
+          vec2 frameUv=gl_FragCoord.xy/viewport;
+          float titleFrame=smoothstep(0.,.17,frameUv.y)*(1.-smoothstep(.8,.98,frameUv.y))*smoothstep(0.,.07,min(frameUv.x,1.-frameUv.x));
+          float outputAlpha=mix(glassAlpha,max(tex.a*imageOpacity,titleInk*.92),reveal)*titleOpacity*titleFrame;
           vec3 blended=mix(c,clamp(c,0.,1.),screenBlend);
           gl_FragColor=vec4(blended*mix(1.,outputAlpha,screenBlend),outputAlpha); }` });
       setTitleBlend(material, item.blend);
       const group = new THREE.Group(); group.rotation.z = i * step; panels.add(group);
       // Only the transparent PNG is mounted: no glass rectangle, border or opaque backing.
       const image = new THREE.Mesh(imageGeometry, material); image.position.z = 0.041; group.add(image);
-      slots.push({ group, image, texture, bands: new THREE.Vector4(.55,.55,.55,.55),
-        samples: [], imageAspect: 1, titleColor: item.titleColor ? customTitle : undefined, angle: i * step, rotation: item.rotation,
-        titleScale: THREE.MathUtils.clamp(item.scale ?? 1, .25, 1), weight: 0, lift: 0, scale: 1 });
+      const slot: Slot = { group, image, texture, bands: new THREE.Vector4(.55,.55,.55,.55),
+        samples: [], imageAspect: 1, loaded: false, titleLayout: discFittedTitleLayout(layout, 1), titleColor: item.titleColor ? customTitle : undefined,
+        angle: i * step, rotation: item.rotation, titleScale: THREE.MathUtils.clamp(item.scale ?? 1, .25, 1), weight: 0, lift: 0, scale: 1 };
+      const previous = retained.get(item.src);
+      if (previous) {
+        slot.texture.dispose();
+        slot.texture = new THREE.CanvasTexture(previous.canvas);
+        slot.texture.colorSpace = THREE.SRGBColorSpace;
+        slot.texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+        slot.image.material.uniforms.map.value = slot.texture;
+        slot.imageAspect = previous.aspect; slot.loaded = true;
+        slot.bands.copy(previous.bands); slot.samples = previous.samples;
+        slot.titleLayout = discFittedTitleLayout(layout, slot.imageAspect);
+        slot.image.material.uniforms.imageAspect.value = slot.imageAspect;
+        slot.image.material.uniforms.panelAspect.value = slot.titleLayout.aspect;
+        (texture.image as HTMLCanvasElement).width = (texture.image as HTMLCanvasElement).height = 0;
+      }
+      slots.push(slot);
     });
     // Decode one image at a time. Failed/CORS-blocked images leave the glass empty.
     void (async () => {
       for (let i = 0; i < images.length; i++) {
         if (destroyed || signal.aborted) return;
-        if (!images[i].src) continue;
+        if (!images[i].src || slots[i].loaded) continue;
         try {
           const response = await fetch(images[i].src, { signal, mode: "cors", credentials: "same-origin" });
           if (!response.ok) continue;
@@ -384,14 +460,23 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
           }
           const release = () => releaseDiscImage(bitmap);
           if (destroyed || gen !== generation) { release(); return; }
+          try {
           const slot = slots[i], thumb = slot.texture.image as HTMLCanvasElement, ctx = thumb.getContext("2d")!;
           const scale = Math.min(size / bitmap.width, size / bitmap.height);
           thumb.width = Math.max(1, Math.round(bitmap.width * scale)); thumb.height = Math.max(1, Math.round(bitmap.height * scale));
           ctx.drawImage(bitmap, 0, 0, thumb.width, thumb.height);
-          averageContext.clearRect(0, 0, 24, 24); averageContext.drawImage(bitmap, 0, 0, 24, 24);
+          const bounds = discTitleInkBounds(ctx.getImageData(0, 0, thumb.width, thumb.height).data, thumb.width, thumb.height);
+          let titleCanvas = thumb;
+          if (bounds.width !== thumb.width || bounds.height !== thumb.height) {
+            titleCanvas = document.createElement("canvas");
+            titleCanvas.width = bounds.width; titleCanvas.height = bounds.height;
+            titleCanvas.getContext("2d")!.drawImage(thumb, bounds.x, bounds.y, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height);
+          }
+          averageContext.clearRect(0, 0, 24, 24); averageContext.drawImage(titleCanvas, 0, 0, 24, 24);
           const pixels = averageContext.getImageData(0, 0, 24, 24).data;
           slot.bands.fromArray(discImageBands(pixels, 24));
-          slot.imageAspect = bitmap.width / bitmap.height;
+          slot.imageAspect = titleCanvas.width / titleCanvas.height;
+          slot.titleLayout = discFittedTitleLayout(layout, slot.imageAspect);
           slot.samples = [];
           // Eight cells per axis keep transparent title edges spatially accurate without a GPU
           // readback or a per-frame texture scan (at most 512 tiny samples across eight titles).
@@ -410,11 +495,15 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
               colour: new THREE.Color(sr / total, sg / total, sb / total).convertSRGBToLinear(), weight: total / Math.max(1, (x1 - x0) * (y1 - y0)) });
           }
           // WebGL textures cannot change size after first upload; replace and release the placeholder.
-          const texture = new THREE.CanvasTexture(thumb); texture.colorSpace = THREE.SRGBColorSpace;
+          const texture = new THREE.CanvasTexture(titleCanvas); texture.colorSpace = THREE.SRGBColorSpace;
           texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
           slot.texture.dispose(); slot.texture = texture; slot.image.material.uniforms.map.value = texture;
           slot.image.material.uniforms.imageAspect.value = slot.imageAspect;
-          release(); wake();
+          slot.image.material.uniforms.panelAspect.value = slot.titleLayout.aspect;
+          slot.loaded = true;
+          if (titleCanvas !== thumb) { thumb.width = 0; thumb.height = 0; }
+          wake();
+          } finally { release(); }
         } catch { /* Abort, network and cross-origin failures keep a usable placeholder. */ }
       }
     })();
@@ -433,21 +522,21 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const smokeTexture = own(new THREE.DataTexture(noiseData, noiseSize, noiseSize, THREE.RedFormat));
   smokeTexture.wrapS = smokeTexture.wrapT = THREE.RepeatWrapping;
   smokeTexture.minFilter = smokeTexture.magFilter = THREE.LinearFilter; smokeTexture.needsUpdate = true;
-  const sourceLocal = { value: new THREE.Vector3() }, beamPlanes = { value: Array.from({ length: 4 }, () => new THREE.Vector3()) };
+  const sourceLocal = { value: new THREE.Vector3() }, sourceScreen = { value: new THREE.Vector2() }, beamPlanes = { value: Array.from({ length: 4 }, () => new THREE.Vector3()) };
   const beamTime = { value: 0 }, beamMotion = { value: controls.rayMotion };
-  const beamGlow = { value: controls.beamGlow }, rayStrength = { value: controls.rayStrength };
+  const beamGlow = { value: controls.beamGlow }, beamWidth = { value: controls.beamWidth }, rayStrength = { value: controls.rayStrength };
   const volumeScale = { value: 1 };
   // One convex hull, shaded once per pixel on its far side. Each pixel marches its view ray through
   // the cone, so the light has real depth and ends exactly on the disc plane instead of on a flat edge.
   const fanMaterial = own(new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
     uniforms: { tint: { value: beamColor }, power: { value: 0 }, time: beamTime, motion: beamMotion, prism: { value: controls.rayPrism }, rayStyle: { value: controls.rayStyle }, viewport: { value: new THREE.Vector2(1, 1) },
-      projectorTransform, projectorBounds, sourceLocal, beamPlanes, beamGlow, rayStrength, volumeScale, rays: raysUniform, smokeTexture: { value: smokeTexture } },
+      projectorTransform, projectorBounds, sourceLocal, sourceScreen, beamPlanes, beamGlow, beamWidth, rayStrength, volumeScale, originGlow, rays: raysUniform, smokeTexture: { value: smokeTexture } },
     vertexShader: `uniform mat4 projectorTransform; varying vec3 vLocal, vCamera;
       void main(){ vec4 world=modelMatrix*vec4(position,1.);
         vLocal=(projectorTransform*world).xyz; vCamera=(projectorTransform*vec4(cameraPosition,1.)).xyz;
         gl_Position=projectionMatrix*viewMatrix*world; }`,
     fragmentShader: `#define BEAM_STEPS ${beamSteps}
-      uniform vec3 tint, sourceLocal, beamPlanes[4]; uniform vec4 projectorBounds; uniform float power, prism, rayStyle, time, motion, beamGlow, rayStrength, volumeScale; uniform vec2 viewport; uniform sampler2D smokeTexture; varying vec3 vLocal, vCamera;
+      uniform vec3 tint, sourceLocal, beamPlanes[4]; uniform vec4 projectorBounds; uniform float power, prism, rayStyle, time, motion, beamGlow, beamWidth, rayStrength, volumeScale, originGlow; uniform vec2 viewport, sourceScreen; uniform sampler2D smokeTexture; varying vec3 vLocal, vCamera;
       ${rayShaderSource}
       void main(){
         vec3 toCamera=vCamera-vLocal; float span=length(toCamera); vec3 dir=toCamera/span;
@@ -456,25 +545,42 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         if(dir.z<-.0001) span=min(span,(${BEAM_PLANE.toFixed(3)}-vLocal.z)/dir.z);
         // Interleaved jitter trades banding for a fine grain that bloom and FXAA dissolve.
         float jitter=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))));
-        float scatter=0., bodySum=0.; vec2 meanWindow=vec2(0.); float meanWeight=.0001;
+        float scatter=0., bodySum=0., meanAlong=0.; vec2 meanWindow=vec2(0.); float meanWeight=.0001;
         vec2 drift=vec2(time*.021,-time*.013)*motion;
         for(int i=0;i<BEAM_STEPS;i++){
           vec3 point=vLocal+dir*span*(float(i)+jitter)/float(BEAM_STEPS);
           float along=clamp((sourceLocal.z-point.z)/(sourceLocal.z-${BEAM_PLANE.toFixed(3)}),.002,1.);
           vec2 p=discWindow((sourceLocal.xy+(point.xy-sourceLocal.xy)/along)/2.35);
-          float body=beamBody(p);
-          if(body<=0.) continue;
+          vec2 shaped=p/max(beamWidth,.25);
+          float body=beamBody(shaped);
           // Smoke is sampled in space, not in beam coordinates, so it does not smear along the cone.
           float smoke=texture2D(smokeTexture,point.xy*.31+point.z*.17+drift).r;
           smoke=smoke*.65+.35*texture2D(smokeTexture,point.yx*.83-drift*1.7).r;
-          float shafts=rayField(p);
+          float shafts=rayField(shaped);
           // The off-screen source fades in. Near the glass, surface reflection takes over
           // from airborne haze so the original logo remains legible underneath the light.
           float landingHaze=1.-.48*smoothstep(.78,1.,along);
           float reach=smoothstep(.015,.42,along)*mix(1.18,1.,along)*landingHaze;
-          float density=body*reach*((.05+smoke*smoke*.2)*beamGlow+shafts*(.9+smoke*1.1)*rayStrength);
-          scatter+=density; bodySum+=body*reach*(1.-smoothstep(0.,.45,length(p)));
-          meanWindow+=p*density; meanWeight+=density;
+          float legacy=body*reach*((.05+smoke*smoke*.2)*beamGlow+shafts*(.9+smoke*1.1)*rayStrength);
+          // The source is tight and white-blue. Farther down, the shafts spread and
+          // lose energy so the landing reads as a trace of haze, not a second hotspot.
+          // This shape remains independent of the artwork's projector window.
+          vec2 spot=shaped/mix(.72,1.32,along);
+          float halo=exp(-dot(spot*vec2(1.15,1.35),spot*vec2(1.15,1.35))*1.45);
+          float lane=spot.y+.028*motion*sin(time*2.18+spot.x*1.8);
+          float bands=exp(-pow((lane+.38)/.13,2.))*.55
+            +exp(-pow((lane+.08)/.17,2.))*.8
+            +exp(-pow((lane-.22)/.12,2.))*.7
+            +exp(-pow((lane-.49)/.15,2.))*.42;
+          float core=exp(-dot(spot*vec2(2.5,2.8),spot*vec2(2.5,2.8)))*pow(1.-along,2.4);
+          float sourceBias=1.85*exp(-along*2.3)+.16;
+          float fade=smoothstep(0.,.025,along)*(1.-smoothstep(.5,1.,along)*smoothstep(.5,1.,along));
+          float spotlight=(halo*(.34+.2*smoke)*beamGlow
+            +halo*bands*1.15*rayStrength+core*1.1*beamGlow*originGlow)*fade*sourceBias;
+          float reference=1.-step(.5,rayStyle);
+          float density=mix(legacy,spotlight,reference);
+          scatter+=density; bodySum+=mix(body*reach*(1.-smoothstep(0.,.45,length(p))),core*fade,reference);
+          meanWindow+=p*density; meanAlong+=along*density; meanWeight+=density;
         }
         scatter*=span*volumeScale/float(BEAM_STEPS); bodySum*=span*volumeScale/float(BEAM_STEPS);
         vec2 p=meanWindow/meanWeight;
@@ -483,12 +589,23 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         vec3 spectrum=.5+.5*cos(6.28318*(p.y*.42+p.x*.14+vec3(0.,.33,.67)));
         // Dispersion modulates the artwork's colour instead of replacing it with a rainbow.
         vec3 colour=tint*mix(vec3(1.8),vec3(.9)+spectrum*1.8,prism*prismatic*.45);
-        // The haze carries the artwork pigment; the lamp's neutral core stays narrow.
+        // Legacy colour fans remain selectable; the reference style is a cool blue
+        // spotlight with a white-blue source, regardless of the passing title pigment.
         colour=mix(colour,vec3(max(.32,luminance)*1.38),clamp(bodySum*.025,0.,.1));
-        // Fade the light before it reaches the canvas boundary, without masking the disc or text.
         vec2 screen=gl_FragCoord.xy/viewport;
-        float frame=smoothstep(0.,.06,screen.x)*(1.-smoothstep(.93,1.,screen.x))*smoothstep(0.,.08,screen.y)*(1.-smoothstep(.92,1.,screen.y));
-        gl_FragColor=vec4(colour,min(scatter*power*frame*.62,min(1.,.72*max(1.,beamGlow))));
+        vec2 sourceDelta=(screen-sourceScreen)*vec2(viewport.x/viewport.y,1.4);
+        float sourceD=dot(sourceDelta,sourceDelta);
+        // A hot white-blue core with a wide soft bloom around it: the beam is brightest where it starts.
+        float sourceCore=exp(-sourceD*38.), sourceWide=exp(-sourceD*5.5);
+        float sourceWhite=1.-smoothstep(.06,.38,meanAlong/meanWeight);
+        vec3 blue=mix(vec3(.1,.4,1.35),vec3(1.3,1.6,1.9),clamp(max(sourceWhite*.5,sourceCore*.8)+bodySum*.02,0.,.82));
+        colour=mix(colour,blue,1.-step(.5,rayStyle));
+        // Fade the light before it reaches the canvas boundary, without masking the disc or text.
+        // The side the light comes from is not faded, so the origin keeps its full strength at the canvas edge.
+        float frame=smoothstep(0.,.012,screen.x)*(1.-smoothstep(.93,1.,screen.x))*smoothstep(0.,.02,screen.y)*(1.-smoothstep(.975,1.,screen.y));
+        float sourceLift=1.+(1.1*sourceCore+.45*sourceWide)*originGlow*(1.-step(.5,rayStyle));
+        // A soft shoulder rather than a clamp: the brightest light rolls off and never flattens into a white shape.
+        gl_FragColor=vec4(colour,(1.-exp(-scatter*power*sourceLift*3.1))*frame*.94);
       }` }));
   const beamGeometry = own(new THREE.BufferGeometry());
   const beamPositions = new THREE.Float32BufferAttribute(new Float32Array(54), 3).setUsage(THREE.DynamicDrawUsage);
@@ -496,7 +613,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const fan = new THREE.Mesh(beamGeometry, fanMaterial); fan.frustumCulled = false; scene.add(fan);
   const corners = Array.from({ length: 4 }, () => new THREE.Vector3());
   const hullFace = [0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4, 0, 2, 1, 0, 3, 2];
-  const localCorners = Array.from({ length: 4 }, () => new THREE.Vector3()), planeA = new THREE.Vector3(), planeB = new THREE.Vector3(), discNormal = new THREE.Vector3();
+  const localCorners = Array.from({ length: 4 }, () => new THREE.Vector3()), planeA = new THREE.Vector3(), planeB = new THREE.Vector3(), discNormal = new THREE.Vector3(), sourcePreview = new THREE.Vector3();
   const projectionAxis = new THREE.Vector3(0, 0, 1);
   const titleSamplePoint = { x: 0, y: 0 };
   let projection = discProjectionWindow(layout, controls.focusRadius, controls.raySpread);
@@ -543,8 +660,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   moteGeometry.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(moteCount * 3), 3));
   moteGeometry.setAttribute("seed", new THREE.Float32BufferAttribute(Array.from({ length: moteCount * 4 }, () => Math.random()), 4));
   const moteMaterial = own(new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    uniforms: { tint: { value: beamColor }, time: beamTime, motion: beamMotion, power: fanMaterial.uniforms.power, beamGlow, rayStrength, viewport: fanMaterial.uniforms.viewport, projectorBounds, sourceLocal, projectorFrame: { value: projectorFrame }, rays: raysUniform },
-    vertexShader: `attribute vec4 seed; uniform float time, motion, power, beamGlow, rayStrength; uniform vec2 viewport; uniform vec3 sourceLocal; uniform vec4 projectorBounds; uniform mat4 projectorFrame; varying float vLight;
+    uniforms: { tint: { value: beamColor }, time: beamTime, motion: beamMotion, power: fanMaterial.uniforms.power, beamGlow, beamWidth, rayStrength, viewport: fanMaterial.uniforms.viewport, projectorBounds, sourceLocal, projectorFrame: { value: projectorFrame }, rays: raysUniform },
+    vertexShader: `attribute vec4 seed; uniform float time, motion, power, beamGlow, beamWidth, rayStrength; uniform vec2 viewport; uniform vec3 sourceLocal; uniform vec4 projectorBounds; uniform mat4 projectorFrame; varying float vLight;
       ${rayShaderSource}
       void main(){
         float phase=seed.z+time*(.006+.012*seed.w)*motion;
@@ -554,7 +671,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         vec3 landing=vec3((mix(projectorBounds.x,projectorBounds.y,p.x*.5+.5))*2.35,p.y*halfWidth*2.35,${BEAM_PLANE.toFixed(3)});
         vec4 world=projectorFrame*vec4(mix(sourceLocal,landing,along),1.);
         float twinkle=.55+.45*sin(time*(1.1+seed.w*2.3)*motion+seed.x*60.);
-        vLight=beamBody(p)*(.1*beamGlow+rayField(p)*1.3*rayStrength)*twinkle*power*smoothstep(0.,.1,fract(phase))*(1.-smoothstep(.88,1.,fract(phase)));
+        vec2 shaped=p/max(beamWidth,.25);
+        vLight=beamBody(shaped)*(.1*beamGlow+rayField(shaped)*1.3*rayStrength)*twinkle*power*smoothstep(0.,.1,fract(phase))*(1.-smoothstep(.88,1.,fract(phase)));
         gl_Position=projectionMatrix*viewMatrix*world;
         gl_PointSize=(1.2+seed.w*2.2)*clamp(viewport.y/640.,.8,2.2);
       }`,
@@ -567,9 +685,9 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), controls.bloom, 0.75, 0.72);
   // Feather the complete scene in the existing antialias pass: no extra render target.
   const output = new OutputPass(), antialias = new ShaderPass({ ...FXAAShader,
-    uniforms: { ...FXAAShader.uniforms, arrival: { value: 0 }, entranceOpacity: { value: 0 }, scrollExit: { value: 0 }, portrait: { value: 0 }, mirror: { value: 0 }, edgeFeather: { value: new THREE.Vector2(.18, .14) } },
+    uniforms: { ...FXAAShader.uniforms, arrival: { value: 0 }, entranceOpacity: { value: 0 }, scrollExit: { value: 0 }, portrait: { value: 0 }, mirror: { value: 0 }, edgeFeather: { value: new THREE.Vector2(.18, .14) }, beamFrom: { value: new THREE.Vector2() }, beamTo: { value: new THREE.Vector2() }, frameAspect: { value: 1 } },
     fragmentShader: `uniform float arrival, entranceOpacity, scrollExit, portrait, mirror;
-      uniform vec2 edgeFeather;
+      uniform vec2 edgeFeather, beamFrom, beamTo; uniform float frameAspect;
       float softBoundary(float distanceToEdge, float featherWidth) {
         float t=clamp(distanceToEdge/featherWidth,0.,1.);
         return t*t*t*(t*(t*6.-15.)+10.);
@@ -581,16 +699,36 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
        // copy-side and bottom. Preserve the upper/right arc and all geometry.
        // Apply after bloom so glow cannot leave a hard rectangular seam.
        float sideX=mix(vUv.x,1.-vUv.x,mirror);
+       // The circle runs on past the frame, so only a short fade softens where the canvas ends at top and bottom.
        float frame=softBoundary(sideX,edgeFeather.x)*(1.-smoothstep(.96,1.,sideX))
-         *softBoundary(vUv.y,edgeFeather.y)*(1.-smoothstep(.92,1.,vUv.y));
+         *softBoundary(vUv.y,edgeFeather.y*.3)*(1.-smoothstep(.95,1.,vUv.y));
        float copyFade=mix(.48,1.,smoothstep(.20,.56,sideX));
        float mobileFade=mix(.03,1.,1.-smoothstep(.4,.74,vUv.y));
        float readable=mix(1.,mix(copyFade,mobileFade,portrait),arrival);
+       // The projector's light is the one exception to the copy-side dimming and side fade: inside the beam's own
+       // path, from the source to where it lands, the scene stays at full strength behind the heading.
+       vec2 beamAxis=(beamTo-beamFrom)*vec2(frameAspect,1.), beamPoint=(vUv-beamFrom)*vec2(frameAspect,1.);
+       float beamAlong=clamp(dot(beamPoint,beamAxis)/max(dot(beamAxis,beamAxis),.0001),0.,1.);
+       float beamOff=length(beamPoint-beamAxis*beamAlong)/mix(.05,.24,beamAlong);
+       float inBeam=exp(-beamOff*beamOff)*arrival*(1.-portrait);
+       readable=mix(readable,1.,inBeam);
+       frame=mix(frame,(1.-smoothstep(.95,1.,vUv.y))*softBoundary(vUv.y,edgeFeather.y*.3),inBeam);
        float exitT=clamp((scrollExit*(1.15-.15*vUv.x)-.03)/.97,0.,1.);
        float outgoing=1.-exitT*exitT*exitT*(exitT*(exitT*6.-15.)+10.);
        // The transparent canvas is premultiplied: fade colour and alpha together.
        gl_FragColor*=frame*readable*outgoing*entranceOpacity;`),
   });
+  // The scene target contains premultiplied light, but tone mapping and sRGB
+  // conversion operate on straight colour. Converting premultiplied RGB directly
+  // turns a 2% clear tint into a broad opaque-looking wash. Give additive light
+  // coverage too, then restore premultiplication for the transparent DOM canvas.
+  output.material.fragmentShader = output.material.fragmentShader.replace(
+    "gl_FragColor = texture2D( tDiffuse, vUv );",
+    `gl_FragColor = texture2D( tDiffuse, vUv );
+     float coverage=clamp(max(gl_FragColor.a,max(gl_FragColor.r,max(gl_FragColor.g,gl_FragColor.b))),0.,1.);
+     gl_FragColor.rgb/=max(coverage,.00001);
+     gl_FragColor.a=coverage;`
+  ).replace(/}\s*$/, "gl_FragColor.rgb*=gl_FragColor.a;\n}");
   composer.addPass(renderPass); composer.addPass(bloom); composer.addPass(output); composer.addPass(antialias);
   const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
   const restRay = new THREE.Ray(), restHit = new THREE.Vector3();
@@ -622,7 +760,10 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     const feather = discViewportFeather(width, height);
     antialias.uniforms.edgeFeather.value.set(feather.side, feather.bottom);
     camera.aspect = width / height;
-    camera.updateProjectionMatrix(); camera.updateMatrixWorld(); wake();
+    camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+    // Resizing clears the canvas: draw straight away so it never shows as a blank flash.
+    if (active && !firstPose && !destroyed && !document.hidden) draw(0);
+    wake();
   }
   function settleControl(current: number, target: number, dt: number, rate = 14) {
     if (motion.matches || firstPose) return target;
@@ -671,6 +812,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     renderedControls.lightIntensity = settleControl(renderedControls.lightIntensity, controls.lightIntensity, dt, 12);
     renderedControls.glowThreshold = settleControl(renderedControls.glowThreshold, controls.glowThreshold, dt, 12);
     renderedControls.beamGlow = settleControl(renderedControls.beamGlow, controls.beamGlow, dt, 12);
+    renderedControls.beamWidth = settleControl(renderedControls.beamWidth, controls.beamWidth, dt, 12);
     renderedControls.rayStrength = settleControl(renderedControls.rayStrength, controls.rayStrength, dt, 12);
     renderedControls.surfaceReflection = settleControl(renderedControls.surfaceReflection, controls.surfaceReflection, dt, 12);
     renderedControls.rayPrism = settleControl(renderedControls.rayPrism, controls.rayPrism, dt, 12);
@@ -683,6 +825,10 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     renderedControls.slotOpacity = settleControl(renderedControls.slotOpacity, controls.slotOpacity, dt, 12);
     renderedControls.slotBlur = settleControl(renderedControls.slotBlur, controls.slotBlur, dt, 12);
     renderedControls.unfocusedBrightness = settleControl(renderedControls.unfocusedBrightness, controls.unfocusedBrightness, dt, 12);
+    renderedControls.originGlow = settleControl(renderedControls.originGlow, controls.originGlow, dt, 12);
+    renderedControls.titleGlass = settleControl(renderedControls.titleGlass, controls.titleGlass, dt, 12);
+    renderedControls.edgeLines = settleControl(renderedControls.edgeLines, controls.edgeLines, dt, 12);
+    originGlow.value = renderedControls.originGlow; titleGlass.value = renderedControls.titleGlass; edgeLines.value = renderedControls.edgeLines;
     imageSaturation.value = renderedControls.saturation; vibrance.value = renderedControls.vibrance;
     imageOpacity.value = renderedControls.slotOpacity; blur.value = renderedControls.slotBlur;
     dimBrightness.value = renderedControls.unfocusedBrightness;
@@ -713,7 +859,9 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         spinBlend = Math.min(1, spinBlend + dt / .65);
         // Position/scale settle independently; rotation flows through the landing unchanged.
         const arrivalSpin = glassArrivalSpinMultiplier(arrival);
-        disc.rotation.z = (disc.rotation.z + renderedControls.spinSpeed * arrivalSpin * glassEase(spinBlend) * dt) % TAU;
+        // A released drag keeps its momentum and decays smoothly back into the saved rotation.
+        flingSpeed = Math.abs(flingSpeed) < .002 ? 0 : flingSpeed * Math.exp(-dt * 1.5);
+        disc.rotation.z = (disc.rotation.z + renderedControls.spinSpeed * arrivalSpin * glassEase(spinBlend) * dt + flingSpeed * dt) % TAU;
       }
     }
     tilt.updateMatrixWorld(true);
@@ -751,9 +899,12 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       restRotation.setFromAxisAngle(projectionAxis, slot.angle);
       slot.group.quaternion.copy(restRotation).slerp(faceCamera, slot.lift);
       slot.image.rotation.z = THREE.MathUtils.degToRad(slot.rotation ?? controls.slotRotation);
-      slot.image.scale.setScalar(slot.titleScale);
+      slot.image.scale.set(
+        slot.titleScale * (slot.titleLayout.outer - slot.titleLayout.inner) / (layout.outer - layout.inner),
+        slot.titleScale * slot.titleLayout.innerHalfWidth / layout.innerHalfWidth, 1);
       const titleOpacity = slot.image.material.uniforms.titleOpacity.value as number;
-      slot.image.visible = titleOpacity > 0;
+      // A new/failed image has no visible pixels and must not leave a clickable empty slot.
+      slot.image.visible = slot.loaded && titleOpacity > 0;
       // A small hover lift stays attached to the continuously rotating glass.
       slot.group.scale.setScalar(slot.scale);
       slot.group.updateMatrixWorld(true);
@@ -761,15 +912,15 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       slot.image.material.uniforms.rear.value = THREE.MathUtils.smoothstep(-slotCenter.z / R, .1, .75);
       slot.image.material.uniforms.hover.value = Math.min(1, slot.lift * 3);
       const projectionAngle = slot.angle + disc.rotation.z - localFocus;
-      slot.weight = discProjectionCoverage(layout, projection, projectionAngle, renderedControls.glowRadius, slot.image.rotation.z, slot.titleScale) * titleOpacity;
+      slot.weight = discProjectionCoverage(slot.titleLayout, projection, projectionAngle, renderedControls.glowRadius, slot.image.rotation.z, slot.titleScale) * titleOpacity;
       // Sample only title pigment actually inside the projector footprint. A title entering
       // halfway changes only from its illuminated half instead of recolouring the beam early.
-      const fitX = slot.imageAspect > layout.aspect ? 1 : slot.imageAspect / layout.aspect;
-      const fitY = slot.imageAspect > layout.aspect ? layout.aspect / slot.imageAspect : 1;
+      const fitX = slot.imageAspect > slot.titleLayout.aspect ? 1 : slot.imageAspect / slot.titleLayout.aspect;
+      const fitY = slot.imageAspect > slot.titleLayout.aspect ? slot.titleLayout.aspect / slot.imageAspect : 1;
       let slotInkCoverage = 0;
       for (const sample of slot.samples) {
         const u = .5 + (sample.u - .5) * fitX, v = .5 + (sample.v - .5) * fitY;
-        discTitlePoint(layout, u, v, projectionAngle, slot.image.rotation.z, titleSamplePoint, slot.titleScale);
+        discTitlePoint(slot.titleLayout, u, v, projectionAngle, slot.image.rotation.z, titleSamplePoint, slot.titleScale);
         const mask = discProjectionMask(titleSamplePoint.x, titleSamplePoint.y, projection, renderedControls.glowRadius);
         const sampleWeight = sample.weight * mask * titleOpacity * slot.titleScale * slot.titleScale;
         if (sampleWeight <= .000001) continue;
@@ -824,6 +975,14 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       source.addScaledVector(discNormal, (.18 - sourceLocal.value.z) * tilt.scale.x);
       sourceLocal.value.copy(source).applyMatrix4(projectorTransform.value);
     }
+    // The lamp itself stays off-screen; place its visible flare at the first
+    // screen-facing stretch of the shaft, which also follows portal aim edits.
+    sourcePreview.copy(source).lerp(anchor, .2).project(camera);
+    sourceScreen.value.set(sourcePreview.x * .5 + .5, sourcePreview.y * .5 + .5);
+    antialias.uniforms.beamFrom.value.copy(sourceScreen.value);
+    sourcePreview.copy(anchor).project(camera);
+    antialias.uniforms.beamTo.value.set(sourcePreview.x * .5 + .5, sourcePreview.y * .5 + .5);
+    antialias.uniforms.frameAspect.value = width / Math.max(1, height);
     originGuide.visible = landingGuide.visible = aimGuides;
     if (aimGuides) {
       originGuide.position.copy(source); landingGuide.position.copy(anchor);
@@ -832,7 +991,8 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     // The hull is larger than the window so the light's soft edge fades out before reaching it.
     // A slightly broader coloured fan reaches the reflection centre; the shader keeps its
     // neutral core thin so widening the beam does not create a thick white hotspot.
-    const hullX = (projection.outer - projection.inner) * .5 * .5, hullWidth = 1.5;
+    const hullX = (projection.outer - projection.inner) * .5 * .5 * Math.max(1, renderedControls.beamWidth);
+    const hullWidth = 1.5 * Math.max(1, renderedControls.beamWidth);
     localCorners[0].set((projection.inner - hullX) * R, -projection.innerHalfWidth * hullWidth * R, BEAM_PLANE);
     localCorners[1].set((projection.outer + hullX) * R, -projection.outerHalfWidth * hullWidth * R, BEAM_PLANE);
     localCorners[2].set((projection.outer + hullX) * R, projection.outerHalfWidth * hullWidth * R, BEAM_PLANE);
@@ -849,7 +1009,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     beamPositions.needsUpdate = true;
     // The projector remains on between titles. Only the artwork focus fades, never the light.
     fanMaterial.uniforms.power.value = renderedControls.rayIntensity;
-    beamGlow.value = renderedControls.beamGlow; rayStrength.value = renderedControls.rayStrength;
+    beamGlow.value = renderedControls.beamGlow; beamWidth.value = renderedControls.beamWidth; rayStrength.value = renderedControls.rayStrength;
     beamTime.value = time;
     beamMotion.value = renderedControls.rayMotion;
     fanMaterial.uniforms.prism.value = renderedControls.rayPrism;
@@ -863,12 +1023,13 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     const frameMs = last ? now - last : 0;
     const delta = Math.min(0.1, frameMs / 1000); last = now; elapsed += delta;
     // 30fps on coarse/low-core devices, 60fps otherwise; all movement is time-based.
-    if (elapsed >= 1 / (lowPower ? 30 : 60) || delta === 0) {
+    // A 60Hz display reports just under 1/60s, so the limit keeps a margin or it would skip frames at random.
+    if (elapsed >= .9 / (lowPower ? 30 : 60) || delta === 0) {
       const start = performance.now(); draw(elapsed); elapsed = 0;
       if (performance.now() - start > 28 || frameMs > (lowPower ? 65 : 45)) slowFrames++; else slowFrames = Math.max(0, slowFrames - 1);
       if (slowFrames > 45 && quality > 0.65) { quality = Math.max(0.65, quality * 0.8); slowFrames = 0; resize(width, height); }
     }
-    if (!raf && !motion.matches && (controlsSettling || hoverSettling || (!paused && (arrival < 1 || controls.spinSpeed !== 0 || (controls.rayMotion > 0 && controls.rayIntensity > 0))))) raf = requestAnimationFrame(tick);
+    if (!raf && !motion.matches && (controlsSettling || hoverSettling || (!paused && (arrival < 1 || flingSpeed !== 0 || controls.spinSpeed !== 0 || (controls.rayMotion > 0 && controls.rayIntensity > 0))))) raf = requestAnimationFrame(tick);
   }
   function wake() { if (!destroyed && active && !document.hidden && !raf) { last = 0; raf = requestAnimationFrame(tick); } }
   function stop() { cancelAnimationFrame(raf); raf = 0; last = 0; elapsed = 0; }
@@ -882,7 +1043,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       if (destroyed || !active || firstPose || opened >= 0) return false;
       const angle = pointerAngle(x, y, true);
       if (angle === null) return false;
-      dragging = true; dragAngle = angle; spinBlend = 0; hovered = -1;
+      dragging = true; dragAngle = angle; spinBlend = 0; hovered = -1; flingSpeed = 0; lastDragAt = performance.now();
       wake(); return true;
     },
     move(x, y) {
@@ -891,10 +1052,18 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       if (angle === null) return;
       const delta = angle - dragAngle;
       // Unwrap the -PI/PI seam so reversing direction never jumps a full revolution.
-      disc.rotation.z = (disc.rotation.z + Math.atan2(Math.sin(delta), Math.cos(delta))) % TAU;
+      const turn = Math.atan2(Math.sin(delta), Math.cos(delta)), now = performance.now();
+      disc.rotation.z = (disc.rotation.z + turn) % TAU;
+      flingSpeed = THREE.MathUtils.lerp(flingSpeed, turn / Math.max(.008, (now - lastDragAt) / 1000), .35);
+      lastDragAt = now;
       dragAngle = angle; tilt.updateMatrixWorld(true); wake();
     },
-    end() { dragging = false; spinBlend = 0; wake(); },
+    end() {
+      dragging = false; spinBlend = 0;
+      // Holding still before letting go means no throw; a flick carries on, within a calm limit.
+      flingSpeed = motion.matches || performance.now() - lastDragAt > 90 ? 0 : THREE.MathUtils.clamp(flingSpeed, -2.6, 2.6);
+      wake();
+    },
   });
   setImages(initial);
   return {
@@ -940,8 +1109,9 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         const rotation = slots[hovered].image.rotation.z, rc = Math.cos(rotation), rs = Math.sin(rotation);
         const radial = center + (x * rc + y * rs) / slots[hovered].titleScale;
         const tangent = (-x * rs + y * rc) / slots[hovered].titleScale;
-        const fraction = (radial - layout.inner) / (layout.outer - layout.inner);
-        if (fraction >= 0 && fraction <= 1 && Math.abs(tangent) <= layout.innerHalfWidth + (layout.outerHalfWidth - layout.innerHalfWidth) * fraction) return hovered;
+        const fitted = slots[hovered].titleLayout;
+        const fraction = (radial - fitted.inner) / (fitted.outer - fitted.inner);
+        if (fraction >= 0 && fraction <= 1 && Math.abs(tangent) <= fitted.innerHalfWidth + (fitted.outerHalfWidth - fitted.innerHalfWidth) * fraction) return hovered;
       }
       return -1;
     },

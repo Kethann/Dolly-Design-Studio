@@ -95,6 +95,58 @@
   },
   "proofTable": {
     "enabled": true,
+    "disc": {
+      "glassVersion": 1,
+      "glassFinishVersion": 1,
+      "entranceDuration": 3.6,
+      "circleScale": 1,
+      "glassOpacity": 0.56,
+      "edgeThickness": 0.1,
+      "glassTintColor": "#0091ff",
+      "shadowColor": "#050407",
+      "shadowOpacity": 0.49,
+      "shadowSpread": 1,
+      "spinSpeed": 0.09,
+      "focusAngle": -64,
+      "focusRadius": 0.8,
+      "rayIntensity": 1,
+      "rayLength": 3,
+      "bloom": 0.35,
+      "desaturation": 0,
+      "discTilt": -6,
+      "slotGap": 0.5,
+      "lightIntensity": 1,
+      "glowRadius": 0.75,
+      "glowThreshold": 0.72,
+      "saturation": 1,
+      "vibrance": 0,
+      "slotSize": 1,
+      "slotOpacity": 1,
+      "slotRotation": 62,
+      "slotBlur": 2.5,
+      "unfocusedBrightness": 0.1,
+      "discRoll": -8,
+      "rayStyle": 0,
+      "rayElevation": 2.4,
+      "raySpread": 0.55,
+      "rayPrism": 0.25,
+      "rayMotion": 0.65,
+      "projectorSide": -1,
+      "beamGlow": 1.1,
+      "beamWidth": 1.2,
+      "rayStrength": 1.1,
+      "surfaceReflection": 1,
+      "originOffsetX": -0.25,
+      "originOffsetY": 0.24,
+      "tabletFocusAngle": -48,
+      "tabletFocusRadius": 0.8,
+      "tabletOriginOffsetX": 0,
+      "tabletOriginOffsetY": 0,
+      "mobileFocusAngle": -54,
+      "mobileFocusRadius": 0.8,
+      "mobileOriginOffsetX": 0,
+      "mobileOriginOffsetY": 0
+    },
     "length": 1.3,
     "cardSize": 1,
     "glassColor": "#1c1630",
@@ -105,50 +157,58 @@
     "slabOpacity": 0.24,
     "items": [
       {
-        "src": "",
+        "src": "/images/uploads/dacoit-b0c6630d.webp",
         "type": "title-png",
         "film": "Dacoit",
         "year": 2026,
         "tag": "Title",
         "slug": "dacoit",
         "alt": "Dacoit title design",
-        "tint": "#000000"
+        "tint": "#000000",
+        "titleRotation": 88
       },
       {
-        "src": "",
+        "src": "/images/uploads/koka-115a0747.webp",
         "type": "title-png",
         "film": "Korean Kanakaraju",
         "year": 2026,
         "tag": "Title",
         "slug": "korean-kanakaraju",
-        "alt": "Korean Kanakaraju English title design"
+        "alt": "Korean Kanakaraju English title design",
+        "titleRotation": 88,
+        "titleScale": 0.82
       },
       {
-        "src": "",
+        "src": "/images/uploads/brundhavihari-6e65d7cd.webp",
         "type": "title-png",
         "film": "Brindhavihari",
         "year": 2026,
         "tag": "Title",
         "slug": "brindhavihari",
-        "alt": "Brindhavihari Kannada title design"
+        "alt": "Brindhavihari Kannada title design",
+        "titleRotation": 40,
+        "titleScale": 0.75
       },
       {
-        "src": "",
+        "src": "/images/uploads/g2-title-a992c466.webp",
         "type": "title-png",
         "film": "Goodachari 2",
         "year": 2027,
         "tag": "Title",
         "slug": "goodachari-2",
-        "alt": "Goodachari 2 title design"
+        "alt": "Goodachari 2 title design",
+        "titleRotation": 87,
+        "titleScale": 0.66
       },
       {
-        "src": "",
+        "src": "/images/uploads/isakapatnam-1820a1e4.webp",
         "type": "title-png",
         "film": "Romeo Juliet",
         "year": 2026,
         "tag": "Title",
         "slug": "romeo-juliet",
-        "alt": "Romeo Juliet title design"
+        "alt": "Romeo Juliet title design",
+        "titleRotation": 86
       },
       {
         "src": "",
@@ -160,13 +220,17 @@
         "alt": "Oka Manchi Prema Katha Telugu handwritten title"
       },
       {
-        "src": "",
+        "src": "/images/uploads/naukari-title-64e834af.webp",
         "type": "title-png",
         "film": "Isakapatnam",
         "year": 2026,
         "tag": "Title",
         "slug": "title-designs",
-        "alt": "Isakapatnam title design"
+        "alt": "Isakapatnam title design",
+        "titleGlowColor": "#ffffff",
+        "titleGlowIntensity": 0.7,
+        "titleRotation": 84,
+        "titleScale": 0.71
       },
       {
         "src": "",
@@ -216,6 +280,7 @@
     ]
   },
   "cursor": {
+    "style": "normal",
     "color": "#fff195",
     "size": 1,
     "glow": 0.3,
@@ -267,6 +332,14 @@
         "a": "#3a4fd8",
         "b": "#c23aa0"
       },
+      "clients": {
+        "a": "#1b8fb3",
+        "b": "#d2a03a"
+      },
+      "about": {
+        "a": "#6a3ad2",
+        "b": "#d23ac0"
+      },
       "work": {
         "a": "#1b8fb3",
         "b": "#7a3ad2"
@@ -275,17 +348,9 @@
         "a": "#2a9d8f",
         "b": "#3a6fd8"
       },
-      "making": {
+      "services": {
         "a": "#c2502a",
         "b": "#d23a7a"
-      },
-      "about": {
-        "a": "#6a3ad2",
-        "b": "#d23ac0"
-      },
-      "clients": {
-        "a": "#1b8fb3",
-        "b": "#d2a03a"
       },
       "contact": {
         "a": "#d23ac0",

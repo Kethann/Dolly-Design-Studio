@@ -2,14 +2,50 @@
   min-width: 0;
   display: block;
   position: relative;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
 }
 
 .frame {
+  display: block;
   position: relative;
   aspect-ratio: var(--card-ratio, 2 / 3);
-  overflow: hidden;
-  border: 1px solid var(--smoke);
-  background: var(--velvet);
+  perspective: 1100px;
+  transition: transform .55s cubic-bezier(.2,.8,.2,1);
+}
+
+.turn { position:absolute; inset:0; display:block; transform-style:preserve-3d; transition:transform .72s cubic-bezier(.3,1.18,.42,1); }
+.front,.back { position:absolute; inset:0; display:block; overflow:hidden; border:1px solid var(--smoke); border-radius:10px; background:var(--velvet); backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+.back { display:flex; flex-direction:column; justify-content:safe center; gap:18px; padding:clamp(16px,2.5vw,30px); overflow:auto; scrollbar-width:thin; transform:rotateY(180deg); border-color:var(--gold); background:radial-gradient(ellipse at 15% 0%,#75433350,transparent 70%),linear-gradient(145deg,#351427,#130e1d); }
+.back { container-type:inline-size; }
+.back > span { flex-shrink:0; }
+.back[data-has-art] { overflow:hidden; }
+.backTitle { font-family:var(--font-display); font-size:min(clamp(22px,2.4vw,38px), calc(100cqw / (var(--longest-word, 8) * .8))); font-weight:700; line-height:1.05; overflow-wrap:anywhere; }
+/* As wide as the card allows, but a tall title stops at a height that leaves room for the lines above and below it. */
+.backArt { display:block; position:relative; align-self:center; width:min(100%, calc(92cqw * var(--ink-aspect, 2.4))); aspect-ratio:var(--ink-aspect, 2.4); }
+.backCategory,.backAction { font-family:var(--font-label); font-size:10px; line-height:1.6; letter-spacing:.12em; text-transform:uppercase; color:var(--gold-bright); }
+.backAction { display:flex; justify-content:space-between; align-items:center; gap:12px; padding-top:16px; border-top:1px solid #e2c79138; }
+.backAction > span { display:grid; place-items:center; flex:none; width:34px; height:34px; border-radius:50%; font-size:20px; color:#2b1523; background:linear-gradient(135deg,#fff1b8,#d4a445); }
+/* The sheen only fades, so the flip never has to repaint; it stays inside the card so it adds nothing to scroll. */
+.back { box-shadow:0 22px 48px rgb(0 0 0 / .45); }
+.back::after { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; background:linear-gradient(115deg,transparent 30%,#fff3d61f 50%,transparent 70%); opacity:0; transition:opacity .7s ease .15s; }
+.card:focus-visible { outline:2px solid var(--gold-bright); outline-offset:5px; }
+.card:focus-visible .back::after { opacity:1; }
+.card:focus-visible .turn { transform:rotateY(180deg); }
+@media(hover:hover) and (pointer:fine) {
+  .card:hover .turn { transform:rotateY(180deg); }
+  .card:hover .frame { transform:translateY(-6px); }
+  .card:hover .back::after { opacity:1; }
+  /* The front is turning away, so zooming its picture would only cost a repaint nobody sees. */
+  .card:hover .frame img,.card:focus-visible .frame img { scale:1; }
+  /* One steady layer per card, so the turn starts without a hitch. */
+  .turn { will-change:transform; }
 }
 
 .frame img {
@@ -31,6 +67,7 @@
   border: 1px solid transparent;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
   pointer-events: none;
+  border-radius: inherit;
 }
 
 .card:hover .corner,
@@ -40,10 +77,12 @@
 }
 
 .meta {
+  display: block;
   margin-top: 12px;
 }
 
 .title {
+  display: block;
   overflow-wrap: anywhere;
   margin: 0;
   font-family: var(--font-display);
@@ -53,6 +92,7 @@
 }
 
 .sub {
+  display: block;
   overflow-wrap: anywhere;
   font-family: var(--font-label);
   font-size: 10px;
@@ -62,6 +102,8 @@
   opacity: 0.85;
   margin: 4px 0 0;
 }
+
+@media(prefers-reduced-motion:reduce) { .turn,.frame,.back::after,.frame img,.corner { transition:none; } }
 
 @media (hover: none) {
   .card:hover .frame img {

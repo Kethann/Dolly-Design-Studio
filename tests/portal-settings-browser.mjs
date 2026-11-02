@@ -13,11 +13,14 @@ const bundle = await build({
     import {Choice, Slider, Toggle, Dial, Section} from './app/portal/controls';
     import {Spotlight} from './app/portal/Spotlight'; import {Glyph} from './app/portal/mac';
     import styles from './app/portal/portal.module.css';
+    import {ProofTableEditor} from './app/portal/ProofTableEditor';
     const entries=[{label:'Glass title circle',sub:'Artwork, glass tint and projector',keywords:'shadow colour mobile origin',glyph:'slate',tab:'slate'},
       {label:'Visitor analytics',sub:'Consenting visits and approximate location',keywords:'device traffic',glyph:'visitors',tab:'visitors'}];
     function App(){const [value,setValue]=useState('left'),[angle,setAngle]=useState(0),[glow,setGlow]=useState(.5),[on,setOn]=useState(true),[search,setSearch]=useState(false);
+      const [circle,setCircle]=useState(false),[proof,setProof]=useState({enabled:true,items:[{film:'First title',tag:'Film',year:2026,slug:'first',src:''},{film:'Second title with a longer name',tag:'Music',year:2025,slug:'second',src:''}],disc:{}});window.__proof=proof;
+      if(circle)return <main className={styles.shell} style={{padding:16,minHeight:'100vh'}}><div style={{maxWidth:540,margin:'auto'}}><ProofTableEditor value={proof} projects={[]} onChange={patch=>setProof(previous=>({...previous,...patch}))} onShow={()=>{}} previewWidth={innerWidth}/></div></main>;
       return <main className={styles.shell} style={{padding:16,minHeight:'100vh'}}><div style={{maxWidth:540,margin:'auto'}}>
-        <h1>Portal settings</h1><button id="search" onClick={()=>setSearch(true)}>Search settings</button>
+        <h1>Portal settings</h1><button id="search" onClick={()=>setSearch(true)}>Search settings</button><button id="circle" onClick={()=>setCircle(true)}>Open circle controls</button>
         <Section title="Glass title circle" hint="Adjust the artwork, projector and glass without changing other sections.">
           <div style={{display:'flex',gap:20}}>{['slate','visitors','projects'].map(name=><span key={name} style={{width:28,height:28}}><Glyph name={name}/></span>)}</div>
           <Choice label="Projector style" hint="Choose how the light spreads." value={value} onChange={setValue} options={[{value:'left',label:'Cinema projector'},{value:'right',label:'Prismatic fan — reference'},{value:'soft',label:'Soft light fan'}]}/>
@@ -30,6 +33,10 @@ const bundle = await build({
     } createRoot(document.getElementById('root')).render(<App/>);`, resolveDir: process.cwd(), loader: "tsx" },
   bundle: true, write: false, outfile: "fixture.js", loader: { ".css": "local-css" }, jsx: "automatic",
   define: { "process.env.NODE_ENV": '"production"' }, logLevel: "silent",
+  plugins:[{name:'local-media-stub',setup(build){
+    build.onResolve({filter:/^\.\/ContentEditor$/},()=>({path:'media',namespace:'local-stub'}));
+    build.onLoad({filter:/.*/,namespace:'local-stub'},()=>({contents:'export const useMedia=()=>({add(){}}); export const useEditor=()=>({content:{},media:{removable:[]}}); export const ImagePicker=()=>null;',loader:'js'}));
+  }}],
 });
 const js = bundle.outputFiles.find(file=>file.path.endsWith('.js')).contents;
 const css = bundle.outputFiles.find(file=>file.path.endsWith('.css')).contents;
@@ -48,10 +55,11 @@ socket.onmessage=({data})=>{const event=JSON.parse(data);if(event.id){const job=
 const send=(method,params={})=>new Promise((resolve,reject)=>{const next=++id;pending.set(next,{resolve,reject});socket.send(JSON.stringify({id:next,method,params}));});
 const evaluate=async expression=>{const result=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result.value;};
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const wait=async expression=>{for(let i=0;i<80;i++){if(await evaluate(expression))return;await pause(100);}throw Error(expression);};
-const key=async(key,code=key)=>{await send('Input.dispatchKeyEvent',{type:'keyDown',key,code});await send('Input.dispatchKeyEvent',{type:'keyUp',key,code});};
+const wait=async expression=>{for(let i=0;i<80;i++){if(await evaluate(`Boolean(${expression})`))return;await pause(100);}throw Error(expression);};
+const key=async(key,code=key)=>{await send('Input.dispatchKeyEvent',{type:'keyDown',key,code,...(key==='Enter'?{text:'\r',windowsVirtualKeyCode:13}:{})});await send('Input.dispatchKeyEvent',{type:'keyUp',key,code});};
 try{
-  await send('Page.enable');await send('Runtime.enable');
+  await send('Page.enable');await send('Page.navigate',{url:'about:blank'});await send('Runtime.enable');
+  await wait(`location.href==='about:blank'`);await send('Runtime.discardConsoleEntries');errors.length=0;
   for(const width of [320,390,820,1440]){
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false});
     await send('Page.navigate',{url:`http://127.0.0.1:${server.address().port}/`});
@@ -75,6 +83,55 @@ try{
     assert.equal(await evaluate('window.__picked'),'slate');
     if(width===390||width===1440){const shot=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(os.tmpdir(),`dds-portal-settings-${width}.png`),Buffer.from(shot.data,'base64'));}
     console.log('PASS portal controls and search:',width);
+    await evaluate(`document.querySelector('#circle').click()`);
+    await wait(`!!document.querySelector('input[placeholder^="Try:"]')`);
+    await evaluate(`document.querySelector('input[placeholder^="Try:"]').focus()`);
+    await send('Input.insertText',{text:'beam width'});
+    await wait(`!!document.querySelector('input[aria-label="Beam width — exact value (%)"]')`);
+    await evaluate(`document.querySelector('details[data-disc-group] summary').click()`);
+    await wait(`document.querySelectorAll('details[data-disc-group][open]').length===1`);
+    await evaluate(`(()=>{const e=document.querySelector('input[aria-label="Beam width — exact value (%)"]');e.focus();e.select()})()`);
+    await send('Input.insertText',{text:'65'});await key('Enter');
+    await wait(`window.__proof.disc.beamWidth===.65`);
+    assert.equal(await evaluate('window.__proof.items.length'),2,'Settings do not mutate the title collection');
+    assert.ok(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'),'Exact values fit '+width);
+    await evaluate(`(()=>{const e=document.querySelector('input[placeholder^="Try:"]');e.focus();e.select()})()`);
+    await send('Input.insertText',{text:'no-such-setting'});
+    await wait(`document.querySelectorAll('details[data-disc-group]').length===0`);
+    await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Clear search').click()`);
+    await wait(`document.querySelectorAll('details[data-disc-group]').length>8`);
+    await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.startsWith('Beam position ·')).click()`);
+    const profile=width<=640?'Mobile':width<=1024?'Tablet':'Desktop';
+    await wait(`document.querySelector('details[data-disc-group][open]')?.dataset.discGroup.startsWith('${profile} beam')`);
+    assert.equal(await evaluate('window.__proof.disc.beamWidth'),.65,'Navigation never resets settings');
+    await evaluate(`document.querySelector('details[data-disc-group="Glass tint"] summary').click()`);
+    await wait(`document.querySelectorAll('details[data-disc-group][open]').length===1 && document.querySelector('details[open]').dataset.discGroup==='Glass tint'`);
+    await evaluate(`document.querySelector('[data-title-block="0"] button[aria-expanded]').focus()`);await key('Enter');
+    await wait(`document.querySelector('[data-title-block="0"] button[aria-expanded="true"]')`);
+    await evaluate(`(()=>{const e=document.querySelector('[data-title-block="0"] input[aria-label="This title — size — exact value (%)"]');e.focus();e.select()})()`);
+    await send('Input.insertText',{text:'72'});await key('Enter');
+    await wait(`window.__proof.items[0].titleScale===.72`);
+    await evaluate(`document.querySelector('[data-title-block="1"] button[aria-expanded]').click()`);
+    await wait(`document.querySelectorAll('[data-title-block] button[aria-expanded="true"]').length===1 && document.querySelector('[data-title-block="0"] button[aria-expanded]').getAttribute('aria-expanded')==='false'`);
+    assert.equal(await evaluate(`window.__proof.items[0].titleScale`),.72,'Switching title blocks preserves edits');
+    await evaluate(`document.querySelector('input[placeholder="Search title, category or year"]').focus()`);
+    await send('Input.insertText',{text:'2025'});
+    await wait(`document.querySelectorAll('[data-title-block]:not([hidden])').length===1`);
+    assert.equal(await evaluate(`document.querySelector('[data-title-block]:not([hidden])').dataset.titleBlock`),'1');
+    await evaluate(`document.querySelector('[data-title-block="1"] button[aria-expanded]').click()`);
+    assert.ok(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'),'Expanded title fits '+width);
+    assert.ok(await evaluate(`document.querySelector('input[placeholder="Search title, category or year"]').parentElement.getBoundingClientRect().height<90`),'Title search stays compact '+width);
+    await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Clear title search').click()`);
+    await wait(`document.querySelectorAll('[data-title-block]:not([hidden])').length===2`);
+    await evaluate(`document.querySelector('[data-title-block="1"] [role="button"]').focus()`);await key('ArrowUp');
+    await wait(`window.__proof.items[0].film.startsWith('Second')`);
+    assert.equal(await evaluate(`document.querySelector('[data-title-block="0"] button[aria-expanded]').getAttribute('aria-expanded')`),'true','Selection follows reordered artwork');
+    assert.equal(await evaluate('window.__proof.items[1].titleScale'),.72);
+    await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='+ Add title').click()`);
+    await wait(`window.__proof.items.length===3 && document.querySelector('[data-title-block="2"] button[aria-expanded="true"]')`);
+    assert.equal(await evaluate(`document.querySelectorAll('[data-title-block] button[aria-expanded="true"]').length`),1);
+    if(width===390){const shot=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(os.tmpdir(),'dds-circle-settings-390.png'),Buffer.from(shot.data,'base64'));}
+    console.log('PASS circle search, exclusive blocks, title filtering/editing/reordering and device shortcut:',width);
   }
   assert.deepEqual(errors,[]);console.log('No runtime exceptions. No application data was accessed or changed.');
 }finally{socket.close();server.close();}

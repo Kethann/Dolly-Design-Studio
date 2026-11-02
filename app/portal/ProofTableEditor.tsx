@@ -2,7 +2,7 @@
 
 import { useConfirmDelete } from "./DeleteDialog";
 import { resizedSrc } from "@/lib/images";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ProofItem } from "@/content/proof-table";
 import { PROOF_LIMITS, type ProofTableSettings } from "@/lib/intro/settings";
 import { ColorRow, Section, Slider, Toggle } from "./controls";
@@ -16,30 +16,33 @@ export const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; la
     { key: "spinSpeed", label: "Rotation speed", hint: "Zero stops rotation. Negative reverses it. Reduced-motion devices show the settled composition." },
     { key: "entranceDuration", label: "Arrival duration", hint: "The full circle keeps turning as it zooms in, then settles into its saved rotation speed without stopping. Plays once per page visit." },
     { key: "circleScale", label: "Circle size", hint: "Fine-tune the oversized arc. Desktop, tablet and mobile use their own framing." },
-    { key: "edgeThickness", label: "Arc edge thickness", hint: "1% is an ultra-fine edge; 8% is the thin default. 100% is the broadest single reflection. No extra inner rings. Disc size and placement stay unchanged." },
+    { key: "edgeThickness", label: "Arc edge thickness", hint: "1% is ultra-fine; 8% is the thin default; 100% is the broadest edge reflection. Disc placement stays unchanged." },
+    { key: "edgeLines", label: "Glass edge lines", hint: "The two hairline reflections and the slim thickness band just inside the rim. Zero leaves only the outer edge." },
     { key: "discTilt", label: "Glass tilt", hint: "Keep this shallow for the broad circle in the reference." },
     { key: "discRoll", label: "Glass angle", hint: "Rotates the presentation of the glass surface." },
   ] },
   { title: "Glass tint", fields: [
     { key: "glassTintColor", label: "Tint colour", hint: "Colours only the glass surface, not the uploaded titles or projector." },
-    { key: "glassOpacity", label: "Glass opacity", hint: "Zero removes the tinted surface; higher values make it denser. Light reflections remain visible." },
+    { key: "glassOpacity", label: "Glass opacity", hint: "A faint clear tint lets the page show through. Zero removes the tint; surface and edge reflections remain visible." },
     { key: "desaturation", label: "Tint colour softness", hint: "0% keeps your chosen colour; 100% makes the tint neutral grey." },
   ] },
   { title: "Shadow behind the glass", fields: [
     { key: "shadowColor", label: "Shadow colour", hint: "The soft backdrop behind this section only. It does not change the page background." },
-    { key: "shadowOpacity", label: "Shadow opacity", hint: "Zero switches the backdrop off; 100% gives its strongest shading." },
+    { key: "shadowOpacity", label: "Shadow opacity", hint: "Off by default for clear glass. Increase only if you want to add a backdrop behind the disc." },
     { key: "shadowSpread", label: "Shadow spread", hint: "100% keeps the current size. Smaller concentrates it; larger spreads it softly." },
   ] },
   { title: "Projector & light", fields: [
     { key: "projectorSide", label: "Projector side" },
     { key: "lightIntensity", label: "Glass edge light", hint: "Controls only the fine edge reflection, even when glass opacity is zero. Zero turns the edge light off." },
-    { key: "rayIntensity", label: "Projector brightness", hint: "The beam, haze and landing reflection automatically follow the focused artwork's colour." },
-    { key: "beamGlow", label: "Beam glow", hint: "The soft haze filling the beam. 100% is the normal look; up to 300%." },
-    { key: "rayStrength", label: "Ray strength", hint: "How bright and defined the moving streaks inside the beam are." },
+    { key: "rayIntensity", label: "Projector brightness", hint: "Overall light strength. The blue spotlight stays cool while the glass reflection still responds to the focused artwork." },
+    { key: "originGlow", label: "Origin glow", hint: "How hot the light is where it enters the frame. It rolls off softly, so higher values stay shaped instead of turning into a flat white patch." },
+    { key: "beamWidth", label: "Beam width", hint: "25% gives a slim spotlight; 100% is the reference spread; 200% makes a broad, soft shaft. This does not resize the disc or the title-light landing area." },
+    { key: "beamGlow", label: "Beam glow", hint: "Controls the blue atmospheric haze around the central shafts." },
+    { key: "rayStrength", label: "Ray strength", hint: "Controls the pale streaks inside the blue spotlight." },
     { key: "surfaceReflection", label: "Surface reflection", hint: "Only the light landing on the glass surface. Zero removes it without disabling the beam, edge light or title glow." },
     { key: "rayStyle", label: "Ray style" },
     { key: "rayMotion", label: "Ray movement", hint: "Gentle, irregular motion with steady brightness. Zero keeps the beam still. Pause and reduced motion stop animation." },
-    { key: "raySpread", label: "Ray spread", hint: "Includes a soft overscan so the outer letters are illuminated. Increase for more surrounding light; decrease for a tighter beam." },
+    { key: "raySpread", label: "Title-light spread", hint: "Sets how much of a passing title receives light. Use Beam width above to narrow or expand the visible shaft." },
     { key: "rayPrism", label: "Prism colour separation", hint: "Adds fine spectral streaks to Prismatic fan. The main colour still follows the highlighted artwork." },
     { key: "rayLength", label: "Off-screen beam distance", hint: "Moves the hidden projector farther beyond the selected screen edge. The source itself always remains outside the visible page." },
   ] },
@@ -76,7 +79,8 @@ export const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; la
     { key: "slotGap", label: "Gap between titles", hint: "Higher values leave more clear space by reducing each title footprint. Title centres stay evenly spaced around the glass; 3° is the original spacing." },
     { key: "slotOpacity", label: "Artwork opacity", hint: "Shared base opacity. Each title's blend opacity below also fades its projected highlights and glow." },
     { key: "slotBlur", label: "Far-side softness", hint: "Optional mild softness for distant artwork. Front-facing and hovered titles stay sharp. Zero removes all blur." },
-    { key: "unfocusedBrightness", label: "Unfocused image brightness" },
+    { key: "titleGlass", label: "Title glass strength", hint: "How visible a title is as clear glass outside the light. Inside the beam the original artwork is always shown." },
+    { key: "unfocusedBrightness", label: "Glass body brightness", hint: "How much the clear body of a glass title fills in between its bevelled edges." },
   ] },
 ];
 
@@ -105,9 +109,12 @@ export function ProofTableEditor({
   const fileRef = useRef<HTMLInputElement>(null);
   /** The card whose picture is being chosen. */
   const [picking, setPicking] = useState<number | null>(null);
-  const [openDiscGroups, setOpenDiscGroups] = useState<ReadonlySet<string>>(
-    () => new Set(["Circle & entrance", "Title settings", "Projector & light"]),
-  );
+  const [openDiscGroup, setOpenDiscGroup] = useState<string | null>("Circle & entrance");
+  const [openTitle, setOpenTitle] = useState<number | null>(null);
+  const [titleSearch, setTitleSearch] = useState("");
+  const titleId = useId();
+  const [settingSearch, setSettingSearch] = useState("");
+  const settingsRoot = useRef<HTMLDivElement>(null);
 
   const items = value.items;
   const latestItems = useRef(items);
@@ -115,14 +122,35 @@ export function ProofTableEditor({
   const disc = sanitizeDisc(value.disc);
   const aimProfile = discAimProfileForWidth(previewWidth);
   const activeBeamGroup = `${aimProfile[0].toUpperCase()}${aimProfile.slice(1)} beam`;
+  const query = settingSearch.trim().toLowerCase();
+  const visibleGroups = DISC_GROUPS.map(group => ({ ...group, fields: group.fields.filter(field =>
+    !query || `${group.title} ${field.label} ${field.hint ?? ""} ${field.key}`.toLowerCase().includes(query)) })).filter(group => group.fields.length);
+  const jumpTo = (title: string) => {
+    setSettingSearch("");
+    setOpenDiscGroup(title);
+    requestAnimationFrame(() => {
+      const target = Array.from(settingsRoot.current?.querySelectorAll<HTMLDetailsElement>("details[data-disc-group]") ?? []).find(element => element.dataset.discGroup === title);
+      target?.querySelector("summary")?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: "nearest", behavior: "instant" });
+    });
+  };
   const setItems = (next: ProofItem[]) => { latestItems.current = next; onChange({ items: next }); };
   const patchItem = (i: number, patch: Partial<ProofItem>) =>
     setItems(items.map((it, j) => (j === i ? { ...it, ...patch } : it)));
-  const { attach, item: reItem, grip: reGrip } = useReorder((from, to) => setItems(moveTo(items, from, to)));
+  const { attach, item: reItem, grip: reGrip } = useReorder((from, to) => {
+    setItems(moveTo(latestItems.current, from, to));
+    setOpenTitle(current => current === null ? null : current === from ? to : from < current && current <= to ? current - 1 : to <= current && current < from ? current + 1 : current);
+    setPicking(null);
+  });
+  const titleQuery = titleSearch.trim().toLocaleLowerCase();
+  const matchesTitle = (it: ProofItem) => !titleQuery || `${it.film} ${it.tag} ${it.year} ${it.slug}`.toLocaleLowerCase().includes(titleQuery);
   const full = items.length >= PROOF_LIMITS.items;
   const addCard = (src?: string) => {
     const currentItems = latestItems.current;
     if (currentItems.length >= PROOF_LIMITS.items) return;
+    setTitleSearch("");
+    setOpenTitle(currentItems.length);
+    setPicking(null);
     const image = src ?? "";
     setItems([
       ...currentItems,
@@ -172,17 +200,25 @@ export function ProofTableEditor({
           <p className={styles.controlHint}>Reset restores the circle controls; your images and title order stay as they are.</p>
         </div>
       </Section>
-      {DISC_GROUPS.map(group => <details key={group.title} className={styles.discControls} open={openDiscGroups.has(group.title)}
-        onToggle={event => {
-          const isOpen = event.currentTarget.open;
-          setOpenDiscGroups(current => {
-            if (current.has(group.title) === isOpen) return current;
-            const next = new Set(current);
-            if (isOpen) next.add(group.title); else next.delete(group.title);
-            return next;
-          });
-        }}>
-        <summary>{group.title}<span>{group.title.startsWith(activeBeamGroup) ? "Active preview · " : ""}{group.fields.length} controls</span></summary>
+      <div className={styles.discFinder}>
+        <label className={styles.controlLabel}>Find a circle setting
+          <input className={styles.select} type="search" value={settingSearch} placeholder="Try: edge, beam width, title size…" onChange={event => setSettingSearch(event.target.value)} />
+        </label>
+        <div className={styles.discShortcuts} role="group" aria-label="Circle setting shortcuts">
+          {[["Circle & entrance", "Circle"], ["Glass tint", "Glass"], ["Projector & light", "Lighting"], ["Title settings", "Titles"],
+            [DISC_GROUPS.find(group => group.title.startsWith(activeBeamGroup))!.title, `Beam position · ${aimProfile}`]].map(([title, label]) =>
+            <button key={title} type="button" className={styles.ghostButton} onClick={() => jumpTo(title)}>{label}</button>)}
+        </div>
+        <div className={styles.discShortcuts}>
+          {query && <button type="button" className={styles.linkButton} onClick={() => setSettingSearch("")}>Clear search</button>}
+          <button type="button" className={styles.linkButton} onClick={() => setOpenDiscGroup(null)}>Close open settings</button>
+        </div>
+        <p className={styles.controlHint}>Drag a slider or type an exact value. Press Enter or leave the number field to apply. Changes appear in the preview; use the portal’s save/publish action to keep them.</p>
+        {query && <p className={styles.controlHint} role="status">{visibleGroups.reduce((total, group) => total + group.fields.length, 0)} matching controls{visibleGroups.length === 0 ? ". Try edge, light, colour, or title." : ""}</p>}
+      </div>
+      <div ref={settingsRoot}>
+      {visibleGroups.map(group => <details key={group.title} data-disc-group={group.title} className={styles.discControls} open={openDiscGroup === group.title}>
+        <summary onClick={event => { event.preventDefault(); setOpenDiscGroup(current => current === group.title ? null : group.title); }}>{group.title}<span>{group.title.startsWith(activeBeamGroup) ? "Active preview · " : ""}{group.fields.length} controls · {openDiscGroup === group.title ? "Click to close" : "Click to edit"}</span></summary>
         <div className={styles.sectionBody}>
         {group.fields.map(({ key, label, hint }) => {
           if (key === "glassTintColor" || key === "shadowColor") return <ColorRow key={key} label={label} hint={hint} value={disc[key]}
@@ -197,35 +233,54 @@ export function ProofTableEditor({
           if (key === "rayStyle") return <div key={key} className={styles.control}>
             <label className={styles.controlLabel}>Ray style
               <select className={styles.select} aria-label="Ray style" value={disc.rayStyle} onChange={e => onChange({ disc: { ...disc, rayStyle: Number(e.target.value) } })}>
-                <option value={0}>Cinema projector</option><option value={1}>Prismatic fan — reference</option><option value={2}>Soft light fan</option>
+                <option value={0}>Blue spotlight — reference</option><option value={1}>Prismatic fan</option><option value={2}>Soft light fan</option>
               </select>
             </label>
           </div>;
           const [min, max, step] = DISC_RANGES[key];
+          const angle = key === "discTilt" || key === "discRoll" || key.endsWith("FocusAngle") || key === "focusAngle" || key === "slotGap" || key === "slotRotation";
+          const raw = ["slotBlur", "rayLength", "rayElevation", "glowThreshold", "spinSpeed", "entranceDuration"].includes(key);
           return <Slider key={key} label={label} hint={hint} value={disc[key]} min={min} max={max} step={step}
+            editable inputScale={angle || raw ? 1 : 100} inputUnit={angle ? "°" : key === "entranceDuration" ? "s" : key === "spinSpeed" ? "rad/s" : raw ? "" : "%"}
             format={n => key === "entranceDuration" ? `${n.toFixed(1)} seconds` : key === "discTilt" || key === "discRoll" || key.endsWith("FocusAngle") || key === "focusAngle" || key === "slotGap" || key === "slotRotation" ? `${n}°` : key === "spinSpeed" ? `${Number(n.toFixed(2))} rad/s` : ["slotBlur", "rayLength", "rayElevation", "glowThreshold"].includes(key) ? String(Number(n.toFixed(2))) : `${Math.round(n * 100)}%`}
             onChange={next => onChange({ disc: { ...disc, [key]: next } })} />;
         })}
         {group.title === "Glass tint" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, glassTintColor: DISC_DEFAULTS.glassTintColor, glassOpacity: DISC_DEFAULTS.glassOpacity, desaturation: DISC_DEFAULTS.desaturation } })}>Reset glass tint</button>}
         {group.title === "Circle & entrance" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, edgeThickness: DISC_DEFAULTS.edgeThickness } })}>Use ultra-thin edge</button>}
-        {group.title === "Projector & light" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, ...Object.fromEntries(group.fields.map(({ key }) => [key, DISC_DEFAULTS[key]])) } })}>Reset lighting only</button>}
+        {group.title === "Projector & light" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, ...Object.fromEntries(DISC_GROUPS.find(original => original.title === group.title)!.fields.map(({ key }) => [key, DISC_DEFAULTS[key]])) } })}>Reset lighting only</button>}
         {group.title === "Shadow behind the glass" && <button type="button" className={styles.ghostButton} onClick={() => onChange({ disc: { ...disc, shadowColor: DISC_DEFAULTS.shadowColor, shadowOpacity: DISC_DEFAULTS.shadowOpacity, shadowSpread: DISC_DEFAULTS.shadowSpread } })}>Reset shadow</button>}
         </div>
       </details>)}
+      </div>
       <Section
         title={`Title collection (${items.length} / ${PROOF_LIMITS.items})`}
         scope="Page"
         hint={`The first ${DISC_SLOT_LIMIT} images appear around the glass in this order. Additional entries stay saved here until you move them into those positions.`}
       >
+        <label className={`${styles.controlLabel} ${styles.titleSearch}`}>Find a title
+          <input className={styles.select} type="search" placeholder="Search title, category or year" value={titleSearch}
+            onChange={event => { setTitleSearch(event.target.value); setOpenTitle(null); setPicking(null); }} />
+        </label>
+        <p className={styles.controlHint}>Select a title block to edit it. Opening another closes the previous block without losing your changes.</p>
+        {titleQuery && <div className={styles.discShortcuts}>
+          <span className={styles.controlHint} role="status">{items.filter(matchesTitle).length} matching titles</span>
+          <button type="button" className={styles.linkButton} onClick={() => setTitleSearch("")}>Clear title search</button>
+        </div>}
+        {!items.length && <p className={styles.controlHint}>No titles yet. Add a title or upload artwork below to begin.</p>}
         <div ref={attach} style={{ display: "contents" }}>
         {items.map((it, i) => (
-          <div key={i} className={styles.slot} {...reItem(i)}>
+          <div key={i} className={`${styles.slot} ${styles.titleBlock}`} data-title-block={i} data-selected={openTitle === i} hidden={!matchesTitle(it) && openTitle !== i} {...reItem(i)}>
             <div className={styles.slotHead}>
-              {reGrip(i, items.length)}
+              {!titleQuery && reGrip(i, items.length)}
+              <button type="button" className={styles.titleBlockButton} aria-expanded={openTitle === i} aria-controls={`${titleId}-${i}`}
+                onClick={() => { setOpenTitle(current => current === i ? null : i); setPicking(null); }}>
               {/* eslint-disable-next-line @next/next/no-img-element -- a small preview of the chosen title */}
               {it.src && <img className={styles.slotThumb} src={resizedSrc(it.src, 240)} alt="" />}
-              <span className={styles.slotIndex}>{String(i + 1).padStart(2, "0")}</span>
-              <span className={styles.controlHint}>{i < DISC_SLOT_LIMIT ? "On glass" : "Saved for later"}</span>
+              <span className={styles.titleBlockText}><strong>{it.film || "Untitled artwork"}</strong>
+                <span>{String(i + 1).padStart(2, "0")} · {i < DISC_SLOT_LIMIT ? "On glass" : "Saved for later"} · {it.year}</span>
+              </span>
+              <span className={styles.titleBlockChevron} aria-hidden="true">{openTitle === i ? "−" : "+"}</span>
+              </button>
               <span className={styles.slotActions}>
                 <button
                   type="button"
@@ -236,7 +291,11 @@ export function ProofTableEditor({
                       what: `the circle title “${it.film}”`,
                       item: it,
                       elsewhere: items.filter((_, j) => j !== i),
-                      onDelete: () => setItems(items.filter((_, j) => j !== i)),
+                      onDelete: () => {
+                        setItems(latestItems.current.filter((_, j) => j !== i));
+                        setOpenTitle(current => current === i ? null : current !== null && current > i ? current - 1 : current);
+                        setPicking(null);
+                      },
                     })
                   }
                 >
@@ -244,6 +303,7 @@ export function ProofTableEditor({
                 </button>
               </span>
             </div>
+            <div id={`${titleId}-${i}`} hidden={openTitle !== i}>
             <div className={styles.slotGrid}>
               <label>
                 <span>Film / project name</span>
@@ -296,6 +356,7 @@ export function ProofTableEditor({
               <div className={`${styles.slotWide} ${styles.slotTint}`}>
                 <div className={styles.slotTintGroup}>
                   <Slider label="This title — rotation angle" min={-180} max={180} step={1}
+                    editable inputUnit="°"
                     hint="Changes this artwork only. Use the shared angle to follow Title settings again."
                     value={it.titleRotation ?? disc.slotRotation} format={v => `${v}°`}
                     onChange={(titleRotation) => patchItem(i, { titleRotation })} />
@@ -304,6 +365,7 @@ export function ProofTableEditor({
                 </div>
                 <div className={styles.slotTintGroup}>
                   <Slider label="This title — size" min={.25} max={1} step={.01}
+                    editable inputScale={100} inputUnit="%"
                     hint="25%–100% of the shared title size. Keeps the artwork inside the glass and separated from its neighbours."
                     value={it.titleScale ?? 1} format={v => `${Math.round(v * 100)}%`}
                     onChange={(titleScale) => patchItem(i, { titleScale })} />
@@ -312,6 +374,7 @@ export function ProofTableEditor({
                 </div>
                 <div className={styles.slotTintGroup}>
                   <Slider label="This title — blend opacity" min={0} max={1} step={.01}
+                    editable inputScale={100} inputUnit="%"
                     hint="100% keeps the artwork solid; lower values blend it into the glass. 0% hides it, including its glow."
                     value={it.titleOpacity ?? 1} format={v => `${Math.round(v * 100)}%`}
                     onChange={(titleOpacity) => patchItem(i, { titleOpacity })} />
@@ -339,10 +402,12 @@ export function ProofTableEditor({
                 </div>
                 <div className={styles.slotTintGroup}>
                   <Slider label="Title glow intensity" min={0} max={2} step={.05}
+                    editable inputScale={100} inputUnit="%"
                     value={it.titleGlowIntensity ?? 1} format={v => `${Math.round(v * 100)}%`}
                     onChange={(titleGlowIntensity) => patchItem(i, { titleGlowIntensity })} />
                 </div>
               </div>
+            </div>
             </div>
           </div>
         ))}

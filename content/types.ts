@@ -64,6 +64,11 @@ export interface Project {
   credits?: { label: string; value: string }[];
   /** First image is the cover. */
   images: WorkImage[];
+  /** The film's title as a picture (a transparent PNG is best), shown on the back of its card instead of typed text. */
+  titleImage?: string;
+  titleImageZoom?: number;
+  titleImageX?: number;
+  titleImageY?: number;
   /** Show on the home page's "Selected work". */
   featured?: boolean;
   /** Lower numbers appear first. */

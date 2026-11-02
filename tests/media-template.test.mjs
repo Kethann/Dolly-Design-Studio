@@ -11,6 +11,96 @@ const nativeRequire = createRequire(import.meta.url);
 const json = (file) => JSON.parse(readFileSync(path.join(root, file), "utf8"));
 const clone = (value) => structuredClone(value);
 
+test("exact slider values use familiar units, clamp safely, and preserve untouched values", () => {
+  const { Slider } = loader({ react: { useId: () => "exact-slider" }, "./portal.module.css": {} })("app/portal/controls.tsx");
+  const nodes = node => !node || typeof node !== "object" ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
+  let changed;
+  const render = (value=.08) => nodes(Slider({ label:"Arc edge thickness", value, min:.01, max:1, step:.01, editable:true, inputScale:100, inputUnit:"%", format:v=>`${v*100}%`, onChange:next=>{changed=next;} }));
+  const input = render().find(node=>node.props?.type==='number');
+  assert.equal(input.props.defaultValue,8); assert.equal(input.props.min,1); assert.equal(input.props.max,100);
+  for (const [raw,expected] of [["15",.15],["999",1],["-4",.01],["15.6",.16]]) {
+    changed=undefined;input.props.onBlur({currentTarget:{value:raw}});assert.equal(changed,expected);
+  }
+  for(const raw of ["","8","NaN"]) {changed=undefined;input.props.onBlur({currentTarget:{value:raw}});assert.equal(changed,undefined);}
+  const untouched=render(.08333333).find(node=>node.props?.type==='number');changed=undefined;
+  untouched.props.onBlur({currentTarget:{value:String(untouched.props.defaultValue)}});assert.equal(changed,undefined,"Focus/blur must not round saved custom values");
+  let prevented=false,stopped=false;
+  const target={value:"99",blur(){input.props.onBlur({currentTarget:this});}};changed=undefined;
+  input.props.onKeyDown({key:"Escape",currentTarget:target,preventDefault(){prevented=true;},stopPropagation(){stopped=true;}});
+  assert.equal(changed,undefined);assert.ok(prevented&&stopped);assert.equal(target.value,"8");
+});
+
+test("project artwork stacks keep exact images, empty/single cases, navigation and editor indices", (t) => {
+  // The fan's live motion needs these browser pieces; reduced motion settles at once, so state stays deterministic here.
+  Object.assign(globalThis, { requestAnimationFrame: () => 0, cancelAnimationFrame() {}, window: { matchMedia: () => ({ matches: true }) } });
+  t.after(() => { delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame; delete globalThis.window; });
+  for (const count of [0, 1, 2, 4, 8]) {
+    let active, refIndex = 0;
+    const refs = []; // Like React, a ref survives from one render to the next.
+    const { ProjectImageStack } = loader({
+      react: { useState: initial => [active ?? initial, value => { active = typeof value === "function" ? value(active ?? initial) : value; }], useRef: initial => (refs[refIndex++] ??= { current: initial }), useEffect() {}, useLayoutEffect() {} },
+      "next/image": () => null,
+      "@/app/work/[slug]/page.module.css": {},
+      "@/lib/images": { placeholderProps: () => ({}), versionedSrc: src => src },
+      "./MediaPlaceholder": { MediaPlaceholder: () => null },
+    })("components/ProjectImageStack.tsx");
+    const images = Array.from({ length: count }, (_, i) => ({ src: `/image-${i}.png`, alt: `Image ${i}` }));
+    const render = () => {
+      const nodes = [];
+      const walk = node => { if (Array.isArray(node)) return node.forEach(walk); if (!node || typeof node !== "object") return; nodes.push(node); walk(node.props?.children); };
+      refIndex = 0;
+      walk(ProjectImageStack({ images, projectIndex: 3, initialIndex: 0 }));
+      return nodes;
+    };
+    let nodes = render();
+    assert.equal(nodes.filter(node => node.props?.["data-depth"] !== undefined).length, count, "Never duplicates or invents artwork");
+    if (!count) { assert.equal(nodes.length, 0); continue; }
+    assert.equal(nodes.find(node => node.props?.["aria-current"] === "true").props["data-ed-item"], "projects.3.images.1");
+    const next = nodes.find(node => node.props?.["aria-label"] === "Next project image");
+    assert.equal(!!next, count > 1);
+    if (!next) continue;
+    next.props.onClick(); nodes = render();
+    assert.equal(nodes.find(node => node.props?.["aria-current"] === "true").props["data-ed-item"], "projects.3.images.2");
+    const last = nodes.filter(node => node.props?.["data-depth"] !== undefined).at(-1);
+    last.props.onClick(); nodes = render();
+    nodes.find(node => node.props?.["aria-label"] === "Next project image").props.onClick();
+    assert.equal(render().find(node => node.props?.["aria-current"] === "true").props["data-ed-item"], "projects.3.images.1", "Wraps from last to first");
+    nodes = render();
+    const rapidNext = nodes.find(node => node.props?.["aria-label"] === "Next project image").props.onClick;
+    rapidNext(); rapidNext();
+    assert.equal(active, 2 % count, "Rapid navigation accumulates without stale state");
+    assert.equal(render().filter(node => node.props?.["data-depth"] !== undefined && node.props.tabIndex === 0).length, 1, "Only the active artwork is in the tab order");
+    const stage = render().find(node => node.props?.["data-stack-stage"] !== undefined);
+    const captured = new Set();
+    const element = { dataset: {}, style: { setProperty() {}, removeProperty() {} }, removeAttribute() {}, setAttribute() {}, querySelectorAll: () => [], clientWidth: 0,
+      setPointerCapture: id => captured.add(id), hasPointerCapture: id => captured.has(id), releasePointerCapture: id => captured.delete(id) };
+    stage.props.ref.current = element;
+    let clock = 0; // Each pointer event arrives 50ms after the last, so drag speed is realistic.
+    const pointer = (x, y) => ({ currentTarget: element, isPrimary: true, button: 0, pointerId: 1, clientX: x, clientY: y, timeStamp: clock += 50, preventDefault() {} });
+    const beforeSwipe = active;
+    stage.props.onPointerDown(pointer(100, 100));
+    stage.props.onPointerMove(pointer(30, 100));
+    assert.ok(captured.has(1), "Only a committed horizontal drag captures the pointer");
+    stage.props.onLostPointerCapture({ target: {}, currentTarget: element });
+    stage.props.onPointerUp(pointer(30, 100));
+    assert.equal(active, (beforeSwipe + 1) % count);
+    assert.equal(captured.size, 0, "Release does not leave pointer capture behind");
+    let suppressed = false;
+    stage.props.onClickCapture({ detail: 1, timeStamp: clock, preventDefault() { suppressed = true; }, stopPropagation() {} });
+    assert.ok(suppressed, "The click synthesized after dragging cannot select another card");
+    const afterSwipe = active;
+    stage.props.onPointerDown(pointer(100, 100));
+    stage.props.onPointerMove(pointer(105, 30));
+    stage.props.onPointerUp(pointer(105, 30));
+    assert.equal(active, afterSwipe, "Vertical scrolling never changes the image");
+    stage.props.onPointerDown(pointer(100, 100));
+    stage.props.onPointerMove(pointer(30, 100));
+    stage.props.onPointerCancel();
+    stage.props.onPointerUp(pointer(30, 100));
+    assert.equal(active, afterSwipe, "A canceled gesture does not commit a selection");
+  }
+});
+
 test("portal window geometry stays visible at every edge, minimum size and viewport", () => {
   const {constrainWindow,resizeWindow}=loader()("app/portal/window-geometry.ts");
   for(const bounds of [{x:8,y:8,width:1184,height:784},{x:8,y:35,width:304,height:410},{x:0,y:0,width:240,height:150}]) {
@@ -304,7 +394,7 @@ test("service dialogs omit empty media but preserve galleries, editing and next/
 test("glass title angle, colour and glow controls form independent responsive groups", () => {
   const css = new Proxy({}, { get: (_target, key) => key === "__esModule" ? false : key });
   const app = loader({
-    react: { useState: value => [typeof value === "function" ? value() : value, () => {}], useRef: value => ({ current: value }), useEffect() {} },
+    react: { useId: () => "title-test", useState: value => [typeof value === "function" ? value() : value, () => {}], useRef: value => ({ current: value }), useEffect() {} },
     "./DeleteDialog": { useConfirmDelete: () => ({ ask() {}, dialog: null }) },
     "./ContentEditor": { useMedia: () => ({}), ImagePicker: () => null },
     "./reorder": { useReorder: () => ({ attach() {}, item: () => ({}), grip: () => null }) },
@@ -325,7 +415,7 @@ test("glass title angle, colour and glow controls form independent responsive gr
   const thinEdge = tree.find(node => node.type === "button" && node.props.children === "Use ultra-thin edge");
   thinEdge.props.onClick(); assert.equal(patch.disc.edgeThickness,.08);
   const resetLight = tree.find(node => node.type === "button" && node.props.children === "Reset lighting only");
-  resetLight.props.onClick(); assert.equal(patch.disc.lightIntensity,1); assert.equal(patch.disc.rayIntensity,.8);
+  resetLight.props.onClick(); assert.equal(patch.disc.lightIntensity,1); assert.equal(patch.disc.rayIntensity,1);
   for(const [previewWidth, expected] of [[390,"mobile"],[820,"tablet"],[1440,"desktop"]]) {
     const previewTree=nodes(ProofTableEditor({value:{enabled:true,items:[],disc:{}},projects:[],onChange(){},onShow(){},previewWidth}));
     const status=previewTree.find(node=>node.props?.role==="status");
@@ -969,6 +1059,8 @@ test("disc settings migrate old slates, clamp invalid controls, and retain artwo
   }
   const { sanitizeIntroSettings } = read("lib/intro/settings.ts");
   const legacy = json("content/intro-settings.json");
+  // Exercise a legacy slate independently of the owner's current saved controls.
+  delete legacy.proofTable.disc;
   const migrated = sanitizeIntroSettings(legacy);
   assert.deepEqual(migrated.proofTable.disc, DISC_DEFAULTS);
   assert.deepEqual(migrated.proofTable.items.map(it => [it.src, it.slug]), legacy.proofTable.items.map(it => [it.src, it.slug]));
@@ -1039,7 +1131,7 @@ test("glass scene feathers every edge into transparency without an extra renderi
   const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
   assert.match(source, /float sideX=mix\(vUv.x,1\.-vUv.x,mirror\)/);
   assert.match(source, /softBoundary\(sideX,edgeFeather.x\)\*\(1\.-smoothstep\(\.96,1\.,sideX\)\)/);
-  assert.match(source, /softBoundary\(vUv.y,edgeFeather.y\)\*\(1\.-smoothstep\(\.92,1\.,vUv.y\)\)/);
+  assert.match(source, /softBoundary\(vUv.y,edgeFeather.y\*\.3\)\*\(1\.-smoothstep\(\.95,1\.,vUv.y\)\)/);
   assert.match(source, /return t\*t\*t\*\(t\*\(t\*6\.-15\.\)\+10\.\)/);
   assert.match(source, /const feather = discViewportFeather\(width, height\)/);
   assert.match(source, /edgeFeather.value.set\(feather.side, feather.bottom\)/);
@@ -1190,6 +1282,30 @@ test("title spacing changes the artwork footprint without moving its centre or t
   }
 });
 
+test("new disc titles fit their visible aspect within a rotation-safe slot", () => {
+  const { discPanelLayout, discFittedTitleLayout, discTitleInkBounds } = loader()("lib/content/disc.ts");
+  for (const count of [1, 2, 5, 8]) for (const gap of [.5, 3, 12]) for (const aspect of [.15, .5, 1, 1.28, 3, 8]) {
+    const panel = discPanelLayout(count, gap, 1);
+    const fitted = discFittedTitleLayout(panel, aspect);
+    const footprint = Math.hypot((fitted.outer - fitted.inner) / 2, fitted.innerHalfWidth);
+    assert.ok(Math.abs(fitted.aspect - aspect) < 1e-10);
+    assert.ok(Math.abs(footprint - Math.hypot((panel.outer - panel.inner) / 2, panel.innerHalfWidth)) < 1e-10);
+    assert.ok(Math.abs((fitted.inner + fitted.outer) / 2 - .8) < 1e-10);
+    assert.ok(.8 + footprint < 1, "Every rotation stays inside the disc");
+    assert.ok(footprint < .8 * Math.sin(Math.min(Math.PI / 2, panel.step / 2)), "Titles cannot touch adjacent slots");
+  }
+  const pixels = new Uint8Array(40 * 20 * 4);
+  for (let y = 7; y < 13; y++) for (let x = 10; x < 30; x++) pixels[(y * 40 + x) * 4 + 3] = 255;
+  assert.deepEqual(discTitleInkBounds(pixels, 40, 20), { x: 8, y: 5, width: 24, height: 10 });
+  assert.deepEqual(discTitleInkBounds(new Uint8Array(4 * 4 * 4), 4, 4), { x: 0, y: 0, width: 4, height: 4 });
+  const scene = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  assert.match(scene, /slot\.titleLayout = discFittedTitleLayout\(layout, slot\.imageAspect\)/);
+  assert.match(scene, /discTitleInkBounds\(ctx\.getImageData/);
+  assert.match(scene, /clearSlots\(new Set\(\[\.\.\.retained\.values\(\)\]\.map\(entry => entry\.canvas\)\)\)/);
+  assert.match(scene, /if \(!images\[i\]\.src \|\| slots\[i\]\.loaded\) continue/);
+  assert.match(scene, /slot\.image\.visible = slot\.loaded && titleOpacity > 0/);
+});
+
 test("title rotation persists with bounded per-title overrides and unchanged legacy defaults", () => {
   const read = loader();
   const { sanitizeDisc } = read("lib/content/disc.ts");
@@ -1264,7 +1380,7 @@ test("arc thickness is bounded by today's broad edge and title size/blending sur
   assert.match(scene, /thickness=clamp\(glassEdgeWidth,\.01,1\.\)/);
   for (const term of [".006", ".0032"]) assert.ok(scene.includes(`${term}*thickness`));
   assert.match(scene, /glassEdgeWidth.value = renderedControls.edgeThickness/);
-  assert.match(scene, /slot.image.visible = titleOpacity > 0/);
+  assert.match(scene, /slot.image.visible = slot.loaded && titleOpacity > 0/);
   assert.match(scene, /slots.filter\(s => s.image.visible\)/, "Fully blended-out titles do not intercept clicks");
   assert.match(scene, /sample.weight \* mask \* titleOpacity \* slot.titleScale \* slot.titleScale/, "Beam contribution tracks opacity and resized area");
   assert.match(scene, /v: 1 - \(row \+ .5\) \/ COLOUR_GRID/, "CPU projector samples follow texture UV orientation");
@@ -1724,10 +1840,11 @@ test("all three track directions are independently editable and survive saving",
   assert.deepEqual(keys.map(key => sanitizeContent(migrated).home.clients[key]), ["left", "right", "left"]);
 });
 
-test("smoked glass keeps its existing pane and reveals pigment through a bounded light landing", () => {
+test("clear glass keeps its existing pane and reveals pigment through a bounded light landing", () => {
   const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
-  assert.match(source, /vec3 smokeTint=mix\(glassTint,vec3\(dot\(glassTint,vec3\(\.2126,\.7152,\.0722\)\)\),uDesaturation\)/);
-  assert.match(source, /float tintAlpha=glassOpacity\*mix\(\.72,\.88/);
+  assert.match(source, /vec3 paneTint=mix\(glassTint,vec3\(dot\(glassTint,vec3\(\.2126,\.7152,\.0722\)\)\),uDesaturation\)/);
+  assert.match(source, /float tintAlpha=glassOpacity\*mix\(\.06,\.16/);
+  assert.match(source, /float surfaceAlpha=clamp\([^;]+,0\.,\.12\)/, "Reference reflections cannot become an opaque frosted fill");
   assert.match(source, /float a=reflectionAlpha\+tintAlpha\*\(1\.-reflectionAlpha\)/);
   assert.match(source, /float landingHaze=1\.-\.48\*smoothstep\(\.78,1\.,along\)/);
   assert.match(source, /contactColour\*contactAlpha\*\(1\.-rimAlpha\)/);
@@ -1736,7 +1853,7 @@ test("smoked glass keeps its existing pane and reveals pigment through a bounded
   assert.match(source, /artworkCore\*\(1\.\+slotGlow\*\.1\)/, "Preserve the original logo core under its glow");
 });
 
-test("glass rim has one subpixel antialiased reflection without extra inner rings", () => {
+test("glass rim keeps its fine reflection and etched circles without clock ticks", () => {
   const source = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
   const pane = source.slice(source.indexOf("const glassMaterial"), source.indexOf("type ColourSample"));
   assert.match(pane, /float bevel=exp/);
@@ -1749,14 +1866,16 @@ test("glass rim has one subpixel antialiased reflection without extra inner ring
   assert.doesNotMatch(pane, /sin\(atan\(vGlass|texture2D|sampler2D/, "No rotating highlight or extra texture allocations");
   assert.equal((pane.match(/new THREE\.Mesh/g) ?? []).length, 1);
   assert.equal((source.match(/composer.addPass\(/g) ?? []).length, 4);
-  assert.match(pane, /clamp\(a\*edge,0\.,1\.\)/, "Final alpha stays bounded");
+  assert.match(pane, /clamp\(a2\*edge,0\.,1\.\)/, "Final alpha (glass plus etched edge lines) stays bounded");
   assert.doesNotMatch(pane, /sqrt\(glassOpacity\)/,"Edge reflection remains independent of tint opacity");
+  assert.match(pane, /outerLine\*\.75\+innerLine\*\.55\+nodes\*\.9\)\*lineLight/, "Keep both circular lines and ring nodes at their existing strengths");
+  assert.doesNotMatch(pane, /\b(?:tickCell|ticks)\b/, "Clock-like minute marks are not rendered");
 });
 
 test("lighting sliders persist independently and update their own render channels", () => {
   const read=loader(), {DISC_DEFAULTS,DISC_RANGES}=read("lib/content/disc.ts");
   const {sanitizeIntroSettings}=read("lib/intro/settings.ts");
-  const keys=["lightIntensity","rayIntensity","beamGlow","rayStrength","surfaceReflection","bloom","glowRadius","glowThreshold","raySpread","rayMotion","rayPrism","rayLength"];
+  const keys=["lightIntensity","rayIntensity","beamGlow","beamWidth","rayStrength","surfaceReflection","bloom","glowRadius","glowThreshold","raySpread","rayMotion","rayPrism","rayLength"];
   for(const key of keys) for(const value of [DISC_RANGES[key][0],DISC_RANGES[key][1]]) {
     const settings=sanitizeIntroSettings({proofTable:{disc:{...DISC_DEFAULTS,[key]:value}}});
     const saved=sanitizeIntroSettings(JSON.parse(JSON.stringify(settings)));
@@ -1769,7 +1888,14 @@ test("lighting sliders persist independently and update their own render channel
   assert.match(source,/surfaceReflection.value = renderedControls.surfaceReflection/);
   assert.doesNotMatch(source,/contactStrength.value =[^\n]*surfaceReflection/,"Title glow must not depend on the surface-only slider");
   assert.match(source,/contactReflection\(p,rayField\(p\)\)\*surfaceReflection/);
-  assert.match(source,/\.1\*beamGlow\+rayField\(p\)\*1.3\*rayStrength/,"Dust obeys the same off controls as the beam");
+  assert.match(source,/\.1\*beamGlow\+rayField\(shaped\)\*1.3\*rayStrength/,"Dust obeys the same off controls as the beam");
+  assert.deepEqual(DISC_RANGES.beamWidth,[.25,2,.05]);
+  assert.match(source,/float spotlight=\(halo\*/,"Reference spotlight has a separate soft blue atmosphere");
+  assert.match(source,/vec2 spot=shaped\/mix\(\.72,1\.32,along\)/,"The spotlight widens gradually away from its source");
+  assert.match(source,/float sourceBias=1\.85\*exp\(-along\*2\.3\)\+\.16/,"The source is brighter than the landing");
+  assert.match(source,/float fade=smoothstep\(0\.,\.025,along\)\*\(1\.-smoothstep\(\.5,1\.,along\)\*smoothstep\(\.5,1\.,along\)\)/,"The landing falls away softly");
+  assert.match(source,/sourcePreview\.copy\(source\)\.lerp\(anchor, \.2\)\.project\(camera\)/,"The source highlight follows the live beam aim");
+  assert.match(source,/beamWidth.value = renderedControls.beamWidth/,"Beam width reaches the shader without changing the disc");
   const wrapper=readFileSync(path.join(root,"components/proof-table/ProofTable.tsx"),"utf8");
   assert.match(wrapper,/Object.assign\(scene.current.controls, sanitizeDisc\(pt.disc\)\); scene.current.invalidate\(\)/);
   const portal=readFileSync(path.join(root,"app/portal/PortalEditor.tsx"),"utf8");
@@ -1793,6 +1919,13 @@ test("glass tint and shadow controls sanitize, persist and remain isolated from 
   const { sanitizeIntroSettings } = read("lib/intro/settings.ts");
   const settings = sanitizeIntroSettings(json("content/intro-settings.json"));
   const original = clone(settings);
+  const legacy = sanitizeDisc({ glassVersion: 1, glassTintColor: "#0d1014", glassOpacity: .22, shadowOpacity: 168 / 255, discRoll: 17 });
+  assert.equal(legacy.shadowOpacity, 0, "The former black backdrop is removed");
+  assert.equal(legacy.glassTintColor, DISC_DEFAULTS.glassTintColor);
+  assert.equal(legacy.glassOpacity, DISC_DEFAULTS.glassOpacity);
+  assert.equal(legacy.discRoll, 17, "Changing the glass finish preserves its position");
+  assert.deepEqual(sanitizeDisc(legacy), legacy, "The finish migration is stable on reload");
+  assert.equal(sanitizeDisc({ ...legacy, shadowOpacity: 168 / 255 }).shadowOpacity, 168 / 255, "New deliberate shadow settings remain editable");
   Object.assign(settings.proofTable.disc, { glassTintColor: "#AABBCC", glassOpacity: 0, shadowColor: "#123456", shadowOpacity: 0, shadowSpread: 1.4 });
   const saved = sanitizeIntroSettings(JSON.parse(JSON.stringify(settings)));
   assert.equal(saved.proofTable.disc.glassTintColor, "#aabbcc");
@@ -1914,8 +2047,8 @@ test("disc mounts transparent title artwork without card or frame layers", () =>
   assert.doesNotMatch(page, /Explore the collection <span>/);
   assert.match(source, /smoothstep\(\.015,\.42,along\)/);
   const editor = readFileSync(path.join(root, "app/portal/ProofTableEditor.tsx"), "utf8");
-  assert.match(editor, /open=\{openDiscGroups\.has\(group\.title\)\}/);
-  assert.match(editor, /setOpenDiscGroups\(current =>/);
+  assert.match(editor, /open=\{openDiscGroup === group\.title\}/, "Only the selected setting block opens");
+  assert.match(editor, /setOpenDiscGroup\(current => current === group\.title \? null : group\.title\)/);
 });
 
 test("projector illuminates only overlapping image pixels and blends partial entries in either direction", () => {

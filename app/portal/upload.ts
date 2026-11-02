@@ -27,7 +27,10 @@ export function postFile<T>(url: string, file: File, onProgress?: (percent: numb
 }
 
 /** The most one uploaded file may weigh. Anything bigger is refused (pictures made from a Photoshop file's layers are fitted under it). */
-export const MAX_UPLOAD_MB = 6;
+export const MAX_UPLOAD_MB = 12;
+
+/** Fonts are small files, so their limit stays lower than a picture's. */
+const MAX_FONT_MB = 6;
 
 /** What each kind of upload accepts, checked in the browser first so mistakes are caught before sending. */
 export const UPLOAD_KINDS = {
@@ -39,7 +42,7 @@ export const UPLOAD_KINDS = {
   },
   layers: { pattern: /\.(psd|psb|psdt|pdd|png|jpe?g|jfif|webp|avif|gif|svg|bmp|ico|tiff?|heic|heif)$/i, accept: "image/*,.psd,.psb,.psdt,.pdd,.png,.jpg,.jpeg,.jfif,.webp,.avif,.gif,.svg,.bmp,.ico,.tif,.tiff,.heic,.heif", maxMb: MAX_UPLOAD_MB, noun: "a Photoshop file or an image" },
   psd: { pattern: /\.(psd|psb|psdt|pdd)$/i, accept: ".psd,.psb,.psdt,.pdd,image/vnd.adobe.photoshop", maxMb: MAX_PSD_MB, /* only the exported layers are sent to the server */ noun: "a Photoshop file (PSD, PSB, PSDT or PDD)" },
-  font: { pattern: /\.(ttf|otf|woff2?)$/i, accept: ".ttf,.otf,.woff,.woff2", maxMb: MAX_UPLOAD_MB, noun: "a font (TTF, OTF, WOFF or WOFF2)" },
+  font: { pattern: /\.(ttf|otf|woff2?)$/i, accept: ".ttf,.otf,.woff,.woff2", maxMb: MAX_FONT_MB, noun: "a font (TTF, OTF, WOFF or WOFF2)" },
 } as const;
 
 export type UploadKind = keyof typeof UPLOAD_KINDS;

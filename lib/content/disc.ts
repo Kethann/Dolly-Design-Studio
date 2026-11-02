@@ -21,16 +21,17 @@ export function discViewportFeather(width: number, height: number) {
   };
 }
 export const DISC_DEFAULTS = {
-  glassVersion: 1, entranceDuration: 3.6, circleScale: 1, glassOpacity: 0.22, edgeThickness: 0.08,
-  glassTintColor: "#0d1014", shadowColor: "#050407", shadowOpacity: 168 / 255, shadowSpread: 1,
-  spinSpeed: 0.09, focusAngle: -43, focusRadius: 0.8, rayIntensity: 0.8,
+  glassVersion: 1, glassFinishVersion: 1, entranceDuration: 3.6, circleScale: 1, glassOpacity: 0.06, edgeThickness: 0.08,
+  glassTintColor: "#d8e8f4", shadowColor: "#050407", shadowOpacity: 0, shadowSpread: 1,
+  spinSpeed: 0.09, focusAngle: -43, focusRadius: 0.8, rayIntensity: 1,
   rayLength: 5, bloom: 0.35, desaturation: 0.5, discTilt: -12, slotGap: 3,
   lightIntensity: 1, glowRadius: 0.75, glowThreshold: 0.72,
   saturation: 1, vibrance: 0, slotSize: 1, slotOpacity: 1, slotRotation: 0,
   slotBlur: 0, unfocusedBrightness: 0.18,
   discRoll: -8, rayStyle: 0, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.25,
   rayMotion: 0.45, projectorSide: -1,
-  beamGlow: 1, rayStrength: 1, surfaceReflection: 1,
+  beamGlow: 1.1, beamWidth: 1, rayStrength: 1.1, surfaceReflection: 1,
+  originGlow: 1, titleGlass: 1, edgeLines: 1,
   originOffsetX: 0, originOffsetY: 0,
   tabletFocusAngle: -48, tabletFocusRadius: 0.8, tabletOriginOffsetX: 0, tabletOriginOffsetY: 0,
   mobileFocusAngle: -54, mobileFocusRadius: 0.8, mobileOriginOffsetX: 0, mobileOriginOffsetY: 0,
@@ -38,7 +39,7 @@ export const DISC_DEFAULTS = {
 export type DiscControls = typeof DISC_DEFAULTS;
 export type DiscNumericKey = { [K in keyof DiscControls]: DiscControls[K] extends number ? K : never }[keyof DiscControls];
 export const DISC_RANGES: Record<DiscNumericKey, readonly [number, number, number]> = {
-  glassVersion: [1, 1, 1], entranceDuration: [1.5, 6, 0.1], circleScale: [0.85, 1.15, 0.01], glassOpacity: [0, 0.65, 0.01],
+  glassVersion: [1, 1, 1], glassFinishVersion: [1, 1, 1], entranceDuration: [1.5, 6, 0.1], circleScale: [0.85, 1.15, 0.01], glassOpacity: [0, 0.65, 0.01],
   edgeThickness: [0.01, 1, 0.01],
   shadowOpacity: [0, 1, 0.01], shadowSpread: [0.5, 1.6, 0.01],
   spinSpeed: [-0.5, 0.5, 0.01], focusAngle: [-180, 180, 1], focusRadius: [0.66, 0.9, 0.01],
@@ -51,7 +52,8 @@ export const DISC_RANGES: Record<DiscNumericKey, readonly [number, number, numbe
   raySpread: [0.3, 2, 0.05], rayPrism: [0, 1, 0.05],
   rayMotion: [0, 1, 0.05],
   projectorSide: [-1, 1, 2],
-  beamGlow: [0, 3, 0.05], rayStrength: [0, 3, 0.05], surfaceReflection: [0, 3, 0.05],
+  beamGlow: [0, 3, 0.05], beamWidth: [0.25, 2, 0.05], rayStrength: [0, 3, 0.05], surfaceReflection: [0, 3, 0.05],
+  originGlow: [0, 3, 0.05], titleGlass: [0, 2, 0.05], edgeLines: [0, 2, 0.05],
   originOffsetX: [-0.25, 0.25, 0.01], originOffsetY: [-0.25, 0.25, 0.01],
   tabletFocusAngle: [-180, 180, 1], tabletFocusRadius: [0.66, 0.9, 0.01],
   tabletOriginOffsetX: [-0.25, 0.25, 0.01], tabletOriginOffsetY: [-0.25, 0.25, 0.01],
@@ -69,6 +71,13 @@ export function sanitizeDisc(input: unknown): DiscControls {
   for (const key of ["glassTintColor", "shadowColor"] as const) {
     const value = src[key];
     if (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)) out[key] = value.toLowerCase();
+  }
+  // Retire the old smoked defaults once. Keep deliberate colours and optional
+  // shadow edits made in the new editor; never migrate the disc's pose here.
+  if (src.glassFinishVersion !== 1) {
+    if (src.glassTintColor === undefined || out.glassTintColor === "#0d1014") out.glassTintColor = DISC_DEFAULTS.glassTintColor;
+    if (src.glassOpacity === .22) out.glassOpacity = DISC_DEFAULTS.glassOpacity;
+    if (src.shadowOpacity === 168 / 255) out.shadowOpacity = 0;
   }
   // Old silver-CD poses would put the glass almost edge-on. Migrate presentation only;
   // keep artwork, colours, light strength, ordering and content untouched.
@@ -174,6 +183,34 @@ export function discPanelLayout(count: number, gapDegrees: number, size: number)
   const innerHalfWidth = halfWidth, outerHalfWidth = halfWidth;
   return { step, inner, outer, innerHalfWidth, outerHalfWidth,
     aspect: (outer - inner) / (halfWidth * 2) };
+}
+
+/** Fit each title's visible aspect into the same rotation-safe sector footprint.
+ * The disc and neighbouring slots do not grow when a new title is uploaded. */
+export function discFittedTitleLayout(panel: ReturnType<typeof discPanelLayout>, imageAspect: number) {
+  const halfRadial = (panel.outer - panel.inner) / 2;
+  const budget = Math.hypot(halfRadial, panel.innerHalfWidth);
+  const aspect = Number.isFinite(imageAspect) ? Math.min(10, Math.max(.1, imageAspect)) : panel.aspect;
+  const halfWidth = budget / Math.hypot(aspect, 1);
+  const halfHeight = halfWidth * aspect;
+  const center = (panel.inner + panel.outer) / 2;
+  return { ...panel, inner: center - halfHeight, outer: center + halfHeight,
+    innerHalfWidth: halfWidth, outerHalfWidth: halfWidth, aspect };
+}
+
+/** Transparent padding is not title artwork; leave a small antialiasing margin. */
+export function discTitleInkBounds(pixels: ArrayLike<number>, width: number, height: number) {
+  let left = width, right = -1, top = height, bottom = -1;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    if (pixels[(y * width + x) * 4 + 3] <= 8) continue;
+    left = Math.min(left, x); right = Math.max(right, x);
+    top = Math.min(top, y); bottom = Math.max(bottom, y);
+  }
+  if (right < left) return { x: 0, y: 0, width, height };
+  const margin = Math.max(2, Math.round(Math.min(width, height) * .015));
+  left = Math.max(0, left - margin); top = Math.max(0, top - margin);
+  right = Math.min(width - 1, right + margin); bottom = Math.min(height - 1, bottom + margin);
+  return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 };
 }
 
 /** Rotate artwork about its own centre, then place it around the glass. */

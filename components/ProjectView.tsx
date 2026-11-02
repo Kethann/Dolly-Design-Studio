@@ -10,6 +10,7 @@ import styles from "@/app/work/[slug]/page.module.css";
 import { MediaPlaceholder } from "./MediaPlaceholder";
 import { AddContent } from "./PreviewControls";
 import { NavigationTrail } from "./NavigationTrail";
+import { ProjectImageStack } from "./ProjectImageStack";
 
 /**
  * One project's own page. Reads the live content, so a change made in the portal's preview shows as it is made; and
@@ -87,13 +88,7 @@ export function ProjectView({ slug }: { slug: string }) {
       </div>
       {rest.length > 0 && (
         <div className="container">
-          <div className={styles.restGrid}>
-            {rest.map((img, k) => (
-              <div key={`${img.src}-${k}`} className={styles.restFrame} {...edItem(`projects.${index}.images`, k + 1, "Picture")}>
-                {img.src ? <Image src={versionedSrc(img.src)} style={adjustStyle(img, "src")} alt={img.alt} fill sizes="auto, (max-width: 520px) 92vw, 440px" quality={90} {...placeholderProps(img.src)} /> : <MediaPlaceholder />}
-              </div>
-            ))}
-          </div>
+          <ProjectImageStack key={slug} images={rest} projectIndex={index} />
         </div>
       )}
 

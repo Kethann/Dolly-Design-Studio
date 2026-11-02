@@ -10,7 +10,7 @@ assert.ok(tab, "An isolated local test tab is required");
 const ws = new WebSocket(tab.webSocketDebuggerUrl);
 await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
 let sequence = 0;
-const jobs = new Map(), errors = [], samples = new Map();
+const jobs = new Map(), errors = [], samples = new Map(), imageRequests = new Map();
 ws.onmessage = ({ data }) => {
   const e = JSON.parse(data);
   if (e.id) { const job = jobs.get(e.id); jobs.delete(e.id); if (e.error) job?.reject(new Error(e.error.message)); else job?.resolve(e.result); }
@@ -18,6 +18,7 @@ ws.onmessage = ({ data }) => {
   if (e.method === "Runtime.consoleAPICalled" && e.params.type === "error") errors.push(e.params.args.map(x => x.value ?? x.description).join(" "));
   if (e.method === "Fetch.requestPaused") {
     const pathname=new URL(e.params.request.url).pathname, parent=pathname==='/__glass-test';
+    if (samples.has(pathname)) imageRequests.set(pathname,(imageRequests.get(pathname)??0)+1);
     const body=parent?Buffer.from('<!doctype html><html><head><title>Local glass QA</title></head><body></body></html>').toString('base64'):samples.get(pathname);
     void send(body ? "Fetch.fulfillRequest" : "Fetch.continueRequest", body
       ? {requestId:e.params.requestId,responseCode:200,responseHeaders:[{name:"Content-Type",value:parent?'text/html':'image/png'}],body}
@@ -46,6 +47,7 @@ async function until(expression) {
   throw new Error("Timed out: " + expression + "\n" + errors.join("\n"));
 }
 const output = path.join(os.tmpdir(), "dds-glass-qa");
+const appearanceOnly = process.argv.includes('--appearance-only');
 await mkdir(output, { recursive: true });
 async function screenshot(name) {
   const shot = await send("Page.captureScreenshot", { format: "png" });
@@ -63,15 +65,15 @@ try {
     const gl=WebGL2RenderingContext.prototype, names=new WeakMap(), programs=new WeakMap(), titlePrograms=new WeakSet(), glassPrograms=new WeakSet(), locate=gl.getUniformLocation, scalar=gl.uniform1f, matrix=gl.uniformMatrix4fv, triple=gl.uniform3f;
     gl.uniform3f=function(u,r,g,b){if(names.get(u)==='glassTint')window.__glass.tint=[r,g,b];return triple.call(this,u,r,g,b);};
     gl.getUniformLocation=function(...a){const u=locate.apply(this,a);if(u){names.set(u,a[1]);programs.set(u,a[0]);if(a[1]==='imageAspect')titlePrograms.add(a[0]);if(a[1]==='glassOpacity')glassPrograms.add(a[0]);}return u;};
-    gl.uniform1f=function(u,v){if(names.get(u)==='arrival'){window.__glass.arrival=v;window.__glass.frames++;}if(names.get(u)==='entranceOpacity'){window.__glass.opacity=v;if(window.__glass.entranceSamples.length<120)window.__glass.entranceSamples.push(v);}if(names.get(u)==='scrollExit')window.__glass.exit=v;if(names.get(u)==='imageAspect'&&v===3)window.__glass.artwork=true;return scalar.call(this,u,v);};
+    gl.uniform1f=function(u,v){if(names.get(u)==='arrival'){window.__glass.arrival=v;window.__glass.frames++;}if(names.get(u)==='entranceOpacity'){window.__glass.opacity=v;if(window.__glass.entranceSamples.length<120)window.__glass.entranceSamples.push(v);}if(names.get(u)==='scrollExit')window.__glass.exit=v;if(names.get(u)==='beamWidth')window.__glass.beamWidth=v;if(names.get(u)==='imageAspect'&&v>1.5)window.__glass.artwork=true;return scalar.call(this,u,v);};
     gl.uniformMatrix4fv=function(u,t,v,...rest){if(names.get(u)==='modelMatrix'&&this.canvas.closest('#collaborations')){if(titlePrograms.has(programs.get(u)))window.__glass.titleMatrix=Array.from(v);if(glassPrograms.has(programs.get(u)))window.__glass.glassMatrix=Array.from(v);}return matrix.call(this,u,t,v,...rest);};
     for(const method of ['drawElements','drawArrays']){const draw=gl[method];gl[method]=function(...a){window.__glass.draws++;return draw.apply(this,a);};}
   })();` });
-  for (const [width, height, name] of process.argv.includes('--artwork-only') ? [] : [[1440,900,"desktop"],[820,1180,"tablet"],[390,844,"mobile"]]) {
+  for (const [width, height, name] of process.argv.includes('--artwork-only') || appearanceOnly ? [] : [[1440,900,"desktop"],[820,1180,"tablet"],[390,844,"mobile"]]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
     await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
     await send("Page.navigate", { url: `http://localhost:3000/?glass-check=${name}#collaborations` });
-    await until(`location.search==='?glass-check=${name}' && !!document.querySelector("#collaborations") && !document.querySelector(".intro-curtain")`);
+    await until(`location.search==='?glass-check=${name}' && !!document.querySelector("#collaborations") && (!document.querySelector(".intro-curtain") || getComputedStyle(document.querySelector(".intro-curtain")).display==='none')`);
     await evaluate('document.querySelector("#collaborations").scrollIntoView({behavior:"instant"})');
     await until('document.querySelector("#collaborations [data-disc-state]")?.dataset.discState === "ready"');
     await until('!!window.__glass.glassMatrix');
@@ -117,7 +119,7 @@ try {
   }
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
   await send("Page.navigate", { url: "http://localhost:3000/?glass-reduced#collaborations" });
-  await until('!!document.querySelector("#collaborations") && !document.querySelector(".intro-curtain")');
+  await until('!!document.querySelector("#collaborations") && (!document.querySelector(".intro-curtain") || getComputedStyle(document.querySelector(".intro-curtain")).display==="none")');
   await evaluate('document.querySelector("#collaborations").scrollIntoView({behavior:"instant"})');
   await until('window.__glass.arrival === 1');
   assert.equal(await evaluate('window.__glass.opacity'), 1, 'Reduced-motion view is immediately visible');
@@ -133,7 +135,7 @@ try {
   }
   settings.proofTable.items=settings.proofTable.items.slice(0,8);
   await send('Fetch.enable',{patterns:[{urlPattern:'*://localhost:3000/images/qa/*'},{urlPattern:'*://localhost:3000/__glass-test'}]});
-  for(const [width,height,name] of [[1440,900,'desktop'],[820,1180,'tablet'],[390,844,'mobile']]){
+  for(const [width,height,name] of appearanceOnly ? [[1100,760,'desktop'],[820,1000,'tablet'],[390,844,'mobile']] : [[1440,900,'desktop'],[820,1180,'tablet'],[390,844,'mobile']]){
     await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
     await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
     await send('Page.navigate',{url:'http://localhost:3000/__glass-test'});
@@ -154,20 +156,62 @@ try {
     await until('document.querySelector("#fixture").contentDocument.querySelector("#collaborations [data-disc-state]")?.dataset.discState === "ready"');
     await until('document.querySelector("#fixture").contentWindow.__glass?.artwork');
     await pause(600);
+    assert.equal(await evaluate(`Number(document.querySelector('#fixture').contentWindow.getComputedStyle(document.querySelector('#fixture').contentDocument.querySelector('#collaborations'),'::before').opacity)`),0,'Default glass has no dark backdrop');
     await screenshot(name+'-artwork');
+    if (name === 'desktop') {
+      const firstTitle = '/images/qa/title-0.png';
+      const before = imageRequests.get(firstTitle) ?? 0;
+      assert.ok(before > 0, 'First title was decoded before a live reorder');
+      await evaluate(`(() => {
+        const f=document.querySelector('#fixture'), items=window.fixtureSettings.proofTable.items;
+        window.fixtureSettings.proofTable.items=[...items.slice(1),items[0]];
+        f.contentWindow.postMessage({source:'dds-portal',type:'settings',settings:window.fixtureSettings},location.origin);
+      })()`);
+      await pause(800);
+      assert.equal(imageRequests.get(firstTitle), before, 'Reordering retains decoded title artwork instead of fetching it again');
+      assert.equal(await evaluate('document.querySelector("#fixture").contentDocument.querySelector("#collaborations [data-disc-state]")?.dataset.discState'), 'ready');
+    }
     // Exercise live settings through the same protocol as the portal, without saving.
     const stablePose=await evaluate('document.querySelector("#fixture").contentWindow.__glass.glassMatrix');
-    await evaluate(`(() => {const f=document.querySelector('#fixture');window.fixtureSettings.proofTable.disc??={};window.originalDisc=structuredClone(window.fixtureSettings.proofTable.disc);Object.assign(window.fixtureSettings.proofTable.disc,{glassTintColor:'#224466',glassOpacity:.4,shadowColor:'#443322',shadowOpacity:.35,shadowSpread:1.3});f.contentWindow.postMessage({source:'dds-portal',type:'settings',settings:window.fixtureSettings},location.origin)})()`);
-    await until(`(()=>{const w=document.querySelector('#fixture').contentWindow,s=w.getComputedStyle(w.document.querySelector('#collaborations'),'::before');return w.__glass.tint?.[2]>.12 && s.backgroundColor==='rgb(68, 51, 34)' && Math.abs(Number(s.opacity)-.35)<.001})()`);
+    await evaluate(`(() => {const f=document.querySelector('#fixture');window.fixtureSettings.proofTable.disc??={};window.originalDisc=structuredClone(window.fixtureSettings.proofTable.disc);window.fixtureSettings.proofTable.disc.beamWidth=.25;f.contentWindow.postMessage({source:'dds-portal',type:'settings',settings:window.fixtureSettings},location.origin)})()`);
+    await until(`Math.abs(document.querySelector('#fixture').contentWindow.__glass.beamWidth-.25)<.01`);
+    await screenshot(name+'-beam-slim');
+    await evaluate(`(() => {const f=document.querySelector('#fixture');window.fixtureSettings.proofTable.disc.beamWidth=2;f.contentWindow.postMessage({source:'dds-portal',type:'settings',settings:window.fixtureSettings},location.origin)})()`);
+    await until(`Math.abs(document.querySelector('#fixture').contentWindow.__glass.beamWidth-2)<.01`);
+    await screenshot(name+'-beam-broad');
+    assert.deepEqual(await evaluate('document.querySelector("#fixture").contentWindow.__glass.glassMatrix'),stablePose,'Beam width changes never reset the circle pose');
+    await evaluate(`(() => {const f=document.querySelector('#fixture');Object.assign(window.fixtureSettings.proofTable.disc,{beamWidth:window.originalDisc.beamWidth??1,glassTintColor:'#224466',glassOpacity:.4,shadowColor:'#443322',shadowOpacity:.35,shadowSpread:1.3});f.contentWindow.postMessage({source:'dds-portal',type:'settings',settings:window.fixtureSettings},location.origin)})()`);
+    await until(`(()=>{const w=document.querySelector('#fixture').contentWindow,s=w.getComputedStyle(w.document.querySelector('#collaborations'),'::before');return w.__glass.tint?.[2]>.12 && w.__glass.tint?.[2]<.15 && s.backgroundColor==='rgb(68, 51, 34)' && Math.abs(Number(s.opacity)-.35)<.001})()`);
     assert.deepEqual(await evaluate('document.querySelector("#fixture").contentWindow.__glass.glassMatrix'),stablePose,'Appearance changes never reset the circle pose');
     assert.ok(await evaluate(`document.querySelector('#fixture').contentDocument.querySelector('#collaborations').style.getPropertyValue('--glass-shadow-spread')==='1.3'`));
     await screenshot(name+'-tint-controls');
     await evaluate(`(()=>{const f=document.querySelector('#fixture');window.fixtureSettings.proofTable.disc.shadowOpacity=0;f.contentWindow.postMessage({source:'dds-portal',type:'settings',settings:window.fixtureSettings},location.origin)})()`);
     await until(`Number(document.querySelector('#fixture').contentWindow.getComputedStyle(document.querySelector('#fixture').contentDocument.querySelector('#collaborations'),'::before').opacity)===0`);
     await evaluate(`(()=>{const f=document.querySelector('#fixture');window.fixtureSettings.proofTable.disc=window.originalDisc;f.contentWindow.postMessage({source:'dds-portal',type:'settings',settings:window.fixtureSettings},location.origin)})()`);
-    await until(`document.querySelector('#fixture').contentWindow.__glass.tint?.[2]<.02`);
+    await until(`document.querySelector('#fixture').contentWindow.__glass.tint?.[2]>.8`);
+    if (appearanceOnly) {
+      // A patterned backing exposes milky fills that a plain dark page hides.
+      // This is a local fixture only; no saved backdrop or content is changed.
+      await evaluate(`(()=>{const c=document.querySelector('#fixture').contentDocument.querySelector('#collaborations canvas');c.parentElement.style.background='repeating-linear-gradient(90deg,#301943 0 12px,#6a3f7c 12px 24px)'})()`);
+      await pause(300);
+      await screenshot(name+'-transmission');
+      const visible=await sharp(await readFile(path.join(output,name+'-transmission.png'))).removeAlpha().raw().toBuffer();
+      await evaluate(`document.querySelector('#fixture').contentDocument.querySelector('#collaborations canvas').style.visibility='hidden'`);
+      const baselineShot=await send('Page.captureScreenshot',{format:'png'});
+      const baseline=await sharp(Buffer.from(baselineShot.data,'base64')).removeAlpha().raw().toBuffer();
+      const errors=[];
+      for(let i=0;i<baseline.length;i+=3){
+        if((baseline[i]===48&&baseline[i+1]===25&&baseline[i+2]===67)||(baseline[i]===106&&baseline[i+1]===63&&baseline[i+2]===124))
+          errors.push((Math.abs(visible[i]-baseline[i])+Math.abs(visible[i+1]-baseline[i+1])+Math.abs(visible[i+2]-baseline[i+2]))/3);
+      }
+      errors.sort((a,b)=>a-b);
+      assert.ok(errors.length>1000,'Patterned backing is visible in the fixture');
+      assert.ok(errors[Math.floor(errors.length*.7)]<12,name+' glass transmits the backing without a dense fill');
+      await evaluate(`(()=>{const c=document.querySelector('#fixture').contentDocument.querySelector('#collaborations canvas');c.style.visibility='';c.parentElement.style.background=''})()`);
+    }
     console.log(name+': independent tint/shadow colours, spread, zero opacity and reset preview passed');
     assert.ok(await evaluate('document.querySelector("#fixture").contentDocument.documentElement.scrollWidth <= innerWidth+1'),name+' artwork bounds');
+    if (appearanceOnly) continue;
     // Find an actual hit through canvas pointer events, then exercise the retained popup and Escape.
     const point=await evaluate(`(() => {
       const doc=document.querySelector('#fixture').contentDocument, win=doc.defaultView;

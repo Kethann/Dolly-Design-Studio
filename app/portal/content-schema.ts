@@ -23,7 +23,7 @@ export type Field =
    * A picture. `alt`, `shape` and `size` name sibling settings kept beside it (e.g. "photoAlt"): a description for
    * screen readers and search engines, how the picture is cropped, and how big it is shown.
    */
-  | { kind: "image"; path: string; label: string; hint?: string; alt?: string; shape?: string; size?: string; /** Name prefix of sibling zoom / position settings ("photo" gives photoZoom, photoX, photoY). */ adjust?: string }
+  | { kind: "image"; path: string; label: string; hint?: string; alt?: string; shape?: string; size?: string; /** Name prefix of sibling zoom / position settings ("photo" gives photoZoom, photoX, photoY). */ adjust?: string; /** The preview shows the whole picture instead of filling its box. */ contain?: boolean }
   /** A font from the built-in list or the uploaded ones ("" = the site's own). */
   | { kind: "font"; path: string; label: string; hint?: string }
   /** An optional colour ("" = the site's own). */
@@ -558,6 +558,7 @@ const projects: SchemaPage = {
           }),
           fields: [
             { kind: "text", path: "title", label: "Title" },
+            { kind: "image", path: "titleImage", label: "Title picture (back of the card)", hint: "A transparent PNG of the film's title works best. Empty space around it is trimmed and it is fitted to the card automatically. Without one, the title above is shown as text.", adjust: "titleImage", contain: true },
             { kind: "text", path: "film", label: "Film or campaign name" },
             { kind: "select", path: "category", label: "Type", options: [], optionsFrom: "categories" },
             { kind: "number", path: "year", label: "Year", min: 1950, max: 2100 },

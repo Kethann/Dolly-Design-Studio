@@ -1327,10 +1327,19 @@
 /* Disc settings stay compact; keyboard and touch users can open each group. */
 .discControls { border:1px solid rgba(255,255,255,.12); border-radius:12px; margin:0 0 10px; overflow:hidden; }
 .discControls > summary { padding:14px 16px; cursor:pointer; color:var(--ivory); font-size:13px; font-weight:600; }
-.discControls > summary > span { float:right; color:rgba(244,237,225,.55); font-size:11px; font-weight:400; }
+.discControls > summary > span { display:block; margin-top:4px; color:rgba(244,237,225,.55); font-size:11px; font-weight:400; }
 .discControls > summary:focus-visible { outline:2px solid var(--gold); outline-offset:-3px; }
 .discControls[open] > summary { border-bottom:1px solid rgba(255,255,255,.1); }
+.discControls[open] { border-color:var(--p-gold-bright); }
+.discControls > summary:hover { background:#d9b76a10; }
 .discControls > div { padding:12px 16px; }
+.discFinder { display:grid; gap:12px; padding:16px; margin-bottom:16px; border:1px solid #d9b76a50; border-radius:12px; background:#d9b76a08; }
+.discFinder > label { display:grid; gap:8px; }
+.discShortcuts { display:flex; flex-wrap:wrap; gap:8px 14px; }
+.discShortcuts button { min-height:44px; }
+.exactValue { display:inline-flex; align-items:center; flex:none; gap:6px; max-width:100%; color:var(--p-gold-bright); font-size:12px; }
+.exactValue input { width:88px; min-width:0; max-width:100%; min-height:44px; border:1px solid var(--p-line-strong); border-radius:7px; background:var(--p-raised); padding:6px 8px; color:var(--p-text); font:inherit; font-variant-numeric:tabular-nums; }
+.exactValue input:focus-visible { outline:2px solid var(--p-gold-bright); outline-offset:2px; }
 
 /* Title disc: one editable block per image slot. */
 .slot {
@@ -1366,6 +1375,22 @@
   gap: 4px;
   margin-left: auto;
 }
+
+.titleBlock { padding:10px; margin-top:10px; border:1px solid var(--p-line-strong); border-radius:12px; background:var(--p-raised); min-width:0; }
+.titleSearch { display:grid; gap:8px; flex:none; }
+.titleSearch input { width:100%; min-width:0; min-height:44px; }
+.titleBlock[data-selected="true"] { border-color:var(--p-gold-bright); }
+.titleBlock > .slotHead { gap:6px; margin-bottom:0; }
+.titleBlock > div[id] > .slotGrid { padding-top:16px; margin-top:10px; border-top:1px solid var(--p-line); }
+.titleBlockButton { display:flex; align-items:center; gap:10px; flex:1; min-width:0; min-height:60px; padding:6px; text-align:left; border-radius:8px; }
+.titleBlockButton:hover { background:#d9b76a10; }
+.titleBlockButton:focus-visible { outline:2px solid var(--p-gold-bright); outline-offset:2px; }
+.titleBlockButton .slotThumb { width:56px; height:42px; flex-shrink:0; }
+.titleBlockText { display:grid; gap:5px; min-width:0; flex:1; overflow-wrap:anywhere; }
+.titleBlockText strong { font-size:13px; color:var(--p-text); }
+.titleBlockText > span { font-size:11px; line-height:1.5; color:var(--p-muted); }
+.titleBlockChevron { flex-shrink:0; color:var(--p-gold-bright); font-size:20px; }
+.titleBlock .slotActions { flex-shrink:0; }
 
 .slotGrid {
   display: grid;

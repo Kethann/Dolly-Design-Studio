@@ -1,0 +1,32 @@
+.dialog { position:fixed; inset:0; width:100%; height:100%; max-width:none; max-height:none; margin:0; padding:20px; border:0; background:transparent; color:var(--ivory); overflow:auto; scrollbar-gutter:stable both-edges; overscroll-behavior:contain; }
+.dialog[open] { display:flex; align-items:center; justify-content:center; }
+.dialog::backdrop { background:rgb(13 7 18 / .78); backdrop-filter:blur(9px); animation:fadeIn .3s ease both; }
+.panel { --gallery-card-width:min(37vw, 360px, max(140px, calc((100svh - 280px) / 1.57))); width:min(1120px,100%); min-width:0; margin-block:auto; padding:20px 12px; border:1px solid #fff2; border-radius:22px; background:radial-gradient(ellipse at 50% 40%,#38203770,#120d1980); }
+.header { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; padding:0 14px 16px; }
+.header h2 { margin:0; font-family:var(--font-display); font-size:clamp(22px,3vw,36px); line-height:1.1; overflow-wrap:anywhere; }
+.header p { margin:0 0 8px; font-size:10px; letter-spacing:.15em; color:var(--gold); text-transform:uppercase; }
+.close { flex:none; width:44px; height:44px; border:1px solid #fff4; border-radius:50%; background:#201423; color:var(--ivory); font-size:28px; cursor:pointer; transition:background .2s ease,border-color .2s ease; }
+.close:hover { background:#482738; border-color:var(--gold); }
+.header,.footer { animation:chromeIn .5s .16s ease both; }
+.dialog[data-closing] { pointer-events:none; }
+.dialog[data-closing] .panel { animation:closeGallery .22s ease both; }
+.dialog[data-closing]::backdrop { animation:fadeOut .22s ease both; }
+.arrival { perspective:1400px; transform-origin:50% var(--poster-pivot-y,50%); }
+.reveal { position:relative; transform-style:preserve-3d; }
+.dialog[data-entering] .arrival { animation:centerPoster .65s cubic-bezier(.2,.8,.2,1) both; }
+.dialog[data-entering] .reveal { animation:flipPoster .65s cubic-bezier(.2,.7,.2,1) both; }
+.artworkFront,.titleBack { backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+.titleBack { position:absolute; inset:0 0 auto; margin:auto; top:calc(var(--gallery-card-width) * .035); width:var(--gallery-card-width); height:calc(var(--gallery-card-width) * 1.5); display:grid; place-items:center; padding:24px; border:1px solid var(--gold); border-radius:12px; background:linear-gradient(145deg,#3b192b,#130e1d); color:var(--ivory); text-align:center; overflow-wrap:anywhere; font:700 clamp(22px,4vw,44px)/1.1 var(--font-display); transform:rotateY(180deg); }
+.titleArt { display:block; position:relative; width:min(100%, calc(var(--gallery-card-width) * 1.1 * var(--ink-aspect, 2.4))); aspect-ratio:var(--ink-aspect, 2.4); }
+.footer { display:flex; justify-content:space-between; align-items:center; gap:12px 24px; flex-wrap:wrap; padding:18px 14px 0; font-size:11px; color:#c3b8c7; }
+.footer a { min-height:44px; display:inline-flex; align-items:center; padding:10px 16px; border:1px solid #d8b87980; border-radius:30px; color:var(--gold-bright); }
+.close:focus-visible,.footer a:focus-visible { outline:2px solid var(--gold-bright); outline-offset:4px; }
+@keyframes centerPoster { from { opacity:.5; transform:translate(var(--poster-dx,0px),var(--poster-dy,0px)) scale(var(--poster-scale,.45)); } to { opacity:1; transform:none; } }
+@keyframes flipPoster { from { transform:rotateY(-180deg); } to { transform:rotateY(0); } }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes fadeOut { to { opacity:0; } }
+@keyframes chromeIn { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:none; } }
+@keyframes closeGallery { to { opacity:0; transform:translateY(10px) scale(.975); } }
+@media(max-width:680px) { .dialog { padding:12px; } .panel { --gallery-card-width:min(58vw,260px,max(130px,calc((100svh - 300px) / 1.57))); padding:16px 0; } .header { gap:12px; } .footer { justify-content:center; text-align:center; } }
+@media(max-height:560px) and (min-width:681px) { .dialog[open] { align-items:flex-start; } .panel { --gallery-card-width:min(25vw,160px); } }
+@media(prefers-reduced-motion:reduce) { .dialog[data-entering] .arrival,.dialog[data-entering] .reveal,.dialog::backdrop,.header,.footer { animation:none; } .close { transition:none; } }

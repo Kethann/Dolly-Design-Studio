@@ -500,7 +500,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
   };
   const zoom = field.adjust ? num(`${field.adjust}Zoom`, 1) : 1;
   /** A card set to "fit" shows the whole picture, so the preview does too. */
-  const fitWhole = getAt(content, sibling("fit")) === "fit";
+  const fitWhole = field.contain || getAt(content, sibling("fit")) === "fit";
   const posX = field.adjust ? num(`${field.adjust}X`, 50) : 50;
   const posY = field.adjust ? num(`${field.adjust}Y`, 50) : 50;
   const setNum = (name: string, v: number) => update((c) => setAt(c, sibling(`${field.adjust}${name}`), v));
@@ -1628,7 +1628,7 @@ export function MediaLibrary() {
             multiple
             state={uploads.state}
             title="Drop pictures here, or click to choose"
-            hint="PNG, JPG and JPEG are supported, up to 6 MB each. You can also use WebP, AVIF, GIF, SVG, TIFF, BMP or ICO. Large photos are optimized for the site (GIFs stay animated, SVGs stay sharp), ready to pick in any picture field."
+            hint="PNG, JPG and JPEG are supported, up to 12 MB each. You can also use WebP, AVIF, GIF, SVG, TIFF, BMP or ICO. Large photos are optimized for the site (GIFs stay animated, SVGs stay sharp), ready to pick in any picture field."
             onFiles={(files) => uploads.start(files, () => {})}
           />
           <input className={styles.input} aria-label="Search images by name or folder" placeholder="Search by name or folder" value={filter} disabled={busy} onChange={(e) => setFilter(e.target.value)} />

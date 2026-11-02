@@ -379,7 +379,9 @@
     padding: 7px 9px;
     border: 1px solid #ffffff24;
     border-radius: 10px;
-    background: #1a111d;
+    background: #1a111dc2;
+    -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.2);
+    backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.2);
     color: var(--ivory);
     font-family: var(--font-body);
     font-size: 10px;
@@ -416,8 +418,12 @@
     width: 60px;
     border: 1px solid #ffffff24;
     border-radius: 22px;
-    background: linear-gradient(140deg, #30232bdb, #110d17ed);
-    box-shadow: 0 8px 24px #0004;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.1)),
+      linear-gradient(140deg, #30232b9e, #110d17b8);
+    -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.2);
+    backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.2);
+    box-shadow: 0 8px 24px #0004, inset 0 1px 0 #ffffff1f;
     pointer-events: none;
   }
   .mobileLink {

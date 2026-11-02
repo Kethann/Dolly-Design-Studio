@@ -206,6 +206,7 @@ export function sanitizeContent(input: unknown, options: { preserveClientSlots?:
         brief: str(raw.brief),
         ...(credits.length ? { credits } : {}),
         images: images.map((im) => ({ src: im.src, alt: typeof im.alt === "string" && im.alt ? im.alt : title, ...cleanAdjust(im, "src") })),
+        ...(typeof raw.titleImage === "string" && raw.titleImage.startsWith("/images/") ? { titleImage: raw.titleImage, ...cleanAdjust(raw, "titleImage") } : {}),
         ...(raw.featured === true ? { featured: true } : {}),
         order: i + 1,
       },

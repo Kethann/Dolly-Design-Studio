@@ -31,7 +31,7 @@ Dashboard → Workers & Pages → Create → Import a repository (your own GitHu
 deploy command `npx opennextjs-cloudflare deploy`. Add the same secrets under Settings → Variables and Secrets.
 
 ## Things to know
-- Uploaded raster images use the configured `IMAGES` binding for cached, size- and quality-specific WebP variants. If resizing is unavailable, the original is streamed. SVGs keep their vector format. Image uploads are capped at 6 MB; video uploads at 50 MB.
+- Uploaded raster images use the configured `IMAGES` binding for cached, size- and quality-specific WebP variants. If resizing is unavailable, the original is streamed. SVGs keep their vector format. Image uploads are capped at 12 MB; video uploads at 50 MB.
 - This application includes SMTP delivery for Node and a socket-based SMTP adapter for Workers. Preserve the configured studio mailbox; verify delivery in the target environment before relying on password-recovery email. Resend is also supported when configured.
 - Sign-in attempt limits are per worker instance, not global.
 - OTP redemption and attempt counters use conditional R2 writes, so simultaneous Worker requests cannot consume a code twice.

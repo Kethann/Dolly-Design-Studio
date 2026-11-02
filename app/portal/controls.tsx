@@ -44,6 +44,9 @@ export function Slider({
   format,
   hint,
   onChange,
+  editable = false,
+  inputScale = 1,
+  inputUnit = "",
 }: {
   label: string;
   value: number;
@@ -53,6 +56,10 @@ export function Slider({
   format: (v: number) => string;
   hint?: string;
   onChange: (v: number) => void;
+  /** Opt-in exact entry; scale displays stored fractions as familiar percentages. */
+  editable?: boolean;
+  inputScale?: number;
+  inputUnit?: string;
 }) {
   const id = useId();
   const fill = ((value - min) / (max - min)) * 100;
@@ -62,9 +69,27 @@ export function Slider({
         <label htmlFor={id} className={styles.controlLabel}>
           {label}
         </label>
-        <output htmlFor={id} className={styles.controlValue}>
+        {editable ? <span className={styles.exactValue}>
+          <input key={`${value}-${inputScale}`} type="number" aria-label={`${label} — exact value${inputUnit ? ` (${inputUnit})` : ""}`}
+            title="Type a value, then press Enter or leave the field to apply"
+            min={Number((min * inputScale).toFixed(6))} max={Number((max * inputScale).toFixed(6))}
+            step={Number((step * inputScale).toFixed(6))} defaultValue={Number((value * inputScale).toFixed(6))}
+            onBlur={event => {
+              const raw = event.currentTarget.value.trim();
+              if (raw === String(Number((value * inputScale).toFixed(6)))) return;
+              const number = raw === "" ? NaN : Number(raw) / inputScale;
+              const next = Number.isFinite(number) ? Number(Math.min(max, Math.max(min, min + Math.round((number - min) / step) * step)).toFixed(6)) : value;
+              event.currentTarget.value = String(Number((next * inputScale).toFixed(6)));
+              if (next !== value) onChange(next);
+            }}
+            onKeyDown={event => {
+              if (event.key === "Escape") event.currentTarget.value = String(Number((value * inputScale).toFixed(6)));
+              if (event.key === "Enter" || event.key === "Escape") { event.preventDefault(); event.stopPropagation(); event.currentTarget.blur(); }
+            }} />
+          {inputUnit && <span aria-hidden="true">{inputUnit}</span>}
+        </span> : <output htmlFor={id} className={styles.controlValue}>
           {format(value)}
-        </output>
+        </output>}
       </div>
       <input
         id={id}
