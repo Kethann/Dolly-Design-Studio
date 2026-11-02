@@ -110,7 +110,7 @@ export function FilterText({ effect, options: raw, style, children }: { effect: 
             <feComposite in="light" in2="shape" operator="in" result="gloss" />
             <feMerge><feMergeNode in="body" /><feMergeNode in="rim" /><feMergeNode in="gloss" /></feMerge>
           </> : <>
-            <feTurbulence ref={turbulence} type="fractalNoise" baseFrequency={1.1 / (fontSize * size)} numOctaves={2} seed={4} result="noise" />
+            <feTurbulence ref={turbulence} type="fractalNoise" baseFrequency={1.1 / (fontSize * size)} numOctaves={1} seed={4} result="noise" />
             <feDisplacementMap ref={displacement} in="SourceGraphic" in2="noise" scale="0" xChannelSelector="R" yChannelSelector="G" />
           </>}
         </filter>

@@ -131,7 +131,7 @@ export function createGlassDesign({ disc, controls, renderer, lowPower, noise, r
             vec2 id=cell+vec2(float(x),float(y)), centre=id+vec2(hash(id),hash(id+17.))*.8+.1;
             float d=dot(q-centre,q-centre); if(d<best){ best=d; nearest=q-centre; }
           }
-          slope=nearest*1.05; bend=slope*.016; shine=38.;
+          slope=nearest*1.9; bend=nearest*.016; shine=120.;
         } else if(effect>5.5){
           // Soap-bubble film: colours run through a thin skin, gathering toward the rim.
           vec2 q=vGlass*.34/effectScale; float e=.006, h=heightAt(q);

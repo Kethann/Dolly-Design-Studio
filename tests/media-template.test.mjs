@@ -4315,3 +4315,49 @@ test("storage or backup failure leaves the saved site intact; failed publish res
     assert.equal(app.events.some(([op]) => op === "remove"), false);
   }
 });
+
+test("titles section keeps both versions; the slate is the original and each keeps its settings", () => {
+  const read = loader(), { sanitizeIntroSettings } = read("lib/intro/settings.ts");
+  assert.equal(sanitizeIntroSettings({}).proofTable.version, 1, "Version 1 shows unless the disc is chosen");
+  assert.equal(sanitizeIntroSettings({ proofTable: { version: 2 } }).proofTable.version, 2);
+  assert.equal(sanitizeIntroSettings({ proofTable: { version: "x" } }).proofTable.version, 1);
+  const saved = sanitizeIntroSettings({ proofTable: { version: 2, slabOpacity: .5, disc: { glassEffect: "frosted" } } });
+  const back = sanitizeIntroSettings({ ...saved, proofTable: { ...saved.proofTable, version: 1 } });
+  assert.equal(back.proofTable.slabOpacity, .5); assert.equal(back.proofTable.disc.glassEffect, "frosted");
+  const chooser = readFileSync(path.join(root, "components/proof-table/TitleSection.tsx"), "utf8");
+  assert.match(chooser, /version === 1 \? <SlateProofTable \/> : <ProofTable \/>/);
+  assert.match(readFileSync(path.join(root, "components/proof-table/SlateProofTable.tsx"), "utf8"), /createProofScene/);
+});
+
+test("glass design reject unknown choices and unsafe images, and draw nothing by default", () => {
+  const { sanitizeDisc, GLASS_DESIGN_DEFAULTS, DISC_DEFAULTS, GLASS_LOOKS, GLASS_EFFECTS, GLASS_PATTERNS, GLASS_EDGES, glassDesignOf } = loader()("lib/content/disc.ts");
+  assert.equal(sanitizeDisc({}).glassEffect, "clear"); assert.equal(sanitizeDisc({}).patternKind, "none"); assert.equal(sanitizeDisc({}).edgeStyle, "classic"); assert.equal(sanitizeDisc({}).ringMarks, 2);
+  const bad = sanitizeDisc({ glassEffect: "x", patternKind: "url(x)", edgeStyle: 3, patternImage: "https://evil.example/a.png", edgeImage: "/images/../secret.png", pictureImage: "/images/a b.png", patternColor: "red;", ringMarks: 99, edgeRepeats: 1.4 });
+  assert.equal(bad.glassEffect, "clear"); assert.equal(bad.patternKind, "none"); assert.equal(bad.edgeStyle, "classic");
+  assert.equal(bad.patternImage, ""); assert.equal(bad.edgeImage, ""); assert.equal(bad.pictureImage, ""); assert.equal(bad.patternColor, GLASS_DESIGN_DEFAULTS.patternColor);
+  assert.equal(bad.ringMarks, 12); assert.equal(bad.edgeRepeats, 12);
+  assert.equal(sanitizeDisc({ pictureImage: "/images/uploads/a-1.png" }).pictureImage, "/images/uploads/a-1.png");
+  for (const look of GLASS_LOOKS) {
+    assert.ok(GLASS_EFFECTS.includes(look.patch.glassEffect)); assert.ok(GLASS_PATTERNS.includes(look.patch.patternKind)); assert.ok(GLASS_EDGES.includes(look.patch.edgeStyle));
+    assert.ok(!Object.keys(look.patch).some(key => /Image$/.test(key)), "Looks never touch uploads");
+  }
+  assert.equal(glassDesignOf({ ...DISC_DEFAULTS, patternImage: "/images/a.png" }).patternImage, "/images/a.png");
+  const { protectedMedia } = loader()("lib/content/reset-media.ts");
+  assert.ok(protectedMedia({ proofTable: { items: [{ src: "/images/proof-table/t.png" }], disc: { pictureImage: "/images/uploads/p.png" } } }).has("/images/uploads/p.png"));
+  assert.ok(!protectedMedia({ proofTable: { items: [{ src: "/images/proof-table/t.png" }], disc: {} } }).has("/images/proof-table/t.png"));
+});
+
+test("new text effects keep their settings, reject unsafe values and offer only real controls", () => {
+  const fx = loader()("lib/content/text-effects.ts");
+  const options = { color: "#12abcd", colorA: "#0d0d10", colorB: "#f6f1e4", fxAmount: .8, fxSize: 1.5, fxSpeed: 2, glowMode: "always" };
+  for (const effect of ["slate", "liquify", "neon", "bubble", "flow", "split", "wave"]) {
+    const encoded = fx.applyTextEffect("Make [[cinema]] now", effect, options);
+    assert.equal(fx.selectedEffect(encoded), effect); assert.equal(fx.plainFx(encoded), "Make cinema now"); assert.equal(fx.editableFx(encoded), "Make [[cinema]] now");
+    assert.deepEqual(fx.selectedEffectOptions(encoded), options);
+    assert.ok(fx.EFFECT_CONTROLS[effect], `${effect} has settings`);
+  }
+  assert.deepEqual(fx.cleanEffectOptions({ colorA: "url(x)", fxAmount: 9, fxSize: -1, fxSpeed: NaN }), { fxAmount: 1, fxSize: .25 });
+  assert.equal(fx.effectStyle({ fxSpeed: 2 })["--fx-speed"], "2");
+  const dots = readFileSync(path.join(root, "components/fx/ParticleText.tsx"), "utf8");
+  assert.match(dots, /textTransform === "uppercase"/, "Dots spell what the page shows");
+});
