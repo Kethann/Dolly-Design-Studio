@@ -70,6 +70,14 @@ test("project artwork stacks keep exact images, empty/single cases, navigation a
     let nodes = render();
     assert.equal(nodes.filter(node => node.props?.["data-depth"] !== undefined).length, count, "Never duplicates or invents artwork");
     if (!count) { assert.equal(nodes.length, 0); continue; }
+    const artwork = nodes.find(node => node.props?.src === "/image-0.png");
+    let aspect;
+    artwork.props.onLoad({ currentTarget: { naturalWidth: 1600, naturalHeight: 900,
+      closest: selector => selector === "[data-stack-card]" ? { style: { setProperty: (name, value) => { if (name === "--art-aspect") aspect = value; } } } : null } });
+    assert.equal(aspect, String(1600 / 900), "Landscape artwork sizes its frame to its native ratio");
+    artwork.props.onLoad({ currentTarget: { naturalWidth: 800, naturalHeight: 1200,
+      closest: () => ({ style: { setProperty: (name, value) => { if (name === "--art-aspect") aspect = value; } } }) } });
+    assert.equal(aspect, String(800 / 1200), "Portrait artwork also sizes its frame to its native ratio");
     assert.equal(nodes.find(node => node.props?.["aria-current"] === "true").props["data-ed-item"], "projects.3.images.1");
     const next = nodes.find(node => node.props?.["aria-label"] === "Next project image");
     assert.equal(!!next, count > 1);

@@ -210,12 +210,22 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
         if (depth > 4) return null;
         return <button key={`${img.src}-${index}`} type="button" className={styles.stackCard}
           style={{ "--stack-offset": offset, "--stack-depth": depth, zIndex: count - depth } as CSSProperties}
-          data-index={index} data-depth={depth} data-visible={depth <= 3} aria-hidden={depth > 3}
+          data-index={index} data-depth={depth} data-visible={depth <= 3} data-stack-card aria-hidden={depth > 3}
           aria-label={`${img.alt || `Project image ${index + imageOffset + 1}`} (${index + 1} of ${count})`}
           aria-current={offset === 0 ? "true" : undefined} tabIndex={offset === 0 ? 0 : -1}
           onClick={() => goTo(index)}
           {...(offset === 0 && projectIndex !== undefined ? edItem(`projects.${projectIndex}.images`, index + imageOffset, "Picture") : {})}>
           {img.src ? <Image src={versionedSrc(img.src)} style={workImageStyle(img)} alt={img.alt} fill
+            onLoad={(event) => {
+              // Uploaded images have no dimensions in content. Size the frame from
+              // the decoded artwork, including landscape and unusually tall art.
+              // An explicit Fill choice keeps the intentional portrait crop.
+              if (img.fit === "fill") return;
+              const { naturalWidth, naturalHeight } = event.currentTarget;
+              if (naturalWidth > 0 && naturalHeight > 0) {
+                event.currentTarget.closest<HTMLElement>("[data-stack-card]")?.style.setProperty("--art-aspect", String(naturalWidth / naturalHeight));
+              }
+            }}
             draggable={false} loading={depth === 0 ? "eager" : "lazy"} fetchPriority={depth === 0 ? "high" : "auto"}
             sizes="(max-width: 680px) 74vw, (max-width: 1100px) 42vw, 410px" quality={90} {...placeholderProps(img.src)} /> : <MediaPlaceholder />}
         </button>;
