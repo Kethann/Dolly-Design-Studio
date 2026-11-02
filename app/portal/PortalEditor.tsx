@@ -27,7 +27,7 @@ import { Choice, ColorRow, Dial, HexInput, Section, Slider, Toggle, percent } fr
 import { ContentEditor, EditorProvider, ListModeProvider, getAt, setAt, MediaLibrary, ThemeEditor, TypographyEditor, type MediaApi } from "./ContentEditor";
 import { CONTENT_PAGES, findList, findSection, type Field } from "./content-schema";
 import { Spotlight, type SpotEntry } from "./Spotlight";
-import { existingImageUpload, postFile, prepareImage, UploadBatchError } from "./upload";
+import { existingImageUpload, postFile, prepareImage, sameNameImageUpload, UploadBatchError } from "./upload";
 import { Dock, MenuBar, type DockGroup, type MenuDef } from "./mac";
 import { PageBar } from "./PageBar";
 import { EditModal, ItemEditor, ItemTools, SectionEditor, sectionPaths } from "./EditModal";
@@ -317,6 +317,9 @@ export function PortalEditor({
   const previewContent = useMemo(() => sanitizeContent(contentDraft, { preserveClientSlots: true }), [contentDraft]);
   const [images, setImages] = useState<string[]>([]);
   const [removable, setRemovable] = useState<string[]>([]);
+  const [deletable, setDeletable] = useState<string[]>([]);
+  const [hiddenImages, setHiddenImages] = useState<string[]>([]);
+  const [uploadedAt, setUploadedAt] = useState<Record<string, number>>({});
   const [libraryAttempt, setLibraryAttempt] = useState(0);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [libraryError, setLibraryError] = useState("");
@@ -340,6 +343,9 @@ export function PortalEditor({
         if (mediaRevision.current !== revision) { setLibraryAttempt((n) => n + 1); return; }
         setImages(data.images);
         setRemovable(data.removable);
+        setDeletable(data.deletable);
+        setHiddenImages(data.hidden);
+        setUploadedAt(data.uploadedAt);
         setLibraryError("");
         setLibraryLoading(false);
       })
@@ -354,19 +360,34 @@ export function PortalEditor({
   const media: MediaApi = {
     images,
     removable,
+    deletable,
+    hidden: hiddenImages,
+    uploadedAt,
     loading: libraryLoading,
     error: libraryError,
     reload: () => { setLibraryLoading(true); setLibraryError(""); setLibraryAttempt((n) => n + 1); },
     remove: async (src) => {
-      // "/images/uploads/x.webp" is stored as uploads/images/x.webp; a slate title "/images/proof-table/x.webp" as uploads/proof/x.webp.
+      const permanently = deletable.includes(src);
+      // Bundled or protected artwork is hidden, not physically deleted, so live pages keep working.
       const key = src.startsWith("/images/uploads/") ? "uploads/images/" + src.slice("/images/uploads/".length) : "uploads/proof/" + src.slice("/images/proof-table/".length);
-      const res = await fetch("/api/portal/storage", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, confirmed: true }) });
+      const res = await fetch(permanently ? "/api/portal/storage" : "/api/portal/media", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify(permanently ? { key, confirmed: true } : { src }) });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Couldn’t delete that picture.");
+      if (!res.ok) throw new Error(data.error ?? "Couldn’t remove that picture.");
       mediaRevision.current++;
       knownImages.current = knownImages.current.filter((x) => x !== src);
       setImages((list) => list.filter((x) => x !== src));
       setRemovable((list) => list.filter((x) => x !== src));
+      setDeletable((list) => list.filter((x) => x !== src));
+      if (permanently) setUploadedAt((dates) => { const next = { ...dates }; delete next[src]; return next; });
+      else setHiddenImages((list) => list.includes(src) ? list : [...list, src]);
+    },
+    restore: async (src) => {
+      const res = await fetch("/api/portal/media", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ src }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Couldn’t restore that picture.");
+      mediaRevision.current++;
+      setLibraryLoading(true);
+      setLibraryAttempt((n) => n + 1);
     },
     add: (src) => {
       mediaRevision.current++;
@@ -374,23 +395,36 @@ export function PortalEditor({
       setImages((list) => (list.includes(src) ? list : [src, ...list]));
       if (/^\/images\/(uploads|proof-table)\//.test(src)) {
         setRemovable((list) => (list.includes(src) ? list : [src, ...list]));
+        setDeletable((list) => (list.includes(src) ? list : [src, ...list]));
+        setUploadedAt((dates) => ({ ...dates, [src]: Date.now() }));
       }
     },
-    upload: async (file, onProgress, onDuplicate) => {
+    upload: async (file, onProgress, onDuplicate, onReplaced) => {
       const prepared = await prepareImage(file);
-      const existing = await existingImageUpload(prepared, knownImages.current);
-      const addExisting = existing && (await onDuplicate?.(existing)) === "add";
-      if (existing && !addExisting) return existing;
-      let data = await postFile<{ src?: string; duplicate?: boolean }>("/api/portal/media", prepared, onProgress, addExisting ? { duplicate: "add" } : undefined);
+      const existing = (await existingImageUpload(prepared, knownImages.current)) ?? (onDuplicate ? sameNameImageUpload(prepared, knownImages.current) : null);
+      const choice = existing ? await onDuplicate?.(existing) ?? "skip" : "skip";
+      if (existing && choice === "skip") return existing;
+      const fields = (mode: "add" | "replace", oldSrc: string): Record<string, string> => mode === "replace" ? { duplicate: mode, replace: oldSrc, checkName: "1" } : { duplicate: mode, checkName: "1" };
+      if (existing && choice === "replace" && JSON.stringify(contentRef.current).includes(existing)) {
+        throw new Error("This older picture is used in the current page draft. Change that picture in its field before replacing the library file.");
+      }
+      let data = await postFile<{ src?: string; duplicate?: boolean; replaced?: string }>("/api/portal/media", prepared, onProgress, existing && choice !== "skip" ? fields(choice, existing) : onDuplicate ? { checkName: "1" } : undefined);
       if (!data.src) throw new UploadBatchError("The server did not return a saved image. Stop this batch and try again after signing in.");
-      if (data.duplicate && (await onDuplicate?.(data.src)) === "add") {
-        data = await postFile<{ src?: string }>("/api/portal/media", prepared, onProgress, { duplicate: "add" });
+      if (data.duplicate) {
+        const serverChoice = await onDuplicate?.(data.src) ?? "skip";
+        if (serverChoice === "replace" && JSON.stringify(contentRef.current).includes(data.src)) {
+          throw new Error("This older picture is used in the current page draft. Change that picture in its field before replacing the library file.");
+        }
+        if (serverChoice !== "skip") data = await postFile<{ src?: string; replaced?: string }>("/api/portal/media", prepared, onProgress, fields(serverChoice, data.src));
         if (!data.src) throw new UploadBatchError("The server did not return a saved image. Stop this batch and try again after signing in.");
       }
       mediaRevision.current++;
-      if (!knownImages.current.includes(data.src)) knownImages.current = [data.src, ...knownImages.current];
-      setImages((list) => (list.includes(data.src!) ? list : [data.src!, ...list]));
-      setRemovable((list) => (list.includes(data.src!) ? list : [data.src!, ...list]));
+      knownImages.current = [data.src, ...knownImages.current.filter((src) => src !== data.src && src !== data.replaced)];
+      setImages((list) => [data.src!, ...list.filter((src) => src !== data.src && src !== data.replaced)]);
+      setRemovable((list) => [data.src!, ...list.filter((src) => src !== data.src && src !== data.replaced)]);
+      setDeletable((list) => [data.src!, ...list.filter((src) => src !== data.src && src !== data.replaced)]);
+      setUploadedAt((dates) => { const next = { ...dates, [data.src!]: Date.now() }; if (data.replaced) delete next[data.replaced]; return next; });
+      if (data.replaced) onReplaced?.(data.replaced);
       return data.src;
     },
   };
@@ -1953,10 +1987,8 @@ export function PortalEditor({
                 sentContentRef.current = null;
                 sentRef.current = null;
                 setSave({ kind: "saved" });
-                void fetch("/api/portal/media").then((r) => r.json()).then((d) => {
-                  setImages(d.images ?? []);
-                  setRemovable(d.removable ?? []);
-                }).catch(() => {});
+                setLibraryLoading(true);
+                setLibraryAttempt((n) => n + 1);
               }}
             />}
           </>}

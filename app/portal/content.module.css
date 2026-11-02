@@ -1188,6 +1188,7 @@
   cursor: pointer;
 }
 .duplicateActions button:hover, .duplicateActions button:focus-visible { border-color: #e8b04b; outline: none; }
+.duplicateActions button[data-primary="true"] { border-color: #e8b04b; background: rgba(232, 176, 75, 0.2); }
 .libBar {
   position: sticky;
   top: 0;
@@ -1222,6 +1223,11 @@
   border-color: #d93a3a;
   font-weight: 700;
 }
+.librarySort { display: inline-flex; align-items: center; gap: 6px; color: var(--p-muted); font-size: 12px; }
+.librarySort select { max-width: min(240px, 65vw); min-height: 34px; padding: 5px 8px; border: 1px solid var(--p-line-strong); border-radius: 8px; background: #261620; color: var(--p-text); font: inherit; }
+.hiddenImages { display: grid; gap: 6px; max-height: 220px; overflow: auto; padding: 8px 0; }
+.hiddenImages > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--p-muted); font-size: 12px; }
+.hiddenImages button { padding: 6px 10px; border: 1px solid var(--p-line-strong); border-radius: 8px; background: transparent; color: var(--p-text); cursor: pointer; }
 
 .libBar button:disabled {
   opacity: 0.45;

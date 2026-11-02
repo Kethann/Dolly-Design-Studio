@@ -133,7 +133,7 @@ export async function prepareImage(file: File): Promise<File> {
 export async function existingImageUpload(file: File, images: readonly string[]): Promise<string | null> {
   if (!globalThis.crypto?.subtle || !images.length) return null;
   try {
-    const base = file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "image";
+    const base = imageBase(file.name);
     const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", await file.arrayBuffer()));
     const hash = Array.from(digest.slice(0, 4), byte => byte.toString(16).padStart(2, "0")).join("");
     const prefix = `/images/uploads/${base}-${hash}.`;
@@ -141,4 +141,12 @@ export async function existingImageUpload(file: File, images: readonly string[])
   } catch {
     return null; // The server still checks duplicates if this browser cannot hash the file.
   }
+}
+
+const imageBase = (name: string) => name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "image";
+
+/** A revised picture with the same filename also counts as a duplicate, even when its bytes changed. */
+export function sameNameImageUpload(file: File, images: readonly string[]): string | null {
+  const pattern = new RegExp(`^/images/uploads/${imageBase(file.name)}-[0-9a-f]{8}(?:-copy-[0-9a-f]{12})?\\.(?:webp|png|jpg|avif|gif|svg)$`);
+  return images.find((src) => pattern.test(src)) ?? null;
 }

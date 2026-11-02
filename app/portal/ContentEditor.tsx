@@ -23,6 +23,7 @@ import { fileSizeLabel, fileName } from "./image-info";
 import { useUploads, type UploadState } from "./use-uploads";
 export { useUploads } from "./use-uploads";
 import { librarySelection } from "./media-selection";
+import { sortMediaImages, type MediaSort } from "./media-sort";
 import { useDialogFocus } from "./dialog-focus";
 import styles from "./content.module.css";
 
@@ -35,11 +36,16 @@ export interface MediaApi {
   reload?: () => void;
   /** The pictures that were uploaded in the portal, and so can be deleted for good. */
   removable: string[];
+  /** Uploaded files that can be permanently deleted; other pictures can be hidden from the library. */
+  deletable: string[];
+  hidden: string[];
+  uploadedAt: Record<string, number>;
   /** Deletes an uploaded picture from the storage completely (the caller has already asked "are you sure?"). */
   remove: (src: string) => Promise<void>;
+  restore: (src: string) => Promise<void>;
   /** Adds a picture that was uploaded somewhere else to the shared library, so it shows up everywhere. */
   add: (src: string) => void;
-  upload: (file: File, onProgress?: (percent: number) => void, onDuplicate?: (existingSrc: string) => Promise<"skip" | "add">) => Promise<string>;
+  upload: (file: File, onProgress?: (percent: number) => void, onDuplicate?: (existingSrc: string) => Promise<"skip" | "add" | "replace">, onReplaced?: (oldSrc: string) => void) => Promise<string>;
 }
 
 interface EditorValue {
@@ -302,7 +308,7 @@ export function DropZone({
 export const prettyName = (src: string) =>
   fileName(src)
     .replace(/\.[a-z0-9]+$/i, "")
-    .replace(/-[0-9a-f]{8}$/i, "")
+    .replace(/-[0-9a-f]{8}(?:-copy-[0-9a-f]{12})?$/i, "")
     .replace(/[-_]+/g, " ")
     .trim();
 
@@ -1532,6 +1538,7 @@ export function ThemeEditor() {
 export function MediaLibrary() {
   const { media, content } = useEditor();
   const [filter, setFilter] = useState("");
+  const [sort, setSort] = useState<MediaSort>("oldest");
   const [showNames, setShowNames] = useState(false);
   /** Select-many mode: tapping a picture ticks it, then one Delete removes all that are ticked. */
   const [selecting, setSelecting] = useState(false);
@@ -1544,11 +1551,12 @@ export function MediaLibrary() {
   const [progress, setProgress] = useState(0);
   const [skippedDuplicates, setSkippedDuplicates] = useState(0);
   const [addedDuplicates, setAddedDuplicates] = useState(0);
+  const [replacedDuplicates, setReplacedDuplicates] = useState(0);
   const [duplicatePrompt, setDuplicatePrompt] = useState<string | null>(null);
-  const duplicatePolicy = useRef<"skip" | "add" | null>(null);
-  const resolveDuplicate = useRef<((choice: "skip" | "add") => void) | null>(null);
-  const skipButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => { if (duplicatePrompt) skipButton.current?.focus({ preventScroll: true }); }, [duplicatePrompt]);
+  const duplicatePolicy = useRef<"skip" | "add" | "replace" | null>(null);
+  const resolveDuplicate = useRef<((choice: "skip" | "add" | "replace") => void) | null>(null);
+  const replaceButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (duplicatePrompt) replaceButton.current?.focus({ preventScroll: true }); }, [duplicatePrompt]);
   useEffect(() => () => { resolveDuplicate.current?.("skip"); resolveDuplicate.current = null; }, []);
   const deleting = useRef(false);
   const deleteDialog = useRef<HTMLDialogElement>(null);
@@ -1558,23 +1566,24 @@ export function MediaLibrary() {
     dialog.showModal();
     return () => dialog.close();
   }, [asking]);
-  const askDuplicate = async (src: string): Promise<"skip" | "add"> => {
-    const choice = duplicatePolicy.current ?? await new Promise<"skip" | "add">((resolve) => {
+  const askDuplicate = async (src: string): Promise<"skip" | "add" | "replace"> => {
+    const choice = duplicatePolicy.current ?? await new Promise<"skip" | "add" | "replace">((resolve) => {
       resolveDuplicate.current = resolve;
       setDuplicatePrompt(prettyName(src));
     });
     if (choice === "skip") setSkippedDuplicates((n) => n + 1);
-    else setAddedDuplicates((n) => n + 1);
+    else if (choice === "add") setAddedDuplicates((n) => n + 1);
     return choice;
   };
-  const decideDuplicate = (choice: "skip" | "add") => {
+  const decideDuplicate = (choice: "skip" | "add" | "replace") => {
     duplicatePolicy.current = choice;
     setDuplicatePrompt(null);
     resolveDuplicate.current?.(choice);
     resolveDuplicate.current = null;
   };
-  const uploads = useUploads<string>("image", (f, p) => media.upload(f, p, askDuplicate));
-  const { shown, shownRemovable, selected, allShownSelected, hiddenSelected } = librarySelection(media.images, media.removable, picked, filter);
+  const uploads = useUploads<string>("image", (f, p) => media.upload(f, p, askDuplicate, () => setReplacedDuplicates((n) => n + 1)));
+  const orderedImages = sortMediaImages(media.images, media.uploadedAt, sort);
+  const { shown, shownRemovable, selected, allShownSelected, hiddenSelected } = librarySelection(orderedImages, media.removable, picked, filter);
   const siteJson = JSON.stringify(content);
   const used = (src: string) => siteJson.includes(src);
   const toggle = (src: string) => setPicked((p) => (p.includes(src) ? p.filter((x) => x !== src) : [...p, src]));
@@ -1608,7 +1617,7 @@ export function MediaLibrary() {
         await media.remove(src);
         done.push(src);
       } catch (err) {
-        failed.push(err instanceof Error ? err.message : "Couldn’t delete that picture.");
+        failed.push(err instanceof Error ? err.message : "Couldn’t remove that picture.");
       }
       setProgress(done.length + failed.length);
     }
@@ -1616,14 +1625,15 @@ export function MediaLibrary() {
     setBusy(false);
     setPicked((p) => p.filter((x) => !done.includes(x)));
     if (failed.length) {
-      setError(`${list.length - failed.length} deleted, ${failed.length} couldn’t be: ${failed[0]}`);
+      setError(`${list.length - failed.length} removed, ${failed.length} couldn’t be: ${failed[0]}`);
     } else if (selecting) {
       stopSelecting();
     }
-    if (!failed.length) setNotice(`${done.length} ${done.length === 1 ? "picture deleted" : "pictures deleted"}.`);
+    if (!failed.length) setNotice(`${done.length} ${done.length === 1 ? "picture removed" : "pictures removed"} from the library.`);
     setAsking(null);
   }
   const askingUsed = asking ? asking.filter(used).length : 0;
+  const askingDeleted = asking ? asking.filter((src) => media.deletable.includes(src)).length : 0;
   return (
     <div className={styles.page} role="region" aria-label="Image library" tabIndex={0} onKeyDown={(e) => {
       if (asking || busy) return;
@@ -1652,17 +1662,20 @@ export function MediaLibrary() {
             state={uploads.state}
             title="Drop pictures here, or click to choose"
             hint="PNG, JPG and JPEG are supported, up to 12 MB each. You can also use WebP, AVIF, GIF, SVG, TIFF, BMP or ICO. Large photos are optimized for the site (GIFs stay animated, SVGs stay sharp), ready to pick in any picture field."
-            onFiles={(files) => { duplicatePolicy.current = null; setSkippedDuplicates(0); setAddedDuplicates(0); void uploads.start(files, () => {}); }}
+            onFiles={(files) => { duplicatePolicy.current = null; setSkippedDuplicates(0); setAddedDuplicates(0); setReplacedDuplicates(0); void uploads.start(files, () => {}); }}
           />
           {duplicatePrompt && <div className={styles.duplicateChoice} role="group" aria-label="Duplicate upload choice">
-            <p role="status">“{duplicatePrompt}” is already in the library. What should happen to duplicates in this batch?</p>
+            <p role="status">“{duplicatePrompt}” has the same image name as one already in the library. What should happen to duplicates in this batch?</p>
             <div className={styles.duplicateActions}>
-              <button ref={skipButton} type="button" onClick={() => decideDuplicate("skip")}>Skip duplicates</button>
+              <button ref={replaceButton} type="button" data-primary="true" onClick={() => decideDuplicate("replace")}>Replace old with new</button>
+              <button type="button" onClick={() => decideDuplicate("skip")}>Skip duplicates</button>
               <button type="button" onClick={() => decideDuplicate("add")}>Add separate copies</button>
             </div>
+            <p className={styles.hint}>Replace removes the older library file after the new one is saved. Pictures still used on the site must be changed there first.</p>
           </div>}
           {skippedDuplicates > 0 && <p className={styles.hint} role="status">{skippedDuplicates} duplicate {skippedDuplicates === 1 ? "picture" : "pictures"} already in the library — skipped.</p>}
           {addedDuplicates > 0 && <p className={styles.hint} role="status">{addedDuplicates} duplicate {addedDuplicates === 1 ? "copy" : "copies"} added separately.</p>}
+          {replacedDuplicates > 0 && <p className={styles.hint} role="status">{replacedDuplicates} older {replacedDuplicates === 1 ? "picture" : "pictures"} replaced with the new upload.</p>}
           <input className={styles.input} aria-label="Search images by name or folder" placeholder="Search by name or folder" value={filter} disabled={busy} onChange={(e) => setFilter(e.target.value)} />
           <div className={styles.libBar}>
             <span className={styles.grow} role="status">
@@ -1670,6 +1683,14 @@ export function MediaLibrary() {
                 ? `${selected.length} selected${hiddenSelected ? ` (${hiddenSelected} hidden by search)` : ""}`
                 : `${media.images.length} pictures${filter ? ` — ${shown.length} match` : ""}`}
             </span>
+            <label className={styles.librarySort}>Sort
+              <select aria-label="Sort image library" value={sort} onChange={(e) => setSort(e.target.value as MediaSort)}>
+                <option value="oldest">Upload date: oldest first</option>
+                <option value="newest">Upload date: newest first</option>
+                <option value="name-asc">Name: A to Z</option>
+                <option value="name-desc">Name: Z to A</option>
+              </select>
+            </label>
             <button type="button" onClick={selectShown} aria-keyshortcuts="Control+A Meta+A" disabled={busy || shownRemovable.length === 0 || allShownSelected}>
               Select all{filter.trim() ? " shown" : ""}
             </button>
@@ -1683,7 +1704,7 @@ export function MediaLibrary() {
                   Clear selection
                 </button>
                 <button type="button" data-danger="true" aria-keyshortcuts="Delete" onClick={() => askDelete(selected)} disabled={selected.length === 0 || busy}>
-                  Delete selected{selected.length ? ` (${selected.length})` : ""}
+                  Remove selected{selected.length ? ` (${selected.length})` : ""}
                 </button>
                 <button type="button" onClick={stopSelecting} disabled={busy}>
                   Done
@@ -1692,7 +1713,7 @@ export function MediaLibrary() {
             )}
           </div>
           <details className={styles.effectHelp}><summary>Selection tips</summary><p className={styles.hint}>
-            Choose all uploaded pictures or pick individual pictures with Custom select. Search limits Select all to the results shown. Studio assets and images used by the intro are protected.
+            Choose all pictures or pick individual pictures with Custom select. Search limits Select all to the results shown. Studio and in-use pictures can be hidden from this library without breaking the site.
           </p>
           <p className={styles.hint}>With the library focused: Ctrl/Cmd+A selects all shown, Space toggles a focused checkbox, Delete reviews the selection, and Esc cancels selection.</p></details>
           {notice && <p className={styles.hint} role="status">{notice}</p>}
@@ -1725,7 +1746,7 @@ export function MediaLibrary() {
                       </span>
                     )}
                     {!selecting && canRemove && (
-                      <button type="button" className={styles.libraryX} aria-label={`Delete ${src.replace("/images/", "")}`} title="Delete this picture" disabled={busy} onClick={() => askDelete([src])}>
+                      <button type="button" className={styles.libraryX} aria-label={`Remove ${src.replace("/images/", "")} from library`} title={media.deletable.includes(src) ? "Delete uploaded picture" : "Hide from library (the site keeps using it)"} disabled={busy} onClick={() => askDelete([src])}>
                         ✕
                       </button>
                     )}
@@ -1735,18 +1756,25 @@ export function MediaLibrary() {
               );
             })}
           </div>
+          {media.hidden.length > 0 && <details className={styles.imageDetails}><summary>Hidden pictures ({media.hidden.length})</summary>
+            <div className={styles.hiddenImages}>
+              {media.hidden.map((src) => <div key={src}>
+                <span>{prettyName(src)}</span>
+                <button type="button" disabled={busy} onClick={() => { void media.restore(src).catch((err) => setError(err instanceof Error ? err.message : "Couldn’t restore that picture.")); }}>Restore to library</button>
+              </div>)}
+            </div>
+          </details>}
         </div>
       </section>
       {asking &&
         typeof document !== "undefined" &&
         createPortal(
-            <dialog ref={deleteDialog} className={`${styles.delDialog} ${styles.libraryDeleteDialog}`} role="alertdialog" aria-label="Delete for good?" data-lenis-prevent onCancel={(e) => { e.preventDefault(); if (!busy) setAsking(null); }}>
-              <h3>Delete {asking.length === 1 ? "this picture" : `${asking.length} pictures`} for good?</h3>
+            <dialog ref={deleteDialog} className={`${styles.delDialog} ${styles.libraryDeleteDialog}`} role="alertdialog" aria-label="Remove from library?" data-lenis-prevent onCancel={(e) => { e.preventDefault(); if (!busy) setAsking(null); }}>
+              <h3>Remove {asking.length === 1 ? "this picture" : `${asking.length} pictures`} from the library?</h3>
               <p>
-                {askingUsed
-                  ? `${askingUsed === asking.length && asking.length === 1 ? "It is" : `${askingUsed} of them ${askingUsed === 1 ? "is" : "are"}`} used on the site. Replace or clear those image slots to avoid missing pictures.`
-                  : "Any page that still references these files may show missing pictures until its image slots are updated."}{" "}
-                This can’t be undone.
+                {askingDeleted ? `${askingDeleted} uploaded ${askingDeleted === 1 ? "file will" : "files will"} be permanently deleted. ` : ""}
+                {asking.length - askingDeleted ? `${asking.length - askingDeleted} ${asking.length - askingDeleted === 1 ? "picture will" : "pictures will"} be hidden here, but stay available to pages using them. You can restore them below. ` : ""}
+                {askingUsed && askingDeleted ? `${askingUsed} selected ${askingUsed === 1 ? "picture is" : "pictures are"} used in the current draft; clear those image slots first to avoid missing pictures.` : ""}
               </p>
               <span className={styles.delThumbs} aria-hidden="true">
                 {asking.slice(0, 10).map((src) => (
@@ -1760,7 +1788,7 @@ export function MediaLibrary() {
                   Cancel
                 </button>
                 <button type="button" data-danger="true" onClick={() => removeAll(asking)} disabled={busy}>
-                  {busy ? `Deleting ${progress} / ${asking.length}…` : asking.length === 1 ? "Delete" : `Delete ${asking.length}`}
+                  {busy ? `Removing ${progress} / ${asking.length}…` : asking.length === 1 ? "Remove" : `Remove ${asking.length}`}
                 </button>
               </span>
             </dialog>,

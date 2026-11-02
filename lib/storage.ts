@@ -28,6 +28,8 @@ export interface Store {
   copy(key: string, destination: string): Promise<void>;
   /** Every key that starts with the prefix, in alphabetical order. */
   list(prefix: string): Promise<string[]>;
+  /** Storage upload times, when available, for chronological media-library sorting. */
+  listWithDates?(prefix: string): Promise<{ key: string; uploadedAt: number }[]>;
   remove(key: string): Promise<void>;
   /** Total bytes of everything the portal has saved (content, accounts, enquiries, uploaded pictures and fonts). */
   usedBytes(): Promise<number>;
@@ -116,6 +118,14 @@ const files: Store = {
       return [];
     }
   },
+  async listWithDates(prefix) {
+    const keys = await files.list(prefix);
+    const entries = await Promise.all(keys.map(async (key) => {
+      try { return { key, uploadedAt: (await stat(/*turbopackIgnore: true*/ diskPath(key))).mtimeMs }; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; }
+    }));
+    return entries.filter((entry): entry is { key: string; uploadedAt: number } => entry !== null);
+  },
   async remove(key) {
     await unlink(diskPath(key)).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== "ENOENT") throw error;
@@ -149,7 +159,7 @@ interface R2Bucket {
   head(key: string): Promise<{ size: number } | null>;
   put(key: string, value: ArrayBuffer | Uint8Array | string | ReadableStream<Uint8Array>, options?: { httpMetadata?: { contentType?: string }; onlyIf?: Headers }): Promise<unknown | null>;
   delete(key: string): Promise<void>;
-  list(options: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string; size?: number }[]; truncated: boolean; cursor?: string }>;
+  list(options: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string; size?: number; uploaded?: Date }[]; truncated: boolean; cursor?: string }>;
 }
 
 function r2(bucket: R2Bucket): Store {
@@ -187,6 +197,16 @@ function r2(bucket: R2Bucket): Store {
         cursor = page.truncated ? page.cursor : undefined;
       } while (cursor && keys.length < 20000);
       return keys.sort();
+    },
+    async listWithDates(prefix) {
+      const entries: { key: string; uploadedAt: number }[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await bucket.list({ prefix, cursor, limit: 1000 });
+        entries.push(...page.objects.map((object) => ({ key: object.key, uploadedAt: object.uploaded ? new Date(object.uploaded).getTime() : 0 })));
+        cursor = page.truncated ? page.cursor : undefined;
+      } while (cursor && entries.length < 20000);
+      return entries;
     },
     async remove(key) {
       await bucket.delete(key);

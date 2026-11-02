@@ -48,7 +48,7 @@ export function useConfirmDelete(): { ask: (a: DeleteAsk) => void; dialog: React
   const mine = open ? JSON.stringify(open.item) : "";
   const others = open?.elsewhere ? JSON.stringify(open.elsewhere) : "";
   const deletable = open
-    ? picturesIn(open.item).filter((src) => media.removable.includes(src) && !(count(siteJson, src) > count(mine, src)) && !others.includes(src))
+    ? picturesIn(open.item).filter((src) => media.deletable.includes(src) && !(count(siteJson, src) > count(mine, src)) && !others.includes(src))
     : [];
 
   const close = () => {

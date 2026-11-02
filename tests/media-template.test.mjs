@@ -2648,7 +2648,7 @@ test("library loading distinguishes empty results from authentication, server an
       assert.equal(options.cache, "no-store");
       return Response.json({ images: [], removable: [] });
     };
-    assert.deepEqual(await readMediaLibrary(signal), { images: [], removable: [] });
+    assert.deepEqual(await readMediaLibrary(signal), { images: [], removable: [], deletable: [], hidden: [], uploadedAt: {} });
     for (const status of [401, 500]) {
       globalThis.fetch = async () => Response.json({ error: "Unavailable" }, { status });
       await assert.rejects(readMediaLibrary(signal), status === 401 ? /another tab/ : /retry/);
@@ -2658,7 +2658,9 @@ test("library loading distinguishes empty results from authentication, server an
       await assert.rejects(readMediaLibrary(signal), /incomplete/);
     }
     globalThis.fetch = async () => Response.json({ images: ["one", "one"], removable: ["one", "missing"] });
-    assert.deepEqual(await readMediaLibrary(signal), { images: ["one"], removable: ["one"] });
+    assert.deepEqual(await readMediaLibrary(signal), { images: ["one"], removable: ["one"], deletable: ["one"], hidden: [], uploadedAt: {} });
+    globalThis.fetch = async () => Response.json({ images: ["/images/uploads/new.jpg"], removable: ["/images/uploads/new.jpg"], deletable: [], hidden: ["/images/old.png"], uploadedAt: { "/images/uploads/new.jpg": 200, "/images/old.png": 100, missing: 300 } });
+    assert.deepEqual(await readMediaLibrary(signal), { images: ["/images/uploads/new.jpg"], removable: ["/images/uploads/new.jpg"], deletable: [], hidden: ["/images/old.png"], uploadedAt: { "/images/uploads/new.jpg": 200, "/images/old.png": 100 } });
   } finally { globalThis.fetch = previous; }
 });
 
@@ -2834,7 +2836,7 @@ test("deleting an item waits for library work, retains failures for retry, and s
     react: { useState: state, useRef: (initial) => state({ current: initial })[0] },
     "react-dom": { createPortal: (node) => node },
     "./dialog-focus": { useDialogFocus: () => {} },
-    "./ContentEditor": { useEditor: () => ({ content: { cards: [item] }, media: { removable: [src], remove: async () => { removeCalls++; await remove(); } } }) },
+    "./ContentEditor": { useEditor: () => ({ content: { cards: [item] }, media: { removable: [src], deletable: [src], remove: async () => { removeCalls++; await remove(); } } }) },
     "./content.module.css": {},
   })("app/portal/DeleteDialog.tsx");
   const render = () => {
@@ -3957,6 +3959,8 @@ test("the Cloudflare media library includes newly uploaded slate artwork", async
     "@/lib/portal/auth": { getPortalUser: async () => ({ role: "owner" }) },
     "@/lib/portal/activity": {},
     "@/lib/portal/image": {},
+    "@/lib/portal/media-hidden": { hiddenLibraryImages: async () => [], setLibraryImageHidden: async () => {} },
+    "@/lib/content/store": { getContent: async () => ({}) },
     "@/lib/portal/settings-store": { readIntroSettings: async () => fixture().settings },
     "@/lib/storage": { store: async () => ({
       kind: "r2",
@@ -3972,48 +3976,89 @@ test("the Cloudflare media library includes newly uploaded slate artwork", async
 });
 
 test("folder upload detects exact library repeats before transferring them", async () => {
-  const { existingImageUpload } = loader()("app/portal/upload.ts");
+  const { existingImageUpload, sameNameImageUpload } = loader()("app/portal/upload.ts");
   const file = new File(["first image"], "39.jpg", { type: "image/jpeg" });
   const hash = createHash("sha1").update("first image").digest("hex").slice(0, 8);
   const src = `/images/uploads/39-${hash}.jpg`;
   assert.equal(await existingImageUpload(file, [src]), src);
   assert.equal(await existingImageUpload(new File(["changed image"], "39.jpg", { type: "image/jpeg" }), [src]), null);
+  assert.equal(sameNameImageUpload(new File(["changed image"], "39.jpg", { type: "image/jpeg" }), [src]), src);
+  assert.equal(sameNameImageUpload(new File(["different image"], "40.jpg", { type: "image/jpeg" }), [src]), null);
   assert.equal(await existingImageUpload(file, []), null);
 });
 
-test("image upload reuses an existing file instead of storing and logging a folder duplicate", async () => {
+test("folder upload can skip, add or replace an old same-name picture without breaking used artwork", async () => {
   const saved = new Map();
   const activity = [];
   let file = new File(["first image"], "39.jpg", { type: "image/jpeg" });
   let duplicateMode = "skip";
+  let replaceSrc = "";
+  let checkName = true;
+  let content = {};
+  let settings = {};
+  let failRemove = "";
   const route = loader({
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
     "@/lib/portal/auth": { getPortalUser: async () => ({ role: "owner" }) },
-    "@/lib/portal/body-limit": { tooLarge: () => null, readUploadForm: async () => { const form = new FormData(); form.set("file", file); form.set("duplicate", duplicateMode); return form; }, UploadTooLargeError: class UploadTooLargeError extends Error {} },
+    "@/lib/portal/body-limit": { tooLarge: () => null, readUploadForm: async () => { const form = new FormData(); form.set("file", file); form.set("duplicate", duplicateMode); form.set("replace", replaceSrc); if (checkName) form.set("checkName", "1"); return form; }, UploadTooLargeError: class UploadTooLargeError extends Error {} },
     "@/lib/portal/image": { processImage: async (bytes) => ({ bytes, ext: "jpg", contentType: "image/jpeg" }) },
     "@/lib/portal/image-work": { isImageBusyError: () => false },
     "@/lib/portal/activity": { logActivity: async (event) => activity.push(event) },
-    "@/lib/storage": { store: async () => ({ size: async (key) => saved.get(key)?.length ?? null, putBytes: async (key, bytes) => saved.set(key, bytes) }) },
+    "@/lib/content/store": { getContent: async () => content },
+    "@/lib/portal/settings-store": { readIntroSettings: async () => settings },
+    "@/lib/portal/media-hidden": { hiddenLibraryImages: async () => [], setLibraryImageHidden: async () => {} },
+    "@/lib/storage": { store: async () => ({ list: async (prefix) => [...saved.keys()].filter(key => key.startsWith(prefix)), size: async (key) => saved.get(key)?.length ?? null, putBytes: async (key, bytes) => saved.set(key, bytes), remove: async (key) => { if (key === failRemove) throw new Error("Delete failed"); saved.delete(key); } }) },
   })("app/api/portal/media/route.ts");
-  const upload = async () => (await route.POST({ headers: new Headers() })).json();
-  const first = await upload();
+  const upload = async () => route.POST({ headers: new Headers() });
+  const first = await (await upload()).json();
   assert.match(first.src, /^\/images\/uploads\/39-[0-9a-f]{8}\.jpg$/);
   assert.equal(first.duplicate, undefined);
-  assert.deepEqual(await upload(), { src: first.src, duplicate: true });
+  assert.deepEqual(await (await upload()).json(), { src: first.src, duplicate: true });
   assert.equal(saved.size, 1);
   assert.equal(activity.length, 1);
   duplicateMode = "add";
-  const copy = await upload();
+  const copy = await (await upload()).json();
   assert.match(copy.src, /^\/images\/uploads\/39-[0-9a-f]{8}-copy-[0-9a-f]{12}\.jpg$/);
   assert.notEqual(copy.src, first.src);
   assert.equal(saved.size, 2, "Adding a duplicate creates a separate item without overwriting the original");
   assert.equal(activity.length, 2);
   duplicateMode = "skip";
   file = new File(["changed image"], "39.jpg", { type: "image/jpeg" });
-  const changed = await upload();
-  assert.notEqual(changed.src, first.src, "A different image with the same filename is still uploaded");
-  assert.equal(saved.size, 3);
+  assert.deepEqual(await (await upload()).json(), { src: first.src, duplicate: true }, "A changed image with the same name asks before replacing");
+  replaceSrc = first.src;
+  duplicateMode = "replace";
+  const replaced = await (await upload()).json();
+  assert.equal(replaced.replaced, first.src);
+  assert.notEqual(replaced.src, first.src, "The new image uses a fresh URL so immutable caches cannot serve the old pixels");
+  assert.equal(saved.has(`uploads/images/${first.src.split("/").at(-1)}`), false);
+  assert.equal(saved.has(`uploads/images/${replaced.src.split("/").at(-1)}`), true);
+  assert.equal(saved.size, 2, "The selected old file is removed after the new one is saved");
+  content = { sample: copy.src };
+  replaceSrc = copy.src;
+  const blocked = await upload();
+  assert.equal(blocked.status, 409, "Used images must not be removed from published content");
+  assert.match((await blocked.json()).error, /used on the site/);
+  assert.equal(saved.has(`uploads/images/${copy.src.split("/").at(-1)}`), true);
+  assert.equal(saved.size, 2);
   assert.equal(activity.length, 3);
+  content = {};
+  settings = { proofTable: { items: [{ src: copy.src }] } };
+  assert.equal((await upload()).status, 409, "Design settings also protect used images");
+  settings = {};
+  failRemove = `uploads/images/${copy.src.split("/").at(-1)}`;
+  const beforeFailedRemove = [...saved.keys()];
+  const originalError = console.error;
+  console.error = () => {};
+  try { assert.equal((await upload()).status, 500, "A failed old-file removal rolls back the new upload"); }
+  finally { console.error = originalError; }
+  assert.deepEqual([...saved.keys()], beforeFailedRemove);
+  failRemove = "";
+  checkName = false;
+  duplicateMode = "skip";
+  replaceSrc = "";
+  const ordinarySingleUpload = await (await upload()).json();
+  assert.notEqual(ordinarySingleUpload.src, replaced.src, "Outside folder uploads, a revised same-name image still uploads normally");
+  assert.equal(saved.size, 3);
 });
 
 test("library selections survive search changes by identity and exclude stale or protected files", () => {
@@ -4042,8 +4087,9 @@ test("bulk library listings and direct deletion protect intro dependencies", asy
     "@/lib/portal/auth": { getPortalUser: async () => ({ role: "owner" }) },
     "@/lib/portal/activity": { logActivity: async () => {} },
     "@/lib/portal/image": {},
-    "@/lib/content/store": {},
+    "@/lib/content/store": { getContent: async () => ({}) },
     "@/lib/portal/settings-store": { readIntroSettings: async () => settings },
+    "@/lib/portal/media-hidden": { hiddenLibraryImages: async () => [], setLibraryImageHidden: async () => {} },
     "@/lib/storage": { store: async () => ({
       kind: "r2",
       getText: async () => JSON.stringify(settings),
@@ -4054,7 +4100,9 @@ test("bulk library listings and direct deletion protect intro dependencies", asy
   const list = loader(mocks)("app/api/portal/media/route.ts");
   const library = await (await list.GET()).json();
   assert.ok(library.images.includes("/images/uploads/protected-pattern.webp"));
-  assert.deepEqual(library.removable, ["/images/uploads/art.webp"]);
+  assert.ok(library.removable.includes("/images/uploads/art.webp"));
+  assert.ok(library.removable.includes("/images/uploads/protected-pattern.webp"));
+  assert.deepEqual(library.deletable, ["/images/uploads/art.webp"]);
   const route = loader(mocks)("app/api/portal/storage/route.ts");
   const request = (key, confirmed = true) => ({ headers: new Headers({ origin: "https://studio.test" }), nextUrl: new URL("https://studio.test"), json: async () => ({ key, confirmed }) });
   assert.equal((await route.DELETE(request("uploads/images/protected-pattern.webp"))).status, 409);
@@ -4062,6 +4110,57 @@ test("bulk library listings and direct deletion protect intro dependencies", asy
   assert.equal((await route.DELETE(request("uploads/images/art.webp", false))).status, 400);
   assert.equal((await route.DELETE(request("uploads/images/art.webp"))).status, 200);
   assert.deepEqual(removed, ["uploads/images/art.webp"]);
+});
+
+test("image library sorts by actual upload time and offers both name orders", () => {
+  const { sortMediaImages } = loader()("app/portal/media-sort.ts");
+  const images = ["/images/uploads/10.webp", "/images/old.png", "/images/uploads/2.webp", "/images/uploads/1.webp"];
+  const times = { "/images/uploads/10.webp": 300, "/images/uploads/2.webp": 100, "/images/uploads/1.webp": 200 };
+  assert.deepEqual(sortMediaImages(images, times, "oldest"), [images[2], images[3], images[0], images[1]]);
+  assert.deepEqual(sortMediaImages(images, times, "newest"), [images[0], images[3], images[2], images[1]]);
+  assert.deepEqual(sortMediaImages(images, times, "name-asc"), [images[1], images[3], images[2], images[0]]);
+  assert.deepEqual(sortMediaImages(images, times, "name-desc"), [images[0], images[2], images[3], images[1]]);
+});
+
+test("protected images can be hidden and restored without deleting the stored file", async () => {
+  const hidden = new Set();
+  const removed = [];
+  const settings = fixture().settings;
+  const content = { hero: { image: "/images/uploads/new.webp" } };
+  const mocks = {
+    "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
+    "@/lib/portal/auth": { getPortalUser: async () => ({ role: "owner" }) },
+    "@/lib/portal/activity": { logActivity: async () => {} },
+    "@/lib/portal/image": {},
+    "@/lib/content/store": { getContent: async () => content },
+    "@/lib/portal/settings-store": { readIntroSettings: async () => settings },
+    "@/lib/portal/media-hidden": { hiddenLibraryImages: async () => [...hidden], setLibraryImageHidden: async (src, hide) => hide ? hidden.add(src) : hidden.delete(src) },
+    "@/lib/storage": { store: async () => ({
+      kind: "r2",
+      listWithDates: async (prefix) => prefix === "uploads/images/" ? [
+        { key: "uploads/images/protected-pattern.webp", uploadedAt: 200 },
+        { key: "uploads/images/new.webp", uploadedAt: 300 },
+        { key: "uploads/images/old.webp", uploadedAt: 100 },
+      ] : [],
+      remove: async (key) => removed.push(key),
+    }) },
+  };
+  const route = loader(mocks)("app/api/portal/media/route.ts");
+  const protectedSrc = "/images/uploads/protected-pattern.webp";
+  const original = await (await route.GET()).json();
+  assert.deepEqual(original.images.slice(0, 3), ["/images/uploads/old.webp", protectedSrc, "/images/uploads/new.webp"]);
+  assert.equal(original.uploadedAt[protectedSrc], 200);
+  assert.ok(original.removable.includes(protectedSrc));
+  assert.ok(!original.deletable.includes(protectedSrc));
+  assert.ok(!original.deletable.includes(content.hero.image), "Published page images stay stored when removed from the library");
+  const request = (src) => ({ headers: new Headers(), json: async () => ({ src }) });
+  assert.equal((await route.DELETE(request(protectedSrc))).status, 200);
+  const afterHide = await (await route.GET()).json();
+  assert.ok(!afterHide.images.includes(protectedSrc));
+  assert.ok(afterHide.hidden.includes(protectedSrc));
+  assert.deepEqual(removed, []);
+  assert.equal((await route.PUT(request(protectedSrc))).status, 200);
+  assert.ok((await (await route.GET()).json()).images.includes(protectedSrc));
 });
 
 test("upright typography migrates legacy italic references without losing other styles", () => {
