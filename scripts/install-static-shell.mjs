@@ -21,4 +21,5 @@ for (const route of routes) {
   await mkdir(dirname(destination), { recursive: true });
   await copyFile(source, destination);
 }
+await copyFile(join(root, ".next", "server", "app", "_not-found.html"), join(target, "404.html"));
 console.log(`Installed ${routes.length} static page shells into Workers Assets.`);

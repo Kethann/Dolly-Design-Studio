@@ -1,3 +1,4 @@
+import { IMAGE_SIZE_QUALITY, IMAGE_SIZE_WIDTHS } from "@/lib/image-sizes";
 import { MAX_PSD_MB } from "./psd-budget";
 
 /** A site-wide response means the rest of a folder should wait, not fail one by one. */
@@ -40,6 +41,41 @@ export function postFile<T>(url: string, file: File, onProgress?: (percent: numb
     for (const [key, value] of Object.entries(fields ?? {})) form.append(key, value);
     xhr.send(form);
   });
+}
+
+/**
+ * Makes the smaller copies of a picture that was just uploaded, here in the browser, and sends them one at a time (see
+ * lib/image-sizes.ts). It never fails the upload: a copy that is missing means visitors get the original until
+ * `npm run images:sizes` fills the gap. Browsers that can't write WebP (Safari) simply skip this.
+ */
+export async function saveImageSizes(src: string, file: Blob): Promise<void> {
+  if (!/\.(webp|png|jpe?g|avif)$/i.test(src)) return;
+  let bitmap: ImageBitmap | null = null;
+  try {
+    bitmap = await createImageBitmap(file);
+    for (const width of IMAGE_SIZE_WIDTHS) {
+      if (width >= bitmap.width) break;
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = Math.max(1, Math.round(bitmap.height * width / bitmap.width));
+      const g = canvas.getContext("2d");
+      if (!g) return;
+      g.imageSmoothingQuality = "high";
+      g.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", IMAGE_SIZE_QUALITY / 100));
+      canvas.width = canvas.height = 0;
+      if (blob?.type !== "image/webp") return;
+      const form = new FormData();
+      form.append("src", src);
+      form.append("width", String(width));
+      form.append("file", blob, `${width}.webp`);
+      await fetch("/api/portal/image-size", { method: "POST", body: form });
+    }
+  } catch (error) {
+    console.warn("[portal] could not save the picture's smaller copies", error);
+  } finally {
+    bitmap?.close();
+  }
 }
 
 /** The most one uploaded file may weigh. Anything bigger is refused (pictures made from a Photoshop file's layers are fitted under it). */

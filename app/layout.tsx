@@ -88,7 +88,6 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
     },
     twitter: { card: "summary_large_image", title, description: site.description, images: [versionedSrc("/images/brand/og-image.jpg")] },
-    alternates: { canonical: siteUrl },
   };
 }
 

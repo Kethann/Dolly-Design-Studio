@@ -9,6 +9,7 @@
 //
 // Everything is addressed by a "key" like "data/portal-users.json" or "uploads/images/logo-3fa2c1.webp".
 import { copyFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { imageSizeKeys } from "./image-sizes";
 import path from "node:path";
 import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
@@ -50,6 +51,7 @@ const DISK_FOLDERS: [string, string[]][] = [
   ["uploads/videos/", [".media", "videos"]],
   ["uploads/proof/", ["public", "images", "proof-table"]],
   ["uploads/textures/", ["public", "images", "textures"]],
+  ["uploads/sizes/", [".media", "sizes"]],
 ];
 
 function diskPath(key: string): string {
@@ -215,6 +217,8 @@ function r2(bucket: R2Bucket): Store {
     },
     async remove(key) {
       await bucket.delete(key);
+      // Its smaller copies go with it (deleting one that was never made is harmless).
+      for (const size of imageSizeKeys(key)) await bucket.delete(size);
     },
     async usedBytes() {
       return (await this.sizes()).reduce((n, f) => n + f.size, 0);

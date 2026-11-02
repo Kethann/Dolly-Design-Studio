@@ -9,6 +9,8 @@ import { Services } from "@/components/sections/Services";
 import { Contact } from "@/components/sections/Contact";
 import { TitleSection } from "@/components/proof-table/TitleSection";
 
+export const metadata = { alternates: { canonical: "/" } };
+
 /**
  * The home page, in order: Intro · About our agency · Experience / projects / clients · Clients & collaborations ·
  * About the founder · Our projects slate (the Proof Table) · Project gallery · How we work · Our services · Contact us.

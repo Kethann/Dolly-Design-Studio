@@ -11,6 +11,7 @@
     "test": "node --test tests/media-template.test.mjs",
     "typecheck": "tsc --noEmit",
     "images": "node scripts/build-image-manifest.mjs",
+    "images:sizes": "node scripts/make-image-sizes.mjs",
     "cf:build": "node scripts/with-build-id.mjs cross-env DEPLOY_TARGET=cloudflare NEXT_PUBLIC_SITE_URL=https://dollydesignstudio.pages.dev opennextjs-cloudflare build && node scripts/install-static-shell.mjs",
     "cf:preview": "npm run cf:build && opennextjs-cloudflare preview",
     "cf:deploy": "node scripts/deploy-cloudflare.mjs",

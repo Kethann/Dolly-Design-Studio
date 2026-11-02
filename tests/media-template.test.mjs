@@ -4613,3 +4613,31 @@ test("new text effects keep their settings, reject unsafe values and offer only 
   const dots = readFileSync(path.join(root, "components/fx/ParticleText.tsx"), "utf8");
   assert.match(dots, /textTransform === "uppercase"/, "Dots spell what the page shows");
 });
+
+test("visits never resize pictures: requests map to copies made ahead of time and fall back to the original", () => {
+  const { IMAGE_SIZE_WIDTHS, imageSizeWidth, imageSizeKey, imageSizeKeys } = loader()("lib/image-sizes.ts");
+  // Every width the site asks for lands on a copy at least that wide, so nothing looks softer than before.
+  for (const asked of [64, 120, 160, 240, 256, 320, 384, 480, 640, 768, 828, 960, 1024, 1080, 1280, 1600, 1920, 2400]) {
+    assert.ok(imageSizeWidth(asked) >= asked);
+    assert.ok(IMAGE_SIZE_WIDTHS.includes(imageSizeWidth(asked)));
+  }
+  assert.equal(imageSizeWidth(2560), null);
+  assert.equal(imageSizeKey("uploads/images/art.png", 640), "uploads/sizes/images/art.png/640.webp");
+  assert.equal(imageSizeKeys("uploads/proof/title.webp").length, IMAGE_SIZE_WIDTHS.length);
+  for (const never of ["uploads/images/logo.svg", "uploads/images/loop.gif", "uploads/fonts/a.woff2", "uploads/sizes/images/a.png/640.webp"]) assert.deepEqual(imageSizeKeys(never), []);
+  const worker = readFileSync("cf-worker.mjs", "utf8");
+  assert.doesNotMatch(worker, /env\.IMAGES/, "The Worker has no CPU to spare for resizing");
+  assert.match(worker, /next-router-prefetch/, "Prefetches must not start the Next server");
+  // A missing-page shortcut must never swallow an address next.config.ts redirects.
+  const redirected = [...readFileSync("next.config.ts", "utf8").matchAll(/"\/([a-z-]+(?:\.html)?)"/g)].map((m) => m[1]).filter((p) => /^(home|index|projects|gallery|works|portfolio|breakdown|about|agency|founder|clients|process|services|contact|contact-us)$/.test(p));
+  assert.ok(redirected.length >= 15);
+  const answers = new RegExp(worker.match(/const NEXT_ANSWERS = \/(.+)\/;/)[1]);
+  for (const p of redirected) assert.match(`/${p}`, answers);
+});
+
+test("every page names its own canonical address", () => {
+  assert.doesNotMatch(readFileSync("app/layout.tsx", "utf8"), /canonical/, "A layout canonical is inherited by every page");
+  for (const [file, address] of [["app/page.tsx", '"/"'], ["app/work/page.tsx", '"/work"'], ["app/breakdowns/page.tsx", '"/breakdowns"'], ["app/work/[slug]/page.tsx", "`/work/${slug}`"], ["app/process/[slug]/page.tsx", "`/process/${slug}`"]]) {
+    assert.ok(readFileSync(file, "utf8").includes(`canonical: ${address}`), file);
+  }
+});

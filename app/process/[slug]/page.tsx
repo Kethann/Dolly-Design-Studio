@@ -20,9 +20,10 @@ async function find(slug: string) {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const hit = await find((await params).slug);
+  const { slug } = await params;
+  const hit = await find(slug);
   if (!hit) return {};
-  return { title: `${plainFx(hit.card.title)} — How we work`, description: plainFx(hit.page.pageIntro.trim() || hit.card.body) };
+  return { title: `${plainFx(hit.card.title)} — How we work`, description: plainFx(hit.page.pageIntro.trim() || hit.card.body), alternates: { canonical: `/process/${slug}` } };
 }
 
 export default async function ProcessPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {

@@ -26,7 +26,7 @@ import { Choice, ColorRow, Dial, HexInput, Section, Slider, Toggle, percent } fr
 import { ContentEditor, EditorProvider, ListModeProvider, getAt, setAt, MediaLibrary, ThemeEditor, TypographyEditor, type MediaApi } from "./ContentEditor";
 import { CONTENT_PAGES, findList, findSection, type Field } from "./content-schema";
 import { Spotlight, type SpotEntry } from "./Spotlight";
-import { existingImageUpload, postFile, prepareImage, sameNameImageUpload, UploadBatchError } from "./upload";
+import { existingImageUpload, postFile, prepareImage, sameNameImageUpload, saveImageSizes, UploadBatchError } from "./upload";
 import { Dock, MenuBar, type DockGroup, type MenuDef } from "./mac";
 import { PageBar } from "./PageBar";
 import { EditModal, ItemEditor, ItemTools, SectionEditor, sectionPaths } from "./EditModal";
@@ -416,6 +416,7 @@ export function PortalEditor({
         if (serverChoice !== "skip") data = await postFile<{ src?: string; replaced?: string }>("/api/portal/media", prepared, onProgress, fields(serverChoice, data.src));
         if (!data.src) throw new UploadBatchError("The server did not return a saved image. Stop this batch and try again after signing in.");
       }
+      if (!data.duplicate) await saveImageSizes(data.src, prepared);
       mediaRevision.current++;
       knownImages.current = [data.src, ...knownImages.current.filter((src) => src !== data.src && src !== data.replaced)];
       setImages((list) => [data.src!, ...list.filter((src) => src !== data.src && src !== data.replaced)]);

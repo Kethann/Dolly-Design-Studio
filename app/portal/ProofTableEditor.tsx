@@ -11,6 +11,7 @@ import { GlassDesignEditor } from "./GlassDesignEditor";
 import { ImagePicker, useMedia } from "./ContentEditor";
 import styles from "./portal.module.css";
 import { moveTo, useReorder } from "./reorder";
+import { saveImageSizes } from "./upload";
 
 export const DISC_GROUPS: { title: string; fields: { key: DiscNumericKey | "glassTintColor" | "shadowColor"; label: string; hint?: string }[] }[] = [
   { title: "Circle & entrance", fields: [
@@ -198,6 +199,7 @@ export function ProofTableEditor({
       const res = await fetch("/api/portal/proof-image", { method: "POST", body: form });
       const data = (await res.json()) as { src?: string; error?: string };
       if (!res.ok || !data.src) throw new Error(data.error ?? "Upload failed.");
+      await saveImageSizes(data.src, file);
       media.add(data.src);
       addCard(data.src);
       setUpload({ kind: "idle" });
