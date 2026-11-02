@@ -5,6 +5,7 @@ import type { Project } from "@/content/types";
 import { useContent } from "@/lib/content/context";
 import { edList } from "@/lib/content/tx";
 import { ProjectCard } from "./ProjectCard";
+import { TitleDesignTrack } from "./TitleDesignTrack";
 import { AddContent } from "./PreviewControls";
 import { galleryImageSizes } from "@/lib/images";
 import styles from "./WorkGrid.module.css";
@@ -14,11 +15,12 @@ export function WorkGrid({ projects }: { projects: Project[] }) {
   const allProjects = useContent().projects;
   const { work: workPage, galleryLayout: layout, categories } = useContent();
   const [filter, setFilter] = useState<string>("All");
+  const posterProjects = projects.filter((project) => project.slug !== "title-designs");
 
   // Every project type is offered, whether or not it has projects yet (an empty one says so).
   const available = categories;
   const category = filter !== "All" && !available.includes(filter) ? "All" : filter;
-  const filtered = category === "All" ? projects : projects.filter((p) => p.category === category);
+  const filtered = category === "All" ? posterProjects : posterProjects.filter((p) => p.category === category);
   // Match the portal's column choice; two wide columns need sharper sources than four small ones.
   const imageSizes = galleryImageSizes(layout.columns);
 
@@ -70,6 +72,7 @@ export function WorkGrid({ projects }: { projects: Project[] }) {
       ) : (
         <p className={styles.empty}>{workPage.emptyCategory}</p>
       )}
+      <TitleDesignTrack />
     </div>
   );
 }

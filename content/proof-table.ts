@@ -52,7 +52,7 @@ export const proofTable = {
   /** Two lines, shown in capitals. */
   headline: ["Titles that open the film", "before it starts."],
   body: "Every film we work on gets a title drawn for its story — proofed, printed and pinned to the light table until it carries the whole film in one word.",
-  cta: { label: "View the work", href: "/work/title-designs" },
+  cta: { label: "View the work", href: "/work#title-designs" },
   /** Technical labels around the press sheet. */
   labels: { proof: "PROOF 01 — DOLLY", bleed: "BLEED 3MM", reg: "REG ✓" },
 

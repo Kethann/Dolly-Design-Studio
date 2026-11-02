@@ -18,6 +18,7 @@ import { Footer } from "@/components/Footer";
 import { versionedSrc } from "@/lib/images";
 import type { SiteContent } from "@/lib/content/types";
 import { readIntroSettings } from "@/lib/portal/settings-store";
+import { plainFx } from "@/lib/content/text-effects";
 import "./globals.css";
 
 // The studio's typeface: upright Lemon Milk. Bold headings, Light text, Regular subheadings.
@@ -76,7 +77,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: title, template: `%s — ${site.name}` },
     description: site.description,
     keywords: [...site.seo.keywords],
-    authors: [{ name: site.founder.name }],
+    authors: [{ name: plainFx(site.founder.name) }],
     openGraph: {
       title,
       description: site.description,
@@ -103,7 +104,7 @@ const jsonLd = (site: SiteContent["site"]) => ({
   url: siteUrl,
   logo: `${siteUrl}${versionedSrc("/images/brand/logo.png")}`, // search engines need a raster (PNG/JPG) logo
   description: site.description,
-  founder: { "@type": "Person", name: site.founder.name },
+  founder: { "@type": "Person", name: plainFx(site.founder.name) },
   email: site.contact.email,
   telephone: site.contact.phone,
   address: { "@type": "PostalAddress", addressLocality: site.contact.city, addressCountry: site.contact.countryCode },

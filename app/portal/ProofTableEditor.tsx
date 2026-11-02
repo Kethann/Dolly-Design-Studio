@@ -88,6 +88,19 @@ export const DISC_GROUPS: { title: string; fields: { key: DiscNumericKey | "glas
   ] },
 ];
 
+/** Comes first in the tool: it decides which settings appear below. */
+export function TitleVersionPicker({ value, onChange }: { value: ProofTableSettings["version"]; onChange: (version: ProofTableSettings["version"]) => void }) {
+  return (
+    <Section title="Which version shows" scope="Page" hint="Both versions use the same titles and keep their own settings, so you can switch back and forth at any time.">
+      <Choice label="Titles section" value={String(value)} options={[{ value: "1", label: "Version 1 · Glass slate" }, { value: "2", label: "Version 2 · Glass disc" }]}
+        onChange={(version) => onChange(version === "1" ? 1 : 2)} />
+      <p className={styles.controlHint}>{value === 1
+        ? "Title cards fall onto a slim glass slate as you scroll. Its settings are further down this panel: Glass slate, Glass slab and Card glass."
+        : "A rotating glass disc with a projector beam. Its settings are further down this panel, starting with Glass design."}</p>
+    </Section>
+  );
+}
+
 /**
  * Portal controls for the glass circle: artwork, linked projects, order, light and motion.
  * Existing slate entries remain editable and preview live.
@@ -190,11 +203,6 @@ export function ProofTableEditor({
   return (
     <>
       {deleteDialog}
-      <Section title="Which version shows" scope="Page" hint="Both versions use the same titles and keep their own settings, so you can switch back and forth at any time.">
-        <Choice label="Titles section" value={String(value.version ?? 2)} options={[{ value: "1", label: "Version 1 · Glass slate" }, { value: "2", label: "Version 2 · Glass disc" }]}
-          onChange={(version) => onChange({ version: version === "1" ? 1 : 2 })} />
-        <p className={styles.controlHint}>{slateVersion ? "Title cards fall onto a slim glass slate as you scroll." : "A rotating glass disc with a projector beam."}</p>
-      </Section>
       {slateVersion && <>
       <Section title="Glass slate" scope="Page" hint="The 3D section where your titles drop onto a lit proofing table.">
         <Toggle label="Show the section" checked={value.enabled} onChange={(enabled) => onChange({ enabled })} />

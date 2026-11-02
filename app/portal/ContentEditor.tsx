@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { resizedSrc } from "@/lib/images";
 import { isClientTrack, moveClientTrack } from "@/lib/content/client-tracks";
 import { editableFx, selectedEffect, selectedEffectOptions, applyTextEffect, markEffectWords, plainFx, type TextEffect, type TextEffectOptions } from "@/lib/content/text-effects";
+import { enableSharedFounderEffect, isFounderCardText, setSharedFounderEffect } from "@/lib/content/founder-effects";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { allFonts } from "@/lib/content/fonts";
 import { fontFaceCss, glassVars } from "@/lib/content/css";
@@ -101,7 +102,7 @@ export function setAt<T>(obj: T, path: string, value: unknown): T {
 const styleKey = (path: string) => path.replace(/\.\d+(?=\.|$)/g, "");
 
 /** Branding and intro text retain their established presentation. */
-const NO_FX = new Set(["home.hero.disciplines", "site.founder.name", "site.founder.role"]);
+const NO_FX = new Set(["home.hero.disciplines"]);
 
 export const moveItem = <T,>(list: T[], i: number, by: number) => {
   const j = i + by;
@@ -686,10 +687,14 @@ function TextInput({ field, path }: { field: Extract<Field, { kind: "text" | "ar
   const { content, update } = useEditor();
   const raw = String(getAt(content, path) ?? "");
   const fxOn = field.fx ?? (!!field.style && !NO_FX.has(styleKey(path)));
+  const sharedCardEffect = isFounderCardText(path) && content.home.founder.cardSharedEffect;
   const effect = selectedEffect(raw);
   const effectOptions = selectedEffectOptions(raw);
-  const value = fxOn ? editableFx(raw) : raw;
-  const set = (v: string, nextEffect: TextEffect = effect, options: TextEffectOptions = effectOptions) => update((c) => setAt(c, path, fxOn ? applyTextEffect(v, nextEffect, options) : v));
+  const value = sharedCardEffect ? plainFx(raw) : fxOn ? editableFx(raw) : raw;
+  const set = (v: string, nextEffect: TextEffect = effect, options: TextEffectOptions = effectOptions) => update((c) =>
+    sharedCardEffect && isFounderCardText(path)
+      ? setSharedFounderEffect(c, path, v, nextEffect, options)
+      : setAt(c, path, fxOn ? applyTextEffect(v, nextEffect, options) : v));
   const box = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const hasFx = /\[\[[^\[\]]+?\]\]/.test(value);
   const markWords = () => {
@@ -710,16 +715,16 @@ function TextInput({ field, path }: { field: Extract<Field, { kind: "text" | "ar
       {fxOn && <div className={styles.textEffects} role="group" aria-label={`Text effects for ${field.label}`}>
         <span className={styles.effectLabel}>Text effect</span>
           <EffectChoices value={effect} disabled={!value.trim()} onChange={(nextEffect) => {
-            const marked = hasFx ? value : markEffectWords(value, box.current?.selectionStart ?? 0, box.current?.selectionEnd ?? 0);
+            const marked = sharedCardEffect || hasFx ? value : markEffectWords(value, box.current?.selectionStart ?? 0, box.current?.selectionEnd ?? 0);
             set(marked, nextEffect);
           }} />
-        <div className={styles.effectActions}>
+        {!sharedCardEffect && <div className={styles.effectActions}>
           <button type="button" disabled={!value.trim()} aria-label="Mark selected words" title="Select words first. Without a selection, the final word is marked." onMouseDown={(e) => e.preventDefault()} onClick={markWords}>Mark words</button>
           <button type="button" disabled={!hasFx} aria-label="Clear marked words" onClick={() => set(plainFx(value))}>Clear</button>
-        </div>
-        <p className={styles.hint}>Use [[words]] or Mark words. Only this field changes.</p>
+        </div>}
+        <p className={styles.hint}>{sharedCardEffect ? "One effect covers the full name, role and description. Uncheck the shared option to style them separately." : "Use [[words]] or Mark words. Only this field changes."}</p>
         <TextEffectSettings effect={effect} value={effectOptions} disabled={!value.trim()} onChange={options => {
-          const marked = hasFx ? value : markEffectWords(value, box.current?.selectionStart ?? 0, box.current?.selectionEnd ?? 0);
+          const marked = sharedCardEffect || hasFx ? value : markEffectWords(value, box.current?.selectionStart ?? 0, box.current?.selectionEnd ?? 0);
           set(marked, effect, options);
         }} />
       </div>}
@@ -1069,7 +1074,12 @@ function FieldInner({ field, base = "" }: { field: Field; base?: string }) {
     case "bool":
       return (
         <label className={styles.check}>
-          <input type="checkbox" checked={getAt(content, path) === true} onChange={(e) => update((c) => setAt(c, path, e.target.checked))} />
+          <input type="checkbox" checked={getAt(content, path) === true} onChange={(e) => {
+            const checked = e.target.checked;
+            update((c) => path === "home.founder.cardSharedEffect" && checked
+              ? enableSharedFounderEffect(c)
+              : setAt(c, path, checked));
+          }} />
           <span>{field.label}</span>
         </label>
       );

@@ -9,6 +9,7 @@ import { startAssembly } from "./assembly";
 import { bindGlassHover } from "./hover";
 import Link from "next/link";
 import type { ProofTableSettings } from "@/lib/intro/settings";
+import { slabFinish } from "./layout";
 
 /** Empty/no-WebGL slate: turn from side view to straight as the glass cards assemble. */
 export function ProofTableFallback({ items, children, projectSlugs = [], look }: { items: ProofItem[]; children: React.ReactNode; projectSlugs?: string[]; look?: ProofTableSettings }) {
@@ -27,16 +28,19 @@ export function ProofTableFallback({ items, children, projectSlugs = [], look }:
   // Every insertion stays inside the table's turn: start at 10%, finish by 82%, then settle straight.
   const duration = 1800;
   const insertDuration = duration * 0.28;
+  const finish = slabFinish(look?.slabOpacity ?? 0.24);
 
   return (
     <div className={`${styles.stage} ${styles.revealed} ${styles.fbStage}`}>
       <div ref={sceneRef} className={styles.fbScene} data-assembly="ready" data-paused="true" style={{ "--assembly-duration": `${duration}ms`, "--insert-duration": `${insertDuration}ms`, ...(look ? {
         "--slab-tint": look.slabColor, "--slab-opacity": `${look.slabOpacity * 100}%`,
+        "--slab-edge-opacity": `${finish.rim * 100}%`, "--slab-sheen-alpha": finish.sheen * 0.3,
+        "--slab-inset-alpha": finish.frame,
         "--glass-tint": look.glassColor, "--glass-opacity": `${look.glassOpacity * 100}%`,
         "--glass-sheen": 0.04 + look.reflection * 0.16,
         "--glass-frost": look.frost * 0.18,
-        "--card-width": `${(0.72 + look.cardSize * 0.28) * 100}%`,
-      } : {}) } as CSSProperties}>
+        "--card-width": `${look.cardSize * 100}%`,
+      } : {}), "--slate-wide-columns": Math.max(1, Math.min(3, items.length)), "--slate-narrow-columns": Math.max(1, Math.min(2, items.length)) } as CSSProperties}>
         <div ref={slabRef} className={styles.fbSlab}>
           {items.map((it, i) => {
             const card = <div className={`${styles.fbPlate} ${it.type === "title-png" ? styles.fbSmoky : ""}`} style={{ "--insert-delay": `${Math.round(duration * (0.1 + (i / Math.max(1, items.length - 1)) * 0.44))}ms`, "--insert-x": `${i % 2 === 0 ? -32 : 32}px` } as CSSProperties}>

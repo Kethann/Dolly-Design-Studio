@@ -8,6 +8,7 @@ import { DEFAULT_GLASS, DEFAULT_MENU_TONES, GLASS_COLOR_COUNT, GLASS_EFFECTS, OL
 import { MAX_CATEGORIES, MAX_CATEGORY_LENGTH } from "./limits";
 import { defaultContent } from "./defaults";
 import { fontById, regularFontId } from "./fonts";
+import { plainFx } from "./text-effects";
 import { MAX_BREAKDOWNS, MAX_BREAKDOWN_LAYERS } from "./limits";
 import type { Breakdown, CustomFont, SiteContent, TextStyle } from "./types";
 
@@ -364,7 +365,7 @@ export function sanitizeContent(input: unknown, options: { preserveClientSlots?:
   merged.home.founder.photoSize = oneOf(merged.home.founder.photoSize, SIZES, "medium");
   const f = merged.home.founder;
   // The heading beside the card is its own text now; until it is written it shows the founder's name, as it always did.
-  if (!f.heading || !f.heading.trim()) f.heading = merged.site.founder.name;
+  if (!f.heading || !f.heading.trim()) f.heading = plainFx(merged.site.founder.name);
   f.heading = f.heading.slice(0, 120);
   f.photoZoom = num(f.photoZoom, ZOOM_MIN, ZOOM_MAX, 1);
   f.photoX = num(f.photoX, 0, 100, 50);

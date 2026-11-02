@@ -29,7 +29,7 @@ export function TextEffectSettings({ effect, value, disabled, onChange }: {
             onClick={() => patch(preset.options)}>{preset.label}</button>)}
         </div>
         <Slider label="Dot size" min={PARTICLE_RANGES.particleSize[0]} max={PARTICLE_RANGES.particleSize[1]} step={.05} value={value.particleSize ?? PARTICLE_DEFAULTS.particleSize} format={v => `${Math.round(v * 100)}%`} onChange={particleSize => patch({ particleSize })} />
-        <Slider label="Scatter distance" min={0} max={8} step={.5} value={value.particleScatter ?? PARTICLE_DEFAULTS.particleScatter} format={v => `${v}px`} onChange={particleScatter => patch({ particleScatter })} hint="Zero keeps the dots still. Higher values add a little more drift, never rotation." />
+        <Slider label="Scatter distance" min={PARTICLE_RANGES.particleScatter[0]} max={PARTICLE_RANGES.particleScatter[1]} step={1} value={value.particleScatter ?? PARTICLE_DEFAULTS.particleScatter} format={v => `${v}px`} onChange={particleScatter => patch({ particleScatter })} hint="How far the dots scatter under the pointer. Zero keeps them still." />
         <Slider label="Movement speed" min={.5} max={2} step={.1} value={value.particleSpeed ?? PARTICLE_DEFAULTS.particleSpeed} format={v => `${v.toFixed(1)}×`} onChange={particleSpeed => patch({ particleSpeed })} />
         <Slider label="Dot glow" min={0} max={1} step={.05} value={value.particleGlow ?? PARTICLE_DEFAULTS.particleGlow} format={v => `${Math.round(v * 100)}%`} onChange={particleGlow => patch({ particleGlow })} />
         <p className={styles.hint}>Hover or tap the marked words in the page preview. Dot colour can differ from the normal text. These controls do not add more particles.</p>

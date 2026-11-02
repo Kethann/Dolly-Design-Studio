@@ -39,7 +39,7 @@ import edit from "./edit.module.css";
 import type { PageKey, SiteContent } from "@/lib/content/types";
 import { sanitizeContent } from "@/lib/content/sanitize";
 import mac from "./mac.module.css";
-import { ProofTableEditor, DISC_GROUPS } from "./ProofTableEditor";
+import { ProofTableEditor, TitleVersionPicker, DISC_GROUPS } from "./ProofTableEditor";
 import { canOpenPortalTool } from "./tool-access";
 import { AccountPanel } from "./AccountPanel";
 import { ActivityPanel } from "./ActivityPanel";
@@ -94,7 +94,7 @@ function previewFocus(
   target: ColourTarget,
 ): { to: string; at: "start" | "end"; label: string; intro?: boolean } | null {
   if (tab === "intro") return { to: "top", at: "start", label: "The opening", intro: true };
-  if (tab === "slate") return { to: "collaborations", at: "end", label: "Glass title circle" };
+  if (tab === "slate") return { to: "collaborations", at: "end", label: "Titles section" };
   if (tab === "background" && target !== "top" && target !== "project") {
     return { to: target, at: "start", label: SECTION_NAMES[target] };
   }
@@ -148,7 +148,7 @@ const WINDOWS: Record<Tab, WinDef> = {
   site: { title: "Studio & site settings", hint: "Contact details, social links, navigation labels, studio copyright and search-engine descriptions. The creator watermark is code-managed.", glyph: "site", tint: ["#ff9aa2", "#e0556a"], w: 440, h: 640 },
   projects: { title: "Projects", hint: "Add, remove and edit your projects — posters, credits and descriptions.", glyph: "projects", tint: ["#c9a0ff", "#7b4be0"], w: 480, h: 720 },
   breakdowns: { title: "Breakdowns", hint: "Layered artworks that fall apart into labelled layers when someone hovers them.", glyph: "breakdowns", tint: ["#ffa56b", "#e0562a"], w: 480, h: 720 },
-  slate: { title: "Glass title circle", hint: "Title artwork, rotation, glass tint, shadow and projector light. Desktop, tablet and mobile have separate beam-position controls.", glyph: "slate", tint: ["#9fe0ff", "#3b8be0"], w: 460, h: 720 },
+  slate: { title: "Titles section", hint: "Choose Version 1 (glass slate) or Version 2 (glass disc), then edit its look, your title artwork and the heading beside it.", glyph: "slate", tint: ["#9fe0ff", "#3b8be0"], w: 460, h: 720 },
   media: { title: "Image library", hint: "Upload PNG or JPG/JPEG images, choose thumbnails and manage selections. Add videos inside Photos & BTS cards, not here.", glyph: "media", tint: ["#7fe3c0", "#1fa57a"], w: 520, h: 600 },
   type: { title: "Fonts & text styles", hint: "Change the fonts, or the size, weight and colour of any text.", glyph: "type", tint: ["#f4f4f4", "#9a9aa5"], w: 460, h: 680 },
   background: { title: "Page background", hint: "The background colour, its gradient style, and the colours of each section.", glyph: "background", tint: ["#ff7eb3", "#7a3ad2"], w: 440, h: 700 },
@@ -176,7 +176,7 @@ const DOCK: DockGroup[] = [
       dockItem("home", "Home", "#ffc566"),
       dockItem("work", "Work", "#ffc566"),
       dockItem("breakdowns", "Breakdowns", "#ffc566"),
-      dockItem("slate", "Title circle", "#ffc566"),
+      dockItem("slate", "Titles", "#ffc566"),
       dockItem("site", "Studio", "#ffc566"),
     ],
   },
@@ -198,7 +198,7 @@ const DESIGN_WORDS: Partial<Record<Tab, string>> = {
   intro: "intro opening animation reveal sweep star timing loader",
   cursor: "cursor pen glow hover logo colour size",
   breakdowns: "breakdown breakdowns layers psd photoshop png layer explode labels hover how we work",
-  slate: `slate disc cd silver circle glass design frosted frost liquid ribbed fluted hammered crystal pattern edge border rim outline ring upload picture overlay cards titles projector focus spin speed tilt gap bloom desaturation images add upload reorder ${DISC_GROUPS.flatMap(group => [group.title, ...group.fields.flatMap(field => [field.label, field.hint ?? ""])]).join(" ")}`,
+  slate: `slate version falling cards slab card glass scroll length titles section disc cd silver circle glass design frosted frost liquid ribbed fluted hammered crystal pattern edge border rim outline ring upload picture overlay cards titles projector focus spin speed tilt gap bloom desaturation images add upload reorder ${DISC_GROUPS.flatMap(group => [group.title, ...group.fields.flatMap(field => [field.label, field.hint ?? ""])]).join(" ")}`,
   media: "images pictures photos upload library files",
   type: "fonts typography typeface upload font file ttf otf woff size weight regular spacing text style headings paragraphs",
   playback: "play pause hold scrub timeline intro preview",
@@ -238,7 +238,7 @@ const JUMP_TO: { label: string; to: string; at?: "start" | "end" }[] = [
   { label: "About our agency", to: "agency" },
   { label: "Clients & collaborations", to: "clients" },
   { label: "About the founder", to: "about" },
-  { label: "Glass title circle", to: "collaborations", at: "end" },
+  { label: "Titles section", to: "collaborations", at: "end" },
   { label: "Project gallery", to: "work" },
   { label: "How we work", to: "process" },
   { label: "Our services", to: "services" },
@@ -1956,7 +1956,11 @@ export function PortalEditor({
 
           {tab === "slate" && (
             <>
-              <ContentEditor page={CONTENT_PAGES.slate} goto={goto?.tab === "slate" ? goto : undefined} onFocus={(to) => showInPreview({ to, at: "end", label: "Glass title circle" })} />
+              <TitleVersionPicker value={draft.proofTable.version} onChange={(version) => {
+                setDraft((d) => ({ ...d, proofTable: { ...d.proofTable, version } }));
+                setSave({ kind: "idle" });
+              }} />
+              <ContentEditor page={CONTENT_PAGES.slate} goto={goto?.tab === "slate" ? goto : undefined} onFocus={(to) => showInPreview({ to, at: "end", label: "Titles section" })} />
               <ProofTableEditor
                 value={draft.proofTable}
                 previewWidth={previewWidth}

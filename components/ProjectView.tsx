@@ -22,10 +22,11 @@ export function ProjectView({ slug }: { slug: string }) {
   const project = projects[index];
   if (!project) return null;
 
-  const sorted = [...projects].sort((a, b) => a.order - b.order);
+  // The legacy title collection keeps its own URL, but is not a poster in the project sequence.
+  const sorted = projects.filter((item) => item.slug !== "title-designs").sort((a, b) => a.order - b.order);
   const at = sorted.findIndex((p) => p.slug === slug);
-  const prev = sorted[(at - 1 + sorted.length) % sorted.length];
-  const next = sorted[(at + 1) % sorted.length];
+  const prev = sorted.length ? sorted[at < 0 ? sorted.length - 1 : (at - 1 + sorted.length) % sorted.length] : null;
+  const next = sorted.length ? sorted[at < 0 ? 0 : (at + 1) % sorted.length] : null;
   const [cover, ...rest] = project.images;
 
   return (
@@ -92,7 +93,7 @@ export function ProjectView({ slug }: { slug: string }) {
         </div>
       )}
 
-      <div className="container">
+      {prev && next && <div className="container">
         <div className={styles.nav}>
           <Link href={`/work/${prev.slug}`} data-cursor="link">
             ← {prev.title}
@@ -101,7 +102,7 @@ export function ProjectView({ slug }: { slug: string }) {
             {next.title} →
           </Link>
         </div>
-      </div>
+      </div>}
     </article>
   );
 }

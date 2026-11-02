@@ -27,6 +27,17 @@
   margin: 0 0 24px;
 }
 
+/* Sits close under the name, taking back most of the heading's space below. */
+.pronunciation {
+  margin: -18px 0 24px;
+  overflow-wrap: anywhere;
+  color: var(--gold);
+  font-size: clamp(13px, 1.2vw, 15px);
+  letter-spacing: 0.04em;
+  /* Capitals mark the stressed syllable, so the page's uppercase styling must not flatten them. */
+  text-transform: none;
+}
+
 .body {
   font-size: clamp(16px, 1.5vw, 19px);
   line-height: 1.75;

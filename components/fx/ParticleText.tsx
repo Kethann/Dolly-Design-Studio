@@ -6,9 +6,9 @@ import styles from "./ParticleText.module.css";
 
 /** A small hover area and just enough canvas space for the gentle scatter and glow. */
 const REACH = 85;
-const MARGIN = 24;
-/** Never more dots than this for one word, whatever its size. */
-const MAX_DOTS = 2600;
+/** Never more dots than this for one word, whatever its size (fewer on phones and low-core machines). */
+const MAX_DOTS = 5200;
+const MAX_DOTS_LOW_POWER = 2800;
 // Oversized editable headings stay readable as ordinary text instead of allocating huge canvases.
 const MAX_SURFACE_PIXELS = 2_000_000;
 const MAX_SURFACE_SIDE = 4096;
@@ -80,6 +80,9 @@ export function ParticleText({ children, color, options }: { children: string; c
     if (!ctx) return;
 
     let dots: Dot[] = [];
+    // Room around the letters for the furthest a dot can travel, plus its glow.
+    const margin = Math.ceil(scatter + 16);
+    const dotLimit = matchMedia("(pointer: coarse)").matches || (navigator.hardwareConcurrency || 4) <= 4 ? MAX_DOTS_LOW_POWER : MAX_DOTS;
     let w = 0;
     let h = 0;
     let dpr = 1;
@@ -114,8 +117,8 @@ export function ParticleText({ children, color, options }: { children: string; c
       h = Math.max(1, Math.ceil(rect.height));
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       const cs = getComputedStyle(text!);
-      const surfaceWidth = Math.ceil((w + MARGIN * 2) * dpr);
-      const surfaceHeight = Math.ceil((h + MARGIN * 2) * dpr);
+      const surfaceWidth = Math.ceil((w + margin * 2) * dpr);
+      const surfaceHeight = Math.ceil((h + margin * 2) * dpr);
       if (rect.width <= 0 || rect.height <= 0 || surfaceWidth > MAX_SURFACE_SIDE || surfaceHeight > MAX_SURFACE_SIDE || surfaceWidth * surfaceHeight > MAX_SURFACE_PIXELS) {
         release();
         return;
@@ -123,7 +126,7 @@ export function ParticleText({ children, color, options }: { children: string; c
       const key = [w, h, dpr, cs.font, cs.letterSpacing, cs.color].join("|");
       if (key === builtKey) return;
       const fontSize = parseFloat(cs.fontSize) || 40;
-      const gap = Math.min(6, Math.max(2.6, fontSize / 15));
+      const gap = Math.min(3.2, Math.max(1.7, fontSize / 24));
 
       // The word, drawn on a hidden canvas exactly as the page draws it, then read back pixel by pixel.
       const off = document.createElement("canvas");
@@ -158,20 +161,20 @@ export function ParticleText({ children, color, options }: { children: string; c
             if (data[i] > 110) list.push({ hx: x, hy: y, x, y, driftX: (Math.random() * 2 - 1) * scatter, driftY: (Math.random() * 2 - 1) * scatter, seed: Math.random() });
           }
         }
-        if (list.length <= MAX_DOTS) break;
+        if (list.length <= dotLimit) break;
         step *= 1.25; // a very large word: fewer, slightly sparser dots
       }
       // Finer pinpoints without adding particles or increasing the canvas budget.
-      radius = Math.min(0.7, step * 0.16) * dotSize;
+      radius = Math.min(0.55, step * 0.27) * dotSize;
       // Keep a hard bound even for unusually dense fonts after the sampling retries.
-      dots = list.length <= MAX_DOTS ? list : Array.from({ length: MAX_DOTS }, (_, i) => list[Math.floor(i * list.length / MAX_DOTS)]);
+      dots = list.length <= dotLimit ? list : Array.from({ length: dotLimit }, (_, i) => list[Math.floor(i * list.length / dotLimit)]);
       off.width = off.height = 0;
 
       // Leave a little room around the letters for the subtle scatter.
-      cv!.style.left = `${-MARGIN}px`;
-      cv!.style.top = `${-MARGIN}px`;
-      cv!.style.width = `${w + MARGIN * 2}px`;
-      cv!.style.height = `${h + MARGIN * 2}px`;
+      cv!.style.left = `${-margin}px`;
+      cv!.style.top = `${-margin}px`;
+      cv!.style.width = `${w + margin * 2}px`;
+      cv!.style.height = `${h + margin * 2}px`;
       cv!.width = surfaceWidth;
       cv!.height = surfaceHeight;
       // The glow takes the word's own colour; a word painted with a gradient has no single colour, so the site's gold is used.
@@ -195,23 +198,26 @@ export function ParticleText({ children, color, options }: { children: string; c
     function draw() {
       if (!sprite) return;
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx!.clearRect(0, 0, w + MARGIN * 2, h + MARGIN * 2);
+      ctx!.clearRect(0, 0, w + margin * 2, h + margin * 2);
       ctx!.globalCompositeOperation = "lighter";
       // Small, steady cores with a restrained halo keep the lettering readable.
       const halo = radius * (2 + warp * 0.25);
       ctx!.globalAlpha = (0.06 + warp * 0.05) * (glow / PARTICLE_DEFAULTS.particleGlow);
       if (glow > 0) for (const d of dots) {
         const s = halo * (0.85 + d.seed * 0.3);
-        ctx!.drawImage(sprite, MARGIN + d.x - s, MARGIN + d.y - s, s * 2, s * 2);
+        ctx!.drawImage(sprite, margin + d.x - s, margin + d.y - s, s * 2, s * 2);
       }
-      ctx!.globalAlpha = 0.9 + warp * 0.1;
+      ctx!.globalAlpha = 1;
       const core = radius;
       ctx!.fillStyle = coreColor;
+      // One path for all the dots: far cheaper than filling thousands one at a time.
+      ctx!.beginPath();
       for (const d of dots) {
-        ctx!.beginPath();
-        ctx!.arc(MARGIN + d.x, MARGIN + d.y, core * (0.9 + d.seed * 0.2), 0, Math.PI * 2);
-        ctx!.fill();
+        const r = core * (0.9 + d.seed * 0.2), x = margin + d.x, y = margin + d.y;
+        ctx!.moveTo(x + r, y);
+        ctx!.arc(x, y, r, 0, Math.PI * 2);
       }
+      ctx!.fill();
       ctx!.globalCompositeOperation = "source-over";
       ctx!.globalAlpha = 1;
     }

@@ -2269,6 +2269,63 @@ test("text effects preserve old dots, isolate field choices, and keep editable b
   assert.equal(plainFx("[[unknown|literal]]"), "unknown|literal");
 });
 
+test("founder card effects can be independent or shared without leaking markup into identity text", () => {
+  const { defaultContent } = loader()("lib/content/defaults.ts");
+  const { sanitizeContent } = loader()("lib/content/sanitize.ts");
+  const { plainFx, selectedEffect, selectedEffectOptions } = loader()("lib/content/text-effects.ts");
+  const { enableSharedFounderEffect, setSharedFounderEffect, isFounderCardText } = loader()("lib/content/founder-effects.ts");
+  const founderFields = loader()("app/portal/content-schema.ts").CONTENT_PAGES.home.sections.find(section => section.id === "founder").fields;
+  assert.ok(founderFields.findIndex(field => field.path === "home.founder.cardSharedEffect") < founderFields.findIndex(field => field.path === "site.founder.name"), "Shared control belongs before the card text it affects");
+  const original = defaultContent();
+  assert.equal(original.home.founder.cardSharedEffect, false);
+  assert.equal(isFounderCardText("site.founder.name"), true);
+  assert.equal(isFounderCardText("home.founder.heading"), false);
+  const enabled = enableSharedFounderEffect(original);
+  assert.equal(enabled.home.founder.cardSharedEffect, true);
+  for (const value of [enabled.site.founder.name, enabled.site.founder.role, enabled.home.founder.cardNote])
+    assert.equal(selectedEffect(value), "none", "Turning on sharing must not unexpectedly animate plain text");
+  const changed = setSharedFounderEffect(enabled, "site.founder.name", "A New Founder", "glow", { glowColor: "#ffcc44", glowStrength: 0.5 });
+  assert.equal(plainFx(changed.site.founder.name), "A New Founder");
+  assert.equal(plainFx(changed.site.founder.role), original.site.founder.role);
+  assert.equal(plainFx(changed.home.founder.cardNote), original.home.founder.cardNote);
+  for (const value of [changed.site.founder.name, changed.site.founder.role, changed.home.founder.cardNote]) {
+    assert.equal(selectedEffect(value), "glow");
+    assert.equal(selectedEffectOptions(value).glowColor, "#ffcc44");
+  }
+  const saved = sanitizeContent(JSON.parse(JSON.stringify(changed)));
+  assert.equal(saved.home.founder.cardSharedEffect, true);
+  assert.equal(plainFx(saved.site.founder.name), "A New Founder");
+  assert.equal(sanitizeContent(json("content/site-content.json")).home.founder.cardSharedEffect, false, "Old content keeps independent effects");
+});
+
+test("founder card renders name, role and note effects while its alt and labels stay plain", () => {
+  const fx = loader()("lib/content/text-effects.ts");
+  const content = loader()("lib/content/defaults.ts").defaultContent();
+  content.site.founder.name = fx.applyTextEffect("[[Sasank Muppalla]]", "glow");
+  content.site.founder.role = fx.applyTextEffect("[[Creative Director]]", "sheen");
+  content.home.founder.cardNote = fx.applyTextEffect("[[Title designer]]", "outline");
+  content.home.founder.photo = "/images/founder.jpg";
+  content.home.founder.photoAlt = "";
+  const Image = () => null;
+  const css = new Proxy({}, { get: (_target, key) => key === "__esModule" ? false : key });
+  const { Founder } = loader({
+    "next/image": Image,
+    "@/lib/content/context": { useContent: () => content, tx: () => ({}) },
+    "@/lib/content/tx": { edSection: () => ({}) },
+    "@/lib/images": { placeholderProps: () => ({}), versionedSrc: src => src },
+    "@/components/SocialLogo": { SocialLogo: () => null },
+    "@/components/fx/render-fx": { renderFx: value => `shown:${fx.plainFx(value)}`, plainFx: fx.plainFx },
+    "./Founder.module.css": css,
+  })("components/sections/Founder.tsx");
+  const nodes = node => !node || typeof node !== "object" ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
+  const tree = nodes(Founder());
+  assert.equal(tree.find(node => node.type === Image).props.alt, "Sasank Muppalla");
+  assert.equal(tree.find(node => node.props?.className === "name").props.children, "shown:Sasank Muppalla");
+  assert.equal(tree.find(node => node.props?.className === "role").props.children, "shown:Creative Director");
+  assert.equal(tree.find(node => node.props?.className === "note").props.children, "shown:Title designer");
+  assert.equal(tree.find(node => node.type === "nav").props["aria-label"], "Sasank Muppalla on social media");
+});
+
 test("effect marking handles selections, whitespace, punctuation and existing brackets", () => {
   const { markEffectWords } = loader()("lib/content/text-effects.ts");
   assert.equal(markEffectWords("Make cinematic."), "Make [[cinematic]].");
@@ -2336,7 +2393,7 @@ test("particle controls round-trip with numbers, retain colours through presets,
 test("particle settings reject unsafe colours, clamp movement and preserve explicit zero", () => {
   const fx = loader()("lib/content/text-effects.ts");
   assert.deepEqual(fx.cleanEffectOptions({particleColor:"red;position:fixed",particleSize:99,particleScatter:99,particleSpeed:99,particleGlow:99}),
-    {particleSize:1.6,particleScatter:8,particleSpeed:2,particleGlow:1});
+    {particleSize:1.6,particleScatter:40,particleSpeed:2,particleGlow:1});
   assert.deepEqual(fx.cleanEffectOptions({particleSize:NaN,particleScatter:Infinity,particleSpeed:"1",particleGlow:-Infinity}), {});
   assert.deepEqual(fx.selectedEffectOptions("[[particles;particleColor=#00AAEE;particleSize=-2;particleScatter=0;particleSpeed=0;particleGlow=0|4+]]"),
     {particleColor:"#00aaee",particleSize:.5,particleScatter:0,particleSpeed:.5,particleGlow:0});
@@ -2578,11 +2635,49 @@ test("slate markup starts in assembly pose, honors portal appearance, and links 
   assert.equal(scene.props["data-assembly"], "ready");
   assert.equal(scene.props["data-paused"], "true");
   assert.equal(scene.props.style["--slab-tint"], "#123456");
+  assert.equal(scene.props.style["--card-width"], "100%");
+  assert.equal(scene.props.style["--slate-wide-columns"], 2);
+  assert.equal(scene.props.style["--slate-narrow-columns"], 2);
   assert.equal(scene.props.style["--glass-opacity"], "50%");
   const links = nodes.filter((node) => node.props.href);
   assert.equal(links.length, 1);
   assert.equal(links[0].props.href, "/work/film");
   assert.equal(links[0].props["aria-label"], "View Film");
+  const small = ProofTableFallback({ items: [item], children: null, look: { ...look, cardSize: 0.25, slabOpacity: 0.05 } });
+  const smallScene = small.props.children.find(node => node?.props?.["data-assembly"]);
+  assert.equal(smallScene.props.style["--card-width"], "25%");
+  assert.equal(smallScene.props.style["--slate-wide-columns"], 1);
+  assert.ok(Number.parseFloat(smallScene.props.style["--slab-edge-opacity"]) < Number.parseFloat(scene.props.style["--slab-edge-opacity"]));
+});
+
+test("slate cards form an exact, bounded grid at every supported count and size", () => {
+  const { slateCardLayout, slabFinish } = loader()("components/proof-table/layout.ts");
+  const panelWidth = 8 - 0.64;
+  const panelDepth = 5.6 - 0.64;
+  for (const count of [1, 2, 3, 5, 9, 12, 16]) {
+    for (const size of [0.25, 0.5, 1]) {
+      const layout = slateCardLayout(count, size, panelWidth, panelDepth);
+      assert.equal(layout.positions.length, count);
+      for (let i = 0; i < count; i++) {
+        const point = layout.positions[i];
+        assert.ok(Math.abs(point.x) + layout.width / 2 <= panelWidth / 2 - 0.14);
+        assert.ok(Math.abs(point.z) + layout.depth / 2 <= panelDepth / 2 - 0.14);
+        if (i > 0 && i % layout.cols !== 0) {
+          assert.equal(point.z, layout.positions[i - 1].z);
+          assert.ok(point.x > layout.positions[i - 1].x);
+        }
+      }
+      if (count === 12) {
+        assert.equal(layout.cols, 3);
+        assert.equal(layout.rows, 4);
+        for (let col = 0; col < 3; col++)
+          for (let row = 1; row < 4; row++) assert.equal(layout.positions[row * 3 + col].x, layout.positions[col].x);
+      }
+    }
+  }
+  assert.ok(slabFinish(0.05).rim < slabFinish(0.24).rim);
+  assert.ok(slabFinish(0.24).rim < slabFinish(1).rim);
+  assert.ok(slabFinish(0.05).sheen < slabFinish(1).sheen);
 });
 
 test("slate rendering sleeps when settled, coalesces wakes, and stops when hidden or disposed", () => {
@@ -3573,17 +3668,23 @@ test("Add controls remain present for populated and empty filtered galleries and
   };
   const content = json("content/site-content.json");
   const AddContent = () => null;
+  const ProjectCard = () => null;
+  const TitleDesignTrack = () => null;
   for (const [projects, selected] of [[[], "All"], [content.projects, "All"], [content.projects, "Empty category"]]) {
     const { WorkGrid } = loader({
       react: { useState: () => [selected, () => {}] },
       "@/lib/content/context": { useContent: () => ({ ...content, categories: [...content.categories, "Empty category"] }) },
-      "./ProjectCard": { ProjectCard: () => null },
+      "./ProjectCard": { ProjectCard },
+      "./TitleDesignTrack": { TitleDesignTrack },
       "./PreviewControls": { AddContent },
       "./WorkGrid.module.css": {},
     })("components/WorkGrid.tsx");
     const add = nodes(WorkGrid({ projects })).find((node) => node.type === AddContent);
     assert.equal(add.props.list, "projects");
     assert.equal(add.props.count, content.projects.length, "capacity must count all projects, not just the current filter");
+    const gallery = nodes(WorkGrid({ projects }));
+    assert.ok(gallery.some((node) => node.type === TitleDesignTrack), "the title track is independent of the poster project list");
+    assert.ok(gallery.filter((node) => node.type === ProjectCard).every((node) => node.props.project.slug !== "title-designs"));
   }
   const controls = loader({ "./PreviewControls.module.css": {} })("components/PreviewControls.tsx");
   assert.equal(nodes(controls.AddContent({ list: "projects", label: "Add", count: 0, max: 100 })).find((node) => node.type === "button").props.disabled, false);
@@ -3603,6 +3704,31 @@ test("Add controls remain present for populated and empty filtered galleries and
     if (previous) Object.defineProperty(globalThis, "window", previous);
     else delete globalThis.window;
   }
+});
+
+test("the title track uses uploaded slate artwork, keeps one accessible link per title and survives without a legacy project", () => {
+  const Link = () => null;
+  const Image = () => null;
+  const settings = { proofTable: { items: [
+    { src: "/images/proof-table/first.png", film: "First Film", alt: "First title", slug: "first-film" },
+    { src: "", film: "Empty slot", alt: "Empty title", slug: "title-designs" },
+  ] } };
+  const { TitleDesignTrack } = loader({
+    "next/link": { default: Link },
+    "next/image": { default: Image },
+    "@/lib/intro/settings-context": { useIntroSettings: () => ({ settings }) },
+    "@/lib/content/context": { useContent: () => ({ projects: [{ slug: "first-film", images: [] }] }) },
+    "@/lib/images": { versionedSrc: (src) => src, placeholderProps: () => ({}) },
+    "./TitleDesignTrack.module.css": {},
+  })("components/TitleDesignTrack.tsx");
+  const flatten = (tree) => !tree || typeof tree !== "object" ? [] : Array.isArray(tree)
+    ? tree.flatMap(flatten) : [tree, ...flatten(tree.props?.children)];
+  const nodes = flatten(TitleDesignTrack());
+  assert.equal(nodes.find((node) => node.type === "section").props.id, "title-designs");
+  assert.equal(nodes.filter((node) => node.props?.href).length, 1, "repeat copies must not enter the tab order");
+  assert.equal(nodes.find((node) => node.props?.href).props.href, "/work/first-film");
+  assert.equal(nodes.filter((node) => node.props?.src === "/images/proof-table/first.png").length, 12, "one artwork fills a seamless six-card cycle twice");
+  assert.ok(!nodes.some((node) => node.props?.children === "Empty slot"), "empty slate slots do not interrupt uploaded artwork");
 });
 
 test("unpublished project and process pages open only for an authenticated preview", async () => {
@@ -4326,7 +4452,10 @@ test("titles section keeps both versions; the slate is the original and each kee
   assert.equal(back.proofTable.slabOpacity, .5); assert.equal(back.proofTable.disc.glassEffect, "frosted");
   const chooser = readFileSync(path.join(root, "components/proof-table/TitleSection.tsx"), "utf8");
   assert.match(chooser, /version === 1 \? <SlateProofTable \/> : <ProofTable \/>/);
-  assert.match(readFileSync(path.join(root, "components/proof-table/SlateProofTable.tsx"), "utf8"), /createProofScene/);
+  const slate = readFileSync(path.join(root, "components/proof-table/SlateProofTable.tsx"), "utf8");
+  assert.match(slate, /createProofScene/);
+  assert.doesNotMatch(slate, /mode === "fallback" \|\| mobile/, "Mobile and tablet keep the desktop 3D slate when WebGL is available");
+  assert.match(readFileSync(path.join(root, "components/proof-table/ProofTable.module.css"), "utf8"), /@media \(max-width: 1000px\), \(orientation: portrait\) and \(max-width: 1100px\)/);
 });
 
 test("glass design reject unknown choices and unsafe images, and draw nothing by default", () => {

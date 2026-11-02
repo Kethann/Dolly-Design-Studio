@@ -13,12 +13,12 @@ export const TEXT_EFFECTS = [
   { id: "none", label: "None", hint: "Plain text. Your marked words stay ready for another effect." },
 ] as const;
 export type TextEffect = typeof TEXT_EFFECTS[number]["id"];
-export const PARTICLE_DEFAULTS = { particleSize: 1, particleScatter: 4, particleSpeed: 1, particleGlow: .4 };
-export const PARTICLE_RANGES = { particleSize: [.5, 1.6], particleScatter: [0, 8], particleSpeed: [.5, 2], particleGlow: [0, 1] } as const;
+export const PARTICLE_DEFAULTS = { particleSize: 1, particleScatter: 16, particleSpeed: 1, particleGlow: .4 };
+export const PARTICLE_RANGES = { particleSize: [.5, 1.6], particleScatter: [0, 40], particleSpeed: [.5, 2], particleGlow: [0, 1] } as const;
 export const PARTICLE_PRESETS = [
-  { label: "Nano", options: { particleSize: .7, particleScatter: 2, particleSpeed: .8, particleGlow: .2 } },
+  { label: "Nano", options: { particleSize: .7, particleScatter: 8, particleSpeed: .8, particleGlow: .2 } },
   { label: "Soft", options: PARTICLE_DEFAULTS },
-  { label: "Lively", options: { particleSize: 1.15, particleScatter: 6, particleSpeed: 1.2, particleGlow: .6 } },
+  { label: "Lively", options: { particleSize: 1.15, particleScatter: 28, particleSpeed: 1.2, particleGlow: .6 } },
 ] as const;
 export interface TextEffectOptions {
   color?: string;

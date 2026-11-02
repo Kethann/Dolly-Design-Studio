@@ -87,7 +87,7 @@ export function SlateProofTable() {
   }, [pt.glassColor, pt.glassOpacity, pt.frost, pt.reflection]);
 
   useEffect(() => {
-    if (mode === "fallback" || mobile || !pt.enabled || !hasArtwork) return;
+    if (mode === "fallback" || !pt.enabled || !hasArtwork) return;
     const section = sectionRef.current!;
     const canvas = canvasRef.current!;
     const stage = stageRef.current!;
@@ -271,7 +271,7 @@ export function SlateProofTable() {
     </div>
   );
 
-  if (mode === "fallback" || mobile || !hasArtwork) {
+  if (mode === "fallback" || !hasArtwork) {
     return (
       <section id={proofTable.id} className={styles.section}>
         <ProofTableFallback items={items} projectSlugs={projects.map((project) => project.slug)} look={pt}>{copy}</ProofTableFallback>

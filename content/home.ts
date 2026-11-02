@@ -66,6 +66,8 @@ export const home = {
     label: "About the Founder",
     /** The big heading beside the card (its own text and look; the card has the name, role and a short note). */
     heading: "Sasank Muppalla",
+    /** A small line under that heading saying how the name is pronounced (empty = hidden). */
+    pronunciation: "",
     /** A photo of the founder (empty = a monogram). */
     photo: "",
     /** What the photo shows, for screen readers and search engines. */
@@ -86,6 +88,8 @@ export const home = {
     ],
     /** A short description shown on the glass profile card, under the name and role. */
     cardNote: "Designing film posters, title logos and typography for Telugu cinema.",
+    /** Share one text effect across the name, role and short description on the card. */
+    cardSharedEffect: false,
     /** [CLIENT TO CONFIRM] Add a fuller bio and a photo when ready. */
     paragraphs: [
       "Sasank Muppalla is the founder and creative director of Dolly Design Studio, designing film posters, title logos and typography from Bangalore.",

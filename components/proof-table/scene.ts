@@ -5,6 +5,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import type { ProofItem } from "@/content/proof-table";
 import { DEFAULT_GLASS } from "@/lib/content/types";
 import { STAGES } from "./stages";
+import { slateCardLayout, slabFinish } from "./layout";
 
 /**
  * "The Proof Table": the title designs drop onto a backlit proofing table as glass-mounted proofs, then the camera
@@ -461,8 +462,9 @@ export function createProofScene(
   scene.add(slab);
   // Polished rims show the pane's thickness: a bright line along the top edge, a softer one along the bottom, and
   // short lines down the corners.
-  const rimTop = track(new THREE.LineBasicMaterial({ color: edgeTint(opts.slab.color), transparent: true, opacity: 0.98, depthWrite: false }));
-  const rimLow = track(new THREE.LineBasicMaterial({ color: edgeTint(opts.slab.color), transparent: true, opacity: 0.5, depthWrite: false }));
+  const initialSlabFinish = slabFinish(opts.slab.opacity);
+  const rimTop = track(new THREE.LineBasicMaterial({ color: edgeTint(opts.slab.color), transparent: true, opacity: initialSlabFinish.rim, depthWrite: false }));
+  const rimLow = track(new THREE.LineBasicMaterial({ color: edgeTint(opts.slab.color), transparent: true, opacity: initialSlabFinish.rim * 0.5, depthWrite: false }));
   const edge = new THREE.Group();
   const loop = (y: number, m: THREE.LineBasicMaterial) =>
     new THREE.LineLoop(track(new THREE.BufferGeometry().setFromPoints(roundedRectPoints(W - 0.02, D - 0.02, 0.06, y))), m);
@@ -481,7 +483,7 @@ export function createProofScene(
       map: slabSheenTex,
       color: edgeTint(opts.slab.color),
       transparent: true,
-      opacity: 0.55,
+      opacity: initialSlabFinish.sheen,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       toneMapped: false,
@@ -508,7 +510,7 @@ export function createProofScene(
   frameShape.holes.push(hole);
   const frame = new THREE.Mesh(
     track(new THREE.ShapeGeometry(frameShape).rotateX(-Math.PI / 2)),
-    track(new THREE.MeshBasicMaterial({ color: opts.slab.color, transparent: true, opacity: 0.16, depthWrite: false, toneMapped: false })),
+    track(new THREE.MeshBasicMaterial({ color: opts.slab.color, transparent: true, opacity: initialSlabFinish.frame, depthWrite: false, toneMapped: false })),
   );
   frame.position.y = T + 0.002;
   scene.add(frame);
@@ -557,7 +559,8 @@ export function createProofScene(
           .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(String(res.status)))))
           .then(async (blob) => {
             const probe = await createImageBitmap(blob);
-            const width = Math.min(2048, probe.width);
+            // A phone or upright tablet shows a smaller slab; avoid uploading desktop-sized textures to its GPU.
+            const width = Math.min(mobile ? 1024 : 2048, probe.width);
             probe.close();
             return createImageBitmap(blob, {
               imageOrientation: "flipY",
@@ -617,33 +620,14 @@ export function createProofScene(
   let plates: Plate[] = [];
   let itemsVersion = 0;
 
-  /** Cards are never squarer or longer than this (width : depth). */
-  const ASPECT_MIN = 1.3;
-  const ASPECT_MAX = 2.5;
-
   function buildPlates(items: ProofItem[], cardSize: number, texs: (THREE.Texture | null)[]): Plate[] {
     // The cards use the whole glass: try every grid shape, stretch the cards to fill their cells (within sensible
     // proportions) and keep the grid with the most card area. Only a thin margin is left at the edges, like a frame.
     // More cards → a finer grid → smaller cards, and the glass stays full.
-    const n = Math.max(1, items.length);
-    const gap = 0.14;
-    const availW = pw - 0.3;
-    const availD = pd - 0.3;
-    let best = { cols: 1, rows: n, w: 0, d: 0 };
-    for (let c = 1; c <= n; c++) {
-      const r = Math.ceil(n / c);
-      let w = (availW - gap * (c - 1)) / c;
-      let d = (availD - gap * (r - 1)) / r;
-      if (w / d > ASPECT_MAX) w = d * ASPECT_MAX;
-      else if (w / d < ASPECT_MIN) d = w / ASPECT_MIN;
-      if (w * d > best.w * best.d) best = { cols: c, rows: r, w, d };
-    }
-    const { cols, rows } = best;
+    const layout = slateCardLayout(items.length, cardSize, pw, pd);
     // "Card size" shrinks the cards inside their cells (100% = as big as the glass allows).
-    const colW = best.w * cardSize;
-    const d0 = best.d * cardSize;
-    const pitchX = Math.min(best.w + gap, (availW + gap) / cols);
-    const pitchZ = Math.min(best.d + gap, (availD + gap) / rows);
+    const colW = layout.width;
+    const d0 = layout.depth;
     const s = 1;
     const placed = items.map((_, i) => {
       const img = texs[i]?.image as { width: number; height: number } | undefined;
@@ -653,21 +637,17 @@ export function createProofScene(
       const boxD = d0 * 0.72;
       const imgW = Math.min(boxW, boxD * aspect);
       const imgD = imgW / aspect;
-      const row = Math.floor(i / cols);
-      const col = i % cols;
-      const inRow = row === rows - 1 ? n - row * cols : cols; // a short last row sits in the middle
-      return { px: (col - (inRow - 1) / 2) * pitchX, pz: (row - (rows - 1) / 2) * pitchZ, imgW, imgD };
+      return { px: layout.positions[i].x, pz: layout.positions[i].z, imgW, imgD };
     });
     return placed.map((pl, i) => {
       const it = items[i];
       const tex = texs[i];
       const own: { dispose: () => void }[] = [];
       const mine = <X extends { dispose: () => void }>(x: X) => (own.push(x), x);
-      const rand = Math.sin(i * 91.7 + 3.1) * 0.5;
       const w = colW;
       const d = d0;
-      const x = pl.px + rand * 0.02;
-      const z = pl.pz + Math.cos(i * 37.1) * 0.01;
+      const x = pl.px;
+      const z = pl.pz;
 
       const pivot = new THREE.Group();
       pivot.rotation.order = "YXZ";
@@ -788,7 +768,7 @@ export function createProofScene(
         own,
         x,
         z,
-        rot: rand * 0.07,
+        rot: 0,
         w,
         d,
         stand: 0,
@@ -856,13 +836,19 @@ export function createProofScene(
   }
 
   function setSlab(next: SlabLook) {
+    const finish = slabFinish(next.opacity);
     const m = slab.material as THREE.MeshPhysicalMaterial;
     m.color.set(next.color);
     m.opacity = next.opacity;
     rimTop.color.copy(edgeTint(next.color));
+    rimTop.opacity = finish.rim;
     rimLow.color.copy(edgeTint(next.color));
+    rimLow.opacity = finish.rim * 0.5;
     slabSheenMat.color.copy(edgeTint(next.color));
-    (frame.material as THREE.MeshBasicMaterial).color.set(next.color);
+    slabSheenMat.opacity = finish.sheen;
+    const frameMaterial = frame.material as THREE.MeshBasicMaterial;
+    frameMaterial.color.set(next.color);
+    frameMaterial.opacity = finish.frame;
     dirty = true;
     opts.invalidate?.();
   }
@@ -934,7 +920,8 @@ export function createProofScene(
     // Stacked layout (phones, upright tablets): the headline above is tallest, relative to the screen, on short phones (about
     // 0.56 wide for every 1 tall), so the table sits lower and smaller there; on a tall phone or a tablet it can be higher and larger.
     const shortScreen = aspect < 0.6 ? Math.min(1, Math.max(0, (aspect - 0.46) / 0.14)) : Math.min(1, Math.max(0, (0.8 - aspect) / 0.2));
-    const fit = (9.6 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)))) * Math.max(1, 1.5 / aspect);
+    // Keep the same slate composition on narrow screens, scaled to their width instead of shrinking it to a thumbnail.
+    const fit = (9.6 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)))) * Math.max(1, (mobile ? 1.05 : 1.5) / aspect);
     const radius = fit * lerp(lerp(1.18, 1.05, push), mobile ? 0.8 + 0.16 * shortScreen : 0.74, insp);
     const elev = THREE.MathUtils.degToRad(lerp(55, mobile ? 44 : 24, insp));
     camYaw = THREE.MathUtils.degToRad(lerp(35, mobile ? 20 : 14, insp));

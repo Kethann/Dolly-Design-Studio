@@ -233,12 +233,14 @@ const home: SchemaPage = {
       fields: [
         // The card (left): its picture, name, role and short note.
         { kind: "image", path: "home.founder.photo", label: "Card · Profile picture", hint: "Shown on the glass card. Without one, the initials are shown.", alt: "photoAlt", shape: "photoShape", size: "photoSize", adjust: "photo" },
+        { kind: "bool", path: "home.founder.cardSharedEffect", label: "Apply one text effect to all card text (name, role and description)" },
         { kind: "text", path: "site.founder.name", label: "Card · Name", style: true },
         { kind: "text", path: "site.founder.role", label: "Card · Role", style: true },
         { kind: "area", path: "home.founder.cardNote", label: "Card · Short description", style: true },
         // The story (right): its small heading, big heading, paragraphs and links. Each has its own text and its own look.
         { kind: "text", path: "home.founder.label", label: "Beside the card · Small heading", style: true },
         { kind: "text", path: "home.founder.heading", label: "Beside the card · Heading", style: true },
+        { kind: "text", path: "home.founder.pronunciation", label: "Beside the card · How to say the name", hint: "A small line under the heading, spelling out how to say the name. Leave it empty to hide the line.", style: true },
         { kind: "strings", path: "home.founder.paragraphs", label: "Beside the card · Bio paragraphs", add: "Add a paragraph", area: true, style: true },
         FOUNDER_LINKS,
       ],
