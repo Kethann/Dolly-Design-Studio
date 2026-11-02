@@ -31,6 +31,20 @@ test("exact slider values use familiar units, clamp safely, and preserve untouch
   assert.equal(changed,undefined);assert.ok(prevented&&stopped);assert.equal(target.value,"8");
 });
 
+test("project poster fit keeps the full image inside a fixed frame and never creates a zoom-out gap", () => {
+  const { workImageStyle } = loader()("lib/content/adjust.ts");
+  assert.equal(workImageStyle({ src: "/images/a.jpg", alt: "A" }).objectFit, "contain");
+  assert.equal(workImageStyle({ src: "/images/a.jpg", alt: "A", srcZoom: .93 }).transform, undefined);
+  assert.equal(workImageStyle({ src: "/images/a.jpg", alt: "A", fit: "fill", srcZoom: 1.4 }).objectFit, "cover");
+  assert.equal(workImageStyle({ src: "/images/a.jpg", alt: "A", fit: "fill", srcZoom: 1.4 }).transform, "scale(1.4)");
+  const { sanitizeContent } = loader()("lib/content/sanitize.ts");
+  const content = json("content/site-content.json");
+  content.projects[0].images[0].fit = "fill";
+  assert.equal(sanitizeContent(content).projects[0].images[0].fit, "fill");
+  content.projects[0].images[0].fit = "unknown";
+  assert.equal(sanitizeContent(content).projects[0].images[0].fit, undefined);
+});
+
 test("project artwork stacks keep exact images, empty/single cases, navigation and editor indices", (t) => {
   // The fan's live motion needs these browser pieces; reduced motion settles at once, so state stays deterministic here.
   Object.assign(globalThis, { requestAnimationFrame: () => 0, cancelAnimationFrame() {}, window: { matchMedia: () => ({ matches: true }) } });

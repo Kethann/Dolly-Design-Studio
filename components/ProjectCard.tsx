@@ -4,7 +4,7 @@ import { useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import type { Project } from "@/content/types";
 import { placeholderProps, versionedSrc } from "@/lib/images";
-import { adjustStyle } from "@/lib/content/adjust";
+import { workImageStyle } from "@/lib/content/adjust";
 import { edItem } from "@/lib/content/tx";
 import styles from "./ProjectCard.module.css";
 import { MediaPlaceholder } from "./MediaPlaceholder";
@@ -40,7 +40,7 @@ export function ProjectCard({ project, index, priority = false, showDetails = tr
         <span className={styles.turn}>
         <span className={styles.front}>
         {cover?.src ? <Image
-          style={adjustStyle(cover, "src")}
+          style={workImageStyle(cover)}
           src={versionedSrc(cover.src)}
           alt={cover.alt}
           fill

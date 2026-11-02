@@ -181,7 +181,7 @@ export function sanitizeContent(input: unknown, options: { preserveClientSlots?:
     if (!isObj(raw)) return [];
     const title = str(raw.title).trim();
     const images = (Array.isArray(raw.images) ? raw.images : []).filter(
-      (im): im is { src: string; alt: string } => isObj(im) && typeof im.src === "string" && (im.src === "" || im.src.startsWith("/images/")),
+      (im): im is Record<string, unknown> & { src: string; alt: string } => isObj(im) && typeof im.src === "string" && (im.src === "" || im.src.startsWith("/images/")),
     );
     if (!title) return [];
     let slug = slugify(str(raw.slug) || title) || `project-${i + 1}`;
@@ -205,7 +205,8 @@ export function sanitizeContent(input: unknown, options: { preserveClientSlots?:
         deliverables: strs(raw.deliverables),
         brief: str(raw.brief),
         ...(credits.length ? { credits } : {}),
-        images: images.map((im) => ({ src: im.src, alt: typeof im.alt === "string" && im.alt ? im.alt : title, ...cleanAdjust(im, "src") })),
+        images: images.map((im) => ({ src: im.src, alt: typeof im.alt === "string" && im.alt ? im.alt : title,
+          ...(im.fit === "fill" ? { fit: "fill" as const } : {}), ...cleanAdjust(im, "src") })),
         ...(typeof raw.titleImage === "string" && raw.titleImage.startsWith("/images/") ? { titleImage: raw.titleImage, ...cleanAdjust(raw, "titleImage") } : {}),
         ...(raw.featured === true ? { featured: true } : {}),
         order: i + 1,

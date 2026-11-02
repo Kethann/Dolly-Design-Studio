@@ -22,6 +22,7 @@
 
 .turn { position:absolute; inset:0; display:block; transform-style:preserve-3d; transition:transform .72s cubic-bezier(.3,1.18,.42,1); }
 .front,.back { position:absolute; inset:0; display:block; overflow:hidden; border:1px solid var(--smoke); border-radius:10px; background:var(--velvet); backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+.front { background:#160d17; }
 .back { display:flex; flex-direction:column; justify-content:safe center; gap:18px; padding:clamp(16px,2.5vw,30px); overflow:auto; scrollbar-width:thin; transform:rotateY(180deg); border-color:var(--gold); background:radial-gradient(ellipse at 15% 0%,#75433350,transparent 70%),linear-gradient(145deg,#351427,#130e1d); }
 .back { container-type:inline-size; }
 .back > span { flex-shrink:0; }

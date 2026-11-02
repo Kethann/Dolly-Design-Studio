@@ -5,7 +5,7 @@ import Image from "next/image";
 import type { WorkImage } from "@/content/types";
 import { edItem } from "@/lib/content/tx";
 import { placeholderProps, versionedSrc } from "@/lib/images";
-import { adjustStyle } from "@/lib/content/adjust";
+import { workImageStyle } from "@/lib/content/adjust";
 import styles from "@/app/work/[slug]/page.module.css";
 import { MediaPlaceholder } from "./MediaPlaceholder";
 
@@ -215,7 +215,7 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
           aria-current={offset === 0 ? "true" : undefined} tabIndex={offset === 0 ? 0 : -1}
           onClick={() => goTo(index)}
           {...(offset === 0 && projectIndex !== undefined ? edItem(`projects.${projectIndex}.images`, index + imageOffset, "Picture") : {})}>
-          {img.src ? <Image src={versionedSrc(img.src)} style={adjustStyle(img, "src")} alt={img.alt} fill
+          {img.src ? <Image src={versionedSrc(img.src)} style={workImageStyle(img)} alt={img.alt} fill
             draggable={false} loading={depth === 0 ? "eager" : "lazy"} fetchPriority={depth === 0 ? "high" : "auto"}
             sizes="(max-width: 680px) 74vw, (max-width: 1100px) 42vw, 410px" quality={90} {...placeholderProps(img.src)} /> : <MediaPlaceholder />}
         </button>;

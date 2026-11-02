@@ -39,6 +39,8 @@ export interface WorkImage {
   src: string;
   /** Required: describes the image for screen readers and search engines. */
   alt: string;
+  /** Fit shows the entire artwork; fill deliberately crops to the poster frame. */
+  fit?: "fit" | "fill";
   /** How the picture sits in its frame (zoom, and where it is centred). */
   srcZoom?: number;
   srcX?: number;

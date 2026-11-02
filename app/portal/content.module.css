@@ -629,6 +629,9 @@
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
+/* Project posters use the same tall frame as the site, so Fit/Fill and zoom can be judged here. */
+.imageDrop[data-poster="true"] { height: 198px; border-style: solid; background: #160d17; }
+
 .imageDrop[data-over="true"] {
   border-color: #e8b04b;
   background-color: rgba(232, 176, 75, 0.12);

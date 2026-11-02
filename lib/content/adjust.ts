@@ -2,6 +2,7 @@
 // right and up / down. Kept beside the picture as three numbers named after it ("photo" gives photoZoom, photoX, photoY), so
 // any picture on the site can have them. Shared by the site (to draw it) and the sanitizer (to keep the numbers in range).
 import type { CSSProperties } from "react";
+import type { WorkImage } from "@/content/types";
 
 /** Out to a quarter of the size, in to four times it. */
 export const ZOOM_MIN = 0.25;
@@ -30,6 +31,17 @@ export function adjustStyle(o: unknown, prefix: string): CSSProperties | undefin
   const a = adjustOf(o, prefix);
   if (a.zoom === 1 && a.x === 50 && a.y === 50) return undefined;
   return { objectPosition: `${a.x}% ${a.y}%`, transformOrigin: `${a.x}% ${a.y}%`, transform: a.zoom !== 1 ? `scale(${a.zoom})` : undefined };
+}
+
+/** Project art never shrinks inside its frame: Fit reveals the full poster, Fill crops intentionally. */
+export function workImageStyle(image: WorkImage): CSSProperties {
+  const a = adjustOf(image, "src");
+  return {
+    objectFit: image.fit === "fill" ? "cover" : "contain",
+    objectPosition: `${a.x}% ${a.y}%`,
+    transformOrigin: `${a.x}% ${a.y}%`,
+    transform: a.zoom > 1 ? `scale(${a.zoom})` : undefined,
+  };
 }
 
 /** The zoom slider has 100% in its middle: left of it zooms out, right of it zooms in. Position 0–100 ⇄ zoom. */

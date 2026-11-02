@@ -505,8 +505,9 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
     return typeof v === "number" && Number.isFinite(v) ? v : d;
   };
   const zoom = field.adjust ? num(`${field.adjust}Zoom`, 1) : 1;
+  const projectPoster = /^projects\.\d+\.images\.\d+\.src$/.test(path);
   /** A card set to "fit" shows the whole picture, so the preview does too. */
-  const fitWhole = field.contain || getAt(content, sibling("fit")) === "fit";
+  const fitWhole = field.contain || (projectPoster ? getAt(content, sibling("fit")) !== "fill" : getAt(content, sibling("fit")) === "fit");
   const posX = field.adjust ? num(`${field.adjust}X`, 50) : 50;
   const posY = field.adjust ? num(`${field.adjust}Y`, 50) : 50;
   const setNum = (name: string, v: number) => update((c) => setAt(c, sibling(`${field.adjust}${name}`), v));
@@ -515,6 +516,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
   /** The preview shows a quiet "Loading…" until the picture has really arrived (a new upload can take a moment to appear). */
   const [shownSrc, setShownSrc] = useState("");
   const [broken, setBroken] = useState("");
+  const [previewOriginal, setPreviewOriginal] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
   const set = (src: string) => update((c) => setAt(c, path, src));
@@ -525,6 +527,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
   };
   const name = value ? fileName(value) : "";
   const busy = uploads.state.busy;
+  const previewSrc = previewOriginal === value ? value : resizedSrc(value, 640);
 
   return (
     <div className={styles.field}>
@@ -534,6 +537,7 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
           className={styles.imageDrop}
           data-over={over}
           data-shape={shapePath ? shape : undefined}
+          data-poster={projectPoster || undefined}
           role="button"
           tabIndex={busy ? -1 : 0}
           aria-disabled={busy}
@@ -560,13 +564,13 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
           {value ? (
             // eslint-disable-next-line @next/next/no-img-element -- a preview of the chosen picture
             <img
-              key={value}
-              src={resizedSrc(value, 640)}
+              key={`${value}:${previewSrc}`}
+              src={previewSrc}
               decoding="async"
               alt={alt || ""}
-              onLoad={() => setShownSrc(value)}
-              onError={() => setBroken(value)}
-              style={{ objectFit: fitWhole ? "contain" : undefined, objectPosition: `${posX}% ${posY}%`, transformOrigin: `${posX}% ${posY}%`, transform: `scale(${zoom})`, opacity: shownSrc === value ? 1 : 0 }}
+              onLoad={() => { setShownSrc(value); setBroken(""); }}
+              onError={() => { if (previewSrc !== value) setPreviewOriginal(value); else setBroken(value); }}
+              style={{ objectFit: fitWhole ? "contain" : undefined, objectPosition: `${posX}% ${posY}%`, transformOrigin: `${posX}% ${posY}%`, transform: (projectPoster ? Math.max(1, zoom) : zoom) === 1 ? undefined : `scale(${projectPoster ? Math.max(1, zoom) : zoom})`, opacity: shownSrc === value ? 1 : 0 }}
             />
           ) : (
             <span>{over ? "Drop it here" : "No picture yet"}</span>
@@ -626,7 +630,10 @@ function ImageField({ field, path }: { field: Extract<Field, { kind: "image" }>;
       )}
       {field.adjust && value && (
         <details className={styles.imageDetails}><summary>Crop & position</summary><div className={styles.imageAdjust}>
-          <Slider label="Zoom out ↔ in" hint="100% is the middle. Slide left to make the picture smaller, right to make it bigger." value={zoomToPos(zoom)} min={0} max={100} step={1} format={() => `${Math.round(zoom * 100)}%`} onChange={(p) => setNum("Zoom", posToZoom(p))} />
+          {projectPoster && <Choice label="How the picture fits" hint="Fit whole shows the complete artwork. Fill frame crops its edges. Neither changes the poster border." value={fitWhole ? "fit" : "fill"} options={[{ value: "fit", label: "Fit whole" }, { value: "fill", label: "Fill frame" }]} onChange={(fit) => setSibling(sibling("fit"), fit)} />}
+          {projectPoster
+            ? <Slider label="Picture zoom" hint="100% is the full fitted picture (or the filled frame). Increase to zoom in; return to 100% to zoom out without adding an inner border." value={Math.max(1, zoom)} min={1} max={4} step={0.01} editable inputScale={100} inputUnit="%" format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setNum("Zoom", v)} />
+            : <Slider label="Zoom out ↔ in" hint="100% is the middle. Slide left to make the picture smaller, right to make it bigger." value={zoomToPos(zoom)} min={0} max={100} step={1} format={() => `${Math.round(zoom * 100)}%`} onChange={(p) => setNum("Zoom", posToZoom(p))} />}
           <Slider label="Left ↔ right" value={posX} min={0} max={100} step={1} format={(v) => `${v}%`} onChange={(v) => setNum("X", v)} />
           <Slider label="Up ↕ down" value={posY} min={0} max={100} step={1} format={(v) => `${v}%`} onChange={(v) => setNum("Y", v)} />
           <button
