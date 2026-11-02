@@ -723,6 +723,16 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, exitR
     let touchY = 0;
     function onTouchStart(e: TouchEvent) {
       touchY = e.touches[0]?.clientY ?? 0;
+      // Free the page as the finger lands: a browser ignores a lock lifted part-way through a swipe, which left the first swipe stuck.
+      if (scrollLocked) {
+        scrollLocked = false;
+        unlockScroll();
+      }
+    }
+    // Scrolled past on a touch device: nobody can see the show any more, so give its graphics work back to the page.
+    const touchDevice = window.matchMedia("(pointer: coarse)").matches;
+    function onPageScroll() {
+      if (touchDevice && detached && window.scrollY > window.innerHeight) fadeToPage();
     }
     function onTouchMove(e: TouchEvent) {
       if (touchY - (e.touches[0]?.clientY ?? touchY) > 24) playOnInPage(); // a swipe up = scrolling down
@@ -746,6 +756,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, exitR
     window.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("scroll", onPageScroll, { passive: true });
     window.addEventListener("resize", onResize);
     document.addEventListener("visibilitychange", onVisibility);
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
@@ -778,6 +789,7 @@ export function StarIntro({ onReveal, onDone, startAt = 0, paused = false, exitR
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("scroll", onPageScroll);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisibility);
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);

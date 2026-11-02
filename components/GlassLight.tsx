@@ -132,11 +132,15 @@ export function GlassLight() {
     document.addEventListener("pointermove", onMove, { passive: true });
     document.addEventListener("pointerdown", onMove, { passive: true });
     document.addEventListener("pointerdown", onTap, { passive: true });
+    // iPhones and iPads only apply :active (the tap version of the text effects) on a page that listens for touches.
+    const enableActive = () => {};
+    document.addEventListener("touchstart", enableActive, { passive: true });
     document.addEventListener("pointermove", onTap, { passive: true });
     return () => {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerdown", onMove);
       document.removeEventListener("pointerdown", onTap);
+      document.removeEventListener("touchstart", enableActive);
       document.removeEventListener("pointermove", onTap);
       if (frame) cancelAnimationFrame(frame);
       stopDrift();

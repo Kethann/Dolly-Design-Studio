@@ -13,6 +13,8 @@ import styles from "./ProofTable.module.css";
 import { renderFx } from "@/components/fx/render-fx";
 import { createFrameLoop } from "./frame-loop";
 import { visibleGlassTitles } from "@/lib/content/disc";
+import { getHandoff, subscribeHandoff } from "@/lib/intro/handoff";
+import { titleArtBlob } from "./art-preload";
 
 type Mode = "pinned" | "static" | "fallback";
 
@@ -31,7 +33,9 @@ function hasWebGL() {
  * The Proof Table: a scroll-pinned 3D scene (see scene.ts) with the headline revealed beside it at the end.
  * Pinned and scrubbed while you scroll through it; reduced motion shows the final composition; no WebGL shows a
  * CSS 3D version. The cards, their glass and the scroll length come from the portal and update live.
- * The scene is only created once the section is near the viewport, and only draws when something changes.
+ * Its code and artwork load while the opening plays, the scene is built in an idle moment right after it (or as the section
+ * comes near, if that is sooner), and it only draws when something changes. Each scene gets a canvas of its own: a canvas whose
+ * graphics context was released can never be used again, and reusing one is what used to drop phones to the simple version.
  */
 export function SlateProofTable() {
   const router = useRouter();
@@ -39,9 +43,10 @@ export function SlateProofTable() {
   const { slate, projects } = useContent();
   const pt = settings.proofTable;
   const [mode, setMode] = useState<Mode>("pinned");
-  const [mobile, setMobile] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const mobileRef = useRef(false);
+  const retries = useRef(0);
   const sectionRef = useRef<HTMLElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ProofScene | null>(null);
   const slots = visibleGlassTitles(pt.items);
@@ -57,12 +62,12 @@ export function SlateProofTable() {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     // Phones, and tablets held upright, get the stacked layout (headline above, the whole table below it).
     const stacked = window.matchMedia("(max-width: 1000px), (orientation: portrait) and (max-width: 1100px)");
-    /* eslint-disable react-hooks/set-state-in-effect -- one-time client capability checks */
-    setMobile(stacked.matches);
+    mobileRef.current = stacked.matches;
     const webgl = hasWebGL();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client capability check
     setMode(!webgl ? "fallback" : reduced.matches ? "static" : "pinned");
-    /* eslint-enable react-hooks/set-state-in-effect */
-    const follow = () => setMobile(stacked.matches);
+    // Turning the device over only moves the camera: the running scene stays.
+    const follow = () => { mobileRef.current = stacked.matches; sceneRef.current?.setMobile(stacked.matches); };
     const followMotion = () => setMode(!webgl ? "fallback" : reduced.matches ? "static" : "pinned");
     stacked.addEventListener("change", follow); // turning the tablet over switches layout
     reduced.addEventListener("change", followMotion);
@@ -89,8 +94,18 @@ export function SlateProofTable() {
   useEffect(() => {
     if (mode === "fallback" || !pt.enabled || !hasArtwork) return;
     const section = sectionRef.current!;
-    const canvas = canvasRef.current!;
     const stage = stageRef.current!;
+    const canvas = document.createElement("canvas");
+    canvas.className = styles.canvas;
+    canvas.setAttribute("aria-hidden", "true");
+    stage.prepend(canvas);
+    const builtAt = performance.now();
+    // Try again on a new canvas (phones drop graphics contexts when memory is short or the tab sleeps); the simple version is the last resort.
+    const rebuild = () => {
+      if (performance.now() - builtAt > 30000) retries.current = 0;
+      if (retries.current++ < 2) setAttempt((n) => n + 1);
+      else setMode("fallback");
+    };
     let scene: ProofScene | null = null;
     let visible = false;
     let shown = 0; // smoothed progress
@@ -145,16 +160,15 @@ export function SlateProofTable() {
           cardSize: look.cardSize,
           slab: { color: look.slabColor, opacity: look.slabOpacity },
           glass: { color: look.glassColor, opacity: look.glassOpacity, frost: look.frost, reflection: look.reflection },
-          mobile,
+          mobile: mobileRef.current,
           stage: getComputedStyle(document.documentElement).getPropertyValue("--stage").trim() || "#410000",
         });
       } catch (err) {
         if (disposed) return;
-        // The browser would not give this page another graphics context (many tabs open, or the graphics card is busy):
-        // show the simple version of the slate instead of a broken one.
-        console.warn("[slate] 3D unavailable, showing the simple version", err);
+        // The browser would not give this page a graphics context just now (many tabs open, or the graphics card is busy).
+        console.warn("[slate] 3D could not start", err);
         loading = false;
-        setMode("fallback");
+        rebuild();
         return;
       }
       sceneRef.current = scene;
@@ -170,6 +184,21 @@ export function SlateProofTable() {
       run();
     }
 
+    // The required loading happens up front, not in the middle of a scroll.
+    void import("./scene").catch(() => {});
+    for (const item of itemsRef.current) if (item.src) void titleArtBlob(item.src).catch(() => {});
+    let settleTimer = 0;
+    let idleCall = 0;
+    const buildSoon = () => {
+      if (getHandoff().status === "waiting" || settleTimer) return;
+      // A moment after the opening has handed over, so its fade to the page stays untouched.
+      settleTimer = window.setTimeout(() => {
+        if ("requestIdleCallback" in window) idleCall = requestIdleCallback(() => void init(), { timeout: 1500 });
+        else void init();
+      }, 900);
+    };
+    const stopWatchingIntro = subscribeHandoff(buildSoon);
+    buildSoon();
     const near = new IntersectionObserver(([e]) => e.isIntersecting && init(), { rootMargin: "250% 0px" });
     near.observe(section);
     const inView = new IntersectionObserver(([e]) => {
@@ -186,7 +215,20 @@ export function SlateProofTable() {
     });
     ro.observe(canvas);
     const onVisibility = () => { if (document.hidden) loop.stop(); else run(); };
-    window.addEventListener("scroll", run, { passive: true });
+    // A finger's first tap stands a card up, as a cursor's hover does, and a second tap on it opens it.
+    let tapped = -1;
+    let tappedAt = 0;
+    let tapTimer = 0;
+    const lieDown = () => {
+      window.clearTimeout(tapTimer);
+      tapped = -1;
+      scene?.pointer(null, 0);
+    };
+    const onScroll = () => {
+      if (tapped >= 0 && Math.abs(window.scrollY - tappedAt) > 48) lieDown();
+      run();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
     document.addEventListener("visibilitychange", onVisibility);
 
     // At the end the cards can be touched: hover stands a card up and it follows the cursor; click opens it.
@@ -195,11 +237,12 @@ export function SlateProofTable() {
       const r = canvas.getBoundingClientRect();
       scene?.pointer(e.clientX - r.left, e.clientY - r.top);
     };
-    const onLeave = () => scene?.pointer(null, 0);
-    let press: { x: number; y: number } | null = null;
-    const onDown = (event: PointerEvent) => { press = { x: event.clientX, y: event.clientY }; };
+    const onLeave = (e: PointerEvent) => { if (e.pointerType !== "touch") scene?.pointer(null, 0); };
+    let press: { x: number; y: number; touch: boolean } | null = null;
+    const onDown = (event: PointerEvent) => { press = { x: event.clientX, y: event.clientY, touch: event.pointerType !== "mouse" }; };
     const onClick = (event: MouseEvent) => {
       if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8) { press = null; return; }
+      const touch = !!press?.touch;
       press = null;
       const rect = canvas.getBoundingClientRect();
       scene?.pointer(null, 0);
@@ -208,6 +251,15 @@ export function SlateProofTable() {
       scene?.update(shown, 0);
       const i = scene ? scene.hovered() : -1;
       const item = itemsRef.current[i];
+      if (touch && i !== tapped) {
+        window.clearTimeout(tapTimer);
+        tapped = i;
+        tappedAt = window.scrollY;
+        if (i < 0) scene?.pointer(null, 0);
+        else tapTimer = window.setTimeout(lieDown, 5000);
+        return;
+      }
+      if (touch) lieDown();
       if (i >= 0 && item && projectSlugsRef.current.includes(item.slug)) {
         const preview = new URLSearchParams(window.location.search).has("portal-preview") ? "?portal-preview" : "";
         router.push(`/work/${item.slug}${preview}`);
@@ -217,7 +269,7 @@ export function SlateProofTable() {
     // If the graphics card drops the 3D scene while the page is open, the simple version takes over rather than a frozen picture.
     const onLost = (e: Event) => {
       e.preventDefault();
-      setMode("fallback");
+      rebuild();
     };
     canvas.addEventListener("webglcontextlost", onLost);
     canvas.addEventListener("pointermove", onMove);
@@ -228,8 +280,12 @@ export function SlateProofTable() {
     return () => {
       canvas.removeEventListener("webglcontextlost", onLost);
       disposed = true;
+      window.clearTimeout(tapTimer);
+      window.clearTimeout(settleTimer);
+      if (idleCall) cancelIdleCallback(idleCall);
+      stopWatchingIntro();
       loop.dispose();
-      window.removeEventListener("scroll", run);
+      window.removeEventListener("scroll", onScroll);
       document.removeEventListener("visibilitychange", onVisibility);
       near.disconnect();
       inView.disconnect();
@@ -240,8 +296,9 @@ export function SlateProofTable() {
       canvas.removeEventListener("pointerdown", onDown);
       scene?.dispose();
       sceneRef.current = null;
+      canvas.remove();
     };
-  }, [mode, mobile, router, pt.enabled, hasArtwork]);
+  }, [mode, attempt, router, pt.enabled, hasArtwork]);
 
   if (!pt.enabled) return null;
 
@@ -279,17 +336,17 @@ export function SlateProofTable() {
     );
   }
 
-  // Pinned for `length` screens of scrolling (a bit shorter on phones).
-  const pinned = mode === "pinned" ? { height: `${Math.round((1 + pt.length * (mobile ? 0.75 : 1)) * 100)}svh` } : undefined;
+  // Pinned for `length` screens of scrolling (a bit shorter on phones). Sized in the stylesheet, so the page's height is right
+  // from the first paint and nothing below it jumps once the page has started.
+  const pinned = mode === "pinned" ? ({ "--slate-length": pt.length } as React.CSSProperties) : undefined;
   return (
     <section
       id={proofTable.id}
       ref={sectionRef}
-      className={`${styles.section} ${mode === "static" ? styles.still : ""}`}
+      className={`${styles.section} ${mode === "static" ? styles.still : mode === "pinned" ? styles.pinned : ""}`}
       style={pinned}
     >
       <div ref={stageRef} className={`${styles.stage} ${mode === "static" ? styles.revealed : ""}`}>
-        <canvas ref={canvasRef} className={styles.canvas} aria-hidden="true" />
         {copy}
         <ul className="sr-only">
           {items.map((it, i) => (

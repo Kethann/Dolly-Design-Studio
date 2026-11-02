@@ -599,8 +599,20 @@ export function StarField({ layer }: { layer: StarLayer }) {
     // --- loop: a single still frame for reduced motion ----------------------------------
     let raf = 0;
     let running = true;
+    // A touch device that can't hold its frame rate draws the slow-moving stars every other frame, leaving the rest for scrolling.
+    const touchDevice = window.matchMedia("(pointer: coarse)").matches;
+    let everyOther = false;
+    let skip = false;
+    let lastFrame = 0;
+    let slowFrames = 0;
     function frame(frameNow: number) {
-      update(frameNow);
+      if (touchDevice && !everyOther && lastFrame) {
+        slowFrames = frameNow - lastFrame > 24 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
+        if (slowFrames >= 40) everyOther = true;
+      }
+      lastFrame = frameNow;
+      skip = everyOther && !skip;
+      if (!skip) update(frameNow);
       raf = running && !reducedMotion ? requestAnimationFrame(frame) : 0;
     }
     raf = requestAnimationFrame(frame);
@@ -613,7 +625,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
       engine!.backdrop?.setAspect(width / height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      if (reducedMotion) update(performance.now());
+      update(performance.now()); // resizing clears the canvas: draw now, so it is never on screen empty
     });
     ro.observe(wrap);
 

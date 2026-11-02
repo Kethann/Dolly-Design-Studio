@@ -4641,3 +4641,21 @@ test("every page names its own canonical address", () => {
     assert.ok(readFileSync(file, "utf8").includes(`canonical: ${address}`), file);
   }
 });
+
+test("the 3D slate survives phones, rotation and lost graphics contexts", () => {
+  const slate = readFileSync("components/proof-table/SlateProofTable.tsx", "utf8");
+  assert.doesNotMatch(slate, /<canvas/, "Every scene needs its own canvas: a released context can never be reused");
+  assert.match(slate, /document\.createElement\("canvas"\)/);
+  assert.match(slate, /sceneRef\.current\?\.setMobile/, "Rotating keeps the running scene");
+  assert.doesNotMatch(slate, /\[mode, mobile,/, "Layout changes must not rebuild the scene");
+  assert.match(slate, /retries\.current\+\+ < 2/, "A lost context retries before the simple version");
+  assert.match(slate, /titleArtBlob/, "Artwork loads up front");
+  assert.doesNotMatch(readFileSync("components/proof-table/scene.ts", "utf8"), /fetch\(src/, "Titles come from the ready-made copies, never the full originals");
+});
+
+test("resizing a 3D canvas always draws in the same frame, so it never shows empty", () => {
+  const scene = readFileSync("components/proof-table/scene.ts", "utf8").replace(/\r\n/g, "\n");
+  assert.ok(scene.indexOf("renderer.setSize(width, height, false);\n        }\n      }\n      renderer.render(scene, camera);") > 0, "The resolution step-down comes before the draw");
+  assert.match(scene, /if \(lastP >= 0 && !disposed\) update\(lastP, 0\);/);
+  assert.match(readFileSync("components/StarField.tsx", "utf8"), /camera\.updateProjectionMatrix\(\);\s+update\(performance\.now\(\)\);/);
+});

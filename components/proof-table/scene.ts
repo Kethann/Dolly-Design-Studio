@@ -6,6 +6,7 @@ import type { ProofItem } from "@/content/proof-table";
 import { DEFAULT_GLASS } from "@/lib/content/types";
 import { STAGES } from "./stages";
 import { slateCardLayout, slabFinish } from "./layout";
+import { titleArtBlob } from "./art-preload";
 
 /**
  * "The Proof Table": the title designs drop onto a backlit proofing table as glass-mounted proofs, then the camera
@@ -22,6 +23,8 @@ const T = 0.1; // slab thickness: a slim pane of glass
 const INSET = 0.32; // frame around the lit panel
 const PLATE_T = 0.05;
 const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+/** Printed on a card's glass: always in front of that glass, even on a phone whose depth buffer can't tell them apart. */
+const ON_GLASS = { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 };
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const range = (p: number, [a, b]: readonly [number, number]) => clamp01((p - a) / (b - a));
@@ -260,6 +263,8 @@ export interface ProofScene {
   setItems: (items: ProofItem[], cardSize: number) => void;
   setGlass: (glass: GlassLook) => void;
   setSlab: (slab: SlabLook) => void;
+  /** The device was turned over: moves the camera to that layout's framing, keeping everything loaded. */
+  setMobile: (mobile: boolean) => void;
   /** Uploads textures and compiles shaders in idle moments, before the section is on screen. */
   warmUp: () => Promise<void>;
   dispose: () => void;
@@ -376,10 +381,13 @@ export function createProofScene(
     invalidate?: () => void;
   },
 ): ProofScene {
-  const { mobile } = opts;
+  let mobile = opts.mobile;
+  const touchDevice = matchMedia("(pointer: coarse)").matches;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, deviceBudget().dprScene));
   renderer.setClearColor(0x000000, 0);
+  // The frosted glass is a blur of what is behind it, so touch devices can draw it a little smaller (much smaller makes the fine stars shimmer).
+  if (touchDevice) renderer.transmissionResolutionScale = 0.75;
   // Checking each shader right after compiling makes the browser wait for it; in production let them compile in the
   // background instead (they're checked during development).
   renderer.debug.checkShaderErrors = process.env.NODE_ENV !== "production";
@@ -394,7 +402,7 @@ export function createProofScene(
   pmrem.dispose();
 
   // A near plane well away from the camera keeps depth precise at grazing angles (no shimmering edges).
-  const camera = new THREE.PerspectiveCamera(30, 1, 1, 120);
+  const camera = new THREE.PerspectiveCamera(30, 1, 4, 120);
   scene.add(new THREE.HemisphereLight(0xfff3dc, 0x1a0c08, 0.5));
   const key = new THREE.DirectionalLight(0xffeccc, 1.6);
   key.position.set(-5, 9, 4);
@@ -491,7 +499,7 @@ export function createProofScene(
   );
   const slabSheen = new THREE.Mesh(track(new THREE.PlaneGeometry(W - 0.12, D - 0.12).rotateX(-Math.PI / 2)), slabSheenMat);
   slabSheen.position.y = T + 0.005;
-  slabSheen.renderOrder = 0;
+  slabSheen.renderOrder = -0.7; // (these slab layers keep a fixed order: sorted by distance they could swap as the camera moves)
   scene.add(slabSheen);
 
   const pw = W - INSET * 2;
@@ -513,6 +521,7 @@ export function createProofScene(
     track(new THREE.MeshBasicMaterial({ color: opts.slab.color, transparent: true, opacity: initialSlabFinish.frame, depthWrite: false, toneMapped: false })),
   );
   frame.position.y = T + 0.002;
+  frame.renderOrder = -0.9;
   scene.add(frame);
 
   // The printed guides, on the glass.
@@ -521,6 +530,7 @@ export function createProofScene(
   );
   const panel = new THREE.Mesh(track(new THREE.PlaneGeometry(pw, pd).rotateX(-Math.PI / 2)), panelMat);
   panel.position.y = T + 0.003;
+  panel.renderOrder = -0.8;
   scene.add(panel);
 
   // The glow of the cards reflected on the glass slab: one soft pool under the card that is lit, in that card's colour.
@@ -550,22 +560,21 @@ export function createProofScene(
   // Titles are decoded off the main thread (ImageBitmap) and capped at 2048px wide: sharp on the cards at any size
   // they're shown, a quarter of the upload work of the full files, and no decode stall while scrolling.
   const textures = new Map<string, Promise<THREE.Texture | null>>();
-  const textureRequests = new AbortController();
   const loadTexture = (src: string) => {
     if (!textures.has(src))
       textures.set(
         src,
-        fetch(src, { signal: textureRequests.signal })
-          .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(String(res.status)))))
+        titleArtBlob(src)
           .then(async (blob) => {
-            const probe = await createImageBitmap(blob);
-            // A phone or upright tablet shows a smaller slab; avoid uploading desktop-sized textures to its GPU.
-            const width = Math.min(mobile ? 1024 : 2048, probe.width);
-            probe.close();
+            const decoded = await createImageBitmap(blob, { imageOrientation: "flipY", premultiplyAlpha: "none" });
+            // Phones and tablets show a smaller slab; avoid uploading desktop-sized textures to their GPU.
+            const limit = mobile || touchDevice ? 1024 : 2048;
+            if (decoded.width <= limit) return decoded;
+            decoded.close();
             return createImageBitmap(blob, {
               imageOrientation: "flipY",
               premultiplyAlpha: "none",
-              resizeWidth: width,
+              resizeWidth: limit,
               resizeQuality: "high",
             });
           })
@@ -666,7 +675,7 @@ export function createProofScene(
       rim.renderOrder = 2;
       inner.add(rim);
       if (tex) {
-        const m = mine(new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }));
+        const m = mine(new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false, ...ON_GLASS }));
         fading.push(m);
         const art = new THREE.Mesh(mine(new THREE.PlaneGeometry(pl.imgW * s, pl.imgD * s).rotateX(-Math.PI / 2)), m);
         art.position.set(0, PLATE_T / 2 + 0.003, -d * 0.06);
@@ -678,6 +687,7 @@ export function createProofScene(
           map: mine(tagTexture(`${it.tag} · ${it.film} · ${it.year}`)),
           transparent: true,
           depthWrite: false,
+          ...ON_GLASS,
         }),
       );
       fading.push(tagM);
@@ -696,6 +706,7 @@ export function createProofScene(
             opacity: 0,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
+            ...ON_GLASS,
           }),
         ),
       );
@@ -875,6 +886,7 @@ export function createProofScene(
   let hoverLostAt = 0;
   let camYaw = 0;
   let interactive = false;
+  let slowFrames = 0;
 
   function pick(now: number) {
     if (!interactive || !pointerIn || plates.length === 0) {
@@ -1077,7 +1089,19 @@ export function createProofScene(
     pool.visible = poolOn > 0.002;
 
     // Only draw when something changed: scrolling, a spring still settling, or new cards / glass.
-    if (busy || dirty || p !== lastP) renderer.render(scene, camera);
+    if (busy || dirty || p !== lastP) {
+      // A touch device that can't keep up draws slightly fewer pixels, instead of stuttering through the whole scroll.
+      // (Before drawing: resizing clears the canvas, and a cleared canvas left on screen is a flicker.)
+      if (touchDevice && dt > 0) {
+        slowFrames = dt > 1 / 28 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
+        if (slowFrames >= 20 && renderer.getPixelRatio() > 1) {
+          slowFrames = 0;
+          renderer.setPixelRatio(Math.max(1, renderer.getPixelRatio() - 0.25));
+          renderer.setSize(width, height, false);
+        }
+      }
+      renderer.render(scene, camera);
+    }
     dirty = false;
     lastP = p;
     return busy || (hoverLostAt > 0 && hovered >= 0);
@@ -1090,6 +1114,8 @@ export function createProofScene(
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     dirty = true;
+    // Resizing clears the canvas, so draw now: waiting for the next frame would show it empty for one frame.
+    if (lastP >= 0 && !disposed) update(lastP, 0);
     opts.invalidate?.();
   }
 
@@ -1100,9 +1126,14 @@ export function createProofScene(
     opts.invalidate?.();
   }
 
+  function setMobile(next: boolean) {
+    mobile = next;
+    dirty = true;
+    opts.invalidate?.();
+  }
+
   function dispose() {
     disposed = true;
-    textureRequests.abort();
     for (const pl of plates) for (const o of pl.own) o.dispose();
     for (const d of disposables) d.dispose();
     renderer.dispose();
@@ -1110,5 +1141,5 @@ export function createProofScene(
   }
 
   setItems(opts.items, opts.cardSize);
-  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, setSlab, warmUp, dispose };
+  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, setSlab, setMobile, warmUp, dispose };
 }

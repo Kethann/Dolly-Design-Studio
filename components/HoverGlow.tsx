@@ -46,7 +46,7 @@ export function HoverGlow() {
 
   useEffect(() => {
     const overlay = overlayRef.current;
-    if (!overlay || !enabled || !selector || window.matchMedia("(pointer: coarse), (prefers-reduced-motion: reduce)").matches) return;
+    if (!overlay || !enabled || !selector || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const kindOf = (el: Element) => (Object.values(PLACES).find((p) => el.matches(p.selector))?.kind ?? "text");
     let active: Element | null = null;
     let kind: "shape" | "text" | "sheen" = "text";
@@ -93,6 +93,14 @@ export function HoverGlow() {
       el.style.setProperty("--gx", `${now.x}px`);
       el.style.setProperty("--gy", `${now.y}px`);
     }
+    // A finger has no hover: a tap lights what it landed on, and the light goes out a moment later.
+    let tapTimer = 0;
+    function onDown(e: PointerEvent) {
+      if (e.pointerType === "mouse") return;
+      onMove(e);
+      window.clearTimeout(tapTimer);
+      tapTimer = window.setTimeout(release, 1600);
+    }
     function onMove(e: PointerEvent) {
       const hit = e.target instanceof Element ? e.target.closest(selector) : null;
       if (hit && hit !== active) engage(hit, e.clientX, e.clientY);
@@ -120,11 +128,14 @@ export function HoverGlow() {
       if (active && kind === "shape") place();
     }
     window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerdown", onDown, { passive: true });
     window.addEventListener("scroll", onScroll, { passive: true });
     document.documentElement.addEventListener("pointerleave", release);
     return () => {
       release();
+      window.clearTimeout(tapTimer);
       window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("scroll", onScroll);
       document.documentElement.removeEventListener("pointerleave", release);
       cancelAnimationFrame(raf);
