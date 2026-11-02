@@ -127,7 +127,9 @@ export function ProofTable() {
     if (restoreFocus) stage.current?.focus({ preventScroll: true });
   };
   return (
-    <section id={proofTable.id} className={styles.section} style={glassBackdropStyle(viewControls) as CSSProperties} data-projector-side={viewControls.projectorSide} aria-labelledby="disc-slate-title">
+    <section id={proofTable.id} className={styles.section} style={{ ...glassBackdropStyle(viewControls),
+      "--disc-copy-x": `${pt.copyX}px`, "--disc-copy-y": `${pt.copyY}px`, "--disc-copy-width": `${pt.copyWidth}px` } as CSSProperties}
+      data-projector-side={viewControls.projectorSide} aria-labelledby="disc-slate-title">
       <div className={styles.layout}>
       <div ref={copy} className={styles.copy}>
         <span className={styles.overline}>{renderFx(slate.overline)}</span>

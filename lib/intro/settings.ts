@@ -208,6 +208,10 @@ export interface ProofTableSettings {
   enabled: boolean;
   /** CD presentation. Legacy table controls remain readable for older saved drafts. */
   disc: DiscControls;
+  /** Position and wrapping of the section copy; pixels, bounded in the portal. */
+  copyX: number;
+  copyY: number;
+  copyWidth: number;
   /** How long the section stays pinned, in screen heights (shorter = the story plays faster). */
   length: number;
   /** Card width (1 = the widest that fits). */
@@ -264,6 +268,9 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
   return {
     enabled: bool(src.enabled, d.enabled),
     disc: sanitizeDisc(src.disc),
+    copyX: num(src.copyX, [-48, 48], d.copyX),
+    copyY: num(src.copyY, [-8, 100], d.copyY),
+    copyWidth: num(src.copyWidth, [280, 480], d.copyWidth),
     length: num(src.length, [0.8, 4], d.length),
     cardSize: num(src.cardSize, [0.25, 1], d.cardSize),
     glassColor: hex(src.glassColor, d.glassColor),
@@ -426,6 +433,9 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   proofTable: {
     enabled: true,
     disc: { ...DISC_DEFAULTS },
+    copyX: 0,
+    copyY: 0,
+    copyWidth: 400,
     length: 1.3,
     cardSize: 1,
     glassColor: "#1c1630",

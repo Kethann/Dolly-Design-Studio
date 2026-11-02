@@ -95,6 +95,9 @@
   },
   "proofTable": {
     "enabled": true,
+    "copyX": 0,
+    "copyY": 0,
+    "copyWidth": 400,
     "disc": {
       "glassVersion": 1,
       "glassFinishVersion": 1,
@@ -129,6 +132,7 @@
       "rayStyle": 0,
       "rayElevation": 2.4,
       "raySpread": 0.55,
+      "landingSpread": 1.35,
       "rayPrism": 0.25,
       "rayMotion": 0.65,
       "projectorSide": -1,

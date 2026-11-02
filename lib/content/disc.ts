@@ -28,7 +28,7 @@ export const DISC_DEFAULTS = {
   lightIntensity: 1, glowRadius: 0.75, glowThreshold: 0.72,
   saturation: 1, vibrance: 0, slotSize: 1, slotOpacity: 1, slotRotation: 0,
   slotBlur: 0, unfocusedBrightness: 0.18,
-  discRoll: -8, rayStyle: 0, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.25,
+  discRoll: -8, rayStyle: 0, rayElevation: 2.4, raySpread: 1.1, landingSpread: 1.35, rayPrism: 0.25,
   rayMotion: 0.45, projectorSide: -1,
   beamGlow: 1.1, beamWidth: 1, rayStrength: 1.1, surfaceReflection: 1,
   originGlow: 1, titleGlass: 1, edgeLines: 1,
@@ -49,7 +49,7 @@ export const DISC_RANGES: Record<DiscNumericKey, readonly [number, number, numbe
   saturation: [0, 2, 0.05], vibrance: [0, 1, 0.05], slotSize: [0.7, 1, 0.05], slotRotation: [-180, 180, 1],
   slotOpacity: [0.2, 1, 0.05], slotBlur: [0, 6, 0.25], unfocusedBrightness: [0.05, 1, 0.05],
   discRoll: [-180, 180, 1], rayStyle: [0, 2, 1], rayElevation: [-2, 4, 0.1],
-  raySpread: [0.3, 2, 0.05], rayPrism: [0, 1, 0.05],
+  raySpread: [0.3, 2, 0.05], landingSpread: [0.3, 2.4, 0.05], rayPrism: [0, 1, 0.05],
   rayMotion: [0, 1, 0.05],
   projectorSide: [-1, 1, 2],
   beamGlow: [0, 3, 0.05], beamWidth: [0.25, 2, 0.05], rayStrength: [0, 3, 0.05], surfaceReflection: [0, 3, 0.05],
@@ -224,14 +224,23 @@ export function discTitlePoint(layout: ReturnType<typeof discPanelLayout>, u: nu
   return out;
 }
 
-/** A title-sized projector window with bounded overscan so outer letters receive soft light too. */
-export function discProjectionWindow(layout: ReturnType<typeof discPanelLayout>, radius: number, spread: number) {
+function projectionWindow(layout: ReturnType<typeof discPanelLayout>, radius: number, spread: number, maxScale: number) {
   const center = Math.min(layout.outer - 0.015, Math.max(layout.inner + 0.015, radius));
-  const scale = Math.min(1.35, Math.max(0.35, spread * 1.14));
+  const scale = Math.min(maxScale, Math.max(0.35, spread * 1.14));
   const halfHeight = Math.min(center - layout.inner, layout.outer - center) * scale;
   const inner = center - halfHeight, outer = center + halfHeight;
   const widthAt = (r: number) => layout.innerHalfWidth + (layout.outerHalfWidth - layout.innerHalfWidth) * (r - layout.inner) / (layout.outer - layout.inner);
   return { ...layout, inner, outer, innerHalfWidth: widthAt(inner) * scale, outerHalfWidth: widthAt(outer) * scale, center };
+}
+
+/** Existing bounded beam footprint and surface reflection. */
+export function discProjectionWindow(layout: ReturnType<typeof discPanelLayout>, radius: number, spread: number) {
+  return projectionWindow(layout, radius, spread, 1.35);
+}
+
+/** Wider title reveal on the glass, centred on the existing beam landing. */
+export function discLandingWindow(layout: ReturnType<typeof discPanelLayout>, radius: number, spread: number) {
+  return projectionWindow(layout, radius, spread, 1.75);
 }
 
 /** Fixed-window illumination, shared with the fragment shader's feather profile. */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import styles from "./reorder.module.css";
 
 /** Moves the item at `from` so it ends up at `to`, everything between shifting along. */
@@ -34,13 +34,26 @@ export function useReorder<E extends HTMLElement = HTMLDivElement>(onMove: (from
 } {
   const [box, setBox] = useState<E | null>(null);
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null);
+  const active = useRef<{ pointerId: number; from: number; over: number } | null>(null);
   // While dragging, the whole screen shows the "grabbing" hand.
   useEffect(() => {
     if (!drag) return;
     const was = document.body.style.cursor;
     document.body.style.cursor = "grabbing";
+    const cancel = (event: globalThis.PointerEvent) => {
+      if (active.current?.pointerId !== event.pointerId) return;
+      active.current = null;
+      setDrag(null);
+    };
+    const blur = () => { active.current = null; setDrag(null); };
+    window.addEventListener("pointerup", cancel);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("blur", blur);
     return () => {
       document.body.style.cursor = was;
+      window.removeEventListener("pointerup", cancel);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("blur", blur);
     };
   }, [drag]);
 
@@ -51,13 +64,15 @@ export function useReorder<E extends HTMLElement = HTMLDivElement>(onMove: (from
 
   const grip = (i: number, count: number) => {
     const onPointerDown = (e: PointerEvent<HTMLElement>) => {
-      if (e.button !== 0 || count < 2) return;
+      if (e.button !== 0 || !e.isPrimary || count < 2 || active.current) return;
       e.preventDefault();
-      e.currentTarget.setPointerCapture(e.pointerId);
+      active.current = { pointerId: e.pointerId, from: i, over: i };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* The drag still ends on pointer release. */ }
       setDrag({ from: i, over: i });
     };
-    const onPointerMove = (e: PointerEvent<HTMLElement>) => {
-      if (!drag || !box) return;
+    const updateOver = (e: PointerEvent<HTMLElement>) => {
+      const current = active.current;
+      if (!current || current.pointerId !== e.pointerId || !box) return;
       // A long list scrolls when the pointer nears its top or bottom edge.
       const sp = scrollParent(box);
       if (sp) {
@@ -68,12 +83,28 @@ export function useReorder<E extends HTMLElement = HTMLDivElement>(onMove: (from
       // The item under the pointer that belongs to THIS list (not one inside it, such as a card's own pictures).
       let el = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-reorder]") ?? null;
       while (el && el.parentElement !== box) el = el.parentElement?.closest<HTMLElement>("[data-reorder]") ?? null;
+      // A release just beyond the list should still land at its nearest end.
+      if (!el) {
+        const items = Array.from(box.children).filter((child): child is HTMLElement => child instanceof HTMLElement && child.hasAttribute("data-reorder"));
+        if (items.length) {
+          const first = items[0].getBoundingClientRect();
+          const last = items[items.length - 1].getBoundingClientRect();
+          if (e.clientY < first.top) el = items[0];
+          else if (e.clientY > last.bottom) el = items[items.length - 1];
+        }
+      }
       if (!el) return;
       const over = Number(el.dataset.reorder);
-      if (Number.isFinite(over) && over !== drag.over) setDrag({ from: drag.from, over });
+      if (Number.isFinite(over) && over !== current.over) {
+        current.over = over;
+        setDrag({ from: current.from, over });
+      }
     };
-    const finish = (commit: boolean) => {
-      const d = drag;
+    const finish = (e: PointerEvent<HTMLElement>, commit: boolean) => {
+      const d = active.current;
+      if (!d || d.pointerId !== e.pointerId) return;
+      if (commit) updateOver(e);
+      active.current = null;
       setDrag(null);
       if (commit && d && d.from !== d.over) onMove(d.from, d.over);
     };
@@ -95,9 +126,10 @@ export function useReorder<E extends HTMLElement = HTMLDivElement>(onMove: (from
         title={count < 2 ? "Add another to be able to reorder" : "Drag to change the order"}
         data-disabled={count < 2}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={() => finish(true)}
-        onPointerCancel={() => finish(false)}
+        onPointerMove={updateOver}
+        onPointerUp={(e) => finish(e, true)}
+        onPointerCancel={(e) => finish(e, false)}
+        onLostPointerCapture={(e) => finish(e, false)}
         onKeyDown={onKeyDown}
         onClick={(e) => e.stopPropagation()}
       >

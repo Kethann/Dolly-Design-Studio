@@ -6,7 +6,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
 import { bindCircleDrag } from "./drag";
-import { DISC_DEFAULTS, sanitizeDisc, glassCircleComposition, glassArrivalSpinMultiplier, glassArrivalOpacity, glassEase, glassProjectorOrigin, discAimProfileForWidth, discPanelLayout, discFittedTitleLayout, discTitleInkBounds, discTitlePoint, discProjectionWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, releaseDiscImage, discViewportFeather, type DiscControls } from "../../lib/content/disc";
+import { DISC_DEFAULTS, sanitizeDisc, glassCircleComposition, glassArrivalSpinMultiplier, glassArrivalOpacity, glassEase, glassProjectorOrigin, discAimProfileForWidth, discPanelLayout, discFittedTitleLayout, discTitleInkBounds, discTitlePoint, discProjectionWindow, discLandingWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, releaseDiscImage, discViewportFeather, type DiscControls } from "../../lib/content/disc";
 
 export type DiscImage = { src: string; label: string; titleColor?: string; glowColor?: string; glowIntensity?: number; rotation?: number;
   scale?: number; opacity?: number; blend?: "normal" | "screen" | "additive" };
@@ -107,7 +107,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     spinSpeed: controls.spinSpeed,
     focusAngle: controls.focusAngle, focusRadius: controls.focusRadius,
     originX: controls.originOffsetX, originY: controls.originOffsetY,
-    raySpread: controls.raySpread, glowRadius: controls.glowRadius,
+    raySpread: controls.raySpread, landingSpread: controls.landingSpread, glowRadius: controls.glowRadius,
     rayIntensity: controls.rayIntensity, bloom: controls.bloom,
     lightIntensity: controls.lightIntensity, glowThreshold: controls.glowThreshold,
     beamGlow: controls.beamGlow, beamWidth: controls.beamWidth, rayStrength: controls.rayStrength,
@@ -127,6 +127,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
   const slotGlow = { value: controls.bloom * controls.rayIntensity };
   const projectorTransform = { value: new THREE.Matrix4() };
   const projectorBounds = { value: new THREE.Vector4() };
+  const landingBounds = { value: new THREE.Vector4() };
   const projectorSoftness = { value: controls.glowRadius };
   const projectorPower = { value: controls.rayIntensity };
   const projectorFrame = new THREE.Matrix4();
@@ -342,7 +343,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         titleGlowColour: { value: customGlow }, useTitleGlowColour: { value: item.glowColor ? 1 : 0 },
         titleGlowIntensity: { value: THREE.MathUtils.clamp(item.glowIntensity ?? 1, 0, 2) },
         titleOpacity: { value: THREE.MathUtils.clamp(item.opacity ?? 1, 0, 1) }, screenBlend: { value: 0 },
-        projectorTransform, projectorBounds, projectorSoftness, projectorPower, contactColour, contactStrength, titleGlass, viewport: fanMaterial.uniforms.viewport, rays: raysUniform },
+        projectorTransform, projectorBounds, landingBounds, projectorSoftness, projectorPower, contactColour, contactStrength, titleGlass, viewport: fanMaterial.uniforms.viewport, rays: raysUniform },
         vertexShader: `uniform mat4 projectorTransform; varying vec2 vProjector; varying vec2 vUv;
           void main(){ vec4 world=modelMatrix*vec4(position,1.);
             vProjector=(projectorTransform*world).xy/2.35;
@@ -352,7 +353,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         uniform float useTitleColour, useTitleGlowColour, titleGlowIntensity, titleOpacity, screenBlend, titleGlass;
         uniform vec2 viewport;
         uniform vec3 contactColour, titleColour, titleGlowColour;
-        uniform vec4 projectorBounds; varying vec2 vProjector; varying vec2 vUv;
+        uniform vec4 projectorBounds, landingBounds; varying vec2 vProjector; varying vec2 vUv;
         ${rayShaderSource}
         ${contactShader}
         float feather(float edge){
@@ -365,9 +366,14 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
           return smoothstep(.1,.58,max(t.r,max(t.g,t.b)))*t.a;
         }
         void main(){
-          float radial=(vProjector.x-projectorBounds.x)/(projectorBounds.y-projectorBounds.x);
-          float halfWidth=mix(projectorBounds.z,projectorBounds.w,clamp(radial,0.,1.));
-          float focus=feather(abs(radial*2.-1.))*feather(abs(vProjector.y)/halfWidth)*smoothstep(0.,.25,projectorPower);
+          float radial=(vProjector.x-landingBounds.x)/(landingBounds.y-landingBounds.x);
+          float halfWidth=mix(landingBounds.z,landingBounds.w,clamp(radial,0.,1.));
+          // The title landing is a broad, softly irregular pool. It is calculated in
+          // the glass plane only, so it never moves the source, beam or its aim.
+          vec2 landing=vec2(radial*2.-1.,vProjector.y/max(halfWidth,.001));
+          float contour=1.+.075*sin(landing.x*13.+landing.y*9.)+.045*sin(landing.x*5.-landing.y*17.);
+          float rounded=pow(pow(abs(landing.x),1.65)+pow(abs(landing.y),1.65),1./1.65);
+          float focus=feather(rounded/contour)*smoothstep(0.,.25,projectorPower);
           // Local card UVs make the artwork and title one rigid print. Preserve the uploaded
           // image ratio with contain-fit padding instead of stretching it to the card.
           vec2 fit=vec2(1.);
@@ -806,6 +812,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
     renderedControls.originX = settleControl(renderedControls.originX, aimOriginX, dt, 15);
     renderedControls.originY = settleControl(renderedControls.originY, aimOriginY, dt, 15);
     renderedControls.raySpread = settleControl(renderedControls.raySpread, controls.raySpread, dt, 15);
+    renderedControls.landingSpread = settleControl(renderedControls.landingSpread, controls.landingSpread, dt, 15);
     renderedControls.glowRadius = settleControl(renderedControls.glowRadius, controls.glowRadius, dt, 12);
     renderedControls.rayIntensity = settleControl(renderedControls.rayIntensity, controls.rayIntensity, dt, 12);
     renderedControls.bloom = settleControl(renderedControls.bloom, controls.bloom, dt, 12);
@@ -874,9 +881,11 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
       projectionLayout = layout; projectionRadius = renderedControls.focusRadius; projectionSpread = renderedControls.raySpread;
       projection = discProjectionWindow(layout, projectionRadius, projectionSpread);
     }
+    const landingProjection = discLandingWindow(layout, renderedControls.focusRadius, renderedControls.landingSpread);
     projectorFrame.makeRotationZ(localFocus).premultiply(tilt.matrixWorld);
     projectorTransform.value.copy(projectorFrame).invert();
     projectorBounds.value.set(projection.inner, projection.outer, projection.innerHalfWidth, projection.outerHalfWidth);
+    landingBounds.value.set(landingProjection.inner, landingProjection.outer, landingProjection.innerHalfWidth, landingProjection.outerHalfWidth);
     anchor.set(Math.cos(localFocus) * R * projection.center, Math.sin(localFocus) * R * projection.center, 0.06);
     tilt.localToWorld(anchor);
     let coverage = 0, bandCoverage = 0;

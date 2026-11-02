@@ -9,20 +9,13 @@ export function constrainWindow(rect: WindowRect, bounds: WindowRect): WindowRec
   return { width, height, x: clamp(rect.x, bounds.x, bounds.x + bounds.width - width), y: clamp(rect.y, bounds.y, bounds.y + bounds.height - height) };
 }
 
-/** Allow a little horizontal travel even for full-width windows, never hide most of one.
- * Resizing/viewport changes still use constrainWindow to bring the whole window back. */
+/** Keep the entire title bar and its controls reachable while the window moves. */
 export function moveWindow(rect: WindowRect, bounds: WindowRect): WindowRect {
-  const sized = constrainWindow(rect, bounds);
-  const overscan = Math.min(120, sized.width * .2, bounds.width * .15);
-  return { ...sized,
-    x: clamp(rect.x, bounds.x - overscan, bounds.x + bounds.width - sized.width + overscan),
-    y: clamp(rect.y, bounds.y, bounds.y + bounds.height - sized.height),
-  };
+  return constrainWindow(rect, bounds);
 }
 
 export function resizeWindow(rect: WindowRect, edge: ResizeEdge, dx: number, dy: number, bounds: WindowRect): WindowRect {
-  // Keep the opposite edge anchored when a window is slightly beyond a side.
-  // Re-fitting the whole rectangle here would jump it on the first resize pixel.
+  // Recover a window after a viewport change before applying the resize delta.
   const start = moveWindow(rect, bounds);
   let left = start.x, top = start.y, right = left + start.width, bottom = top + start.height;
   const minWidth = Math.min(320, bounds.width), minHeight = Math.min(180, bounds.height);

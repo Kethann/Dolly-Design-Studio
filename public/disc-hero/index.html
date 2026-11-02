@@ -47,7 +47,7 @@ export const DISC_DEFAULTS = {
     lightIntensity: 1, glowRadius: 0.75, glowThreshold: 0.72,
     saturation: 1, vibrance: 0, slotSize: 1, slotOpacity: 1, slotRotation: 0,
     slotBlur: 0, unfocusedBrightness: 0.18,
-    discRoll: -8, rayStyle: 0, rayElevation: 2.4, raySpread: 1.1, rayPrism: 0.25,
+    discRoll: -8, rayStyle: 0, rayElevation: 2.4, raySpread: 1.1, landingSpread: 1.35, rayPrism: 0.25,
     rayMotion: 0.45, projectorSide: -1,
     beamGlow: 1.1, beamWidth: 1, rayStrength: 1.1, surfaceReflection: 1,
     originGlow: 1, titleGlass: 1, edgeLines: 1,
@@ -66,7 +66,7 @@ export const DISC_RANGES = {
     saturation: [0, 2, 0.05], vibrance: [0, 1, 0.05], slotSize: [0.7, 1, 0.05], slotRotation: [-180, 180, 1],
     slotOpacity: [0.2, 1, 0.05], slotBlur: [0, 6, 0.25], unfocusedBrightness: [0.05, 1, 0.05],
     discRoll: [-180, 180, 1], rayStyle: [0, 2, 1], rayElevation: [-2, 4, 0.1],
-    raySpread: [0.3, 2, 0.05], rayPrism: [0, 1, 0.05],
+    raySpread: [0.3, 2, 0.05], landingSpread: [0.3, 2.4, 0.05], rayPrism: [0, 1, 0.05],
     rayMotion: [0, 1, 0.05],
     projectorSide: [-1, 1, 2],
     beamGlow: [0, 3, 0.05], beamWidth: [0.25, 2, 0.05], rayStrength: [0, 3, 0.05], surfaceReflection: [0, 3, 0.05],
@@ -241,14 +241,21 @@ export function discTitlePoint(layout, u, v, orbit, rotation = 0, out = { x: 0, 
     out.y = radial * os + tangent * oc;
     return out;
 }
-/** A title-sized projector window with bounded overscan so outer letters receive soft light too. */
-export function discProjectionWindow(layout, radius, spread) {
+function projectionWindow(layout, radius, spread, maxScale) {
     const center = Math.min(layout.outer - 0.015, Math.max(layout.inner + 0.015, radius));
-    const scale = Math.min(1.35, Math.max(0.35, spread * 1.14));
+    const scale = Math.min(maxScale, Math.max(0.35, spread * 1.14));
     const halfHeight = Math.min(center - layout.inner, layout.outer - center) * scale;
     const inner = center - halfHeight, outer = center + halfHeight;
     const widthAt = (r) => layout.innerHalfWidth + (layout.outerHalfWidth - layout.innerHalfWidth) * (r - layout.inner) / (layout.outer - layout.inner);
     return { ...layout, inner, outer, innerHalfWidth: widthAt(inner) * scale, outerHalfWidth: widthAt(outer) * scale, center };
+}
+/** Existing bounded beam footprint and surface reflection. */
+export function discProjectionWindow(layout, radius, spread) {
+    return projectionWindow(layout, radius, spread, 1.35);
+}
+/** Wider title reveal on the glass, centred on the existing beam landing. */
+export function discLandingWindow(layout, radius, spread) {
+    return projectionWindow(layout, radius, spread, 1.75);
 }
 /** Fixed-window illumination, shared with the fragment shader's feather profile. */
 function projectionFeather(edge, softness) {
@@ -501,7 +508,7 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         spinSpeed: controls.spinSpeed,
         focusAngle: controls.focusAngle, focusRadius: controls.focusRadius,
         originX: controls.originOffsetX, originY: controls.originOffsetY,
-        raySpread: controls.raySpread, glowRadius: controls.glowRadius,
+        raySpread: controls.raySpread, landingSpread: controls.landingSpread, glowRadius: controls.glowRadius,
         rayIntensity: controls.rayIntensity, bloom: controls.bloom,
         lightIntensity: controls.lightIntensity, glowThreshold: controls.glowThreshold,
         beamGlow: controls.beamGlow, beamWidth: controls.beamWidth, rayStrength: controls.rayStrength,
@@ -521,6 +528,7 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
     const slotGlow = { value: controls.bloom * controls.rayIntensity };
     const projectorTransform = { value: new THREE.Matrix4() };
     const projectorBounds = { value: new THREE.Vector4() };
+    const landingBounds = { value: new THREE.Vector4() };
     const projectorSoftness = { value: controls.glowRadius };
     const projectorPower = { value: controls.rayIntensity };
     const projectorFrame = new THREE.Matrix4();
@@ -743,7 +751,7 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
                     titleGlowColour: { value: customGlow }, useTitleGlowColour: { value: item.glowColor ? 1 : 0 },
                     titleGlowIntensity: { value: THREE.MathUtils.clamp(item.glowIntensity ?? 1, 0, 2) },
                     titleOpacity: { value: THREE.MathUtils.clamp(item.opacity ?? 1, 0, 1) }, screenBlend: { value: 0 },
-                    projectorTransform, projectorBounds, projectorSoftness, projectorPower, contactColour, contactStrength, titleGlass, viewport: fanMaterial.uniforms.viewport, rays: raysUniform },
+                    projectorTransform, projectorBounds, landingBounds, projectorSoftness, projectorPower, contactColour, contactStrength, titleGlass, viewport: fanMaterial.uniforms.viewport, rays: raysUniform },
                 vertexShader: `uniform mat4 projectorTransform; varying vec2 vProjector; varying vec2 vUv;
           void main(){ vec4 world=modelMatrix*vec4(position,1.);
             vProjector=(projectorTransform*world).xy/2.35;
@@ -753,7 +761,7 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         uniform float useTitleColour, useTitleGlowColour, titleGlowIntensity, titleOpacity, screenBlend, titleGlass;
         uniform vec2 viewport;
         uniform vec3 contactColour, titleColour, titleGlowColour;
-        uniform vec4 projectorBounds; varying vec2 vProjector; varying vec2 vUv;
+        uniform vec4 projectorBounds, landingBounds; varying vec2 vProjector; varying vec2 vUv;
         ${rayShaderSource}
         ${contactShader}
         float feather(float edge){
@@ -766,9 +774,14 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
           return smoothstep(.1,.58,max(t.r,max(t.g,t.b)))*t.a;
         }
         void main(){
-          float radial=(vProjector.x-projectorBounds.x)/(projectorBounds.y-projectorBounds.x);
-          float halfWidth=mix(projectorBounds.z,projectorBounds.w,clamp(radial,0.,1.));
-          float focus=feather(abs(radial*2.-1.))*feather(abs(vProjector.y)/halfWidth)*smoothstep(0.,.25,projectorPower);
+          float radial=(vProjector.x-landingBounds.x)/(landingBounds.y-landingBounds.x);
+          float halfWidth=mix(landingBounds.z,landingBounds.w,clamp(radial,0.,1.));
+          // The title landing is a broad, softly irregular pool. It is calculated in
+          // the glass plane only, so it never moves the source, beam or its aim.
+          vec2 landing=vec2(radial*2.-1.,vProjector.y/max(halfWidth,.001));
+          float contour=1.+.075*sin(landing.x*13.+landing.y*9.)+.045*sin(landing.x*5.-landing.y*17.);
+          float rounded=pow(pow(abs(landing.x),1.65)+pow(abs(landing.y),1.65),1./1.65);
+          float focus=feather(rounded/contour)*smoothstep(0.,.25,projectorPower);
           // Local card UVs make the artwork and title one rigid print. Preserve the uploaded
           // image ratio with contain-fit padding instead of stretching it to the card.
           vec2 fit=vec2(1.);
@@ -1266,6 +1279,7 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
         renderedControls.originX = settleControl(renderedControls.originX, aimOriginX, dt, 15);
         renderedControls.originY = settleControl(renderedControls.originY, aimOriginY, dt, 15);
         renderedControls.raySpread = settleControl(renderedControls.raySpread, controls.raySpread, dt, 15);
+        renderedControls.landingSpread = settleControl(renderedControls.landingSpread, controls.landingSpread, dt, 15);
         renderedControls.glowRadius = settleControl(renderedControls.glowRadius, controls.glowRadius, dt, 12);
         renderedControls.rayIntensity = settleControl(renderedControls.rayIntensity, controls.rayIntensity, dt, 12);
         renderedControls.bloom = settleControl(renderedControls.bloom, controls.bloom, dt, 12);
@@ -1346,9 +1360,11 @@ export function createDiscScene(canvas, initial, controls = { ...DISC_DEFAULTS }
             projectionSpread = renderedControls.raySpread;
             projection = discProjectionWindow(layout, projectionRadius, projectionSpread);
         }
+        const landingProjection = discLandingWindow(layout, renderedControls.focusRadius, renderedControls.landingSpread);
         projectorFrame.makeRotationZ(localFocus).premultiply(tilt.matrixWorld);
         projectorTransform.value.copy(projectorFrame).invert();
         projectorBounds.value.set(projection.inner, projection.outer, projection.innerHalfWidth, projection.outerHalfWidth);
+        landingBounds.value.set(landingProjection.inner, landingProjection.outer, landingProjection.innerHalfWidth, landingProjection.outerHalfWidth);
         anchor.set(Math.cos(localFocus) * R * projection.center, Math.sin(localFocus) * R * projection.center, 0.06);
         tilt.localToWorld(anchor);
         let coverage = 0, bandCoverage = 0;

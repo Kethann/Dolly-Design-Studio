@@ -42,9 +42,12 @@ export const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; la
     { key: "surfaceReflection", label: "Surface reflection", hint: "Only the light landing on the glass surface. Zero removes it without disabling the beam, edge light or title glow." },
     { key: "rayStyle", label: "Ray style" },
     { key: "rayMotion", label: "Ray movement", hint: "Gentle, irregular motion with steady brightness. Zero keeps the beam still. Pause and reduced motion stop animation." },
-    { key: "raySpread", label: "Title-light spread", hint: "Sets how much of a passing title receives light. Use Beam width above to narrow or expand the visible shaft." },
+    { key: "raySpread", label: "Beam landing footprint", hint: "Advanced: this is the projector's existing beam footprint. Leave it unchanged when refining only the title reveal." },
     { key: "rayPrism", label: "Prism colour separation", hint: "Adds fine spectral streaks to Prismatic fan. The main colour still follows the highlighted artwork." },
     { key: "rayLength", label: "Off-screen beam distance", hint: "Moves the hidden projector farther beyond the selected screen edge. The source itself always remains outside the visible page." },
+  ] },
+  { title: "Landing reveal", fields: [
+    { key: "landingSpread", label: "Landing spread", hint: "Expands only the soft, free-form title reveal where the light lands. It does not move, widen or otherwise change the visible beam or its source." },
   ] },
   { title: "Desktop beam position · 1025px+", fields: [
     { key: "originOffsetX", label: "Origin — horizontal", hint: "Moves the source along the upper edge. The projector itself stays off screen." },
@@ -200,12 +203,25 @@ export function ProofTableEditor({
           <p className={styles.controlHint}>Reset restores the circle controls; your images and title order stay as they are.</p>
         </div>
       </Section>
+      <Section id="proof-text-placement" title="Heading and copy placement" scope="Page" hint="Move the left-hand heading, paragraph and button together. Watch the page preview while adjusting; phone movement is kept inside its reading gutter.">
+        <Slider label="Move text left / right" hint="Negative moves left; positive moves right. The phone shift is limited to keep text readable."
+          min={-48} max={48} step={4} value={value.copyX} editable inputUnit="px" format={n => `${n}px`}
+          onChange={copyX => onChange({ copyX })} />
+        <Slider label="Move text up / down" hint="Moves the complete copy block without changing the projector."
+          min={-8} max={100} step={4} value={value.copyY} editable inputUnit="px" format={n => `${n}px`}
+          onChange={copyY => onChange({ copyY })} />
+        <Slider label="Text block width" hint="Changes line wrapping on wider screens; phone width stays within the available space."
+          min={280} max={480} step={10} value={value.copyWidth} editable inputUnit="px" format={n => `${n}px`}
+          onChange={copyWidth => onChange({ copyWidth })} />
+        <button type="button" className={styles.ghostButton} onClick={() => onChange({ copyX: 0, copyY: 0, copyWidth: 400 })}>Reset text placement</button>
+      </Section>
       <div className={styles.discFinder}>
         <label className={styles.controlLabel}>Find a circle setting
           <input className={styles.select} type="search" value={settingSearch} placeholder="Try: edge, beam width, title size…" onChange={event => setSettingSearch(event.target.value)} />
         </label>
-        <div className={styles.discShortcuts} role="group" aria-label="Circle setting shortcuts">
-          {[["Circle & entrance", "Circle"], ["Glass tint", "Glass"], ["Projector & light", "Lighting"], ["Title settings", "Titles"],
+        <div className={styles.discShortcuts} role="group" aria-label="Setting shortcuts">
+          <button type="button" className={styles.ghostButton} onClick={() => document.getElementById("proof-text-placement")?.scrollIntoView({ block: "nearest", behavior: "smooth" })}>Text placement</button>
+          {[["Circle & entrance", "Circle"], ["Landing reveal", "Landing"], ["Title settings", "Artwork"], ["Projector & light", "Lighting"], ["Glass tint", "Glass"],
             [DISC_GROUPS.find(group => group.title.startsWith(activeBeamGroup))!.title, `Beam position · ${aimProfile}`]].map(([title, label]) =>
             <button key={title} type="button" className={styles.ghostButton} onClick={() => jumpTo(title)}>{label}</button>)}
         </div>

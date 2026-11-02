@@ -3,7 +3,7 @@ import { constrainWindow, moveWindow, resizeWindow, type ResizeEdge, type Window
 const geometryKeys = ["left", "top", "width", "height"] as const;
 const interactive = "button,a,input,select,textarea,[contenteditable=true]";
 
-/** Native pointer capture keeps dragging smooth across the live preview iframe. No content remounts. */
+/** Pointer capture and a temporary iframe shield keep dragging continuous over the live preview. */
 export function bindPanelWindow(box: HTMLElement) {
   let custom: WindowRect | null = null;
   let restore: WindowRect | null = null;
@@ -90,6 +90,7 @@ export function bindPanelWindow(box: HTMLElement) {
     capture.focus({ preventScroll: true });
     const rect = measure();
     gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, rect, previous: custom, wasFull: full, edge: edge?.dataset.windowResize as ResizeEdge | undefined, capture };
+    // Shield the preview from the first movement, even if pointer capture is unavailable.
     box.setAttribute("data-window-dragging", "");
     document.documentElement.setAttribute("data-portal-window-drag", "");
     try { capture.setPointerCapture(event.pointerId); } catch { /* Window listeners still handle release. */ }
@@ -101,7 +102,7 @@ export function bindPanelWindow(box: HTMLElement) {
     if (event.type === "pointermove" && event.buttons === 0) { end(); return; }
     event.preventDefault();
     const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
-    if (!gesture.moved && Math.hypot(dx, dy) < 3) return;
+    if (!gesture.moved && Math.hypot(dx, dy) < 5) return;
     gesture.moved = true;
     // Like a desktop window, dragging a maximized title bar restores it under
     // the pointer. A click alone must not change its size or lose form state.

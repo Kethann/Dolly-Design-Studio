@@ -3,8 +3,8 @@
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: 20px;
-  height: 28px;
+  width: 36px;
+  height: 40px;
   border-radius: 6px;
   color: var(--p-muted, #a89d8e);
   font-size: 15px;
@@ -31,6 +31,10 @@
 .grip[data-disabled="true"] {
   opacity: 0.3;
   cursor: default;
+}
+
+@media (pointer: coarse) {
+  .grip { width: 44px; height: 44px; }
 }
 
 /* What the list shows while one is being dragged: it fades, and a gold line marks where it will land. */

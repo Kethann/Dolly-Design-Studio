@@ -118,9 +118,9 @@ test("portal window geometry stays visible at every edge, minimum size and viewp
   assert.deepEqual(resizeWindow(rect,"nw",100,50,bounds),{x:400,y:250,width:500,height:350});
   assert.deepEqual(resizeWindow(rect,"se",100,50,bounds),{x:300,y:200,width:700,height:450});
   const leftOutside={x:-80,y:100,width:600,height:400};
-  assert.deepEqual(resizeWindow(leftOutside,"e",10,0,bounds),{...leftOutside,width:610},"Resizing must not re-center a partly off-screen window");
+  assert.deepEqual(resizeWindow(leftOutside,"e",10,0,bounds),{...leftOutside,x:0,width:610},"Resizing first recovers a partly off-screen window");
   const rightOutside={x:700,y:100,width:600,height:400};
-  assert.deepEqual(resizeWindow(rightOutside,"w",-10,0,bounds),{...rightOutside,x:690,width:610},"The opposite edge remains anchored");
+  assert.deepEqual(resizeWindow(rightOutside,"w",-10,0,bounds),{...rightOutside,x:590,width:610},"The opposite edge stays anchored after recovery");
   for(const outside of [leftOutside,rightOutside]) for(const edge of ["w","e"]) for(const delta of [-10000,10000]) {
     assert.ok(resizeWindow(outside,edge,delta,0,bounds).width<=bounds.width,"A partly off-screen resize cannot grow beyond the viewport");
   }
@@ -131,12 +131,12 @@ test("wide portal windows can move right and left while retaining a reachable ti
   for (const width of [240, 320, 390, 729, 1024, 1920]) {
     const bounds = { x: 8, y: 28, width: width - 16, height: 484 };
     const original = { x: 8, y: 28, width: bounds.width, height: 460 };
-    assert.equal(moveWindow({ ...original, x: 108 }, bounds).x, Math.min(108, 8 + Math.min(120,bounds.width*.15)));
+    assert.equal(moveWindow({ ...original, x: 108 }, bounds).x, 8);
     for (const x of [-10000, -100, 0, 100, 10000]) {
       const moved = moveWindow({ ...original, x, y: 10000 }, bounds);
       const visible = Math.min(moved.x + moved.width, bounds.x + bounds.width) - Math.max(moved.x, bounds.x);
-      assert.ok(visible >= moved.width*.8-1e-9, "At least 80% of the window remains visible");
-      assert.ok(moved.y >= bounds.y && moved.y + 96 <= bounds.y + bounds.height);
+      assert.ok(visible >= moved.width-1e-9, "The entire window remains visible");
+      assert.ok(moved.y >= bounds.y && moved.y + moved.height <= bounds.y + bounds.height);
       const recovered = constrainWindow(moved, bounds);
       assert.ok(recovered.x >= bounds.x && recovered.x + recovered.width <= bounds.x + bounds.width);
     }
@@ -189,6 +189,7 @@ test("portal windows move, resize, restore, cancel, and release pointer capture 
     fire(box,"pointerdown",header);fire(win,"pointerup",header);
     assert.equal(box.hasAttribute("data-window-custom"),false,"A title click alone does not fix the default auto-height");
     fire(box,"pointerdown",header);assert.equal(header.hasPointerCapture(1),true);
+    assert.equal(root.hasAttribute("data-portal-window-drag"),true,"The preview is shielded from the first drag movement");
     fire(win,"pointermove",header,{clientX:200,clientY:150});fire(win,"pointerup",header,{clientX:200,clientY:150});
     assert.equal(box.style.left,"200px");assert.equal(box.style.top,"170px");assert.equal(header.hasPointerCapture(1),false);
     assert.equal(root.hasAttribute("data-portal-window-drag"),false);
@@ -204,9 +205,9 @@ test("portal windows move, resize, restore, cancel, and release pointer capture 
     assert.equal(box.style.left,"160px","Explicit Escape restores the pre-drag geometry");
     fire(box,"pointerdown",header,{clientX:300,clientY:180});
     fire(win,"pointerup",header,{clientX:1100,clientY:180});
-    assert.equal(box.style.left,"562px", "Rightward travel is bounded without hiding most of the window");
+    assert.equal(box.style.left,"442px", "Rightward travel keeps the full window visible");
     fire(box,"keydown",header,{key:"ArrowRight",shiftKey:true});
-    assert.equal(box.style.left,"562px", "Keyboard movement uses the same safe limit");
+    assert.equal(box.style.left,"442px", "Keyboard movement uses the same safe limit");
     fire(box,"click",maximize);
     fire(box,"pointerdown",header,{clientX:600,clientY:20});fire(win,"pointerup",header,{clientX:600,clientY:20});
     assert.equal(box.hasAttribute("data-window-fullscreen"),true,"A maximized title click does not restore the window");
@@ -244,7 +245,7 @@ test("portal windows move, resize, restore, cancel, and release pointer capture 
     fire(win,"pointermove",header,{clientX:300,clientY:100,pointerId:2});
     assert.equal(box.hasAttribute("data-window-custom"),false,"Another pointer cannot move the window");
     fire(win,"pointerup",header,{clientX:300,clientY:100});
-    assert.equal(box.style.left,"227.95px","Dragging works without visualViewport or pointer capture and stays bounded");
+    assert.equal(box.style.left,"121px","Dragging works without visualViewport or pointer capture and stays fully visible");
     assert.equal(root.hasAttribute("data-portal-window-drag"),false);
     header.setPointerCapture = capturePointer;
     fire(box,"click",reset);
@@ -2137,6 +2138,22 @@ test("projector footprint tracks title dimensions with bounded edge overscan", (
   assert.ok(window(5, 1).outer > discPanelLayout(5, 3, 1).outer, "Default light reaches beyond the outer letters");
   assert.ok(window(16, 1).outerHalfWidth < window(5, 1).outerHalfWidth);
   assert.ok(window(5, .7).outer - window(5, .7).inner < window(5, 1).outer - window(5, 1).inner);
+});
+
+test("landing reveal expands independently of the projector beam and saved copy placement", () => {
+  const { discPanelLayout, discProjectionWindow, discLandingWindow } = loader()("lib/content/disc.ts");
+  const { sanitizeIntroSettings } = loader()("lib/intro/settings.ts");
+  const layout = discPanelLayout(8, 3, 1);
+  const beam = discProjectionWindow(layout, .8, .55);
+  const narrow = discLandingWindow(layout, .8, .3);
+  const wide = discLandingWindow(layout, .8, 2.4);
+  assert.ok(wide.outerHalfWidth > narrow.outerHalfWidth);
+  assert.ok(wide.outer - wide.inner > narrow.outer - narrow.inner);
+  assert.deepEqual(discProjectionWindow(layout, .8, .55), beam, "Changing the landing does not change the beam footprint");
+  const settings = sanitizeIntroSettings({ proofTable: { copyX: 32, copyY: 64, copyWidth: 460, disc: { landingSpread: 2.4 } } });
+  const saved = sanitizeIntroSettings(JSON.parse(JSON.stringify(settings)));
+  assert.equal(saved.proofTable.disc.landingSpread, 2.4);
+  assert.deepEqual([saved.proofTable.copyX, saved.proofTable.copyY, saved.proofTable.copyWidth], [32, 64, 460]);
 });
 
 test("stat values retain typed symbols, decimal precision, blank drafts and text effects through saving", () => {
