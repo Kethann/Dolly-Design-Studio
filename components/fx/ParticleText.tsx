@@ -137,10 +137,15 @@ export function ParticleText({ children, color, options }: { children: string; c
       og.fillStyle = "#fff";
       const spacing = parseFloat(cs.letterSpacing);
       if (Number.isFinite(spacing) && "letterSpacing" in og) (og as unknown as { letterSpacing: string }).letterSpacing = `${spacing}px`;
-      const m = og.measureText(word);
-      const ascent = m.actualBoundingBoxAscent || fontSize * 0.8;
-      const descent = m.actualBoundingBoxDescent || fontSize * 0.2;
-      og.fillText(word, 0, (h - (ascent + descent)) / 2 + ascent);
+      // Dots must spell what the page shows: headings are often uppercase by style, not by their text.
+      const shownWord = cs.textTransform === "uppercase" ? word.toLocaleUpperCase()
+        : cs.textTransform === "lowercase" ? word.toLocaleLowerCase()
+        : cs.textTransform === "capitalize" ? word.replace(/(^|\s)(\S)/g, (_, gap: string, first: string) => gap + first.toLocaleUpperCase()) : word;
+      const m = og.measureText(shownWord);
+      // The font's own box, as the browser lays out the line, so the dots land exactly on the letters.
+      const ascent = m.fontBoundingBoxAscent || m.actualBoundingBoxAscent || fontSize * 0.8;
+      const descent = m.fontBoundingBoxDescent || m.actualBoundingBoxDescent || fontSize * 0.2;
+      og.fillText(shownWord, 0, (h - (ascent + descent)) / 2 + ascent);
       const data = og.getImageData(0, 0, off.width, off.height).data;
 
       let step = gap;

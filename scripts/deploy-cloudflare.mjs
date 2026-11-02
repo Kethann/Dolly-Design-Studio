@@ -68,6 +68,7 @@ run("Tests", process.execPath, ["--test", "tests/media-template.test.mjs"]);
 run("Building the application Worker", process.execPath, [executable("@opennextjs", "cloudflare", "dist", "cli", "index.js"), "build"], {
   env: deployEnv,
 });
+run("Installing zero-SSR public page shells", process.execPath, [resolve(root, "scripts", "install-static-shell.mjs")], { env: deployEnv });
 run("Deploying the application Worker", process.execPath, [executable("@opennextjs", "cloudflare", "dist", "cli", "index.js"), "deploy"], {
   env: deployEnv,
 });

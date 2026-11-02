@@ -31,6 +31,16 @@ export function ContentProvider({ initial, children }: { initial: SiteContent; c
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has(PREVIEW_PARAM)) return;
+    const controller = new AbortController();
+    fetch("/api/public/content", { signal: controller.signal, cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((value) => { if (value && !controller.signal.aborted) setContent(sanitizeContent(value)); })
+      .catch(() => {}); // The prerendered content remains usable while offline.
+    return () => controller.abort();
+  }, []);
+
   const css = contentCss(content);
   return (
     <ContentContext.Provider value={content}>

@@ -11,8 +11,6 @@ rest of the site stays light).
 
 ## Running it locally
 
-For a portable container setup with persistent portal data, see [Docker setup](DOCKER.md).
-
 ```bash
 cd site
 npm install

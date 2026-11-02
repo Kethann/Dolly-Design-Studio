@@ -1,6 +1,5 @@
 import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
 import { getPortalUser } from "@/lib/portal/auth";
 import { tooLarge } from "@/lib/portal/body-limit";
 import { logActivity } from "@/lib/portal/activity";
@@ -41,7 +40,9 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  revalidatePath("/", "layout"); // every page picks up the new content on its next visit
+  // Public pages are static shells and fetch the published document on load.
+  // Revalidating the whole Next layout here can exhaust the Free Worker CPU
+  // budget after R2 has already committed the save, producing a false failure.
   await logActivity({ headers: req.headers, actor: me, action: "published-content", detail: summarizeContent(previous, content) });
   return NextResponse.json({ ok: true, content });
 }

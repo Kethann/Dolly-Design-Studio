@@ -7,8 +7,11 @@ import { ProcessView } from "@/components/ProcessView";
 import { PREVIEW_PARAM } from "@/lib/intro/preview-protocol";
 import { getPortalUser } from "@/lib/portal/auth";
 
-/** The inside of a "How we work" card (its address is the card's own page name). Always read fresh: the portal adds and changes these. */
-export const dynamic = "force-dynamic";
+/** Prebuild known process pages; live copy updates through the content provider. */
+export async function generateStaticParams() {
+  const { home } = await getContent();
+  return home.process.cards.map(card => ({ slug: extraOf(card).slug }));
+}
 
 async function find(slug: string) {
   const { home } = await getContent();

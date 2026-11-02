@@ -5,13 +5,14 @@ import { resizedSrc } from "@/lib/images";
 import { useEffect, useId, useRef, useState } from "react";
 import type { ProofItem } from "@/content/proof-table";
 import { PROOF_LIMITS, type ProofTableSettings } from "@/lib/intro/settings";
-import { ColorRow, Section, Slider, Toggle } from "./controls";
-import { DISC_DEFAULTS, DISC_RANGES, DISC_SLOT_LIMIT, sanitizeDisc, discAimProfileForWidth, type DiscControls } from "@/lib/content/disc";
+import { Choice, ColorRow, Section, Slider, Toggle, percent } from "./controls";
+import { DISC_DEFAULTS, DISC_RANGES, DISC_SLOT_LIMIT, sanitizeDisc, discAimProfileForWidth, glassDesignOf, type DiscNumericKey } from "@/lib/content/disc";
+import { GlassDesignEditor } from "./GlassDesignEditor";
 import { ImagePicker, useMedia } from "./ContentEditor";
 import styles from "./portal.module.css";
 import { moveTo, useReorder } from "./reorder";
 
-export const DISC_GROUPS: { title: string; fields: { key: keyof DiscControls; label: string; hint?: string }[] }[] = [
+export const DISC_GROUPS: { title: string; fields: { key: DiscNumericKey | "glassTintColor" | "shadowColor"; label: string; hint?: string }[] }[] = [
   { title: "Circle & entrance", fields: [
     { key: "spinSpeed", label: "Rotation speed", hint: "Zero stops rotation. Negative reverses it. Reduced-motion devices show the settled composition." },
     { key: "entranceDuration", label: "Arrival duration", hint: "The full circle keeps turning as it zooms in, then settles into its saved rotation speed without stopping. Plays once per page visit." },
@@ -185,9 +186,42 @@ export function ProofTableEditor({
     }
   }
 
+  const slateVersion = value.version === 1;
   return (
     <>
       {deleteDialog}
+      <Section title="Which version shows" scope="Page" hint="Both versions use the same titles and keep their own settings, so you can switch back and forth at any time.">
+        <Choice label="Titles section" value={String(value.version ?? 2)} options={[{ value: "1", label: "Version 1 · Glass slate" }, { value: "2", label: "Version 2 · Glass disc" }]}
+          onChange={(version) => onChange({ version: version === "1" ? 1 : 2 })} />
+        <p className={styles.controlHint}>{slateVersion ? "Title cards fall onto a slim glass slate as you scroll." : "A rotating glass disc with a projector beam."}</p>
+      </Section>
+      {slateVersion && <>
+      <Section title="Glass slate" scope="Page" hint="The 3D section where your titles drop onto a lit proofing table.">
+        <Toggle label="Show the section" checked={value.enabled} onChange={(enabled) => onChange({ enabled })} />
+        <div className={styles.control}>
+          <button type="button" className={styles.ghostButton} onClick={onShow}>Show it in the preview ↓</button>
+        </div>
+        <Slider label="Scroll length" value={value.length} min={0.8} max={4} step={0.1} format={(v) => `${v.toFixed(1)} screens`}
+          hint="How much scrolling the story takes. Shorter plays it faster." onChange={(length) => onChange({ length })} />
+        <Slider label="Card size" hint="100% fills the glass; more cards automatically make each card smaller." value={value.cardSize} min={0.25} max={1} step={0.05} format={percent}
+          onChange={(cardSize) => onChange({ cardSize })} />
+      </Section>
+      <Section title="Glass slab" scope="Page" hint="The slim pane of glass the cards lie on.">
+        <ColorRow label="Slab tint" value={value.slabColor} onChange={(slabColor) => onChange({ slabColor })} />
+        <Slider label="Slab opacity" value={value.slabOpacity} min={0.05} max={1} step={0.05} format={percent}
+          hint="Lower is clearer glass; the page behind shows through." onChange={(slabOpacity) => onChange({ slabOpacity })} />
+      </Section>
+      <Section title="Card glass" scope="Page" hint="The glass plate each title is mounted on.">
+        <ColorRow label="Glass colour" value={value.glassColor} onChange={(glassColor) => onChange({ glassColor })} />
+        <Slider label="Glass opacity" value={value.glassOpacity} min={0.15} max={1} step={0.05} format={percent}
+          hint="Lower lets more of the lit table show through." onChange={(glassOpacity) => onChange({ glassOpacity })} />
+        <Slider label="Frosted blur" value={value.frost} min={0} max={1} step={0.05} format={percent}
+          hint="Frosts the glass so the light behind it softens. Off = clear glass." onChange={(frost) => onChange({ frost })} />
+        <Slider label="Reflection" value={value.reflection} min={0} max={1} step={0.05} format={percent}
+          hint="How much the glass mirrors the room light. Lower it if the shine covers the titles." onChange={(reflection) => onChange({ reflection })} />
+      </Section>
+      </>}
+      {!slateVersion && <>
       <Section title="Glass title circle" scope="Page" hint="The full glass circle approaches, then settles as an oversized arc behind the heading. Uploaded titles rotate through a steady corner light and reveal their colour as they enter it.">
         <Toggle label="Show the section" checked={value.enabled} onChange={(enabled) => onChange({ enabled })} />
         <div className={styles.control}>
@@ -199,10 +233,11 @@ export function ProofTableEditor({
         <div className={styles.control}>
           <button type="button" className={styles.ghostButton} disabled={full} onClick={() => addCard()}>+ Add title</button>
           <p className={styles.controlHint}>{items.length} of {DISC_SLOT_LIMIT} title slots on the glass. Adding, removing or reordering a title automatically redistributes them around the circle.</p>
-          <button type="button" className={styles.linkButton} onClick={() => onChange({ disc: { ...DISC_DEFAULTS } })}>Reset circle settings</button>
-          <p className={styles.controlHint}>Reset restores the circle controls; your images and title order stay as they are.</p>
+          <button type="button" className={styles.linkButton} onClick={() => onChange({ disc: { ...DISC_DEFAULTS, ...glassDesignOf(disc) } })}>Reset circle settings</button>
+          <p className={styles.controlHint}>Reset restores the circle controls; your images, title order and Glass design stay as they are.</p>
         </div>
       </Section>
+      <GlassDesignEditor disc={disc} onChange={(patch) => onChange({ disc: { ...disc, ...patch } })} onShow={onShow} />
       <Section id="proof-text-placement" title="Heading and copy placement" scope="Page" hint="Move the left-hand heading, paragraph and button together. Watch the page preview while adjusting; phone movement is kept inside its reading gutter.">
         <Slider label="Move text left / right" hint="Negative moves left; positive moves right. The phone shift is limited to keep text readable."
           min={-48} max={48} step={4} value={value.copyX} editable inputUnit="px" format={n => `${n}px`}
@@ -268,6 +303,7 @@ export function ProofTableEditor({
         </div>
       </details>)}
       </div>
+      </>}
       <Section
         title={`Title collection (${items.length} / ${PROOF_LIMITS.items})`}
         scope="Page"
@@ -404,6 +440,16 @@ export function ProofTableEditor({
                   </label>
                   <button type="button" className={styles.linkButton} disabled={it.titleOpacity === undefined && it.titleBlend === undefined}
                     onClick={() => patchItem(i, { titleOpacity: undefined, titleBlend: undefined })}>Reset title blend</button>
+                </div>
+                <div className={styles.control}>
+                  <Choice label="Title appearance" hint="Original places the uploaded title as it is, with no glass treatment, colour grading or added glow. The optional impact below starts at zero."
+                    value={it.titleAppearance ?? "glass"} options={[{ value: "glass", label: "Glass reveal" }, { value: "original", label: "Original title" }]}
+                    onChange={(titleAppearance) => patchItem(i, { titleAppearance })} />
+                  {it.titleAppearance === "original" && <Slider label="Original title impact" min={0} max={1} step={.01}
+                    editable inputScale={100} inputUnit="%" value={it.titleImpact ?? 0} format={v => `${Math.round(v * 100)}%`}
+                    hint="0% leaves the upload untouched. Increase for a subtle brightening only where the beam lands; it does not add glow."
+                    onChange={(titleImpact) => patchItem(i, { titleImpact })} />}
+                  {it.titleAppearance === "original" && <p className={styles.controlHint}>Original mode uses the uploaded colours at full opacity. Blend, tint and per-title glow controls below are saved for Glass reveal only.</p>}
                 </div>
                 <div className={styles.slotTintGroup}>
                   <ColorRow label="Title colour" value={it.titleColor ?? "#ffffff"} onChange={(titleColor) => patchItem(i, { titleColor, titleOriginalColor: undefined })} />

@@ -84,7 +84,10 @@ export function PortalLogin({ configured, setup = false, emailLogin = false }: {
     }
   }
 
-  const openPortal = () => startTransition(() => router.refresh());
+  const openPortal = () => startTransition(() => {
+    if (typeof window !== "undefined") window.location.reload();
+    else router.refresh();
+  });
 
   const signIn = (e?: React.FormEvent) => {
     e?.preventDefault();

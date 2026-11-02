@@ -134,6 +134,7 @@ try {
     settings.proofTable.items[i]={...settings.proofTable.items[i],src,film:titles[i]};
   }
   settings.proofTable.items=settings.proofTable.items.slice(0,8);
+  settings.proofTable.version=2;
   await send('Fetch.enable',{patterns:[{urlPattern:'*://localhost:3000/images/qa/*'},{urlPattern:'*://localhost:3000/__glass-test'}]});
   for(const [width,height,name] of appearanceOnly ? [[1100,760,'desktop'],[820,1000,'tablet'],[390,844,'mobile']] : [[1440,900,'desktop'],[820,1180,'tablet'],[390,844,'mobile']]){
     await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});

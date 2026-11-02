@@ -1,6 +1,5 @@
 import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
 import { getPortalUser } from "@/lib/portal/auth";
 import { tooLarge } from "@/lib/portal/body-limit";
 import { logActivity } from "@/lib/portal/activity";
@@ -41,7 +40,8 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  revalidatePath("/", "layout"); // every page picks up the new background and intro on its next visit
+  // Browser providers fetch published settings on load; a whole-layout
+  // revalidation would add work after the document is already committed.
   await logActivity({ headers: req.headers, actor: me, action: "published-design", detail: summarizeSettings(previous, settings) });
   return NextResponse.json({ ok: true, settings });
 }

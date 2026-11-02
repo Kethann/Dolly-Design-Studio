@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { reconcileSaved, saveDraft, SaveError, type SaveJob } from "./save-draft";
 import { readMediaLibrary } from "./media-library";
@@ -199,7 +198,7 @@ const DESIGN_WORDS: Partial<Record<Tab, string>> = {
   intro: "intro opening animation reveal sweep star timing loader",
   cursor: "cursor pen glow hover logo colour size",
   breakdowns: "breakdown breakdowns layers psd photoshop png layer explode labels hover how we work",
-  slate: `slate disc cd silver circle glass cards titles projector focus spin speed tilt gap bloom desaturation images add upload reorder ${DISC_GROUPS.flatMap(group => [group.title, ...group.fields.flatMap(field => [field.label, field.hint ?? ""])]).join(" ")}`,
+  slate: `slate disc cd silver circle glass design frosted frost liquid ribbed fluted hammered crystal pattern edge border rim outline ring upload picture overlay cards titles projector focus spin speed tilt gap bloom desaturation images add upload reorder ${DISC_GROUPS.flatMap(group => [group.title, ...group.fields.flatMap(field => [field.label, field.hint ?? ""])]).join(" ")}`,
   media: "images pictures photos upload library files",
   type: "fonts typography typeface upload font file ttf otf woff size weight regular spacing text style headings paragraphs",
   playback: "play pause hold scrub timeline intro preview",
@@ -297,7 +296,6 @@ export function PortalEditor({
   initialContent: SiteContent;
   user: PortalUser;
 }) {
-  const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
   const draftRef = useRef(draft);
@@ -874,12 +872,14 @@ export function PortalEditor({
     setSave({ kind: "saving" });
     try {
       const jobs: SaveJob[] = [];
-      if (settingsDirty) jobs.push({ label: "Design settings", url: "/api/portal/settings", body: draft, responseKey: "settings", accept: (value) => {
+      if (settingsDirty) jobs.push({ label: "Design settings", url: "/api/portal/settings", body: draft, responseKey: "settings",
+        verifyUrl: "/api/public/settings", matches: value => same(sanitizeIntroSettings(value), sanitizeIntroSettings(draft)), accept: (value) => {
         const next = sanitizeIntroSettings(value);
         setSaved(next);
         setDraft((current) => reconcileSaved(current, draft, next));
       } });
-      if (contentDirty) jobs.push({ label: "Content", url: "/api/portal/content", body: contentDraft, responseKey: "content", accept: (value) => {
+      if (contentDirty) jobs.push({ label: "Content", url: "/api/portal/content", body: contentDraft, responseKey: "content",
+        verifyUrl: "/api/public/content", matches: value => same(sanitizeContent(value), sanitizeContent(contentDraft)), accept: (value) => {
         const next = sanitizeContent(value);
         setContentSaved(next);
         setContentDraft((current) => reconcileSaved(current, contentDraft, next));
@@ -910,7 +910,7 @@ export function PortalEditor({
     try {
       const response = await fetch("/api/portal/session", { method: "DELETE" });
       if (!response.ok) throw new Error();
-      router.refresh();
+      window.location.reload();
     } catch {
       setSave({ kind: "error", operation: "signOut", message: "Couldn’t sign out. Check your connection and try again." });
     }

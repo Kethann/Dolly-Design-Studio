@@ -1,6 +1,6 @@
 "use client";
 
-import { PARTICLE_DEFAULTS, PARTICLE_PRESETS, PARTICLE_RANGES, type TextEffect, type TextEffectOptions } from "@/lib/content/text-effects";
+import { EFFECT_CONTROLS, FX_RANGES, PARTICLE_DEFAULTS, PARTICLE_PRESETS, PARTICLE_RANGES, TEXT_EFFECTS, type TextEffect, type TextEffectOptions } from "@/lib/content/text-effects";
 import { Choice, ColorRow, Slider } from "./controls";
 import styles from "./content.module.css";
 
@@ -12,8 +12,11 @@ export function TextEffectSettings({ effect, value, disabled, onChange }: {
   onChange: (value: TextEffectOptions) => void;
 }) {
   const patch = (next: Partial<TextEffectOptions>) => onChange({ ...value, ...next });
-  return <details className={styles.effectSettings} open={effect === "glow" || undefined}>
-    <summary>{effect === "particles" ? "Colour & particle settings" : "Colour & glow settings"}</summary>
+  const name = TEXT_EFFECTS.find(choice => choice.id === effect)!.label;
+  const controls = EFFECT_CONTROLS[effect];
+  // Remounting per effect opens the settings for a newly chosen effect and still lets them be folded away.
+  return <details key={effect} className={styles.effectSettings} open={effect !== "none" || undefined}>
+    <summary>{effect === "none" ? "Colour" : `${name} settings`}</summary>
     <fieldset disabled={disabled}>
       <ColorRow label="Text colour" value={value.color ?? "#fff195"} onChange={color => patch({ color })} />
       <button type="button" className={styles.link} disabled={!value.color} onClick={() => patch({ color: undefined })}>Use original text colour</button>
@@ -40,8 +43,16 @@ export function TextEffectSettings({ effect, value, disabled, onChange }: {
         <Slider label="Glow spread" min={1} max={32} step={1} value={value.glowRadius ?? 12} format={v => `${v}px`} onChange={glowRadius => patch({ glowRadius })} />
         <Choice label="Show glow" value={value.glowMode ?? "hover"} options={[{ value: "hover", label: "Hover / touch" }, { value: "always", label: "Always" }]} onChange={glowMode => patch({ glowMode })} />
       </>}
+      {controls?.colours.map(({ key, label, value: start }) => <ColorRow key={key} label={label} value={value[key] ?? start} onChange={next => patch({ [key]: next })} />)}
+      {controls?.sliders.map(({ key, label, value: start, hint }) => {
+        const [min, max] = FX_RANGES[key];
+        return <Slider key={key} label={label} hint={hint} min={min} max={max} step={.05} value={value[key] ?? start}
+          format={v => key === "fxAmount" ? `${Math.round(v * 100)}%` : `${v.toFixed(2)}×`} onChange={next => patch({ [key]: next })} />;
+      })}
+      {controls?.always && <Choice label="Show effect" value={value.glowMode ?? "hover"} options={[{ value: "hover", label: "Hover / touch" }, { value: "always", label: "Always" }]} onChange={glowMode => patch({ glowMode })} />}
+      {effect !== "none" && effect !== "particles" && <p className={styles.hint}>Hover or tap the marked words in the page preview to see this effect.</p>}
       <p className={styles.hint}>Only [[marked text]] in this field changes. To colour a whole heading, put the whole heading inside [[ ]]. The card background glow is separate.</p>
-      <button type="button" className={styles.link} disabled={!Object.keys(value).length} onClick={() => onChange({})}>{effect === "particles" ? "Reset colour & dots" : "Reset colour & glow"}</button>
+      <button type="button" className={styles.link} disabled={!Object.keys(value).length} onClick={() => onChange({})}>Reset these settings</button>
     </fieldset>
   </details>;
 }

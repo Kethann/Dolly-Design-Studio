@@ -41,6 +41,16 @@ export function IntroSettingsProvider({ initial, children }: { initial: IntroSet
   const [run, setRun] = useState<PreviewRun | null>(null);
 
   useEffect(() => {
+    if (preview) return;
+    const controller = new AbortController();
+    fetch("/api/public/settings", { signal: controller.signal, cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((value) => { if (value && !controller.signal.aborted) setSettings(sanitizeIntroSettings(value)); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [preview]);
+
+  useEffect(() => {
     if (!preview) return;
     const params = new URLSearchParams(window.location.search);
     if (window.parent === window) {

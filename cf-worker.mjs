@@ -1,10 +1,11 @@
-// The Worker's front door. It wraps the site (built by OpenNext into .open-next/worker.js) with one job: keep a finished copy
-// of each public page, so a visit does not have to build the whole page again (that building is what used up the Worker's
-// processing allowance and its memory). A copy is only ever reused while nothing it was built from has changed:
+// The Worker's front door. It serves prerendered public/portal HTML from Static Assets,
+// streams published JSON and uploaded media directly from R2, and sends remaining
+// API/dynamic requests to OpenNext. That keeps common visits below the Free-tier CPU
+// budget. The legacy HTML cache below covers routes not yet available as static shells.
+// A cached copy is only ever reused while nothing it was built from has changed:
 //   • the saved content and the saved design settings (their R2 "etag" changes with every publish)
 //   • the deployed version of the site (so an old page never points at files from an older build)
-// so a publish shows on the very next visit, exactly as before. The portal, the API, pictures and anything with a
-// session cookie are never kept. If anything here fails, the request simply goes to the site as if this file did not exist.
+// The portal, APIs and uploads are never kept in this HTML cache.
 import worker from "./.open-next/worker.js";
 
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
@@ -13,6 +14,96 @@ const CONTENT_KEYS = ["content/site-content.json", "content/intro-settings.json"
 const SKIP = /^\/(portal|api|_next|images|fonts|media|cdn-cgi)(\/|$)|\.[a-z0-9]{2,5}$/i;
 /** Copies are kept this long at most (a changed version makes a new copy anyway; this only clears out old ones). */
 const KEEP_SECONDS = 600;
+const PUBLIC_DOCUMENTS = {
+  "/api/public/content": "content/site-content.json",
+  "/api/public/settings": "content/intro-settings.json",
+};
+
+async function publicDocument(request, bucket, key) {
+  if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405 });
+  if (!bucket) return new Response("Not found", { status: 404 });
+  const object = await bucket.get(key);
+  if (!object) return new Response("Not found", { status: 404 });
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-cache",
+    ETag: `"${object.etag}"`,
+  };
+  if (request.headers.get("if-none-match") === headers.ETag) return new Response(null, { status: 304, headers });
+  return new Response(request.method === "HEAD" ? null : object.body, { headers });
+}
+
+async function staticPage(request, env, url) {
+  if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD")) return null;
+  if (request.headers.get("rsc") || request.headers.get("next-action") || !(request.headers.get("accept") || "").includes("text/html")) return null;
+  const path = url.pathname;
+  if (!(path === "/" || path === "/work" || path === "/breakdowns" || path === "/portal" || /^\/(?:work|process)\/[a-z0-9-]+$/.test(path))) return null;
+  const assetUrl = new URL(url);
+  assetUrl.pathname = `/__static-pages/${path === "/" ? "index" : path.slice(1)}.html`;
+  assetUrl.search = "";
+  const asset = await env.ASSETS.fetch(new Request(assetUrl, { method: "GET" }));
+  if (!asset.ok) return null; // A newly added project may not exist in this build.
+  const headers = new Headers(asset.headers);
+  headers.set("Content-Type", "text/html; charset=utf-8");
+  headers.set("Cache-Control", path === "/portal" ? "no-store" : "no-cache");
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-Frame-Options", "SAMEORIGIN");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  headers.set("Content-Security-Policy", "frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'");
+  headers.set("x-page-cache", "static");
+  if (path === "/portal") headers.set("X-Robots-Tag", "noindex, nofollow");
+  return new Response(request.method === "HEAD" ? null : asset.body, { status: 200, headers });
+}
+
+const UPLOAD_ROUTES = [
+  ["/images/uploads/", "uploads/images/"],
+  ["/images/proof-table/", "uploads/proof/"],
+  ["/images/textures/", "uploads/textures/"],
+  ["/fonts/uploads/", "uploads/fonts/"],
+];
+const MEDIA_TYPES = { webp: "image/webp", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", avif: "image/avif", gif: "image/gif", svg: "image/svg+xml", ttf: "font/ttf", otf: "font/otf", woff: "font/woff", woff2: "font/woff2" };
+
+async function uploadedAsset(request, env, ctx, url) {
+  const route = UPLOAD_ROUTES.find(([pathname]) => url.pathname.startsWith(pathname));
+  if (!route) return null;
+  if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405 });
+  const name = url.pathname.slice(route[0].length);
+  if (!/^[\w.-]{1,120}\.(webp|png|jpe?g|avif|gif|svg|ttf|otf|woff2?)$/i.test(name) || name.includes("..")) return new Response("Not found", { status: 404 });
+  if (!env.PORTAL_BUCKET) return new Response("Not found", { status: 404 });
+  const extension = name.split(".").pop().toLowerCase();
+  const headers = { "Content-Type": MEDIA_TYPES[extension], "Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" };
+  if (extension === "svg") headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+  const key = `${route[1]}${name}`;
+  const width = Number(url.searchParams.get("w"));
+  const resized = request.method === "GET" && Number.isFinite(width) && width > 0 && /^(webp|png|jpe?g|avif)$/.test(extension) && env.IMAGES;
+  let cacheKey, cache;
+  if (resized) {
+    const w = Math.min(3840, Math.max(16, Math.round(width)));
+    const requested = url.searchParams.has("q") ? Number(url.searchParams.get("q")) : NaN;
+    const q = [75, 82, 90, 95].reduce((best, option) => Math.abs(option - requested) < Math.abs(best - requested) ? option : best, 82);
+    cacheKey = new Request(`https://resized.invalid/${key}?w=${w}&q=${q}`);
+    cache = typeof caches !== "undefined" ? caches.default : null;
+    let hit;
+    try { hit = await cache?.match(cacheKey); } catch {}
+    if (hit) return hit;
+    const original = await env.PORTAL_BUCKET.get(key);
+    if (!original) return new Response("Not found", { status: 404 });
+    try {
+      const image = await env.IMAGES.input(original.body).transform({ width: w, fit: "scale-down" }).output({ format: "image/webp", quality: q });
+      const response = new Response(image.image(), { headers: { ...headers, "Content-Type": image.contentType() } });
+      if (cache) ctx.waitUntil(cache.put(cacheKey, response.clone()).catch(() => {}));
+      return response;
+    } catch (error) {
+      console.error("[images] resize failed; serving original", name, error);
+      const fallback = await env.PORTAL_BUCKET.get(key);
+      return fallback ? new Response(fallback.body, { headers }) : new Response("Not found", { status: 404 });
+    }
+  }
+  const original = await env.PORTAL_BUCKET.get(key);
+  if (!original) return new Response("Not found", { status: 404 });
+  return new Response(request.method === "HEAD" ? null : original.body, { headers });
+}
 
 /** The etags of what the pages are built from, remembered for a moment inside this Worker so a burst of visits reads R2 once. */
 let seen = { at: 0, tag: "" };
@@ -45,6 +136,13 @@ const cachedWorker = {
     ctx.waitUntil(env.VISITORS_DB.prepare("DELETE FROM visitor_geo_usage WHERE month < ?").bind(new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 7)).run());
   },
   async fetch(request, env, ctx) {
+    const incomingUrl = new URL(request.url);
+    const publicKey = PUBLIC_DOCUMENTS[incomingUrl.pathname];
+    if (publicKey) return publicDocument(request, env.PORTAL_BUCKET, publicKey);
+    const upload = await uploadedAsset(request, env, ctx, incomingUrl);
+    if (upload) return upload;
+    const shell = await staticPage(request, env, incomingUrl);
+    if (shell) return shell;
     let key = null;
     let cache = null;
     try {

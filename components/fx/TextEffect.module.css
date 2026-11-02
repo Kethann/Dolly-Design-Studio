@@ -1,28 +1,101 @@
-.word { display: inline; color: var(--fx-color, inherit); }
+/* The fill follows the colour too, so a chosen colour shows even inside text styled with a transparent fill. */
+.word { display: inline; color: var(--fx-color, inherit); -webkit-text-fill-color: var(--fx-color, inherit); }
 .glow { --fx-glow-paint: color-mix(in srgb, var(--fx-glow-color, currentColor) var(--fx-glow-opacity, 100%), transparent); transition: color 180ms ease, text-shadow 180ms ease; }
-.glow:hover, .glow:active { color: var(--fx-hover-color, var(--fx-color, inherit)); }
+.glow:hover, .glow:active { color: var(--fx-hover-color, var(--fx-color, inherit)); -webkit-text-fill-color: var(--fx-hover-color, var(--fx-color, inherit)); }
 .glow:hover, .glow:active, .glow[data-fx-trigger="always"] {
   text-shadow: 0 0 calc(var(--fx-glow-radius, 12px) * .4167) var(--fx-glow-paint), 0 0 var(--fx-glow-radius, 12px) var(--fx-glow-paint);
 }
 .sheen { position: relative; display: inline-block; max-width: 100%; }
 .shine {
   position: absolute; inset: 0; pointer-events: none;
-  color: transparent;
-  background: linear-gradient(110deg, transparent 38%, white 49%, transparent 60%) 130% 0 / 260% 100%;
+  color: transparent; -webkit-text-fill-color: transparent;
+  background: linear-gradient(110deg, transparent 38%, var(--fx-a, white) 49%, transparent 60%) 130% 0 / 260% 100%;
   background-clip: text;
   -webkit-background-clip: text;
   opacity: 0;
 }
-.sheen:hover .shine, .sheen:active .shine { animation: sweep 800ms ease-out 1; }
+.sheen:hover .shine, .sheen:active .shine { animation: sweep calc(800ms / var(--fx-speed, 1)) ease-out 1; }
+.sheen[data-fx-trigger="always"] .shine { animation: sweep calc(3.2s / var(--fx-speed, 1)) ease-out infinite; }
 @keyframes sweep {
   0% { background-position: 130% 0; opacity: 0; }
   20% { opacity: .9; }
   100% { background-position: -30% 0; opacity: 0; }
 }
 @supports (-webkit-text-stroke: 1px currentColor) {
-  .outline { -webkit-text-stroke: .75px currentColor; -webkit-text-fill-color: transparent; }
+  .outline { -webkit-text-stroke: calc(.25px + var(--fx-amount, .4) * 1.25px) currentColor; -webkit-text-fill-color: transparent; transition: -webkit-text-fill-color 220ms ease; }
+  .outline:hover, .outline:active { -webkit-text-fill-color: var(--fx-a, currentColor); }
 }
+
+/* Film slate: the word sits on a clapperboard, whose striped stick snaps shut. */
+.slate { position: relative; display: inline-block; isolation: isolate; transition: color 160ms ease, -webkit-text-fill-color 160ms ease; }
+.slate::before {
+  content: ""; position: absolute; inset: -.04em -.2em -.08em; z-index: -1; border-radius: .05em;
+  background: var(--fx-a, #0d0d10); box-shadow: inset 0 -.05em 0 var(--fx-b, #f6f1e4), 0 .12em .4em #0007;
+  opacity: 0; transition: opacity 160ms ease; pointer-events: none;
+}
+.clapper {
+  position: absolute; left: -.2em; right: -.2em; bottom: calc(100% + .05em); height: .3em; min-height: 6px; border-radius: .04em .04em 0 0;
+  background: repeating-linear-gradient(115deg, var(--fx-b, #f6f1e4) 0 .34em, var(--fx-a, #0d0d10) .34em .68em);
+  box-shadow: 0 0 0 1px #0006; transform-origin: 0 100%; opacity: 0; pointer-events: none;
+}
+.slate:hover, .slate:active, .slate[data-fx-trigger="always"] { color: var(--fx-c, #f6f1e4); -webkit-text-fill-color: var(--fx-c, #f6f1e4); }
+.slate:hover::before, .slate:active::before, .slate[data-fx-trigger="always"]::before { opacity: 1; }
+.slate:hover .clapper, .slate:active .clapper { animation: clap calc(760ms / var(--fx-speed, 1)) cubic-bezier(.3,0,.2,1) both; }
+.slate:hover, .slate:active { animation: clapHit calc(760ms / var(--fx-speed, 1)) ease-out both; }
+.slate[data-fx-trigger="always"] .clapper { opacity: 1; animation: clapLoop calc(4.5s / var(--fx-speed, 1)) cubic-bezier(.3,0,.2,1) infinite; }
+@keyframes clap {
+  0% { opacity: 0; transform: rotate(calc(var(--fx-amount, .6) * -45deg)); }
+  14% { opacity: 1; }
+  56% { transform: rotate(calc(var(--fx-amount, .6) * -45deg)); }
+  68% { transform: rotate(0); }
+  76% { transform: rotate(-3deg); }
+  84%, 100% { opacity: 1; transform: rotate(0); }
+}
+@keyframes clapLoop {
+  0%, 74% { transform: rotate(0); }
+  82% { transform: rotate(calc(var(--fx-amount, .6) * -45deg)); }
+  93% { transform: rotate(calc(var(--fx-amount, .6) * -45deg)); }
+  96% { transform: rotate(0); }
+  98% { transform: rotate(-2deg); }
+  100% { transform: rotate(0); }
+}
+@keyframes clapHit {
+  0%, 66% { transform: none; }
+  71% { transform: translateY(.035em) scale(1.012); }
+  84%, 100% { transform: none; }
+}
+
+/* Colour flow. */
+.flow { display: inline-block; background: linear-gradient(90deg, var(--fx-a, #ffd36a), var(--fx-b, #ff5fa2), var(--fx-c, #6ad7ff), var(--fx-a, #ffd36a)) 0 0 / 300% 100%; background-clip: text; -webkit-background-clip: text; background-size: 0 0; }
+.flow:hover, .flow:active, .flow[data-fx-trigger="always"] { background-size: 300% 100%; color: transparent; -webkit-text-fill-color: transparent; animation: flow calc(2.6s / var(--fx-speed, 1)) linear infinite; }
+@keyframes flow { to { background-position: -150% 0; } }
+
+/* Colour split. */
+.split { position: relative; display: inline-block; isolation: isolate; }
+.splitA, .splitB { position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 120ms ease, transform 180ms cubic-bezier(.2,.8,.2,1); }
+.splitA { color: var(--fx-a, #ff2f6e); -webkit-text-fill-color: var(--fx-a, #ff2f6e); }
+.splitB { color: var(--fx-b, #2fe6ff); -webkit-text-fill-color: var(--fx-b, #2fe6ff); }
+.split:hover .splitA, .split:active .splitA, .split[data-fx-trigger="always"] .splitA { opacity: .9; transform: translate(calc(var(--fx-amount, .5) * -.09em), calc(var(--fx-amount, .5) * .02em)); animation: splitDrift calc(1.5s / var(--fx-speed, 1)) ease-in-out infinite alternate; }
+.split:hover .splitB, .split:active .splitB, .split[data-fx-trigger="always"] .splitB { opacity: .9; transform: translate(calc(var(--fx-amount, .5) * .09em), calc(var(--fx-amount, .5) * -.02em)); animation: splitDrift calc(1.5s / var(--fx-speed, 1)) ease-in-out infinite alternate-reverse; }
+@keyframes splitDrift { from { translate: -.012em 0; } to { translate: .012em 0; } }
+
+/* Letter wave. */
+.waveWord { display: inline-block; white-space: nowrap; }
+.letter { display: inline-block; }
+.wave:hover .letter, .wave:active .letter { animation: letterRise calc(620ms / var(--fx-speed, 1)) cubic-bezier(.3,.7,.2,1) calc(var(--i, 0) * 34ms / var(--fx-speed, 1)) both; }
+@keyframes letterRise {
+  0%, 100% { transform: none; }
+  45% { transform: translateY(calc(var(--fx-amount, .5) * -.42em)) rotate(-3deg); color: var(--fx-a, #ffd36a); -webkit-text-fill-color: var(--fx-a, #ffd36a); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .glow { transition: none; }
-  .sheen:hover .shine, .sheen:active .shine { animation: none; }
+  .glow, .slate, .splitA, .splitB, .outline { transition: none; }
+  .sheen:hover .shine, .sheen:active .shine, .sheen[data-fx-trigger="always"] .shine { animation: none; }
+  /* The finished look, without the movement. */
+  .slate:hover, .slate:active { animation: none; }
+  .slate:hover .clapper, .slate:active .clapper, .slate[data-fx-trigger="always"] .clapper { animation: none; opacity: 1; transform: none; }
+  .flow:hover, .flow:active, .flow[data-fx-trigger="always"] { animation: none; }
+  .split:hover .splitA, .split:active .splitA, .split[data-fx-trigger="always"] .splitA,
+  .split:hover .splitB, .split:active .splitB, .split[data-fx-trigger="always"] .splitB { animation: none; }
+  .wave:hover .letter, .wave:active .letter { animation: none; color: var(--fx-a, #ffd36a); -webkit-text-fill-color: var(--fx-a, #ffd36a); }
 }

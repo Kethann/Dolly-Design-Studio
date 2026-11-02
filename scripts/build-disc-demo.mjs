@@ -6,8 +6,12 @@ const math = await readFile(new URL("lib/content/disc.ts", root), "utf8");
 const drag = await readFile(new URL("components/disc-hero/drag.ts", root), "utf8");
 const scene = (await readFile(new URL("components/disc-hero/scene.ts", root), "utf8"))
   .replace(/^import .* from "\.\.\/\.\.\/lib\/content\/disc";\r?\n/m, "")
-  .replace(/^import .* from "\.\/drag";\r?\n/m, "");
-const js = ts.transpileModule(math + "\n" + drag + "\n" + scene, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ES2020 } }).outputText;
+  .replace(/^import .* from "\.\/drag";\r?\n/m, "")
+  .replace(/^import .* from "\.\/glass-design";\r?\n/m, "");
+const glassDesign = (await readFile(new URL("components/disc-hero/glass-design.ts", root), "utf8"))
+  .replace(/^import \* as THREE from "three";\r?\n/m, "")
+  .replace(/^import .* from "\.\.\/\.\.\/lib\/content\/disc";\r?\n/m, "");
+const js = ts.transpileModule(math + "\n" + drag + "\n" + scene + "\n" + glassDesign, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ES2020 } }).outputText;
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dolly · Glass title circle</title>

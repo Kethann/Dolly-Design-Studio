@@ -7,7 +7,7 @@ import { Gallery } from "@/components/sections/Gallery";
 import { Process } from "@/components/sections/Process";
 import { Services } from "@/components/sections/Services";
 import { Contact } from "@/components/sections/Contact";
-import { ProofTable } from "@/components/proof-table/ProofTable";
+import { TitleSection } from "@/components/proof-table/TitleSection";
 
 /**
  * The home page, in order: Intro · About our agency · Experience / projects / clients · Clients & collaborations ·
@@ -21,7 +21,7 @@ export default function HomePage() {
       <Stats />
       <Clients />
       <Founder />
-      <ProofTable />
+      <TitleSection />
       <Gallery />
       <Process />
       <Services />

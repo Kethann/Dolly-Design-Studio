@@ -1,0 +1,10 @@
+/* The real text keeps its place; the filtered copy sits exactly over it and takes over while it shows. */
+.word { position: relative; display: inline-block; max-width: 100%; color: var(--fx-color, inherit); -webkit-text-fill-color: var(--fx-color, inherit); }
+.base { transition: opacity 200ms ease; }
+.paint { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 200ms ease; }
+.defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+.word[data-on="true"] .base { opacity: 0; }
+.word[data-on="true"] .paint { opacity: 1; }
+.word[data-fx-effect="neon"] .paint { background: linear-gradient(100deg, var(--fx-a, #ff4fb4), var(--fx-b, #ffe14d) 50%, var(--fx-c, #35d6ff)); background-clip: text; -webkit-background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
+.word[data-fx-effect="bubble"] .paint { background: linear-gradient(118deg, var(--fx-a, #d7c2ff), var(--fx-b, #a9f0ff) 45%, var(--fx-c, #ffc6ec) 75%, var(--fx-a, #d7c2ff)); background-clip: text; -webkit-background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
+@media (prefers-reduced-motion: reduce) { .base, .paint { transition: none; } }

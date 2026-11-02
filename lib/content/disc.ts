@@ -20,6 +20,44 @@ export function discViewportFeather(width: number, height: number) {
     bottom: Math.min(.20, Math.min(110, Math.max(48, h * .14)) / h),
   };
 }
+/** Choices for the portal's Glass design tools. Saved as plain words so a preset can never become code. */
+export const GLASS_EFFECTS = ["clear", "frosted", "liquid", "ribbed", "hammered", "crystal", "bubble"] as const;
+export const GLASS_PATTERNS = ["none", "rings", "rays", "grid", "dots", "waves", "diamonds", "image"] as const;
+export const GLASS_EDGES = ["classic", "double", "dashed", "beaded", "film", "rope", "scallop", "gear", "image"] as const;
+export const GLASS_PATTERN_FITS = ["tile", "cover"] as const;
+export type GlassEffect = typeof GLASS_EFFECTS[number];
+export type GlassPattern = typeof GLASS_PATTERNS[number];
+export type GlassEdge = typeof GLASS_EDGES[number];
+export type GlassPatternFit = typeof GLASS_PATTERN_FITS[number];
+/** Everything the Glass design tools own. The defaults draw nothing extra, so existing sites look the same. */
+export const GLASS_DESIGN_DEFAULTS = {
+  glassEffect: "clear" as GlassEffect, glassEffectAmount: 0.6, glassEffectScale: 1, glassEffectFlow: 0.4,
+  patternKind: "none" as GlassPattern, patternImage: "", patternFit: "tile" as GlassPatternFit, patternColor: "#dcecff",
+  patternAmount: 0.4, patternScale: 1, patternGlass: 1,
+  edgeStyle: "classic" as GlassEdge, edgeImage: "", edgeColor: "#dcecff",
+  edgeWidth: 0.35, edgeRepeats: 72, edgeBrightness: 1, edgeGlass: 0.6,
+  ringMarks: 2, ringMarkSize: 1,
+  pictureImage: "", pictureSize: 0.4, pictureDistance: 0.6, pictureAngle: -45, pictureRotation: 0,
+  pictureOpacity: 0.9, pictureGlass: 0.6, pictureFollow: 1,
+};
+export type GlassDesign = typeof GLASS_DESIGN_DEFAULTS;
+/** One-click starting points. They never touch uploaded images or the picture on the glass. */
+export const GLASS_LOOKS: { id: string; label: string; patch: Partial<GlassDesign> }[] = [
+  { id: "clear", label: "Clear", patch: { glassEffect: "clear", patternKind: "none", edgeStyle: "classic" } },
+  { id: "frosted", label: "Frosted", patch: { glassEffect: "frosted", glassEffectAmount: 0.6, patternKind: "none", edgeStyle: "double", edgeWidth: 0.3 } },
+  { id: "liquid", label: "Liquid", patch: { glassEffect: "liquid", glassEffectAmount: 0.65, glassEffectScale: 1, patternKind: "none", edgeStyle: "classic" } },
+  { id: "bubble", label: "Soap bubble", patch: { glassEffect: "bubble", glassEffectAmount: 0.7, glassEffectScale: 1, patternKind: "none", edgeStyle: "classic" } },
+  { id: "fluted", label: "Fluted", patch: { glassEffect: "ribbed", glassEffectAmount: 0.55, patternKind: "none", edgeStyle: "double", edgeWidth: 0.45 } },
+  { id: "film", label: "Film reel", patch: { glassEffect: "clear", patternKind: "rings", patternAmount: 0.3, patternScale: 1.4, edgeStyle: "film", edgeWidth: 0.7, edgeRepeats: 72 } },
+  { id: "jewel", label: "Crystal", patch: { glassEffect: "crystal", glassEffectAmount: 0.55, patternKind: "none", edgeStyle: "beaded", edgeWidth: 0.4, edgeRepeats: 96 } },
+  { id: "art-deco", label: "Art deco", patch: { glassEffect: "hammered", glassEffectAmount: 0.35, patternKind: "rays", patternAmount: 0.3, patternScale: 1, edgeStyle: "scallop", edgeWidth: 0.4, edgeRepeats: 48 } },
+];
+/** The design values on their own, so resetting the circle can leave a design (and its uploads) alone. */
+export function glassDesignOf(disc: GlassDesign): GlassDesign {
+  return Object.fromEntries(Object.keys(GLASS_DESIGN_DEFAULTS).map(key => [key, disc[key as keyof GlassDesign]])) as GlassDesign;
+}
+const DISC_IMAGE_PATH = /^\/images\/[\w\-./]+$/;
+const DISC_WHOLE_NUMBERS = new Set<string>(["rayStyle", "ringMarks", "edgeRepeats", "pictureFollow"]);
 export const DISC_DEFAULTS = {
   glassVersion: 1, glassFinishVersion: 1, entranceDuration: 3.6, circleScale: 1, glassOpacity: 0.06, edgeThickness: 0.08,
   glassTintColor: "#d8e8f4", shadowColor: "#050407", shadowOpacity: 0, shadowSpread: 1,
@@ -35,6 +73,7 @@ export const DISC_DEFAULTS = {
   originOffsetX: 0, originOffsetY: 0,
   tabletFocusAngle: -48, tabletFocusRadius: 0.8, tabletOriginOffsetX: 0, tabletOriginOffsetY: 0,
   mobileFocusAngle: -54, mobileFocusRadius: 0.8, mobileOriginOffsetX: 0, mobileOriginOffsetY: 0,
+  ...GLASS_DESIGN_DEFAULTS,
 };
 export type DiscControls = typeof DISC_DEFAULTS;
 export type DiscNumericKey = { [K in keyof DiscControls]: DiscControls[K] extends number ? K : never }[keyof DiscControls];
@@ -59,6 +98,12 @@ export const DISC_RANGES: Record<DiscNumericKey, readonly [number, number, numbe
   tabletOriginOffsetX: [-0.25, 0.25, 0.01], tabletOriginOffsetY: [-0.25, 0.25, 0.01],
   mobileFocusAngle: [-180, 180, 1], mobileFocusRadius: [0.66, 0.9, 0.01],
   mobileOriginOffsetX: [-0.25, 0.25, 0.01], mobileOriginOffsetY: [-0.25, 0.25, 0.01],
+  glassEffectAmount: [0, 1, 0.01], glassEffectScale: [0.4, 2.5, 0.05], glassEffectFlow: [0, 1, 0.05],
+  patternAmount: [0, 1, 0.01], patternScale: [0.4, 3, 0.05], patternGlass: [0, 1, 0.01],
+  edgeWidth: [0, 1, 0.01], edgeRepeats: [12, 240, 1], edgeBrightness: [0, 2, 0.05], edgeGlass: [0, 1, 0.01],
+  ringMarks: [0, 12, 1], ringMarkSize: [0.4, 3, 0.05],
+  pictureSize: [0.1, 1.6, 0.01], pictureDistance: [0, 0.95, 0.01], pictureAngle: [-180, 180, 1], pictureRotation: [-180, 180, 1],
+  pictureOpacity: [0, 1, 0.01], pictureGlass: [0, 1, 0.01], pictureFollow: [0, 1, 1],
 };
 export function sanitizeDisc(input: unknown): DiscControls {
   const src = input && typeof input === "object" ? input as Record<string, unknown> : {};
@@ -66,11 +111,19 @@ export function sanitizeDisc(input: unknown): DiscControls {
   for (const key of Object.keys(DISC_RANGES) as DiscNumericKey[]) {
     const value = src[key];
     const [min, max] = DISC_RANGES[key];
-    if (typeof value === "number" && Number.isFinite(value)) out[key] = key === "projectorSide" ? (value < 0 ? -1 : 1) : Math.min(max, Math.max(min, key === "rayStyle" ? Math.round(value) : value));
+    if (typeof value === "number" && Number.isFinite(value)) out[key] = key === "projectorSide" ? (value < 0 ? -1 : 1) : Math.min(max, Math.max(min, DISC_WHOLE_NUMBERS.has(key) ? Math.round(value) : value));
   }
-  for (const key of ["glassTintColor", "shadowColor"] as const) {
+  for (const key of ["glassTintColor", "shadowColor", "patternColor", "edgeColor"] as const) {
     const value = src[key];
     if (typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)) out[key] = value.toLowerCase();
+  }
+  if ((GLASS_EFFECTS as readonly unknown[]).includes(src.glassEffect)) out.glassEffect = src.glassEffect as GlassEffect;
+  if ((GLASS_PATTERNS as readonly unknown[]).includes(src.patternKind)) out.patternKind = src.patternKind as GlassPattern;
+  if ((GLASS_EDGES as readonly unknown[]).includes(src.edgeStyle)) out.edgeStyle = src.edgeStyle as GlassEdge;
+  if ((GLASS_PATTERN_FITS as readonly unknown[]).includes(src.patternFit)) out.patternFit = src.patternFit as GlassPatternFit;
+  for (const key of ["patternImage", "edgeImage", "pictureImage"] as const) {
+    const value = src[key];
+    if (typeof value === "string" && DISC_IMAGE_PATH.test(value) && !value.includes("..")) out[key] = value;
   }
   // Retire the old smoked defaults once. Keep deliberate colours and optional
   // shadow edits made in the new editor; never migrate the disc's pose here.

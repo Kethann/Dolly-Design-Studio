@@ -17,7 +17,7 @@ export function ProofTable() {
   const { settings } = useIntroSettings();
   const { slate, projects } = useContent();
   const pt = settings.proofTable;
-  const stage = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null);
+  const stage = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null), frost = useRef<HTMLDivElement>(null);
   const copy = useRef<HTMLDivElement>(null);
   const headline = useRef<HTMLHeadingElement>(null), body = useRef<HTMLParagraphElement>(null);
   const scene = useRef<DiscScene | null>(null);
@@ -28,12 +28,12 @@ export function ProofTable() {
   const [origin, setOrigin] = useState({ x: 0, y: 0 });
   const current = useRef({ pt, projects, paused });
   useEffect(() => { current.current = { pt, projects, paused }; });
-  const imagesKey = JSON.stringify(visibleDiscItems(pt.items).map(it => [it.src, it.film, it.titleColor, it.titleOriginalColor, it.titleGlowColor, it.titleGlowIntensity, it.titleRotation, it.titleScale, it.titleOpacity, it.titleBlend]));
+  const imagesKey = JSON.stringify(visibleDiscItems(pt.items).map(it => [it.src, it.film, it.titleColor, it.titleOriginalColor, it.titleGlowColor, it.titleGlowIntensity, it.titleRotation, it.titleScale, it.titleOpacity, it.titleBlend, it.titleAppearance, it.titleImpact]));
   const controlsKey = JSON.stringify(pt.disc);
   useEffect(() => {
     scene.current?.setImages(visibleDiscItems(pt.items).map(it => ({ src: it.src ? resizedSrc(it.src, 768) : "", label: it.film,
       titleColor: it.titleColor, originalColor: it.titleOriginalColor, glowColor: it.titleGlowColor, glowIntensity: it.titleGlowIntensity, rotation: it.titleRotation,
-      scale: it.titleScale, opacity: it.titleOpacity, blend: it.titleBlend })));
+      scale: it.titleScale, opacity: it.titleOpacity, blend: it.titleBlend, appearance: it.titleAppearance, impact: it.titleImpact })));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- update artwork only when its content/settings change
   }, [imagesKey]);
   useEffect(() => {
@@ -69,8 +69,9 @@ export function ProofTable() {
         const data = current.current;
         scene.current = createDiscScene(surface, visibleDiscItems(data.pt.items).map(it => ({ src: it.src ? resizedSrc(it.src, 768) : "", label: it.film,
           titleColor: it.titleColor, originalColor: it.titleOriginalColor, glowColor: it.titleGlowColor, glowIntensity: it.titleGlowIntensity, rotation: it.titleRotation,
-          scale: it.titleScale, opacity: it.titleOpacity, blend: it.titleBlend })),
-          sanitizeDisc(data.pt.disc), () => { scene.current?.dispose(); scene.current = null; if (!disposed) setState("fallback"); });
+          scale: it.titleScale, opacity: it.titleOpacity, blend: it.titleBlend, appearance: it.titleAppearance, impact: it.titleImpact })),
+          sanitizeDisc(data.pt.disc), () => { scene.current?.dispose(); scene.current = null; if (!disposed) setState("fallback"); }, src => resizedSrc(src, 1920));
+        scene.current.setFrostLayer(frost.current);
         scene.current.resize(host.clientWidth, host.clientHeight);
         syncBeamOrigin();
         syncScroll();
@@ -140,6 +141,7 @@ export function ProofTable() {
       <div className={styles.visual}>
         <div ref={stage} className={styles.stage} data-disc-state={state} tabIndex={-1}
           onPointerLeave={e => { if (e.pointerType === "mouse") scene.current?.setHover(-1); }}>
+          <div ref={frost} className={styles.frost} aria-hidden="true" />
           <canvas ref={canvas} className={styles.canvas} aria-hidden="true" />
           {state === "fallback" && <p className={styles.status}>Explore the title collection below.</p>}
         </div>

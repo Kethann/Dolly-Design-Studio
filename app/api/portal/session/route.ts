@@ -13,7 +13,14 @@ import { logActivity } from "@/lib/portal/activity";
 import { clientIp } from "@/lib/portal/activity";
 import { CODE_MINUTES, discardCode, issueCode } from "@/lib/portal/otp";
 import { codeEmail, isMailConfigured, maskEmail, sendMail } from "@/lib/portal/mail";
-import { normalizeUsername, verifyLogin } from "@/lib/portal/users";
+import { hasAccounts, normalizeUsername, verifyLogin } from "@/lib/portal/users";
+
+/** Small session check for the statically served portal shell. */
+export async function GET() {
+  const [configured, user] = await Promise.all([isPortalConfigured(), getPortalUser()]);
+  return NextResponse.json({ configured, user, setup: configured && !user && !(await hasAccounts()), emailLogin: isMailConfigured() },
+    { headers: { "Cache-Control": "no-store" } });
+}
 
 /** Sign in to the creator portal: the password, and (for people who turned it on) an emailed code as a second step. */
 export async function POST(req: NextRequest) {

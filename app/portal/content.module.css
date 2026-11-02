@@ -1317,7 +1317,7 @@
 .stringRow > .field { min-width: 0; width: 100%; }
 
 /* Compact visual controls: samples are static, and thumbnails are bounded and lazy loaded. */
-.effectChoices { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; margin-top: 7px; }
+.effectChoices { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 5px; margin-top: 7px; }
 .effectChoices button {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   min-height: 68px; min-width: 0; padding: 6px 2px; border-radius: 9px;
@@ -1334,6 +1334,13 @@
 @supports (-webkit-text-stroke: 1px currentColor) {
   .effectSample[data-sample="outline"] { -webkit-text-stroke: .7px #ffe9a6; -webkit-text-fill-color: transparent; }
 }
+.effectSample[data-sample="slate"] { padding: 6px 7px 3px; border-radius: 3px; font-size: 17px; color: #f6f1e4; background: repeating-linear-gradient(115deg,#f6f1e4 0 3px,#0d0d10 3px 6px) 0 0 / 100% 5px no-repeat, #0d0d10; }
+.effectSample[data-sample="liquify"] { color: #9fd8ff; transform: skewX(-9deg) scaleY(1.12); text-shadow: 1px 3px 1px #9fd8ff66, -1px 6px 2px #9fd8ff33; }
+.effectSample[data-sample="neon"] { color: transparent; background: linear-gradient(100deg,#ff4fb4,#ffe14d,#35d6ff); background-clip: text; -webkit-background-clip: text; filter: drop-shadow(0 0 4px #ff4fb4aa) drop-shadow(0 2px 4px #35d6ffaa); }
+.effectSample[data-sample="bubble"] { color: transparent; background: linear-gradient(120deg,#d7c2ff,#a9f0ff 50%,#ffc6ec); background-clip: text; -webkit-background-clip: text; filter: drop-shadow(0 0 1px #fff) drop-shadow(1px 1px 1px #ffffff99); font-weight: 900; }
+.effectSample[data-sample="flow"] { color: transparent; background: linear-gradient(90deg,#ffd36a,#ff5fa2,#6ad7ff); background-clip: text; -webkit-background-clip: text; }
+.effectSample[data-sample="split"] { text-shadow: -2px 0 #ff2f6e, 2px 0 #2fe6ff; color: #fff; }
+.effectSample[data-sample="wave"] { font-style: italic; transform: rotate(-5deg) translateY(-2px); }
 .effectHelp, .imageDetails { color: var(--p-muted); font-size: 11px; line-height: 1.5; }
 .effectHelp summary, .imageDetails summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 6px; }
 .effectHelp summary::before, .imageDetails summary::before { content: "+"; }

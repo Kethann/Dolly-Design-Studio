@@ -446,6 +446,14 @@ test("glass title angle, colour and glow controls form independent responsive gr
   const blend = nodes(groups[2]).find(node => node.type === "select");
   assert.equal(blend.props.value, "normal");
   blend.props.onChange({ target: { value: "screen" } }); assert.equal(patch.items[0].titleBlend, "screen");
+  const appearance = tree.find(node => node.props?.label === "Title appearance");
+  appearance.props.onChange("original");
+  assert.equal(patch.items[0].titleAppearance, "original");
+  const originalModeTree = nodes(ProofTableEditor({ value: { enabled: true, items: patch.items, disc: {} }, projects: [], onChange: value => { patch = value; }, onShow() {} }));
+  const impact = originalModeTree.find(node => node.props?.label === "Original title impact");
+  assert.equal(impact.props.value, 0);
+  impact.props.onChange(.5);
+  assert.equal(patch.items[0].titleImpact, .5);
   const shared = tree.find(node => node.props?.label === "Title rotation angle");
   assert.equal(shared.props.format(35), "35°");
   shared.props.onChange(35);
@@ -2745,6 +2753,40 @@ test("partial saves keep successful sections and report expired sessions without
   } finally { globalThis.fetch = original; }
 });
 
+test("a failed edge reply is accepted only when the published document matches the submitted save", async () => {
+  const original = globalThis.fetch;
+  const { saveDraft } = loader()("app/portal/save-draft.ts");
+  const submitted = { title: "Updated" };
+  const accepted = [];
+  const job = { label: "Content", url: "/content", body: submitted, responseKey: "content",
+    verifyUrl: "/published", matches: value => value.title === submitted.title, accept: value => accepted.push(value) };
+  try {
+    globalThis.fetch = async url => url === "/content" ? Response.json({}, { status: 500 }) : Response.json(submitted);
+    await saveDraft([job]);
+    assert.deepEqual(accepted, [submitted]);
+    globalThis.fetch = async url => url === "/content" ? Response.json({}, { status: 500 }) : Response.json({ title: "Old" });
+    await assert.rejects(saveDraft([job]), /retry/i);
+    assert.equal(accepted.length, 1);
+  } finally { globalThis.fetch = original; }
+});
+
+test("original disc title mode and zero-to-full impact survive saving without altering glass defaults", () => {
+  const { sanitizeIntroSettings } = loader()("lib/intro/settings.ts");
+  const saved = json("content/intro-settings.json");
+  const item = saved.proofTable.items[0];
+  item.titleAppearance = "original";
+  item.titleImpact = 0;
+  let result = sanitizeIntroSettings(saved).proofTable.items[0];
+  assert.equal(result.titleAppearance, "original");
+  assert.equal(result.titleImpact, 0);
+  item.titleImpact = 3;
+  result = sanitizeIntroSettings(saved).proofTable.items[0];
+  assert.equal(result.titleImpact, 1);
+  item.titleAppearance = "invalid";
+  result = sanitizeIntroSettings(saved).proofTable.items[0];
+  assert.equal(result.titleAppearance, undefined);
+});
+
 test("malformed save replies and network failures leave the draft unaccepted", async () => {
   const original = globalThis.fetch;
   const { saveDraft } = loader()("app/portal/save-draft.ts");
@@ -4226,52 +4268,6 @@ test("upright typography migrates legacy italic references without losing other 
   for(let i=0;i<font.readUInt16BE(4);i++){const at=12+i*16;tables.set(font.toString('ascii',at,at+4),font.readUInt32BE(at+8));}
   assert.equal(font.readInt32BE(tables.get('post')+4),0,"The copied font contains upright glyphs");
   assert.equal(font.readUInt16BE(tables.get('OS/2')+4),400);
-});
-
-test("Docker runs standalone with private persistent data and bounded runtime resources", () => {
-  const docker = readFileSync(path.join(root, "Dockerfile"), "utf8");
-  const compose = nativeRequire("yaml").parse(readFileSync(path.join(root, "compose.yaml"), "utf8"));
-  const ignore = readFileSync(path.join(root, ".dockerignore"), "utf8").split(/\r?\n/);
-  const config = readFileSync(path.join(root, "next.config.ts"), "utf8");
-  assert.match(config, /process.env.DEPLOY_TARGET === "docker" \? \{ output: "standalone"/);
-  assert.match(docker, /npm ci --no-audit --no-fund/);
-  assert.match(docker, /USER node/);
-  assert.match(docker, /CMD \["node", "server.js"\]/);
-  assert.match(docker, /\.next\/standalone/);
-  assert.match(docker, /\/api\/version/);
-  for (const item of [".env", ".env.*", ".data", ".media", ".next", "node_modules", ".git", ".dev.vars*"]) assert.ok(ignore.includes(item));
-  const service = compose.services.web;
-  assert.equal(service.environment.DEPLOY_TARGET, "docker");
-  assert.equal(service.mem_limit, "1g");
-  assert.equal(service.environment.NODE_OPTIONS, "--max-old-space-size=512");
-  assert.ok(service.ports[0].includes("127.0.0.1"), "No default LAN/public exposure");
-  assert.equal(service.env_file[0].path, ".env.docker.local");
-  for (const mount of ["/app/content", "/app/.data", "/app/.media", "/app/public/images/uploads", "/app/public/images/proof-table", "/app/public/images/textures", "/app/public/fonts/uploads", "/app/.next/cache"]) {
-    assert.ok(service.volumes.some(value => value.endsWith(`:${mount}`)), `${mount} must persist`);
-  }
-  assert.ok(service.volumes.every(value => Object.hasOwn(compose.volumes, value.split(":")[0])));
-});
-
-test("Docker reads saved content and settings dynamically after container recreation", async () => {
-  const before = process.env.DEPLOY_TARGET;
-  process.env.DEPLOY_TARGET = "docker";
-  try {
-    let content = json("content/site-content.json"), settings = json("content/intro-settings.json"), connections = 0;
-    const read = loader({
-      "next/server": { connection: async () => { connections++; } },
-      "@/lib/storage": { onCloudflare: () => false, readJson: async key => clone(key === "content/site-content.json" ? content : settings) },
-    });
-    const { getContent } = read("lib/content/store.ts");
-    const { readIntroSettings } = read("lib/portal/settings-store.ts");
-    await getContent(); await readIntroSettings();
-    content.home.clients.productionDirection = "right";
-    settings.proofTable.enabled = false;
-    assert.equal((await getContent()).home.clients.productionDirection, "right");
-    assert.equal((await readIntroSettings()).proofTable.enabled, false);
-    assert.equal(connections, 4, "Every Docker read opts out of build-time rendering");
-  } finally {
-    if (before === undefined) delete process.env.DEPLOY_TARGET; else process.env.DEPLOY_TARGET = before;
-  }
 });
 
 test("Cloudflare renders read fresh content/settings after another worker publishes", async () => {

@@ -206,6 +206,8 @@ function sanitizeSweep(input: unknown, d: SweepSettings): SweepSettings {
 
 export interface ProofTableSettings {
   enabled: boolean;
+  /** Which presentation shows: 1, cards falling onto the glass slate; 2, the glass disc. Both keep their own settings. */
+  version: 1 | 2;
   /** CD presentation. Legacy table controls remain readable for older saved drafts. */
   disc: DiscControls;
   /** Position and wrapping of the section copy; pixels, bounded in the portal. */
@@ -253,6 +255,9 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
           ...(typeof it.tint === "string" && /^#[0-9a-f]{6}$/i.test(it.tint) ? { tint: it.tint.toLowerCase() } : {}),
           ...(typeof it.titleColor === "string" && /^#[0-9a-f]{6}$/i.test(it.titleColor) ? { titleColor: it.titleColor.toLowerCase() } : {}),
           ...(it.titleOriginalColor === true ? { titleOriginalColor: true } : {}),
+          ...(it.titleAppearance === "original" ? { titleAppearance: "original" } : {}),
+          ...(typeof it.titleImpact === "number" && Number.isFinite(it.titleImpact)
+            ? { titleImpact: Math.min(1, Math.max(0, it.titleImpact)) } : {}),
           ...(typeof it.titleGlowColor === "string" && /^#[0-9a-f]{6}$/i.test(it.titleGlowColor) ? { titleGlowColor: it.titleGlowColor.toLowerCase() } : {}),
           ...(typeof it.titleGlowIntensity === "number" && Number.isFinite(it.titleGlowIntensity)
             ? { titleGlowIntensity: Math.min(2, Math.max(0, it.titleGlowIntensity)) } : {}),
@@ -268,6 +273,7 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
     : d.items;
   return {
     enabled: bool(src.enabled, d.enabled),
+    version: src.version === 2 ? 2 : 1,
     disc: sanitizeDisc(src.disc),
     copyX: num(src.copyX, [-48, 48], d.copyX),
     copyY: num(src.copyY, [-8, 100], d.copyY),
@@ -433,6 +439,7 @@ export const DEFAULT_INTRO_SETTINGS: IntroSettings = {
   cursor: { style: "normal", color: "#fff195", size: 1, glow: 0.3, logoColor: "#ffffff" },
   proofTable: {
     enabled: true,
+    version: 1,
     disc: { ...DISC_DEFAULTS },
     copyX: 0,
     copyY: 0,

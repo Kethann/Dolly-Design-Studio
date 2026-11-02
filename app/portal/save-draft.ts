@@ -4,6 +4,9 @@ export interface SaveJob {
   body: unknown;
   responseKey: string;
   accept: (saved: unknown) => void;
+  /** A read-after-write check if an edge error hides a successful R2 commit. */
+  verifyUrl?: string;
+  matches?: (saved: unknown) => boolean;
 }
 
 /** Apply server normalization only if the user has not made newer edits. */
@@ -30,6 +33,17 @@ export async function saveDraft(jobs: SaveJob[]) {
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
+        if (response.status >= 500 && job.verifyUrl && job.matches) {
+          try {
+            const check = await fetch(job.verifyUrl, { cache: "no-store" });
+            const saved = check.ok ? await check.json() : null;
+            if (saved && job.matches(saved)) {
+              job.accept(saved);
+              completed.push(job.label);
+              continue;
+            }
+          } catch { /* Keep the original save error if verification is unavailable. */ }
+        }
         const message = response.status === 401
           ? "Your session expired. Sign in again in another tab, then retry here. Your edits are still here."
           : typeof data?.error === "string" ? data.error : `Couldn’t save ${job.label.toLowerCase()}. Please retry.`;

@@ -1,21 +1,15 @@
 // Server-only: reads and writes the creator's content (text, lists, images, fonts), through the storage layer
 // (plain files on your computer, an R2 bucket on Cloudflare — see lib/storage.ts).
-import { connection } from "next/server";
-import { onCloudflare, readJson, writeJsonSafely } from "@/lib/storage";
+import { readJson, writeJsonSafely } from "@/lib/storage";
 import { sanitizeContent } from "./sanitize";
 import type { SiteContent } from "./types";
 
 const KEY = "content/site-content.json";
 
 export async function getContent(): Promise<SiteContent> {
-  if (onCloudflare() || process.env.DEPLOY_TARGET === "docker") {
-    // Pages there are built fresh for each visit from what is saved now (never frozen at build time).
-    try {
-      await connection();
-    } catch {}
-  }
-  // The outer Worker caches HTML by document etag. A miss must use fresh data, or old content
-  // could be cached under the new etag after another Worker publishes.
+  // Public pages are prerendered at build time. Their providers fetch the latest
+  // published data in the browser; rendering a whole page on every Worker request
+  // exceeds the CPU budget of Cloudflare's free tier.
   const value = sanitizeContent((await readJson<unknown>(KEY)) ?? {});
   return value;
 }

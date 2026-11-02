@@ -37,6 +37,8 @@ export function protectedMedia(settings: IntroSettings): Set<string> {
     else if (value && typeof value === "object") Object.values(value).forEach(walk);
   };
   for (const [key, value] of Object.entries(settings)) if (key !== "proofTable") walk(value);
+  // The glass design's own uploads (pattern, edge, picture) stay in use, unlike the slate's title cards.
+  walk((settings.proofTable as { disc?: unknown } | undefined)?.disc);
   return found;
 }
 

@@ -29,6 +29,10 @@ export interface ProofItem {
   titleColor?: string;
   /** Show the source artwork's colours without the shared saturation/vibrance adjustment. */
   titleOriginalColor?: boolean;
+  /** Glass reveal (existing look) or the uploaded title itself, without glass/tint/added glow. */
+  titleAppearance?: "glass" | "original";
+  /** Beam-lit contrast on an original title, 0 = the uploaded pixels unchanged. */
+  titleImpact?: number;
   /** Optional glow override; otherwise the glow follows the artwork colour. */
   titleGlowColor?: string;
   /** Per-title projector glow multiplier, from 0 to 2. */

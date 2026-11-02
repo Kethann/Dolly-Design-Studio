@@ -1337,6 +1337,16 @@
 .discFinder > label { display:grid; gap:8px; }
 .discShortcuts { display:flex; flex-wrap:wrap; gap:8px 14px; }
 .discShortcuts button { min-height:44px; }
+.designTabs { display:grid; grid-template-columns:repeat(auto-fit,minmax(84px,1fr)); gap:6px; margin-bottom:14px; }
+.designTabs button { min-height:44px; border:1px solid var(--p-line-strong); border-radius:9px; background:transparent; color:var(--p-text); font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+.designTabs button[aria-pressed="true"] { border-color:var(--p-gold-bright); background:#d9b76a1c; color:var(--p-gold-bright); }
+.designChoices { display:grid; grid-template-columns:repeat(auto-fill,minmax(82px,1fr)); gap:8px; margin:0 0 14px; }
+.designChoices button { display:grid; justify-items:center; gap:6px; min-height:44px; padding:9px 4px 8px; border:1px solid var(--p-line-strong); border-radius:10px; background:#ffffff06; color:var(--p-text); font:inherit; font-size:11px; line-height:1.2; cursor:pointer; }
+.designChoices button:hover { border-color:var(--p-gold-bright); }
+.designChoices button[aria-pressed="true"] { border-color:var(--p-gold-bright); background:#d9b76a1c; color:var(--p-gold-bright); }
+.designTabs button:focus-visible,.designChoices button:focus-visible { outline:2px solid var(--p-gold-bright); outline-offset:2px; }
+.designChoices svg { display:block; width:40px; height:40px; }
+.designHeading { margin:6px 0 8px; color:var(--p-text); font-size:12px; font-weight:600; }
 .exactValue { display:inline-flex; align-items:center; flex:none; gap:6px; max-width:100%; color:var(--p-gold-bright); font-size:12px; }
 .exactValue input { width:88px; min-width:0; max-width:100%; min-height:44px; border:1px solid var(--p-line-strong); border-radius:7px; background:var(--p-raised); padding:6px 8px; color:var(--p-text); font:inherit; font-variant-numeric:tabular-nums; }
 .exactValue input:focus-visible { outline:2px solid var(--p-gold-bright); outline-offset:2px; }
