@@ -1,6 +1,7 @@
 .section {
   margin-top: clamp(56px, 8vw, 112px);
-  min-width: 0;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
 }
 
 .heading {
@@ -10,6 +11,7 @@
   flex-wrap: wrap;
   gap: 16px 28px;
   margin-bottom: 26px;
+  padding-inline: max(clamp(20px, 5vw, 64px), calc((100vw - 1360px) / 2 + 64px));
 }
 
 .eyebrow {
@@ -29,21 +31,20 @@
 
 .viewport {
   overflow: hidden;
-  mask-image: linear-gradient(to right, transparent, black 3%, black 97%, transparent);
 }
 
 .track {
   display: flex;
   width: max-content;
-  animation: title-scroll 40s linear infinite;
+  animation: title-scroll linear infinite;
   will-change: transform;
 }
 
-.section:hover .track,
 .section:focus-within .track { animation-play-state: paused; }
 
 /* A keyboard user gets a stable, scrollable row rather than tabbing through moving/off-screen links. */
-.section:focus-within .viewport { overflow-x: auto; mask-image: none; }
+.section:focus-within .viewport { overflow-x: auto; scrollbar-width: none; }
+.section:focus-within .viewport::-webkit-scrollbar { display: none; }
 .section:focus-within .track { animation: none; will-change: auto; }
 .section:focus-within .group[aria-hidden="true"] { display: none; }
 
@@ -106,7 +107,7 @@ a.card:focus-visible .art { border-color: var(--gold-bright); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .viewport { overflow-x: auto; mask-image: none; }
+  .viewport { overflow-x: auto; }
   .track { animation: none; will-change: auto; }
   .group[aria-hidden="true"] { display: none; }
 }

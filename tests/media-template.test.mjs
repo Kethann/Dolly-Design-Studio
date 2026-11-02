@@ -3719,7 +3719,7 @@ test("the title track uses uploaded slate artwork, keeps one accessible link per
     "@/lib/intro/settings-context": { useIntroSettings: () => ({ settings }) },
     "@/lib/content/context": { useContent: () => ({ projects: [{ slug: "first-film", images: [] }] }) },
     "@/lib/images": { versionedSrc: (src) => src, placeholderProps: () => ({}) },
-    "./TitleDesignTrack.module.css": {},
+    "./TitleDesignTrack.module.css": { section: "section", track: "track", group: "group" },
   })("components/TitleDesignTrack.tsx");
   const flatten = (tree) => !tree || typeof tree !== "object" ? [] : Array.isArray(tree)
     ? tree.flatMap(flatten) : [tree, ...flatten(tree.props?.children)];
@@ -3729,6 +3729,15 @@ test("the title track uses uploaded slate artwork, keeps one accessible link per
   assert.equal(nodes.find((node) => node.props?.href).props.href, "/work/first-film");
   assert.equal(nodes.filter((node) => node.props?.src === "/images/proof-table/first.png").length, 12, "one artwork fills a seamless six-card cycle twice");
   assert.ok(!nodes.some((node) => node.props?.children === "Empty slot"), "empty slate slots do not interrupt uploaded artwork");
+  const groups = nodes.filter((node) => node.props?.className === "group");
+  assert.equal(groups.length, 2, "the loop needs two identical groups");
+  assert.equal(groups[0].props.children.length, groups[1].props.children.length);
+  assert.equal(nodes.find((node) => node.props?.className === "track").props.style.animationDuration, "36s");
+  const css = readFileSync(path.join(root, "components/TitleDesignTrack.module.css"), "utf8");
+  assert.match(css, /width:\s*100vw/);
+  assert.match(css, /margin-left:\s*calc\(50% - 50vw\)/);
+  assert.match(css, /transform:\s*translateX\(-50%\)/);
+  assert.doesNotMatch(css, /\.section:hover \.track/, "pointer hover must not stop the continuous loop");
 });
 
 test("unpublished project and process pages open only for an authenticated preview", async () => {

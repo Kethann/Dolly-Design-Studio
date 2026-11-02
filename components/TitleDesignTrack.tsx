@@ -50,7 +50,7 @@ export function TitleDesignTrack() {
         </div>
       </div>
       <div className={styles.viewport}>
-        <div className={styles.track}>
+        <div className={styles.track} style={{ animationDuration: `${repeated.length * 6}s` }}>
           <div className={styles.group}>{cards(false)}</div>
           <div className={styles.group} aria-hidden="true">{cards(true)}</div>
         </div>
