@@ -38,14 +38,14 @@
 }
 
 /* What the list shows while one is being dragged: it fades, and a gold line marks where it will land. */
-:global([data-reorder-state="dragging"]) {
+:global([data-reorder-state="dragging"]):has(.grip) {
   opacity: 0.4;
 }
 
-:global([data-reorder-state="before"]) {
+:global([data-reorder-state="before"]):has(.grip) {
   box-shadow: 0 -3px 0 0 #e8b04b !important;
 }
 
-:global([data-reorder-state="after"]) {
+:global([data-reorder-state="after"]):has(.grip) {
   box-shadow: 0 3px 0 0 #e8b04b !important;
 }

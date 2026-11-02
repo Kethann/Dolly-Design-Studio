@@ -313,6 +313,6 @@
 }
 
 :global(html[data-dds-edit]) .half + .half,
-:global(html[data-dds-edit]) [data-ed-dup] {
+:global(html[data-dds-edit]) .section [data-ed-dup] {
   display: none;
 }

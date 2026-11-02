@@ -36,7 +36,8 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
     const narrow = window.matchMedia("(max-width: 680px)").matches;
     const reach = narrow ? 1.6 : 3.5;
     host.style.setProperty("--stack-lean", `${Math.max(-7, Math.min(7, velocity * 1.5)).toFixed(2)}deg`);
-    host.querySelectorAll<HTMLElement>("[data-depth]").forEach((card, index) => {
+    host.querySelectorAll<HTMLElement>("[data-depth]").forEach((card) => {
+      const index = Number(card.dataset.index);
       const offset = count === 2 ? index - position : wrap(index - position + count / 2, count) - count / 2;
       const depth = Math.abs(offset);
       // A card passing round the back of the fan fades out and in again, so wrapping never shows as a jump.
@@ -204,15 +205,19 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
         const offset = count === 2 ? (index === current ? 0 : current === 0 ? 1 : -1)
           : ((index - current + count + Math.floor(count / 2)) % count) - Math.floor(count / 2);
         const depth = Math.abs(offset);
+        // Keep only the visible fan and one card of runway on each side. A large
+        // gallery must not request every image or create dozens of GPU layers at once.
+        if (depth > 4) return null;
         return <button key={`${img.src}-${index}`} type="button" className={styles.stackCard}
           style={{ "--stack-offset": offset, "--stack-depth": depth, zIndex: count - depth } as CSSProperties}
-          data-depth={depth} data-visible={depth <= 3} aria-hidden={depth > 3}
+          data-index={index} data-depth={depth} data-visible={depth <= 3} aria-hidden={depth > 3}
           aria-label={`${img.alt || `Project image ${index + imageOffset + 1}`} (${index + 1} of ${count})`}
           aria-current={offset === 0 ? "true" : undefined} tabIndex={offset === 0 ? 0 : -1}
           onClick={() => goTo(index)}
           {...(offset === 0 && projectIndex !== undefined ? edItem(`projects.${projectIndex}.images`, index + imageOffset, "Picture") : {})}>
           {img.src ? <Image src={versionedSrc(img.src)} style={adjustStyle(img, "src")} alt={img.alt} fill
-            draggable={false} sizes="(max-width: 680px) 74vw, (max-width: 1100px) 42vw, 410px" quality={90} {...placeholderProps(img.src)} /> : <MediaPlaceholder />}
+            draggable={false} loading={depth === 0 ? "eager" : "lazy"} fetchPriority={depth === 0 ? "high" : "auto"}
+            sizes="(max-width: 680px) 74vw, (max-width: 1100px) 42vw, 410px" quality={90} {...placeholderProps(img.src)} /> : <MediaPlaceholder />}
         </button>;
       })}
     </div>
