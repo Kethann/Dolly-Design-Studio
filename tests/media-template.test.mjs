@@ -490,6 +490,22 @@ test("glass title angle, colour and glow controls form independent responsive gr
   growingTree.find(node => node.type === "button" && node.props.children === "+ Add title").props.onClick();
   assert.equal(patch.items.length, 9);
   assert.equal(app("lib/content/disc.ts").visibleDiscItems(patch.items).length, 9, "The ninth title immediately gets a disc slot");
+  const sixteen = Array.from({ length: 16 }, (_, index) => ({ ...item, film: `Glass ${index + 1}` }));
+  const fullGlass = nodes(ProofTableEditor({ value: { enabled: true, items: sixteen, disc: {} }, projects: [], onChange: value => { patch = value; }, onShow() {} }));
+  fullGlass.find(node => node.type === "button" && node.props.children === "+ Add title").props.onClick();
+  assert.equal(patch.items.length, 17, "the collection grows past the glass capacity");
+  assert.equal(patch.items[16].onGlass, false, "new titles remain in the track until selected for glass");
+  assert.equal(app("lib/content/disc.ts").visibleGlassTitles(patch.items).length, 16);
+  const extended = nodes(ProofTableEditor({ value: { enabled: true, items: patch.items, disc: {} }, projects: [], onChange: value => { patch = value; }, onShow() {} }));
+  const picks = extended.filter(node => node.type === "input" && node.props.type === "checkbox");
+  assert.equal(picks.length, 17);
+  assert.equal(picks[16].props.disabled, true, "a seventeenth title cannot overcrowd the glass");
+  picks[0].props.onChange({ target: { checked: false } });
+  assert.equal(patch.items[0].onGlass, false);
+  const room = nodes(ProofTableEditor({ value: { enabled: true, items: patch.items, disc: {} }, projects: [], onChange: value => { patch = value; }, onShow() {} }));
+  room.filter(node => node.type === "input" && node.props.type === "checkbox")[16].props.onChange({ target: { checked: true } });
+  assert.notEqual(patch.items[16].onGlass, false);
+  assert.equal(app("lib/content/disc.ts").visibleGlassTitles(patch.items).at(-1).film, "New title");
   nodes(groups[5]).find(node => node.props?.label === "Title glow intensity").props.onChange(1.5);
   assert.equal(patch.items[0].titleGlowIntensity, 1.5);
   const source = readFileSync(path.join(root, "app/portal/portal.module.css"), "utf8");
@@ -2178,12 +2194,12 @@ test("projector colour ignores transparent padding and preserves artwork pigment
   assert.equal(sanitizeDisc({ rayMotion: 8 }).rayMotion, 1);
 });
 
-test("disc adds a slot for every saved title through sixteen without changing their order", () => {
-  const { DISC_SLOT_LIMIT, visibleDiscItems } = loader()("lib/content/disc.ts");
+test("glass curates sixteen titles while the saved collection can grow", () => {
+  const { DISC_SLOT_LIMIT, visibleDiscItems, visibleGlassTitles } = loader()("lib/content/disc.ts");
   const items = Array.from({ length: 16 }, (_, i) => ({ slug: `title-${i}`, src: `image-${i}.png` }));
   const original = clone(items);
   assert.equal(DISC_SLOT_LIMIT, 16);
-  assert.equal(loader()("lib/intro/settings.ts").PROOF_LIMITS.items, DISC_SLOT_LIMIT, "Every title the editor accepts has a disc slot");
+  assert.ok(loader()("lib/intro/settings.ts").PROOF_LIMITS.items > DISC_SLOT_LIMIT);
   for (let count = 0; count <= DISC_SLOT_LIMIT; count++) {
     assert.deepEqual(visibleDiscItems(items.slice(0, count)), original.slice(0, count));
   }
@@ -2193,6 +2209,26 @@ test("disc adds a slot for every saved title through sixteen without changing th
   assert.equal(visibleDiscItems(reordered)[0].slug, "title-15");
   assert.equal(visibleDiscItems([]).length, 0);
   assert.equal(visibleDiscItems(items.slice(0, 3)).length, 3);
+  assert.deepEqual(visibleGlassTitles([...items.map((item, i) => ({ ...item, onGlass: i === 0 ? false : undefined })), { slug: "new", onGlass: true }]).map(item => item.slug),
+    [...items.slice(1).map(item => item.slug), "new"]);
+});
+
+test("saving more than sixteen titles preserves track artwork and caps only the glass selection", () => {
+  const { sanitizeIntroSettings, DEFAULT_INTRO_SETTINGS } = loader()("lib/intro/settings.ts");
+  const { visibleGlassTitles } = loader()("lib/content/disc.ts");
+  const original = clone(DEFAULT_INTRO_SETTINGS);
+  const sample = original.proofTable.items[0];
+  const items = Array.from({ length: 24 }, (_, index) => ({ ...sample, film: `Title ${index + 1}`, src: `/images/proof-table/${index + 1}.png` }));
+  const saved = sanitizeIntroSettings({ ...original, proofTable: { ...original.proofTable, items } });
+  assert.equal(saved.proofTable.items.length, 24);
+  assert.equal(saved.proofTable.items[23].film, "Title 24");
+  assert.equal(saved.proofTable.items[23].src, "/images/proof-table/24.png");
+  assert.equal(visibleGlassTitles(saved.proofTable.items).length, 16);
+  assert.equal(saved.proofTable.items[16].onGlass, false);
+  const reselected = saved.proofTable.items.map((item, index) => index === 0 ? { ...item, onGlass: false } : index === 23 ? { ...item, onGlass: true } : item);
+  const again = sanitizeIntroSettings({ ...saved, proofTable: { ...saved.proofTable, items: reselected } });
+  assert.equal(visibleGlassTitles(again.proofTable.items).at(-1).film, "Title 24");
+  assert.equal(again.proofTable.items.length, 24);
 });
 
 test("projector footprint tracks title dimensions with bounded edge overscan", () => {
@@ -3738,6 +3774,10 @@ test("the title track uses uploaded slate artwork, keeps one accessible link per
   assert.match(css, /margin-left:\s*calc\(50% - 50vw\)/);
   assert.match(css, /transform:\s*translateX\(-50%\)/);
   assert.doesNotMatch(css, /\.section:hover \.track/, "pointer hover must not stop the continuous loop");
+  settings.proofTable.items = Array.from({ length: 24 }, (_, index) => ({ src: `/images/proof-table/${index}.png`, film: `Title ${index}`, alt: `Title ${index}`, slug: "first-film", onGlass: index >= 16 ? false : undefined }));
+  const many = flatten(TitleDesignTrack());
+  assert.equal(many.filter(node => node.props?.src?.startsWith?.("/images/proof-table/")).length, 48, "all uploaded titles, including track-only titles, appear in both loop copies");
+  assert.equal(many.filter(node => node.props?.href).length, 24, "each title has one accessible link");
 });
 
 test("unpublished project and process pages open only for an authenticated preview", async () => {

@@ -12,9 +12,9 @@ import { STAGES } from "./stages";
 import styles from "./ProofTable.module.css";
 import { renderFx } from "@/components/fx/render-fx";
 import { createFrameLoop } from "./frame-loop";
+import { visibleGlassTitles } from "@/lib/content/disc";
 
 type Mode = "pinned" | "static" | "fallback";
-const MOBILE_ITEMS = 24; // phones show every card (the grid fits any number to the glass); this only guards against an absurd count
 
 function hasWebGL() {
   try {
@@ -44,7 +44,7 @@ export function SlateProofTable() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ProofScene | null>(null);
-  const slots = mobile ? pt.items.slice(0, MOBILE_ITEMS) : pt.items;
+  const slots = visibleGlassTitles(pt.items);
   const populated = slots.filter((it) => it.src);
   const hasArtwork = populated.length > 0;
   const items = hasArtwork ? populated : slots;

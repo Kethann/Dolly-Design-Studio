@@ -7,7 +7,7 @@
 //   1. Put a transparent PNG/WebP of the title in  public/images/proof-table/
 //      (about 2000px wide is plenty; trim the empty space around it).
 //   2. Add a line to `items` below. `slug` is the project page it opens.
-// Up to 16 titles fit on the disc; positions and artwork footprints adapt to the count.
+// The collection can grow beyond the 16 titles selected for the glass.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ProofItem {
@@ -23,6 +23,8 @@ export interface ProofItem {
   slug: string;
   /** Read out by screen readers. */
   alt: string;
+  /** False keeps this title in the scrolling collection but off the glass. Older titles default to on. */
+  onGlass?: boolean;
   /** Legacy glass tint retained when reading older saved content. */
   tint?: string;
   /** Optional colour override for the uploaded title pixels. */

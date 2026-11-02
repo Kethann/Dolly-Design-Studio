@@ -1,5 +1,5 @@
 import { proofTable as proofTableContent, type ProofItem } from "@/content/proof-table";
-import { DISC_DEFAULTS, sanitizeDisc, type DiscControls } from "@/lib/content/disc";
+import { DISC_DEFAULTS, DISC_SLOT_LIMIT, sanitizeDisc, type DiscControls } from "@/lib/content/disc";
 // The creator-tunable look of the star intro and the lasting background stars.
 // Shared by the server (reads/writes content/intro-settings.json), the site and the portal.
 
@@ -233,7 +233,8 @@ export interface ProofTableSettings {
   items: ProofItem[];
 }
 
-export const PROOF_LIMITS = { items: 16 } as const;
+/** Collection budget keeps portal saves and the public marquee bounded on Workers Free. */
+export const PROOF_LIMITS = { items: 256 } as const;
 
 const str = (v: unknown, fallback: string, max = 80) => (typeof v === "string" ? v.slice(0, max) : fallback);
 
@@ -252,6 +253,7 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
           tag: str(it.tag, "Title", 30),
           slug: /^[a-z0-9-]{1,80}$/.test(String(it.slug)) ? String(it.slug) : "title-designs",
           alt: str(it.alt, str(it.film, "Title design"), 160),
+          ...(it.onGlass === false ? { onGlass: false } : {}),
           ...(typeof it.tint === "string" && /^#[0-9a-f]{6}$/i.test(it.tint) ? { tint: it.tint.toLowerCase() } : {}),
           ...(typeof it.titleColor === "string" && /^#[0-9a-f]{6}$/i.test(it.titleColor) ? { titleColor: it.titleColor.toLowerCase() } : {}),
           ...(it.titleOriginalColor === true ? { titleOriginalColor: true } : {}),
@@ -271,6 +273,12 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
             ? { titleBlend: it.titleBlend as "normal" | "screen" | "additive" } : {}),
         }))
     : d.items;
+  let selected = 0;
+  const curatedItems = items.map(item => {
+    if (item.onGlass === false) return item;
+    selected += 1;
+    return selected <= DISC_SLOT_LIMIT ? item : { ...item, onGlass: false };
+  });
   return {
     enabled: bool(src.enabled, d.enabled),
     version: src.version === 2 ? 2 : 1,
@@ -286,7 +294,7 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
     reflection: num(src.reflection, [0, 1], d.reflection),
     slabColor: hex(src.slabColor, d.slabColor),
     slabOpacity: num(src.slabOpacity, [0.05, 1], d.slabOpacity),
-    items,
+    items: curatedItems,
   };
 }
 

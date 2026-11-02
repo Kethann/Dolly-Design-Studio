@@ -6,7 +6,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { ProofItem } from "@/content/proof-table";
 import { PROOF_LIMITS, type ProofTableSettings } from "@/lib/intro/settings";
 import { Choice, ColorRow, Section, Slider, Toggle, percent } from "./controls";
-import { DISC_DEFAULTS, DISC_RANGES, DISC_SLOT_LIMIT, sanitizeDisc, discAimProfileForWidth, glassDesignOf, type DiscNumericKey } from "@/lib/content/disc";
+import { DISC_DEFAULTS, DISC_RANGES, DISC_SLOT_LIMIT, visibleGlassTitles, sanitizeDisc, discAimProfileForWidth, glassDesignOf, type DiscNumericKey } from "@/lib/content/disc";
 import { GlassDesignEditor } from "./GlassDesignEditor";
 import { ImagePicker, useMedia } from "./ContentEditor";
 import styles from "./portal.module.css";
@@ -162,6 +162,12 @@ export function ProofTableEditor({
   const titleQuery = titleSearch.trim().toLocaleLowerCase();
   const matchesTitle = (it: ProofItem) => !titleQuery || `${it.film} ${it.tag} ${it.year} ${it.slug}`.toLocaleLowerCase().includes(titleQuery);
   const full = items.length >= PROOF_LIMITS.items;
+  const glassCount = visibleGlassTitles(items).length;
+  const toggleGlass = (index: number, checked: boolean) => {
+    const current = latestItems.current;
+    if (checked && visibleGlassTitles(current).length >= DISC_SLOT_LIMIT) return;
+    setItems(current.map((item, i) => i === index ? { ...item, onGlass: checked ? undefined : false } : item));
+  };
   const addCard = (src?: string) => {
     const currentItems = latestItems.current;
     if (currentItems.length >= PROOF_LIMITS.items) return;
@@ -179,6 +185,7 @@ export function ProofTableEditor({
         tag: "Title",
         slug: projects[0]?.slug ?? "title-designs",
         alt: "Title design",
+        ...(visibleGlassTitles(currentItems).length >= DISC_SLOT_LIMIT ? { onGlass: false } : {}),
       },
     ]);
   };
@@ -240,7 +247,7 @@ export function ProofTableEditor({
         </div>
         <div className={styles.control}>
           <button type="button" className={styles.ghostButton} disabled={full} onClick={() => addCard()}>+ Add title</button>
-          <p className={styles.controlHint}>{items.length} of {DISC_SLOT_LIMIT} title slots on the glass. Adding, removing or reordering a title automatically redistributes them around the circle.</p>
+          <p className={styles.controlHint}>{glassCount} of {DISC_SLOT_LIMIT} titles selected for the glass. Uploaded artwork remains in the scrolling track even when it is off the glass.</p>
           <button type="button" className={styles.linkButton} onClick={() => onChange({ disc: { ...DISC_DEFAULTS, ...glassDesignOf(disc) } })}>Reset circle settings</button>
           <p className={styles.controlHint}>Reset restores the circle controls; your images, title order and Glass design stay as they are.</p>
         </div>
@@ -313,10 +320,11 @@ export function ProofTableEditor({
       </div>
       </>}
       <Section
-        title={`Title collection (${items.length} / ${PROOF_LIMITS.items})`}
+        title={`Title collection (${items.length})`}
         scope="Page"
-        hint={`Every title appears around the glass in this order. Slots resize and space themselves automatically as you add titles, up to ${DISC_SLOT_LIMIT}.`}
+        hint={`Uploaded titles appear in the scrolling track. Select up to ${DISC_SLOT_LIMIT} for the glass; those slots resize and space themselves automatically.`}
       >
+        <p className={styles.controlHint} role="status">{glassCount} of {DISC_SLOT_LIMIT} on glass · {items.length} in the scrolling collection (up to {PROOF_LIMITS.items}).</p>
         <label className={`${styles.controlLabel} ${styles.titleSearch}`}>Find a title
           <input className={styles.select} type="search" placeholder="Search title, category or year" value={titleSearch}
             onChange={event => { setTitleSearch(event.target.value); setOpenTitle(null); setPicking(null); }} />
@@ -337,11 +345,16 @@ export function ProofTableEditor({
               {/* eslint-disable-next-line @next/next/no-img-element -- a small preview of the chosen title */}
               {it.src && <img className={styles.slotThumb} src={resizedSrc(it.src, 240)} alt="" />}
               <span className={styles.titleBlockText}><strong>{it.film || "Untitled artwork"}</strong>
-                <span>{String(i + 1).padStart(2, "0")} · On glass · {it.year}</span>
+                <span>{String(i + 1).padStart(2, "0")} · {it.onGlass === false ? "Track only" : "On glass"} · {it.year}</span>
               </span>
               <span className={styles.titleBlockChevron} aria-hidden="true">{openTitle === i ? "−" : "+"}</span>
               </button>
               <span className={styles.slotActions}>
+                <label className={styles.glassPick} title={it.onGlass === false && glassCount >= DISC_SLOT_LIMIT ? "Unselect another glass title first" : "Choose whether this title appears on the glass"}>
+                  <input type="checkbox" checked={it.onGlass !== false} disabled={it.onGlass === false && glassCount >= DISC_SLOT_LIMIT}
+                    onChange={event => toggleGlass(i, event.target.checked)} />
+                  <span>Glass</span>
+                </label>
                 <button
                   type="button"
                   className={styles.iconButton}

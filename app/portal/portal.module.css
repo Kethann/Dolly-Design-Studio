@@ -1401,6 +1401,10 @@
 .titleBlockText > span { font-size:11px; line-height:1.5; color:var(--p-muted); }
 .titleBlockChevron { flex-shrink:0; color:var(--p-gold-bright); font-size:20px; }
 .titleBlock .slotActions { flex-shrink:0; }
+.glassPick { display:inline-flex; align-items:center; gap:5px; padding:4px; color:var(--p-text); font-size:11px; cursor:pointer; white-space:nowrap; }
+.glassPick input { width:16px; height:16px; accent-color:var(--p-gold-bright); cursor:inherit; }
+.glassPick:has(input:disabled) { opacity:.5; cursor:not-allowed; }
+.glassPick:has(input:focus-visible) { outline:2px solid var(--p-gold-bright); outline-offset:2px; border-radius:4px; }
 
 .slotGrid {
   display: grid;

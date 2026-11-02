@@ -7,7 +7,7 @@ import { useContent } from "@/lib/content/context";
 import { useIntroSettings } from "@/lib/intro/settings-context";
 import { renderFx } from "@/components/fx/render-fx";
 import { resizedSrc } from "@/lib/images";
-import { sanitizeDisc, visibleDiscItems, glassBackdropStyle } from "@/lib/content/disc";
+import { sanitizeDisc, visibleGlassTitles, glassBackdropStyle } from "@/lib/content/disc";
 import type { DiscScene } from "@/components/disc-hero/scene";
 import { DiscDetailCard } from "@/components/disc-hero/DiscDetailCard";
 import styles from "@/components/disc-hero/DiscHero.module.css";
@@ -28,10 +28,10 @@ export function ProofTable() {
   const [origin, setOrigin] = useState({ x: 0, y: 0 });
   const current = useRef({ pt, projects, paused });
   useEffect(() => { current.current = { pt, projects, paused }; });
-  const imagesKey = JSON.stringify(visibleDiscItems(pt.items).map(it => [it.src, it.film, it.titleColor, it.titleOriginalColor, it.titleGlowColor, it.titleGlowIntensity, it.titleRotation, it.titleScale, it.titleOpacity, it.titleBlend, it.titleAppearance, it.titleImpact]));
+  const imagesKey = JSON.stringify(visibleGlassTitles(pt.items).map(it => [it.src, it.film, it.titleColor, it.titleOriginalColor, it.titleGlowColor, it.titleGlowIntensity, it.titleRotation, it.titleScale, it.titleOpacity, it.titleBlend, it.titleAppearance, it.titleImpact]));
   const controlsKey = JSON.stringify(pt.disc);
   useEffect(() => {
-    scene.current?.setImages(visibleDiscItems(pt.items).map(it => ({ src: it.src ? resizedSrc(it.src, 768) : "", label: it.film,
+    scene.current?.setImages(visibleGlassTitles(pt.items).map(it => ({ src: it.src ? resizedSrc(it.src, 768) : "", label: it.film,
       titleColor: it.titleColor, originalColor: it.titleOriginalColor, glowColor: it.titleGlowColor, glowIntensity: it.titleGlowIntensity, rotation: it.titleRotation,
       scale: it.titleScale, opacity: it.titleOpacity, blend: it.titleBlend, appearance: it.titleAppearance, impact: it.titleImpact })));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- update artwork only when its content/settings change
@@ -67,7 +67,7 @@ export function ProofTable() {
         const { createDiscScene } = await import("@/components/disc-hero/scene");
         if (disposed) return;
         const data = current.current;
-        scene.current = createDiscScene(surface, visibleDiscItems(data.pt.items).map(it => ({ src: it.src ? resizedSrc(it.src, 768) : "", label: it.film,
+        scene.current = createDiscScene(surface, visibleGlassTitles(data.pt.items).map(it => ({ src: it.src ? resizedSrc(it.src, 768) : "", label: it.film,
           titleColor: it.titleColor, originalColor: it.titleOriginalColor, glowColor: it.titleGlowColor, glowIntensity: it.titleGlowIntensity, rotation: it.titleRotation,
           scale: it.titleScale, opacity: it.titleOpacity, blend: it.titleBlend, appearance: it.titleAppearance, impact: it.titleImpact })),
           sanitizeDisc(data.pt.disc), () => { scene.current?.dispose(); scene.current = null; if (!disposed) setState("fallback"); }, src => resizedSrc(src, 1920));
@@ -96,7 +96,7 @@ export function ProofTable() {
       press = null;
       const bounds = surface.getBoundingClientRect();
       const index = scene.current?.hit(e.clientX - bounds.left, e.clientY - bounds.top) ?? -1;
-      const item = current.current.pt.items[index];
+      const item = visibleGlassTitles(current.current.pt.items)[index];
       if (item) {
         host.focus({ preventScroll: true });
         setOrigin({ x: (e.clientX - innerWidth / 2) * .35, y: (e.clientY - innerHeight / 2) * .35 });
@@ -106,7 +106,7 @@ export function ProofTable() {
     const move = (e: PointerEvent) => {
       if (e.pointerType !== "mouse" || e.buttons) return;
       const bounds = surface.getBoundingClientRect(), index = scene.current?.hit(e.clientX - bounds.left, e.clientY - bounds.top) ?? -1;
-      const item = current.current.pt.items[index];
+      const item = visibleGlassTitles(current.current.pt.items)[index];
       surface.style.cursor = item ? "pointer" : scene.current?.canDrag(e.clientX - bounds.left, e.clientY - bounds.top) ? "grab" : "default";
       scene.current?.setHover(item ? index : -1);
     };
@@ -122,7 +122,7 @@ export function ProofTable() {
   if (!pt.enabled) return null;
   const suffix = preview ? "?portal-preview" : "";
   const viewControls = sanitizeDisc(pt.disc);
-  const selectedItem = selected === null ? null : visibleDiscItems(pt.items)[selected];
+  const selectedItem = selected === null ? null : visibleGlassTitles(pt.items)[selected];
   const closePreview = (restoreFocus = false) => {
     setSelected(null); scene.current?.setOpen(-1); scene.current?.setHover(-1);
     if (restoreFocus) stage.current?.focus({ preventScroll: true });

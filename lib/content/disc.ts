@@ -1,5 +1,9 @@
 /** Shared by the portal, renderer and standalone demo. Angles are in degrees. */
 export const DISC_SLOT_LIMIT = 16;
+/** The glass renders a curated subset; the scrolling title collection retains every saved title. */
+export function visibleGlassTitles<T extends { onGlass?: boolean }>(items: readonly T[]): T[] {
+  return items.filter(item => item.onGlass !== false).slice(0, DISC_SLOT_LIMIT);
+}
 /** Each saved title gets a position on the disc, up to the collection's safe rendering limit. */
 export function visibleDiscItems<T>(items: readonly T[]): T[] {
   return items.slice(0, DISC_SLOT_LIMIT);
