@@ -1,6 +1,6 @@
 import { requestOriginMatches } from "@/lib/request-origin";
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import manifest from "@/content/generated/image-manifest.json";
@@ -60,10 +60,12 @@ export async function POST(req: NextRequest) {
   if (big) return big;
 
   let file: File | null = null;
+  let addDuplicate = false;
   try {
     const form = await readUploadForm(req, MAX_BYTES);
     const f = form.get("file");
     file = f instanceof File ? f : null;
+    addDuplicate = form.get("duplicate") === "add";
   } catch (error) {
     if (error instanceof UploadTooLargeError) return NextResponse.json({ error: error.message }, { status: 413 });
   }
@@ -81,8 +83,19 @@ export async function POST(req: NextRequest) {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "")
         .slice(0, 40) || "image";
-    const name = `${base}-${createHash("sha1").update(img.bytes).digest("hex").slice(0, 8)}.${img.ext}`;
-    await (await store()).putBytes(`uploads/images/${name}`, img.bytes, img.contentType);
+    const hash = createHash("sha1").update(img.bytes).digest("hex").slice(0, 8);
+    let name = `${base}-${hash}.${img.ext}`;
+    let key = `uploads/images/${name}`;
+    const storage = await store();
+    // Re-selecting the same folder should reuse exact files already in the library.
+    // The key includes the processed image's content hash, so changed files still upload.
+    if (await storage.size(key) !== null) {
+      if (!addDuplicate) return NextResponse.json({ src: `/images/uploads/${name}`, duplicate: true });
+      // Explicitly adding a copy must never overwrite the original library image.
+      name = `${base}-${hash}-copy-${randomUUID().replace(/-/g, "").slice(0, 12)}.${img.ext}`;
+      key = `uploads/images/${name}`;
+    }
+    await storage.putBytes(key, img.bytes, img.contentType);
     await logActivity({ headers: req.headers, actor: me, action: "uploaded-image", detail: file.name });
     return NextResponse.json({ src: `/images/uploads/${name}` });
   } catch (err) {

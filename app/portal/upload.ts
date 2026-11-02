@@ -1,7 +1,15 @@
 import { MAX_PSD_MB } from "./psd-budget";
 
+/** A site-wide response means the rest of a folder should wait, not fail one by one. */
+export class UploadBatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UploadBatchError";
+  }
+}
+
 /** Sends one file to a portal upload route, reporting progress (fetch can't, so this uses XMLHttpRequest). */
-export function postFile<T>(url: string, file: File, onProgress?: (percent: number) => void): Promise<T> {
+export function postFile<T>(url: string, file: File, onProgress?: (percent: number) => void, fields?: Record<string, string>): Promise<T> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
@@ -9,19 +17,27 @@ export function postFile<T>(url: string, file: File, onProgress?: (percent: numb
       if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
     };
     xhr.onload = () => {
-      let data: { error?: string } = {};
+      let data: { error?: string } | null = null;
       try {
         data = JSON.parse(xhr.responseText);
       } catch {}
-      if (xhr.status >= 200 && xhr.status < 300) resolve(data as T);
-      else reject(new Error(data.error ?? (xhr.status === 401 ? "Your session has ended. Sign in again." : "Upload failed.")));
+      if (xhr.status === 401 || xhr.status === 403) {
+        reject(new UploadBatchError(data?.error ?? "Your session has ended. Sign in again."));
+      } else if (xhr.status >= 200 && xhr.status < 300) {
+        if (data && typeof data === "object") resolve(data as T);
+        else reject(new UploadBatchError("The server returned a page instead of an upload result. Sign in again, then retry the folder."));
+      } else {
+        const message = data?.error ?? `Upload failed (HTTP ${xhr.status || "network error"}).`;
+        reject(xhr.status >= 500 ? new UploadBatchError(message) : new Error(message));
+      }
     };
     xhr.timeout = 10 * 60_000;
-    xhr.ontimeout = () => reject(new Error("The upload took too long. Check the connection and try again."));
+    xhr.ontimeout = () => reject(new UploadBatchError("The upload took too long. Check the connection and try again."));
     xhr.onabort = () => reject(new Error("The upload was cancelled."));
-    xhr.onerror = () => reject(new Error("Couldn’t reach the server. Check the connection and try again."));
+    xhr.onerror = () => reject(new UploadBatchError("Couldn’t reach the server. Check the connection and try again."));
     const form = new FormData();
     form.append("file", file);
+    for (const [key, value] of Object.entries(fields ?? {})) form.append(key, value);
     xhr.send(form);
   });
 }
@@ -110,5 +126,19 @@ export async function prepareImage(file: File): Promise<File> {
   } finally {
     bitmap?.close();
     if (canvas) canvas.width = canvas.height = 0;
+  }
+}
+
+/** Reuse an exact file already visible in the library before sending its bytes again. */
+export async function existingImageUpload(file: File, images: readonly string[]): Promise<string | null> {
+  if (!globalThis.crypto?.subtle || !images.length) return null;
+  try {
+    const base = file.name.replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "image";
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", await file.arrayBuffer()));
+    const hash = Array.from(digest.slice(0, 4), byte => byte.toString(16).padStart(2, "0")).join("");
+    const prefix = `/images/uploads/${base}-${hash}.`;
+    return images.find(src => src.startsWith(prefix)) ?? null;
+  } catch {
+    return null; // The server still checks duplicates if this browser cannot hash the file.
   }
 }

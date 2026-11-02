@@ -39,7 +39,7 @@ export interface MediaApi {
   remove: (src: string) => Promise<void>;
   /** Adds a picture that was uploaded somewhere else to the shared library, so it shows up everywhere. */
   add: (src: string) => void;
-  upload: (file: File, onProgress?: (percent: number) => void) => Promise<string>;
+  upload: (file: File, onProgress?: (percent: number) => void, onDuplicate?: (existingSrc: string) => Promise<"skip" | "add">) => Promise<string>;
 }
 
 interface EditorValue {
@@ -1542,6 +1542,14 @@ export function MediaLibrary() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [progress, setProgress] = useState(0);
+  const [skippedDuplicates, setSkippedDuplicates] = useState(0);
+  const [addedDuplicates, setAddedDuplicates] = useState(0);
+  const [duplicatePrompt, setDuplicatePrompt] = useState<string | null>(null);
+  const duplicatePolicy = useRef<"skip" | "add" | null>(null);
+  const resolveDuplicate = useRef<((choice: "skip" | "add") => void) | null>(null);
+  const skipButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (duplicatePrompt) skipButton.current?.focus({ preventScroll: true }); }, [duplicatePrompt]);
+  useEffect(() => () => { resolveDuplicate.current?.("skip"); resolveDuplicate.current = null; }, []);
   const deleting = useRef(false);
   const deleteDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -1550,7 +1558,22 @@ export function MediaLibrary() {
     dialog.showModal();
     return () => dialog.close();
   }, [asking]);
-  const uploads = useUploads<string>("image", (f, p) => media.upload(f, p));
+  const askDuplicate = async (src: string): Promise<"skip" | "add"> => {
+    const choice = duplicatePolicy.current ?? await new Promise<"skip" | "add">((resolve) => {
+      resolveDuplicate.current = resolve;
+      setDuplicatePrompt(prettyName(src));
+    });
+    if (choice === "skip") setSkippedDuplicates((n) => n + 1);
+    else setAddedDuplicates((n) => n + 1);
+    return choice;
+  };
+  const decideDuplicate = (choice: "skip" | "add") => {
+    duplicatePolicy.current = choice;
+    setDuplicatePrompt(null);
+    resolveDuplicate.current?.(choice);
+    resolveDuplicate.current = null;
+  };
+  const uploads = useUploads<string>("image", (f, p) => media.upload(f, p, askDuplicate));
   const { shown, shownRemovable, selected, allShownSelected, hiddenSelected } = librarySelection(media.images, media.removable, picked, filter);
   const siteJson = JSON.stringify(content);
   const used = (src: string) => siteJson.includes(src);
@@ -1629,8 +1652,17 @@ export function MediaLibrary() {
             state={uploads.state}
             title="Drop pictures here, or click to choose"
             hint="PNG, JPG and JPEG are supported, up to 12 MB each. You can also use WebP, AVIF, GIF, SVG, TIFF, BMP or ICO. Large photos are optimized for the site (GIFs stay animated, SVGs stay sharp), ready to pick in any picture field."
-            onFiles={(files) => uploads.start(files, () => {})}
+            onFiles={(files) => { duplicatePolicy.current = null; setSkippedDuplicates(0); setAddedDuplicates(0); void uploads.start(files, () => {}); }}
           />
+          {duplicatePrompt && <div className={styles.duplicateChoice} role="group" aria-label="Duplicate upload choice">
+            <p role="status">“{duplicatePrompt}” is already in the library. What should happen to duplicates in this batch?</p>
+            <div className={styles.duplicateActions}>
+              <button ref={skipButton} type="button" onClick={() => decideDuplicate("skip")}>Skip duplicates</button>
+              <button type="button" onClick={() => decideDuplicate("add")}>Add separate copies</button>
+            </div>
+          </div>}
+          {skippedDuplicates > 0 && <p className={styles.hint} role="status">{skippedDuplicates} duplicate {skippedDuplicates === 1 ? "picture" : "pictures"} already in the library — skipped.</p>}
+          {addedDuplicates > 0 && <p className={styles.hint} role="status">{addedDuplicates} duplicate {addedDuplicates === 1 ? "copy" : "copies"} added separately.</p>}
           <input className={styles.input} aria-label="Search images by name or folder" placeholder="Search by name or folder" value={filter} disabled={busy} onChange={(e) => setFilter(e.target.value)} />
           <div className={styles.libBar}>
             <span className={styles.grow} role="status">

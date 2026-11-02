@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { checkFile, type UploadKind } from "./upload";
+import { checkFile, UploadBatchError, type UploadKind } from "./upload";
 
 export interface UploadState {
   busy: boolean;
@@ -40,7 +40,14 @@ export function useUploads<T>(kind: UploadKind, send: (file: File, onProgress: (
           });
           if (current()) onEach(result, ok[i]);
         } catch (err) {
-          if (current()) errors.push(`“${ok[i].name}”: ${err instanceof Error ? err.message : "Upload failed."}`);
+          if (current()) {
+            errors.push(`“${ok[i].name}”: ${err instanceof Error ? err.message : "Upload failed."}`);
+            if (err instanceof UploadBatchError || (err instanceof Error && err.name === "UploadBatchError")) {
+              const remaining = ok.length - i - 1;
+              if (remaining) errors.push(`${remaining} remaining ${remaining === 1 ? "file was" : "files were"} not sent. Fix the connection or sign in again, then retry the folder.`);
+              break;
+            }
+          }
         }
       }
     } finally {

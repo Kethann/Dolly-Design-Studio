@@ -1167,6 +1167,27 @@
 }
 
 /* Library: pick many, then delete them in one step. */
+.duplicateChoice {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e8b04b;
+  border-radius: 12px;
+  background: rgba(232, 176, 75, 0.1);
+  color: var(--p-text);
+}
+.duplicateChoice p { margin: 0; line-height: 1.45; }
+.duplicateActions { display: flex; flex-wrap: wrap; gap: 8px; }
+.duplicateActions button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--p-line-strong);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+}
+.duplicateActions button:hover, .duplicateActions button:focus-visible { border-color: #e8b04b; outline: none; }
 .libBar {
   position: sticky;
   top: 0;

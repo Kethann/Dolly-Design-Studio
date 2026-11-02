@@ -27,7 +27,7 @@ import { Choice, ColorRow, Dial, HexInput, Section, Slider, Toggle, percent } fr
 import { ContentEditor, EditorProvider, ListModeProvider, getAt, setAt, MediaLibrary, ThemeEditor, TypographyEditor, type MediaApi } from "./ContentEditor";
 import { CONTENT_PAGES, findList, findSection, type Field } from "./content-schema";
 import { Spotlight, type SpotEntry } from "./Spotlight";
-import { postFile, prepareImage } from "./upload";
+import { existingImageUpload, postFile, prepareImage, UploadBatchError } from "./upload";
 import { Dock, MenuBar, type DockGroup, type MenuDef } from "./mac";
 import { PageBar } from "./PageBar";
 import { EditModal, ItemEditor, ItemTools, SectionEditor, sectionPaths } from "./EditModal";
@@ -321,6 +321,8 @@ export function PortalEditor({
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [libraryError, setLibraryError] = useState("");
   const mediaRevision = useRef(0);
+  const knownImages = useRef(images);
+  useEffect(() => { knownImages.current = images; }, [images]);
   const contentRef = useRef(contentDraft);
   const sentContentRef = useRef<SiteContent | null>(null);
   useEffect(() => {
@@ -362,20 +364,31 @@ export function PortalEditor({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Couldn’t delete that picture.");
       mediaRevision.current++;
+      knownImages.current = knownImages.current.filter((x) => x !== src);
       setImages((list) => list.filter((x) => x !== src));
       setRemovable((list) => list.filter((x) => x !== src));
     },
     add: (src) => {
       mediaRevision.current++;
+      if (!knownImages.current.includes(src)) knownImages.current = [src, ...knownImages.current];
       setImages((list) => (list.includes(src) ? list : [src, ...list]));
       if (/^\/images\/(uploads|proof-table)\//.test(src)) {
         setRemovable((list) => (list.includes(src) ? list : [src, ...list]));
       }
     },
-    upload: async (file, onProgress) => {
-      const data = await postFile<{ src?: string }>("/api/portal/media", await prepareImage(file), onProgress);
-      if (!data.src) throw new Error("Upload failed.");
+    upload: async (file, onProgress, onDuplicate) => {
+      const prepared = await prepareImage(file);
+      const existing = await existingImageUpload(prepared, knownImages.current);
+      const addExisting = existing && (await onDuplicate?.(existing)) === "add";
+      if (existing && !addExisting) return existing;
+      let data = await postFile<{ src?: string; duplicate?: boolean }>("/api/portal/media", prepared, onProgress, addExisting ? { duplicate: "add" } : undefined);
+      if (!data.src) throw new UploadBatchError("The server did not return a saved image. Stop this batch and try again after signing in.");
+      if (data.duplicate && (await onDuplicate?.(data.src)) === "add") {
+        data = await postFile<{ src?: string }>("/api/portal/media", prepared, onProgress, { duplicate: "add" });
+        if (!data.src) throw new UploadBatchError("The server did not return a saved image. Stop this batch and try again after signing in.");
+      }
       mediaRevision.current++;
+      if (!knownImages.current.includes(data.src)) knownImages.current = [data.src, ...knownImages.current];
       setImages((list) => (list.includes(data.src!) ? list : [data.src!, ...list]));
       setRemovable((list) => (list.includes(data.src!) ? list : [data.src!, ...list]));
       return data.src;

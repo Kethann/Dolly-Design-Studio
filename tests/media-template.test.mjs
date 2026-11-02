@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -922,6 +923,35 @@ test("upload controls reject rapid duplicate starts and recover after failure", 
   const failed=uploadHarness(async()=>{throw new Error("Connection interrupted")});
   await failed.render().start([file],()=>assert.fail("Failed upload applied"));
   assert.equal(failed.render().state.busy,false);assert.match(failed.render().state.errors[0],/Connection interrupted/);
+});
+
+test("a site-wide upload failure stops the folder after one file", async () => {
+  const { UploadBatchError } = loader()("app/portal/upload.ts");
+  let calls = 0;
+  const ui = uploadHarness(async () => { calls++; throw new UploadBatchError("The server returned an unexpected response."); });
+  const files = ["39.jpg", "4.jpg", "16.jpg"].map(name => ({ name, type: "image/jpeg", size: 10 }));
+  await ui.render().start(files, () => assert.fail("Failed upload applied"));
+  assert.equal(calls, 1);
+  assert.match(ui.render().state.errors[0], /39\.jpg.*unexpected response/);
+  assert.match(ui.render().state.errors[1], /2 remaining files were not sent/);
+});
+
+test("upload transport reports a non-JSON server response instead of a generic failure", async () => {
+  const { postFile, UploadBatchError } = loader()("app/portal/upload.ts");
+  const previous = globalThis.XMLHttpRequest;
+  class FakeXhr {
+    upload = {};
+    status = 200;
+    responseText = "<html>Sign in</html>";
+    open() {}
+    send() { this.onload(); }
+  }
+  globalThis.XMLHttpRequest = FakeXhr;
+  try {
+    await assert.rejects(postFile("/api/portal/media", new File(["image"], "39.jpg")), error => error instanceof UploadBatchError && /returned a page/.test(error.message));
+  } finally {
+    globalThis.XMLHttpRequest = previous;
+  }
 });
 
 test("closing an editor prevents late uploads changing its draft or starting the next file", async () => {
@@ -3939,6 +3969,51 @@ test("the Cloudflare media library includes newly uploaded slate artwork", async
     assert.ok(result.removable.includes(src));
   }
   assert.equal(result.images.some((src) => src.startsWith("/images/brand/")), false);
+});
+
+test("folder upload detects exact library repeats before transferring them", async () => {
+  const { existingImageUpload } = loader()("app/portal/upload.ts");
+  const file = new File(["first image"], "39.jpg", { type: "image/jpeg" });
+  const hash = createHash("sha1").update("first image").digest("hex").slice(0, 8);
+  const src = `/images/uploads/39-${hash}.jpg`;
+  assert.equal(await existingImageUpload(file, [src]), src);
+  assert.equal(await existingImageUpload(new File(["changed image"], "39.jpg", { type: "image/jpeg" }), [src]), null);
+  assert.equal(await existingImageUpload(file, []), null);
+});
+
+test("image upload reuses an existing file instead of storing and logging a folder duplicate", async () => {
+  const saved = new Map();
+  const activity = [];
+  let file = new File(["first image"], "39.jpg", { type: "image/jpeg" });
+  let duplicateMode = "skip";
+  const route = loader({
+    "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
+    "@/lib/portal/auth": { getPortalUser: async () => ({ role: "owner" }) },
+    "@/lib/portal/body-limit": { tooLarge: () => null, readUploadForm: async () => { const form = new FormData(); form.set("file", file); form.set("duplicate", duplicateMode); return form; }, UploadTooLargeError: class UploadTooLargeError extends Error {} },
+    "@/lib/portal/image": { processImage: async (bytes) => ({ bytes, ext: "jpg", contentType: "image/jpeg" }) },
+    "@/lib/portal/image-work": { isImageBusyError: () => false },
+    "@/lib/portal/activity": { logActivity: async (event) => activity.push(event) },
+    "@/lib/storage": { store: async () => ({ size: async (key) => saved.get(key)?.length ?? null, putBytes: async (key, bytes) => saved.set(key, bytes) }) },
+  })("app/api/portal/media/route.ts");
+  const upload = async () => (await route.POST({ headers: new Headers() })).json();
+  const first = await upload();
+  assert.match(first.src, /^\/images\/uploads\/39-[0-9a-f]{8}\.jpg$/);
+  assert.equal(first.duplicate, undefined);
+  assert.deepEqual(await upload(), { src: first.src, duplicate: true });
+  assert.equal(saved.size, 1);
+  assert.equal(activity.length, 1);
+  duplicateMode = "add";
+  const copy = await upload();
+  assert.match(copy.src, /^\/images\/uploads\/39-[0-9a-f]{8}-copy-[0-9a-f]{12}\.jpg$/);
+  assert.notEqual(copy.src, first.src);
+  assert.equal(saved.size, 2, "Adding a duplicate creates a separate item without overwriting the original");
+  assert.equal(activity.length, 2);
+  duplicateMode = "skip";
+  file = new File(["changed image"], "39.jpg", { type: "image/jpeg" });
+  const changed = await upload();
+  assert.notEqual(changed.src, first.src, "A different image with the same filename is still uploaded");
+  assert.equal(saved.size, 3);
+  assert.equal(activity.length, 3);
 });
 
 test("library selections survive search changes by identity and exclude stale or protected files", () => {
