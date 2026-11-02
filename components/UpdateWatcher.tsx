@@ -20,7 +20,7 @@ function rememberPlace() {
  * back, and a small "Updated, tap to refresh" note appears otherwise. Where you were on the page is kept.
  * (Not in development, where there is no deploy to compare with.)
  */
-export function UpdateWatcher() {
+export function UpdateWatcher({ portal = false }: { portal?: boolean }) {
   const [stale, setStale] = useState(false);
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export function UpdateWatcher() {
         return;
       }
       // Back after being away: a stale tab refreshes itself now (nothing is being read or typed at this moment).
-      if (isStale && hiddenAt && Date.now() - hiddenAt > 15_000 && !document.querySelector("form :focus")) {
+      if (!portal && isStale && hiddenAt && Date.now() - hiddenAt > 15_000 && !document.querySelector("form :focus")) {
         rememberPlace();
         window.location.assign(window.location.href);
       } else void check();
@@ -85,7 +85,7 @@ export function UpdateWatcher() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("click", onClick, true);
     };
-  }, []);
+  }, [portal]);
 
   if (!stale) return null;
   return (
@@ -94,11 +94,12 @@ export function UpdateWatcher() {
       className={styles.note}
       data-chrome
       onClick={() => {
+        if (portal && !window.confirm("Save any portal changes before refreshing. Refresh now?")) return;
         rememberPlace();
         window.location.assign(window.location.href);
       }}
     >
-      <span aria-hidden="true">✦</span> Updated, tap to refresh
+      <span aria-hidden="true">✦</span> {portal ? "Portal updated — save changes, then refresh" : "Updated, tap to refresh"}
     </button>
   );
 }

@@ -42,7 +42,7 @@ export function SiteChrome({
   const [introDone, setIntroDone] = useState(false);
   const pathname = usePathname();
 
-  if (pathname?.startsWith("/portal")) return <>{children}</>;
+  if (pathname?.startsWith("/portal")) return <><UpdateWatcher portal />{children}</>;
 
   return (
     <IntroSettingsProvider initial={introSettings}>
