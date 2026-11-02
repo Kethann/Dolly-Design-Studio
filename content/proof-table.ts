@@ -7,7 +7,7 @@
 //   1. Put a transparent PNG/WebP of the title in  public/images/proof-table/
 //      (about 2000px wide is plenty; trim the empty space around it).
 //   2. Add a line to `items` below. `slug` is the project page it opens.
-// 6–12 items work best; the layout adapts to the count. Phones show the first 6.
+// Up to 16 titles fit on the disc; positions and artwork footprints adapt to the count.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ProofItem {
@@ -27,6 +27,8 @@ export interface ProofItem {
   tint?: string;
   /** Optional colour override for the uploaded title pixels. */
   titleColor?: string;
+  /** Show the source artwork's colours without the shared saturation/vibrance adjustment. */
+  titleOriginalColor?: boolean;
   /** Optional glow override; otherwise the glow follows the artwork colour. */
   titleGlowColor?: string;
   /** Per-title projector glow multiplier, from 0 to 2. */

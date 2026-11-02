@@ -198,7 +198,7 @@ export function ProofTableEditor({
         </div>
         <div className={styles.control}>
           <button type="button" className={styles.ghostButton} disabled={full} onClick={() => addCard()}>+ Add title</button>
-          <p className={styles.controlHint}>{Math.min(items.length, DISC_SLOT_LIMIT)} of {DISC_SLOT_LIMIT} positions assigned. The first {DISC_SLOT_LIMIT} titles appear on the glass; remaining entries are kept here. Drag a title into the first {DISC_SLOT_LIMIT} positions to display it.</p>
+          <p className={styles.controlHint}>{items.length} of {DISC_SLOT_LIMIT} title slots on the glass. Adding, removing or reordering a title automatically redistributes them around the circle.</p>
           <button type="button" className={styles.linkButton} onClick={() => onChange({ disc: { ...DISC_DEFAULTS } })}>Reset circle settings</button>
           <p className={styles.controlHint}>Reset restores the circle controls; your images and title order stay as they are.</p>
         </div>
@@ -271,7 +271,7 @@ export function ProofTableEditor({
       <Section
         title={`Title collection (${items.length} / ${PROOF_LIMITS.items})`}
         scope="Page"
-        hint={`The first ${DISC_SLOT_LIMIT} images appear around the glass in this order. Additional entries stay saved here until you move them into those positions.`}
+        hint={`Every title appears around the glass in this order. Slots resize and space themselves automatically as you add titles, up to ${DISC_SLOT_LIMIT}.`}
       >
         <label className={`${styles.controlLabel} ${styles.titleSearch}`}>Find a title
           <input className={styles.select} type="search" placeholder="Search title, category or year" value={titleSearch}
@@ -293,7 +293,7 @@ export function ProofTableEditor({
               {/* eslint-disable-next-line @next/next/no-img-element -- a small preview of the chosen title */}
               {it.src && <img className={styles.slotThumb} src={resizedSrc(it.src, 240)} alt="" />}
               <span className={styles.titleBlockText}><strong>{it.film || "Untitled artwork"}</strong>
-                <span>{String(i + 1).padStart(2, "0")} · {i < DISC_SLOT_LIMIT ? "On glass" : "Saved for later"} · {it.year}</span>
+                <span>{String(i + 1).padStart(2, "0")} · On glass · {it.year}</span>
               </span>
               <span className={styles.titleBlockChevron} aria-hidden="true">{openTitle === i ? "−" : "+"}</span>
               </button>
@@ -406,9 +406,13 @@ export function ProofTableEditor({
                     onClick={() => patchItem(i, { titleOpacity: undefined, titleBlend: undefined })}>Reset title blend</button>
                 </div>
                 <div className={styles.slotTintGroup}>
-                  <ColorRow label="Title colour" value={it.titleColor ?? "#ffffff"} onChange={(titleColor) => patchItem(i, { titleColor })} />
-                  <button type="button" className={styles.linkButton} disabled={!it.titleColor}
-                    onClick={() => patchItem(i, { titleColor: undefined })}>Use uploaded title colour</button>
+                  <ColorRow label="Title colour" value={it.titleColor ?? "#ffffff"} onChange={(titleColor) => patchItem(i, { titleColor, titleOriginalColor: undefined })} />
+                  <button type="button" className={styles.linkButton} aria-pressed={!it.titleColor && !it.titleOriginalColor} disabled={!it.titleColor && !it.titleOriginalColor}
+                    onClick={() => patchItem(i, { titleColor: undefined, titleOriginalColor: undefined })}>Use uploaded title colour</button>
+                  <button type="button" className={styles.linkButton} aria-pressed={it.titleOriginalColor === true}
+                    disabled={it.titleOriginalColor === true} title="Keep the artwork's original colours without shared saturation or vibrance"
+                    onClick={() => patchItem(i, { titleColor: undefined, titleOriginalColor: true })}>Original colour (no grading)</button>
+                  <p className={styles.controlHint}>Original keeps the uploaded artwork’s colours even when shared saturation or vibrance changes.</p>
                 </div>
                 <div className={styles.slotTintGroup}>
                   <ColorRow label="Title glow colour" value={it.titleGlowColor ?? it.titleColor ?? "#ffffff"}

@@ -8,7 +8,7 @@ import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
 import { bindCircleDrag } from "./drag";
 import { DISC_DEFAULTS, sanitizeDisc, glassCircleComposition, glassArrivalSpinMultiplier, glassArrivalOpacity, glassEase, glassProjectorOrigin, discAimProfileForWidth, discPanelLayout, discFittedTitleLayout, discTitleInkBounds, discTitlePoint, discProjectionWindow, discLandingWindow, discProjectionCoverage, discProjectionMask, discArtworkPresence, discImageBands, visibleDiscItems, releaseDiscImage, discViewportFeather, type DiscControls } from "../../lib/content/disc";
 
-export type DiscImage = { src: string; label: string; titleColor?: string; glowColor?: string; glowIntensity?: number; rotation?: number;
+export type DiscImage = { src: string; label: string; titleColor?: string; originalColor?: boolean; glowColor?: string; glowIntensity?: number; rotation?: number;
   scale?: number; opacity?: number; blend?: "normal" | "screen" | "additive" };
 export type DiscScene = ReturnType<typeof createDiscScene>;
 const TAU = Math.PI * 2;
@@ -302,6 +302,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         setTitleBlend(slot.image.material, item.blend);
         uniforms.titleColour.value.set(item.titleColor ?? "#ffffff");
         uniforms.useTitleColour.value = item.titleColor ? 1 : 0;
+        uniforms.useOriginalColour.value = item.originalColor && !item.titleColor ? 1 : 0;
         slot.titleColor = item.titleColor ? uniforms.titleColour.value : undefined;
         uniforms.titleGlowColour.value.set(item.glowColor ?? "#ffffff");
         uniforms.useTitleGlowColour.value = item.glowColor ? 1 : 0;
@@ -340,6 +341,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         imageSaturation, vibrance, imageOpacity, blur, dimBrightness, slotGlow,
         imageAspect: { value: 1 }, panelAspect: { value: layout.aspect }, rear: { value: 0 }, hover: { value: 0 },
         titleColour: { value: customTitle }, useTitleColour: { value: item.titleColor ? 1 : 0 },
+        useOriginalColour: { value: item.originalColor && !item.titleColor ? 1 : 0 },
         titleGlowColour: { value: customGlow }, useTitleGlowColour: { value: item.glowColor ? 1 : 0 },
         titleGlowIntensity: { value: THREE.MathUtils.clamp(item.glowIntensity ?? 1, 0, 2) },
         titleOpacity: { value: THREE.MathUtils.clamp(item.opacity ?? 1, 0, 1) }, screenBlend: { value: 0 },
@@ -350,7 +352,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
             vUv=uv; gl_Position=projectionMatrix*viewMatrix*world; }`,
         fragmentShader: `uniform sampler2D map;
         uniform float imageSaturation, vibrance, imageOpacity, blur, dimBrightness, slotGlow, projectorSoftness, projectorPower, contactStrength, rear, hover, imageAspect, panelAspect;
-        uniform float useTitleColour, useTitleGlowColour, titleGlowIntensity, titleOpacity, screenBlend, titleGlass;
+        uniform float useTitleColour, useOriginalColour, useTitleGlowColour, titleGlowIntensity, titleOpacity, screenBlend, titleGlass;
         uniform vec2 viewport;
         uniform vec3 contactColour, titleColour, titleGlowColour;
         uniform vec4 projectorBounds, landingBounds; varying vec2 vProjector; varying vec2 vUv;
@@ -389,6 +391,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
           float grey=dot(c,vec3(.2126,.7152,.0722));
           float chroma=max(c.r,max(c.g,c.b))-min(c.r,min(c.g,c.b));
           c=max(vec3(0.),mix(vec3(grey),c,imageSaturation*(1.+vibrance*(1.-chroma))));
+          c=mix(c,tex.rgb,useOriginalColour);
           vec3 artworkCore=c;
           // Emission comes from the artwork itself, only where the fixed projector window overlaps it.
           vec2 lightWindow=discWindow(vProjector);

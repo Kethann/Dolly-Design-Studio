@@ -28,11 +28,11 @@ export function ProofTable() {
   const [origin, setOrigin] = useState({ x: 0, y: 0 });
   const current = useRef({ pt, projects, paused });
   useEffect(() => { current.current = { pt, projects, paused }; });
-  const imagesKey = JSON.stringify(visibleDiscItems(pt.items).map(it => [it.src, it.film, it.titleColor, it.titleGlowColor, it.titleGlowIntensity, it.titleRotation, it.titleScale, it.titleOpacity, it.titleBlend]));
+  const imagesKey = JSON.stringify(visibleDiscItems(pt.items).map(it => [it.src, it.film, it.titleColor, it.titleOriginalColor, it.titleGlowColor, it.titleGlowIntensity, it.titleRotation, it.titleScale, it.titleOpacity, it.titleBlend]));
   const controlsKey = JSON.stringify(pt.disc);
   useEffect(() => {
     scene.current?.setImages(visibleDiscItems(pt.items).map(it => ({ src: it.src ? resizedSrc(it.src, 768) : "", label: it.film,
-      titleColor: it.titleColor, glowColor: it.titleGlowColor, glowIntensity: it.titleGlowIntensity, rotation: it.titleRotation,
+      titleColor: it.titleColor, originalColor: it.titleOriginalColor, glowColor: it.titleGlowColor, glowIntensity: it.titleGlowIntensity, rotation: it.titleRotation,
       scale: it.titleScale, opacity: it.titleOpacity, blend: it.titleBlend })));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- update artwork only when its content/settings change
   }, [imagesKey]);
@@ -68,7 +68,7 @@ export function ProofTable() {
         if (disposed) return;
         const data = current.current;
         scene.current = createDiscScene(surface, visibleDiscItems(data.pt.items).map(it => ({ src: it.src ? resizedSrc(it.src, 768) : "", label: it.film,
-          titleColor: it.titleColor, glowColor: it.titleGlowColor, glowIntensity: it.titleGlowIntensity, rotation: it.titleRotation,
+          titleColor: it.titleColor, originalColor: it.titleOriginalColor, glowColor: it.titleGlowColor, glowIntensity: it.titleGlowIntensity, rotation: it.titleRotation,
           scale: it.titleScale, opacity: it.titleOpacity, blend: it.titleBlend })),
           sanitizeDisc(data.pt.disc), () => { scene.current?.dispose(); scene.current = null; if (!disposed) setState("fallback"); });
         scene.current.resize(host.clientWidth, host.clientHeight);

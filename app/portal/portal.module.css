@@ -1436,6 +1436,7 @@
 
 .slotTintGroup { min-width: 0; }
 .slotTintGroup > button { max-width: 100%; white-space: normal; text-align: left; }
+.slotTintGroup > button[aria-pressed="true"] { color: var(--p-text); }
 
 /* Touch controls keep their readable labels and a generous interaction area. */
 @media (pointer: coarse) {

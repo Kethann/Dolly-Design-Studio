@@ -252,6 +252,7 @@ function sanitizeProofTable(input: unknown, d: ProofTableSettings): ProofTableSe
           alt: str(it.alt, str(it.film, "Title design"), 160),
           ...(typeof it.tint === "string" && /^#[0-9a-f]{6}$/i.test(it.tint) ? { tint: it.tint.toLowerCase() } : {}),
           ...(typeof it.titleColor === "string" && /^#[0-9a-f]{6}$/i.test(it.titleColor) ? { titleColor: it.titleColor.toLowerCase() } : {}),
+          ...(it.titleOriginalColor === true ? { titleOriginalColor: true } : {}),
           ...(typeof it.titleGlowColor === "string" && /^#[0-9a-f]{6}$/i.test(it.titleGlowColor) ? { titleGlowColor: it.titleGlowColor.toLowerCase() } : {}),
           ...(typeof it.titleGlowIntensity === "number" && Number.isFinite(it.titleGlowIntensity)
             ? { titleGlowIntensity: Math.min(2, Math.max(0, it.titleGlowIntensity)) } : {}),

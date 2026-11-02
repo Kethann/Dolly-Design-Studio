@@ -1,6 +1,6 @@
 /** Shared by the portal, renderer and standalone demo. Angles are in degrees. */
-export const DISC_SLOT_LIMIT = 8;
-/** Preserve the complete collection; only the first eight entries occupy the disc. */
+export const DISC_SLOT_LIMIT = 16;
+/** Each saved title gets a position on the disc, up to the collection's safe rendering limit. */
 export function visibleDiscItems<T>(items: readonly T[]): T[] {
   return items.slice(0, DISC_SLOT_LIMIT);
 }

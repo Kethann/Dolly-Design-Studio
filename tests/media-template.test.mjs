@@ -454,6 +454,20 @@ test("glass title angle, colour and glow controls form independent responsive gr
   nodes(groups[3]).find(node => node.type === "button").props.onClick();
   assert.equal(patch.items[0].titleColor, undefined);
   assert.equal(patch.items[0].titleGlowColor, "#abcdef");
+  const originalColour = nodes(groups[3]).find(node => node.type === "button" && node.props.children === "Original colour (no grading)");
+  assert.equal(originalColour.props["aria-pressed"], false);
+  originalColour.props.onClick();
+  assert.equal(patch.items[0].titleColor, undefined);
+  assert.equal(patch.items[0].titleOriginalColor, true);
+  assert.equal(patch.items[0].titleGlowColor, "#abcdef", "Changing title colour does not reset its glow");
+  const originalTree = nodes(ProofTableEditor({ value: { enabled: true, items: patch.items, disc: {} }, projects: [], onChange: value => { patch = value; }, onShow() {} }));
+  originalTree.find(node => node.type === "button" && node.props.children === "Use uploaded title colour").props.onClick();
+  assert.equal(patch.items[0].titleOriginalColor, undefined);
+  const eightTitles = Array.from({ length: 8 }, (_, index) => ({ ...item, film: `Title ${index + 1}`, src: `/images/proof-table/${index}.png` }));
+  const growingTree = nodes(ProofTableEditor({ value: { enabled: true, items: eightTitles, disc: {} }, projects: [], onChange: value => { patch = value; }, onShow() {} }));
+  growingTree.find(node => node.type === "button" && node.props.children === "+ Add title").props.onClick();
+  assert.equal(patch.items.length, 9);
+  assert.equal(app("lib/content/disc.ts").visibleDiscItems(patch.items).length, 9, "The ninth title immediately gets a disc slot");
   nodes(groups[5]).find(node => node.props?.label === "Title glow intensity").props.onChange(1.5);
   assert.equal(patch.items[0].titleGlowIntensity, 1.5);
   const source = readFileSync(path.join(root, "app/portal/portal.module.css"), "utf8");
@@ -1101,14 +1115,19 @@ test("disc settings migrate old slates, clamp invalid controls, and retain artwo
   migrated.proofTable.disc = custom;
   migrated.proofTable.items[0].tint = "#55aaff";
   migrated.proofTable.items[0].titleColor = "#123456";
+  migrated.proofTable.items[0].titleOriginalColor = true;
   migrated.proofTable.items[0].titleGlowColor = "#abcdef";
   migrated.proofTable.items[0].titleGlowIntensity = 1.35;
   const roundTrip = sanitizeIntroSettings(JSON.parse(JSON.stringify(migrated)));
   assert.deepEqual(roundTrip.proofTable.disc, custom);
   assert.equal(roundTrip.proofTable.items[0].tint, "#55aaff");
   assert.equal(roundTrip.proofTable.items[0].titleColor, "#123456");
+  assert.equal(roundTrip.proofTable.items[0].titleOriginalColor, true);
   assert.equal(roundTrip.proofTable.items[0].titleGlowColor, "#abcdef");
   assert.equal(roundTrip.proofTable.items[0].titleGlowIntensity, 1.35);
+  const scene = readFileSync(path.join(root, "components/disc-hero/scene.ts"), "utf8");
+  assert.match(scene, /uniform float useTitleColour, useOriginalColour/);
+  assert.match(scene, /c=mix\(c,tex\.rgb,useOriginalColour\)/, "Original mode bypasses shared artwork colour grading");
   migrated.proofTable.items[0].titleColor = "red";
   migrated.proofTable.items[0].titleGlowColor = "#xyzxyz";
   migrated.proofTable.items[0].titleGlowIntensity = 99;
@@ -1283,7 +1302,7 @@ test("glass projector enters diagonally from above, mirrors correctly and never 
 
 test("title regions stay separated inside the glass rim", () => {
   const { discPanelLayout } = loader()("lib/content/disc.ts");
-  for (const count of [1, 2, 5, 6, 8, 12, 16]) for (const gap of [0.5, 12]) for (const size of [0.7, 1]) {
+  for (let count = 1; count <= 16; count++) for (const gap of [0.5, 12]) for (const size of [0.7, 1]) {
     const panel = discPanelLayout(count, gap, size);
     assert.ok(panel.inner > 0.22);
     assert.equal(panel.innerHalfWidth, panel.outerHalfWidth, "Transparent PNGs are never warped into wedges");
@@ -2137,15 +2156,19 @@ test("projector colour ignores transparent padding and preserves artwork pigment
   assert.equal(sanitizeDisc({ rayMotion: 8 }).rayMotion, 1);
 });
 
-test("disc displays eight entries without deleting titles or changing their link order", () => {
+test("disc adds a slot for every saved title through sixteen without changing their order", () => {
   const { DISC_SLOT_LIMIT, visibleDiscItems } = loader()("lib/content/disc.ts");
-  const items = Array.from({ length: 12 }, (_, i) => ({ slug: `title-${i}`, src: `image-${i}.png` }));
+  const items = Array.from({ length: 16 }, (_, i) => ({ slug: `title-${i}`, src: `image-${i}.png` }));
   const original = clone(items);
-  assert.equal(DISC_SLOT_LIMIT, 8);
-  assert.deepEqual(visibleDiscItems(items), original.slice(0, 8));
+  assert.equal(DISC_SLOT_LIMIT, 16);
+  assert.equal(loader()("lib/intro/settings.ts").PROOF_LIMITS.items, DISC_SLOT_LIMIT, "Every title the editor accepts has a disc slot");
+  for (let count = 0; count <= DISC_SLOT_LIMIT; count++) {
+    assert.deepEqual(visibleDiscItems(items.slice(0, count)), original.slice(0, count));
+  }
+  assert.deepEqual(visibleDiscItems([...items, { slug: "overflow", src: "overflow.png" }]), original);
   assert.deepEqual(items, original);
-  const reordered = [items[10], ...items.filter((_, i) => i !== 10)];
-  assert.equal(visibleDiscItems(reordered)[0].slug, "title-10");
+  const reordered = [items[15], ...items.filter((_, i) => i !== 15)];
+  assert.equal(visibleDiscItems(reordered)[0].slug, "title-15");
   assert.equal(visibleDiscItems([]).length, 0);
   assert.equal(visibleDiscItems(items.slice(0, 3)).length, 3);
 });
