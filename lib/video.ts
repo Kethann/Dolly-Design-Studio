@@ -1,4 +1,4 @@
-export const MAX_VIDEO_MB = 50;
+export const MAX_VIDEO_MB = 60;
 export const MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024;
 export const VIDEO_URL = /^\/media\/videos\/[a-z0-9-]+\.(mp4|mkv)$/i;
 
@@ -43,5 +43,57 @@ export async function readVideoBody(body: ReadableStream<Uint8Array>, size: numb
     throw error;
   } finally {
     reader.releaseLock();
+  }
+}
+
+/** Validate the header, then pass through the rest without buffering a large upload in the Worker. */
+export async function validatedVideoStream(body: ReadableStream<Uint8Array>, size: number): Promise<{ type: "mp4" | "mkv"; stream: ReadableStream<Uint8Array> }> {
+  if (!Number.isSafeInteger(size) || size <= 0 || size > MAX_VIDEO_BYTES) throw new Error("Invalid video size.");
+  const reader = body.getReader();
+  const prefix: Uint8Array[] = [];
+  const sample = new Uint8Array(Math.min(4096, size));
+  let sampled = 0, received = 0, ended = false, next = 0;
+  try {
+    while (sampled < sample.length) {
+      const part = await reader.read();
+      if (part.done) { ended = true; break; }
+      if (received + part.value.length > size) throw new Error("The video size changed during upload. Try again.");
+      prefix.push(part.value);
+      received += part.value.length;
+      const length = Math.min(part.value.length, sample.length - sampled);
+      sample.set(part.value.subarray(0, length), sampled);
+      sampled += length;
+    }
+    const type = videoType(sample.subarray(0, sampled));
+    if (!type) { await reader.cancel().catch(() => {}); throw new Error("Choose a valid MP4 or MKV video."); }
+    const stream = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        try {
+          if (next < prefix.length) { controller.enqueue(prefix[next++]); return; }
+          if (!ended) {
+            const part = await reader.read();
+            if (!part.done) {
+              if (received + part.value.length > size) throw new Error("The video size changed during upload. Try again.");
+              received += part.value.length;
+              controller.enqueue(part.value);
+              return;
+            }
+            ended = true;
+          }
+          if (received !== size) throw new Error("The video upload was incomplete. Try again.");
+          reader.releaseLock();
+          controller.close();
+        } catch (error) {
+          await reader.cancel().catch(() => {});
+          controller.error(error);
+        }
+      },
+      async cancel(reason) { await reader.cancel(reason).catch(() => {}); },
+    });
+    return { type, stream };
+  } catch (error) {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+    throw error;
   }
 }

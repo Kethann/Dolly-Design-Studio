@@ -86,6 +86,6 @@ export function VideoField({ value, onChange }: { value: VideoValue; onChange: (
     {progress !== null && <p className={styles.hint} role="status">{progress < 0 ? "Checking video…" : progress === 100 ? "Finishing upload…" : `Uploading video… ${progress}%`}</p>}
     {error && <p className={styles.error} role="alert">{error}</p>}
     <p className={styles.hint}>MP4 or MKV · up to {MAX_VIDEO_MB} MB. MP4 is recommended.</p>
-    <details className={styles.imageDetails}><summary>Playback &amp; sizing</summary><p className={styles.hint}>Use MP4 with H.264 video and AAC audio for widest playback support. MKV may need downloading on some devices. Cards follow the video’s proportions, with text underneath. Removing a video from this card keeps the file in Storage.</p></details>
+    <details className={styles.imageDetails}><summary>Playback &amp; sizing</summary><p className={styles.hint}>Use MP4 with H.264 video and AAC audio for widest playback support. MKV may need downloading on some devices. BTS cards preview silently while visible; opening one plays with sound when the file has audio. Cards follow the video’s proportions, with text underneath. Removing a video from this card keeps the file in Storage.</p></details>
   </div>;
 }

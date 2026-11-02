@@ -5,7 +5,7 @@ import { requestOriginMatches } from "@/lib/request-origin";
 import { logActivity } from "@/lib/portal/activity";
 import { runImageWork, isImageBusyError } from "@/lib/portal/image-work";
 import { store } from "@/lib/storage";
-import { MAX_VIDEO_BYTES, MAX_VIDEO_MB, readVideoBody, videoType } from "@/lib/video";
+import { MAX_VIDEO_BYTES, MAX_VIDEO_MB, readVideoBody, validatedVideoStream } from "@/lib/video";
 
 export async function POST(req: NextRequest) {
   const me = await getPortalUser();
@@ -16,17 +16,18 @@ export async function POST(req: NextRequest) {
   if (size > MAX_VIDEO_BYTES) return NextResponse.json({ error: `Videos can be up to ${MAX_VIDEO_MB} MB. Export a smaller MP4 clip.` }, { status: 413 });
   try {
     return await runImageWork(async () => {
-      const bytes = await readVideoBody(req.body!, size);
-      const type = videoType(bytes);
-      if (!type) return NextResponse.json({ error: "Choose a valid MP4 or MKV video." }, { status: 400 });
+      const { type, stream } = await validatedVideoStream(req.body!, size);
       const name = `${randomUUID()}.${type}`;
-      await (await store()).putBytes(`uploads/videos/${name}`, bytes, type === "mp4" ? "video/mp4" : "video/x-matroska");
+      const storage = await store();
+      const contentType = type === "mp4" ? "video/mp4" : "video/x-matroska";
+      if (storage.putStream) await storage.putStream(`uploads/videos/${name}`, stream, contentType);
+      else await storage.putBytes(`uploads/videos/${name}`, await readVideoBody(stream, size), contentType);
       await logActivity({ headers: req.headers, actor: me, action: "uploaded-video", detail: name });
       return NextResponse.json({ src: `/media/videos/${name}` });
     });
   } catch (error) {
     if (isImageBusyError(error)) return NextResponse.json({ error: error.message }, { status: 503, headers: { "Retry-After": "2" } });
-    if (error instanceof Error && /size changed|incomplete/.test(error.message)) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error instanceof Error && /size changed|incomplete|valid MP4 or MKV/.test(error.message)) return NextResponse.json({ error: error.message }, { status: 400 });
     console.error("[portal] video upload failed", error);
     return NextResponse.json({ error: "The video could not be saved. Try again." }, { status: 500 });
   }

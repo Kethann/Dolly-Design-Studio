@@ -1040,7 +1040,9 @@ test("video cards preserve photo defaults and safely retain video metadata throu
 });
 
 test("video signatures and byte ranges reject invalid input and support browser seeking", () => {
-  const { videoType, videoRange } = loader()("lib/video.ts");
+  const { MAX_VIDEO_MB, MAX_VIDEO_BYTES, videoType, videoRange } = loader()("lib/video.ts");
+  assert.equal(MAX_VIDEO_MB, 60);
+  assert.equal(MAX_VIDEO_BYTES, 60 * 1024 * 1024);
   const mp4 = Buffer.alloc(32); mp4.write("ftypisom", 4);
   assert.equal(videoType(mp4), "mp4");
   mp4.write("avif", 8); assert.equal(videoType(mp4), null);
@@ -1054,11 +1056,18 @@ test("video signatures and byte ranges reject invalid input and support browser 
 });
 
 test("video upload body has a hard bound and rejects truncated transfers", async () => {
-  const { readVideoBody } = loader()("lib/video.ts");
+  const { readVideoBody, validatedVideoStream } = loader()("lib/video.ts");
   const body = values => new ReadableStream({ start(c) { values.forEach(v=>c.enqueue(new Uint8Array(v))); c.close(); } });
   assert.deepEqual([...await readVideoBody(body([[1,2],[3,4]]),4)], [1,2,3,4]);
   await assert.rejects(readVideoBody(body([[1,2,3,4,5]]),4), /size changed/);
   await assert.rejects(readVideoBody(body([[1,2]]),4), /incomplete/);
+  const mp4 = Buffer.alloc(32); mp4.write("ftypisom", 4);
+  const valid = await validatedVideoStream(body([mp4.subarray(0, 8), mp4.subarray(8)]), 32);
+  assert.equal(valid.type, "mp4");
+  assert.deepEqual(new Uint8Array(await new Response(valid.stream).arrayBuffer()), new Uint8Array(mp4));
+  await assert.rejects(validatedVideoStream(body([[1, 2, 3, 4]]), 4), /valid MP4 or MKV/);
+  const incomplete = await validatedVideoStream(body([mp4]), 33);
+  await assert.rejects(new Response(incomplete.stream).arrayBuffer(), /incomplete/);
 });
 
 test("video serving streams only requested bytes and HEAD never opens a stream", async () => {
@@ -1089,11 +1098,11 @@ test("video uploads require sign-in, same origin, bounded bodies and valid conta
   const req=(body=bytes,size=body.length)=>new Request("http://local/api/portal/videos",{method:"POST",headers:{Origin:"http://local","Content-Length":String(size)},body});
   assert.equal((await route.POST(req())).status,401);
   user={id:"owner"};origin=false;assert.equal((await route.POST(req())).status,403);
-  origin=true;assert.equal((await route.POST(req(bytes,50*1024*1024+1))).status,413);
+  origin=true;assert.equal((await route.POST(req(bytes,60*1024*1024+1))).status,413);
   assert.equal((await route.POST(req(Buffer.alloc(32)))).status,400);assert.equal(writes.length,0);
   const success=await route.POST(req());assert.equal(success.status,200);assert.match((await success.json()).src,/^\/media\/videos\/[a-z0-9-]+\.mp4$/);
   assert.equal(writes.length,1);assert.equal(writes[0][2],"video/mp4");
-  // Exercise the inclusive 50 MB boundary with a chunked container fixture, without storing a real file.
+  // Exercise a large chunked container fixture on the local-storage path.
   const chunk = new Uint8Array(1024*1024);
   let sent = 0;
   const body = new ReadableStream({pull(controller) {
@@ -1104,6 +1113,63 @@ test("video uploads require sign-in, same origin, bounded bodies and valid conta
   const boundary = await route.POST({headers:new Headers({Origin:"http://local","Content-Length":String(50*1024*1024)}),body});
   assert.equal(boundary.status,200);
   assert.equal(writes.length,2);assert.equal(writes[1][1].byteLength,50*1024*1024);
+});
+
+test("Cloudflare streams a 60 MB BTS upload to R2 without buffering the full body", async () => {
+  const { MAX_VIDEO_BYTES } = loader()("lib/video.ts");
+  let stored = 0, contentType = "", buffered = false;
+  const route = loader({
+    "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
+    "@/lib/portal/auth": { getPortalUser: async () => ({ id: "owner" }) },
+    "@/lib/request-origin": { requestOriginMatches: () => true },
+    "@/lib/portal/activity": { logActivity: async () => {} },
+    "@/lib/storage": { store: async () => ({
+      putBytes: async () => { buffered = true; },
+      putStream: async (_key, stream, type) => {
+        contentType = type;
+        const reader = stream.getReader();
+        while (true) { const part = await reader.read(); if (part.done) break; stored += part.value.length; }
+      },
+    }) },
+  })("app/api/portal/videos/route.ts");
+  const chunk = new Uint8Array(1024 * 1024);
+  chunk.set(Buffer.from("ftypisom"), 4);
+  let sent = 0;
+  const body = new ReadableStream({ pull(controller) {
+    if (sent++ === 60) { controller.close(); return; }
+    controller.enqueue(chunk);
+  } });
+  const result = await route.POST({ headers: new Headers({ Origin: "http://local", "Content-Length": String(MAX_VIDEO_BYTES) }), body });
+  assert.equal(result.status, 200);
+  assert.equal(stored, MAX_VIDEO_BYTES);
+  assert.equal(contentType, "video/mp4");
+  assert.equal(buffered, false);
+});
+
+test("BTS cards preview silently in place and open an unmuted controlled video", () => {
+  const style = new Proxy({}, { get: (_target, key) => key === "__esModule" ? false : key });
+  const render = (states) => {
+    let index = 0;
+    const { BtsVideo } = loader({
+      react: { useRef: () => ({ current: null }), useState: () => [states[index++], () => {}], useEffect() {} },
+      "@/lib/images": { resizedSrc: src => src },
+      "./BtsVideo.module.css": style,
+    })("components/BtsVideo.tsx");
+    const flatten = node => !node || typeof node !== "object" ? [] : Array.isArray(node) ? node.flatMap(flatten) : [node, ...flatten(node.props?.children)];
+    return flatten(BtsVideo({ src: "/media/videos/bts.mp4", poster: "/images/bts.jpg", title: "BTS", width: 1920, height: 1080 }));
+  };
+  const preview = render([true, false, false, false]);
+  const silent = preview.find(node => node.type === "video");
+  assert.equal(silent.props.muted, true);
+  assert.equal(silent.props.autoPlay, true);
+  assert.equal(silent.props.loop, true);
+  assert.equal(silent.props.playsInline, true);
+  assert.equal(preview.find(node => node.type === "button" && node.props["aria-label"] === "Open BTS video with sound") !== undefined, true);
+  const opened = render([true, true, false, false]);
+  const full = opened.filter(node => node.type === "video").at(-1);
+  assert.equal(full.props.controls, true);
+  assert.equal(full.props.autoPlay, true);
+  assert.notEqual(full.props.muted, true);
 });
 
 test("section editors never repeat a field path or render duplicate React keys", () => {

@@ -24,6 +24,8 @@ export interface Store {
   getStream?(key: string, range?: { offset: number; length: number }): Promise<{ body: ReadableStream<Uint8Array>; contentType?: string } | null>;
   size(key: string): Promise<number | null>;
   putBytes(key: string, bytes: Uint8Array, contentType?: string): Promise<void>;
+  /** R2 upload path for large videos; avoids holding the whole request in Worker memory. */
+  putStream?(key: string, body: ReadableStream<Uint8Array>, contentType?: string): Promise<void>;
   /** Copy into a recovery archive without buffering the whole file in the Worker. */
   copy(key: string, destination: string): Promise<void>;
   /** Every key that starts with the prefix, in alphabetical order. */
@@ -182,6 +184,9 @@ function r2(bucket: R2Bucket): Store {
     },
     async putBytes(key, bytes, contentType) {
       await bucket.put(key, bytes, contentType ? { httpMetadata: { contentType } } : undefined);
+    },
+    async putStream(key, body, contentType) {
+      await bucket.put(key, body, contentType ? { httpMetadata: { contentType } } : undefined);
     },
     async copy(key, destination) {
       const obj = await bucket.get(key);

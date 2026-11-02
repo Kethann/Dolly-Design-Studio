@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useContent } from "@/lib/content/context";
 import { edItem, edSection } from "@/lib/content/tx";
 import { AddContent } from "./PreviewControls";
-import { VideoPlayer } from "./VideoPlayer";
+import { BtsVideo } from "./BtsVideo";
 import { MAX_PROCESS_ITEMS, extraOf, type ProcessItem } from "@/lib/content/process";
 import { srcSetFor, versionedSrc } from "@/lib/images";
 import { freezeScroll, releaseScroll } from "@/lib/smooth-scroll";
@@ -148,7 +148,7 @@ export function ProcessView({ slug }: { slug: string }) {
             if (it.mediaType === "video") return (
               <li key={j} className={styles.item} data-media="video" {...edItem(listPath, j, it.title || "Video card")}>
                 <div className={styles.itemButton}>
-                  {it.video ? <VideoPlayer key={it.video} src={it.video} poster={it.image} title={it.title || "Behind the scenes"} width={it.videoWidth} height={it.videoHeight} /> : <span className={styles.frame} style={{ aspectRatio: "16 / 9" }}><span className={styles.blank}>Video to follow</span></span>}
+                  {it.video ? <BtsVideo key={it.video} src={it.video} poster={it.image} title={it.title || "Behind the scenes"} width={it.videoWidth} height={it.videoHeight} /> : <span className={styles.frame} style={{ aspectRatio: "16 / 9" }}><span className={styles.blank}>Video to follow</span></span>}
                   {(it.title || it.note) && <span className={styles.caption}>{it.title && <strong>{it.title}</strong>}{it.note && <span>{it.note}</span>}</span>}
                 </div>
               </li>
