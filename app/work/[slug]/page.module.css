@@ -162,12 +162,24 @@
   box-shadow: 0 18px 48px rgb(0 0 0 / 0.42);
   cursor: pointer;
   transform: translate(-50%, -50%) translateX(calc(var(--stack-offset) * var(--stack-step) + var(--stack-drag, 0px))) translateY(calc(var(--stack-depth) * 8px)) rotateY(calc(var(--stack-offset) * -7deg + var(--stack-lean, 0deg))) scale(calc(1 - var(--stack-depth) * 0.065));
-  filter: brightness(calc(1 - var(--stack-depth) * 0.12));
-  transition: width 440ms cubic-bezier(0.22, 1, 0.36, 1), aspect-ratio 440ms cubic-bezier(0.22, 1, 0.36, 1), transform 560ms cubic-bezier(0.22, 1, 0.36, 1), filter 420ms ease, opacity 320ms ease;
+  transition: width 440ms cubic-bezier(0.22, 1, 0.36, 1), aspect-ratio 440ms cubic-bezier(0.22, 1, 0.36, 1), transform 560ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms ease;
+}
+
+/* Cards further back are dimmed by a black veil: the same picture as brightness(1 - depth * 0.12), but the moving fan
+   only changes the veil's opacity, instead of redrawing a filtered copy of every card on every frame. */
+.stackCard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: calc(var(--stack-depth) * 0.12);
+  pointer-events: none;
+  transition: opacity 420ms ease;
 }
 
 /* Only the visible fan and its immediate neighbours are mounted, so GPU layers stay bounded. */
 .stackStage[data-live] .stackCard { transition:width 440ms cubic-bezier(.22,1,.36,1), aspect-ratio 440ms cubic-bezier(.22,1,.36,1), border-color 420ms ease; will-change:transform; backface-visibility:hidden; }
+.stackStage[data-live] .stackCard::after { transition:none; will-change:opacity; }
 .stackStage[data-dragging] .stackCard { cursor:grabbing; }
 
 .stackCard[aria-current="true"] {
@@ -242,7 +254,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stackCard,.stackControls button {
+  .stackCard,.stackCard::after,.stackControls button {
     transition: none;
   }
 }

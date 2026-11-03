@@ -10,11 +10,16 @@ import styles from "@/app/work/[slug]/page.module.css";
 import { MediaPlaceholder } from "./MediaPlaceholder";
 
 /** Spring for the settle after a drag or a press: quick, with the faintest overshoot. */
-const STIFFNESS = 95, DAMPING = 16.5;
+const STIFFNESS = 120, DAMPING = 18.5;
 /** How far a flick carries on: cards/second multiplied by this, and never more than two cards. */
 const THROW = .12, MAX_THROW = 2;
 
 const wrap = (value: number, size: number) => ((value % size) + size) % size;
+
+// Read on every frame of motion, so each query is made once and then only read (its answer stays live).
+let narrowQuery: MediaQueryList | undefined, reducedQuery: MediaQueryList | undefined;
+const isNarrow = () => (narrowQuery ??= window.matchMedia("(max-width: 680px)")).matches;
+const prefersReduced = () => (reducedQuery ??= window.matchMedia("(prefers-reduced-motion: reduce)")).matches;
 
 /** One shared fan for the project page and the poster's centered gallery. */
 export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initialIndex, compact = false }: {
@@ -27,14 +32,15 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
   const count = images.length;
   // Where the fan is right now, in cards. It is continuous (and unwrapped), so cards follow the finger and glide.
   const motion = useRef({ position: initialIndex ?? Math.floor(count / 2), velocity: 0, target: initialIndex ?? Math.floor(count / 2), frame: 0, last: 0 });
+  /** A drag can report the finger several times a frame; the fan is placed once per frame. */
+  const dragFrame = useRef(0);
 
   /** Places every card from the live position, without a React render. */
   const paint = () => {
     const host = stage.current;
     if (!host) return;
     const { position, velocity } = motion.current;
-    const narrow = window.matchMedia("(max-width: 680px)").matches;
-    const reach = narrow ? 1.6 : 3.5;
+    const reach = isNarrow() ? 1.6 : 3.5;
     host.style.setProperty("--stack-lean", `${Math.max(-7, Math.min(7, velocity * 1.5)).toFixed(2)}deg`);
     host.querySelectorAll<HTMLElement>("[data-depth]").forEach((card) => {
       const index = Number(card.dataset.index);
@@ -45,10 +51,16 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
       const opacity = Math.max(0, Math.min(seam, reach - depth));
       card.style.setProperty("--stack-offset", offset.toFixed(4));
       card.style.setProperty("--stack-depth", depth.toFixed(4));
-      card.style.zIndex = String(1000 - Math.round(depth * 100));
       card.style.opacity = opacity.toFixed(3);
-      card.style.pointerEvents = opacity > .4 ? "" : "none";
+      // These change only now and then: rewriting them every frame would restack and re-hit-test for nothing.
+      const layer = String(1000 - Math.round(depth * 100)), hits = opacity > .4 ? "" : "none";
+      if (card.style.zIndex !== layer) card.style.zIndex = layer;
+      if (card.style.pointerEvents !== hits) card.style.pointerEvents = hits;
     });
+  };
+
+  const paintSoon = () => {
+    if (!dragFrame.current) dragFrame.current = requestAnimationFrame(() => { dragFrame.current = 0; paint(); });
   };
 
   const stopMotion = () => {
@@ -60,7 +72,7 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
   /** Eases to the target card, carrying whatever speed the fan already has. */
   const settle = () => {
     const state = motion.current;
-    if (!stage.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (!stage.current || prefersReduced()) {
       state.position = state.target; state.velocity = 0;
       stopMotion(); paint();
       return;
@@ -69,10 +81,15 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
     stage.current?.setAttribute("data-moving", "true");
     state.last = 0;
     const step = (now: number) => {
-      const dt = state.last ? Math.min(.032, (now - state.last) / 1000) : 1 / 60;
+      // Real time, in small steps: a device that drops frames keeps the glide's pace instead of slowing it down.
+      let left = state.last ? Math.min(.1, (now - state.last) / 1000) : 1 / 60;
       state.last = now;
-      state.velocity += (STIFFNESS * (state.target - state.position) - DAMPING * state.velocity) * dt;
-      state.position += state.velocity * dt;
+      while (left > 0) {
+        const dt = Math.min(1 / 120, left);
+        left -= dt;
+        state.velocity += (STIFFNESS * (state.target - state.position) - DAMPING * state.velocity) * dt;
+        state.position += state.velocity * dt;
+      }
       if (Math.abs(state.target - state.position) < .0012 && Math.abs(state.velocity) < .012) {
         state.position = state.target; state.velocity = 0;
         state.frame = 0;
@@ -92,12 +109,14 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
     paint();
   });
   useEffect(() => {
-    const repaint = () => paint(), state = motion.current;
+    const repaint = () => paint(), state = motion.current, drag = dragFrame;
     window.addEventListener("resize", repaint);
     return () => {
       window.removeEventListener("resize", repaint);
       cancelAnimationFrame(state.frame);
       state.frame = 0;
+      cancelAnimationFrame(drag.current);
+      drag.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- paint only reads refs and the card count
   }, [count]);
@@ -174,7 +193,7 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
         start.lastX = event.clientX; start.lastAt = event.timeStamp;
         const nearest = wrap(Math.round(next), count);
         if (nearest !== active) setActive(nearest);
-        paint();
+        paintSoon();
       }
     }} onPointerUp={(event) => {
       const start = gesture.current;
