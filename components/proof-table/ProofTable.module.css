@@ -135,6 +135,12 @@
     font-size: 14px;
     margin-bottom: 20px;
   }
+
+  /* The stage may end just below the table (see fitStage); the canvas keeps the full screen's framing. */
+  .canvas {
+    height: 100vh;
+    height: 100svh;
+  }
 }
 
 

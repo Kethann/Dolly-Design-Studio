@@ -18,6 +18,9 @@ import { titleArtBlob } from "./art-preload";
 
 type Mode = "pinned" | "static" | "fallback";
 
+/** How briskly the story follows the scroll (per second): about as quick to arrive as before, without the jolts. */
+const FOLLOW = 16;
+
 function hasWebGL() {
   try {
     const gl = document.createElement("canvas").getContext("webgl2");
@@ -110,6 +113,7 @@ export function SlateProofTable() {
     let visible = false;
     let shown = 0; // smoothed progress
     let held = 0; // where the scroll says the story is (the shown value eases towards it)
+    let pace = 0; // how fast shown is moving, in progress per second
     let disposed = false;
     let loading = false;
 
@@ -118,6 +122,25 @@ export function SlateProofTable() {
       const r = section.getBoundingClientRect();
       const span = r.height - stage.clientHeight;
       return span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0;
+    };
+
+    // Stacked layout: the table never reaches the bottom of the screen, so the pinned stage ends a little below its lowest
+    // point and the next section follows straight on. The canvas keeps its full height (same framing), faded out at the cut.
+    // Only the sticky stage changes height, never the section, so nothing on the page moves.
+    const fitStage = () => {
+      const full = canvas.clientHeight;
+      const lowest = scene && mobileRef.current && mode === "pinned" ? scene.restBottom() : full;
+      const cut = Math.ceil(lowest + 40);
+      if (cut < full) {
+        stage.style.height = `${cut}px`;
+        const fade = `linear-gradient(to bottom, #000 ${Math.floor(lowest + 6)}px, transparent ${cut}px)`;
+        canvas.style.setProperty("-webkit-mask-image", fade);
+        canvas.style.setProperty("mask-image", fade);
+      } else {
+        stage.style.removeProperty("height");
+        canvas.style.removeProperty("-webkit-mask-image");
+        canvas.style.removeProperty("mask-image");
+      }
     };
 
     let lastVars = -1;
@@ -135,10 +158,17 @@ export function SlateProofTable() {
     const loop = createFrameLoop((dt) => {
       if (!scene) return false;
       // The story follows the scroll, down and up alike: scrolling back up winds it back, and the page never jumps.
-      if (mode === "pinned" && section.getBoundingClientRect().top >= window.innerHeight) held = shown = 0;
+      if (mode === "pinned" && section.getBoundingClientRect().top >= window.innerHeight) held = shown = pace = 0;
       held = progress();
-      shown += (held - shown) * (1 - Math.exp(-dt * 9));
-      if (Math.abs(held - shown) < 0.0004) shown = held;
+      // A critically damped follow: the story gathers and sheds speed smoothly however unevenly the scroll arrives (wheel
+      // steps, touch momentum), and it never runs past the scroll, so it can't play a moment backwards.
+      const before = held - shown;
+      pace += (FOLLOW * FOLLOW * before - 2 * FOLLOW * pace) * dt;
+      shown += pace * dt;
+      if ((held - shown) * before <= 0 || (Math.abs(held - shown) < 0.0004 && Math.abs(pace) < 0.02)) {
+        shown = held;
+        pace = 0;
+      }
       shown = Math.min(1, Math.max(0, shown));
       setVars(shown);
       const moving = scene.update(shown, dt);
@@ -174,9 +204,11 @@ export function SlateProofTable() {
       sceneRef.current = scene;
       const r = canvas.getBoundingClientRect();
       scene.resize(r.width, r.height);
+      fitStage();
       // Resume at the current scroll position without replaying a rapid catch-up after a resize.
       held = progress();
       shown = held;
+      pace = 0;
       setVars(shown);
       // Off screen: don't draw yet (that would upload everything at once); warm the GPU up in idle moments instead.
       if (visible) scene.update(shown, 0);
@@ -205,13 +237,14 @@ export function SlateProofTable() {
       visible = e.isIntersecting;
       if (!visible) loop.stop();
       // Left behind above (scrolled back up past its start): rewind, so coming down again replays the drop.
-      if (!visible && mode === "pinned" && e.boundingClientRect.top > 0) held = shown = 0;
+      if (!visible && mode === "pinned" && e.boundingClientRect.top > 0) held = shown = pace = 0;
       run();
     });
     inView.observe(section);
     const ro = new ResizeObserver(() => {
       const r = canvas.getBoundingClientRect();
       scene?.resize(r.width, r.height);
+      fitStage();
     });
     ro.observe(canvas);
     const onVisibility = () => { if (document.hidden) loop.stop(); else run(); };
@@ -297,6 +330,7 @@ export function SlateProofTable() {
       scene?.dispose();
       sceneRef.current = null;
       canvas.remove();
+      stage.style.removeProperty("height");
     };
   }, [mode, attempt, router, pt.enabled, hasArtwork]);
 

@@ -265,6 +265,8 @@ export interface ProofScene {
   setSlab: (slab: SlabLook) => void;
   /** The device was turned over: moves the camera to that layout's framing, keeping everything loaded. */
   setMobile: (mobile: boolean) => void;
+  /** How far down the canvas (CSS px) the slab reaches at its lowest, over the whole scroll. */
+  restBottom: () => number;
   /** Uploads textures and compiles shaders in idle moments, before the section is on screen. */
   warmUp: () => Promise<void>;
   dispose: () => void;
@@ -917,15 +919,8 @@ export function createProofScene(
     }
   }
 
-  function update(p: number, dt: number) {
-    const now = performance.now();
-    pick(now);
-    let busy = false;
-
-    const top = T;
-    const power = 1;
-
-    // Camera first (the cards turn to face it when they stand up).
+  /** Poses the camera for scroll progress p and returns its elevation. */
+  function placeCamera(p: number) {
     const insp = smooth(range(p, STAGES.inspect));
     const push = smooth(range(p, [0, STAGES.drops[1]]));
     const aspect = width / height;
@@ -946,6 +941,38 @@ export function createProofScene(
     );
     camera.lookAt(target);
     camera.setViewOffset(width, height, mobile ? 0 : -width * 0.3 * insp, mobile ? -height * (0.17 + 0.2 * shortScreen) * insp : 0, width, height);
+    return elev;
+  }
+
+  /**
+   * How far down the canvas (CSS px) the slab ever reaches over the whole scroll. On the stacked layout the stage is cut
+   * just below it, so the next section follows the table instead of an empty strip.
+   */
+  function restBottom() {
+    const corner = new THREE.Vector3();
+    let bottom = 0;
+    for (let p = 0; p <= 1.0001; p += 0.05) {
+      placeCamera(Math.min(1, p));
+      camera.updateMatrixWorld();
+      for (const x of [-W / 2, W / 2]) for (const y of [0, T]) for (const z of [-D / 2, D / 2]) {
+        corner.set(x, y, z).project(camera);
+        bottom = Math.max(bottom, ((1 - corner.y) / 2) * height);
+      }
+    }
+    placeCamera(Math.max(0, lastP));
+    return bottom;
+  }
+
+  function update(p: number, dt: number) {
+    const now = performance.now();
+    pick(now);
+    let busy = false;
+
+    const top = T;
+    const power = 1;
+
+    // Camera first (the cards turn to face it when they stand up).
+    const elev = placeCamera(p);
     // Standing up, a card faces the camera: tilted back by the camera's elevation.
     const standAngle = Math.PI / 2 - elev;
 
@@ -1141,5 +1168,5 @@ export function createProofScene(
   }
 
   setItems(opts.items, opts.cardSize);
-  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, setSlab, setMobile, warmUp, dispose };
+  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, setSlab, setMobile, restBottom, warmUp, dispose };
 }
