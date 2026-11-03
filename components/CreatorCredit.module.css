@@ -18,7 +18,9 @@
   text-transform: uppercase;
   text-align: right;
 }
-.name { min-width: 0; overflow-wrap: anywhere; }
+.label,.name { min-width: 0; overflow-wrap: anywhere; }
+/* The label and the name read as one phrase: about a word space between them, not the logo gap. */
+.label { margin-inline-end: -7px; }
 .logo { display: block; width: auto; height: auto; max-width: min(100%, 120px); max-height: 32px; object-fit: contain; flex-shrink: 1; }
 @media (max-width: 720px) {
   .credit { justify-self: center; justify-content: center; text-align: center; }

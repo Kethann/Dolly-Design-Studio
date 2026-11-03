@@ -11,9 +11,10 @@ export function CreatorCredit() {
   const showLogo = creatorCredit.mode !== "text" && !!source && failedSource !== source;
   const showText = creatorCredit.mode !== "logo" || !showLogo;
   const name = creatorCredit.name.trim() || "Kethan";
+  const label = creatorCredit.label?.trim() || "Web developed by";
   return (
     <div className={styles.credit} data-creator-credit>
-      <span className="sr-only">Website by </span>
+      <span className={styles.label}>{label} –</span>
       {showLogo && (
         // eslint-disable-next-line @next/next/no-img-element -- Small code-managed brand asset; no portal transformations or uploads.
         <img className={styles.logo} src={source} alt={showText ? "" : name}
