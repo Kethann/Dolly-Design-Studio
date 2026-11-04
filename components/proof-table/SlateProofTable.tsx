@@ -120,20 +120,27 @@ export function SlateProofTable() {
     const progress = () => {
       if (mode === "static") return 1;
       const r = section.getBoundingClientRect();
-      const span = r.height - stage.clientHeight;
+      // Measured against a full screen (the canvas), never the stage: the stage's height follows the story (see cutStage).
+      const span = r.height - canvas.clientHeight;
       return span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0;
     };
 
-    // Stacked layout: the table never reaches the bottom of the screen, so the pinned stage ends a little below its lowest
-    // point and the next section follows straight on. The canvas keeps its full height (same framing), faded out at the cut.
-    // Only the sticky stage changes height, never the section, so nothing on the page moves.
-    const fitStage = () => {
+    // The table never reaches the bottom of the screen, so the pinned stage ends a little below the lowest point the table
+    // has still to reach (and below the headline). As the story ends that is just under the finished table, so the next
+    // section rises straight up to it instead of leaving an empty strip. Nothing that is shown changes: the canvas keeps its
+    // full-screen framing (faded out at the cut), and the section keeps its height, so nothing else on the page moves.
+    const copyEl = stage.querySelector<HTMLElement>(`.${styles.copy}`);
+    let floors: number[] = []; // the stage's height from each step of the story on
+    let lastCut = -1;
+    const cutStage = (p: number) => {
       const full = canvas.clientHeight;
-      const lowest = scene && mobileRef.current && mode === "pinned" ? scene.restBottom() : full;
-      const cut = Math.ceil(lowest + 40);
+      const lowest = floors.length ? floors[Math.min(floors.length - 1, Math.floor(p * (floors.length - 1)))] : full;
+      const cut = Math.ceil(lowest + 28);
+      if (cut === lastCut) return;
+      lastCut = cut;
       if (cut < full) {
         stage.style.height = `${cut}px`;
-        const fade = `linear-gradient(to bottom, #000 ${Math.floor(lowest + 6)}px, transparent ${cut}px)`;
+        const fade = `linear-gradient(to bottom, #000 ${Math.floor(lowest + 4)}px, transparent ${cut}px)`;
         canvas.style.setProperty("-webkit-mask-image", fade);
         canvas.style.setProperty("mask-image", fade);
       } else {
@@ -142,9 +149,19 @@ export function SlateProofTable() {
         canvas.style.removeProperty("mask-image");
       }
     };
+    const fitStage = () => {
+      floors = [];
+      if (scene && mode === "pinned") {
+        const copyBottom = copyEl ? copyEl.getBoundingClientRect().bottom - stage.getBoundingClientRect().top : 0;
+        floors = scene.bottoms().map((bottom) => Math.max(bottom, copyBottom));
+        // Each step keeps room for everything still to come, so the stage only ever shortens as the story plays forward.
+        for (let i = floors.length - 2; i >= 0; i--) floors[i] = Math.max(floors[i], floors[i + 1]);
+      }
+      lastCut = -1;
+      cutStage(shown);
+    };
 
     // Stacked layout: tells the scene where the headline and the icon rail are, so it frames the table in the space left.
-    const copyEl = stage.querySelector<HTMLElement>(`.${styles.copy}`);
     const measureFrame = () => {
       if (!scene) return;
       const s = stage.getBoundingClientRect();
@@ -192,6 +209,7 @@ export function SlateProofTable() {
       }
       shown = Math.min(1, Math.max(0, shown));
       setVars(shown);
+      cutStage(shown);
       const moving = scene.update(shown, dt);
       canvas.style.cursor = scene.hovered() >= 0 ? "pointer" : "";
       return moving || shown !== held;
@@ -225,15 +243,15 @@ export function SlateProofTable() {
       sceneRef.current = scene;
       const r = canvas.getBoundingClientRect();
       scene.resize(r.width, r.height);
+      // Resume at the current scroll position without replaying a rapid catch-up after a resize.
+      held = progress();
+      shown = held;
+      pace = 0;
       measureFrame();
       // The canvas fades in once the cards are on the table (never a bare slab, never a pop), or after a moment regardless.
       const reveal = () => { if (!disposed) canvas.dataset.ready = "true"; };
       const revealTimer = window.setTimeout(reveal, 4000);
       void scene.ready().then(() => requestAnimationFrame(() => { window.clearTimeout(revealTimer); reveal(); }));
-      // Resume at the current scroll position without replaying a rapid catch-up after a resize.
-      held = progress();
-      shown = held;
-      pace = 0;
       setVars(shown);
       // Off screen: don't draw yet (that would upload everything at once); warm the GPU up in idle moments instead.
       if (visible) scene.update(shown, 0);
@@ -263,6 +281,8 @@ export function SlateProofTable() {
       if (!visible) loop.stop();
       // Left behind above (scrolled back up past its start): rewind, so coming down again replays the drop.
       if (!visible && mode === "pinned" && e.boundingClientRect.top > 0) held = shown = pace = 0;
+      // Come back to from below (a jump past it, then scrolling up): show it as the scroll has it, not replay the story fast.
+      if (visible && mode === "pinned" && e.boundingClientRect.top < 0) { held = shown = progress(); pace = 0; setVars(shown); cutStage(shown); }
       run();
     });
     inView.observe(section);

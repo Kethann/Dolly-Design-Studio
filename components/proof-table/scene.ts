@@ -26,6 +26,9 @@ const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
 /** Printed on a card's glass: always in front of that glass, even on a phone whose depth buffer can't tell them apart. */
 const ON_GLASS = { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 };
 
+/** How finely bottoms() samples the story. */
+const BOTTOM_STEPS = 40;
+
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const range = (p: number, [a, b]: readonly [number, number]) => clamp01((p - a) / (b - a));
 const smooth = (x: number) => x * x * x * (x * (x * 6 - 15) + 10);
@@ -279,8 +282,8 @@ export interface ProofScene {
   setMobile: (mobile: boolean) => void;
   /** The stacked layout's free space changed (headline reflowed, rail shown): reframes the table to fit it. */
   setFrame: (frame: SlateFrame | null) => void;
-  /** How far down the canvas (CSS px) the slab reaches at its lowest, over the whole scroll. */
-  restBottom: () => number;
+  /** How far down the canvas (CSS px) the slab reaches at each step of the story (evenly spaced: the last is progress 1). */
+  bottoms: () => number[];
   /** Settles once the current cards (artwork included) are on the table. */
   ready: () => Promise<void>;
   /** Uploads textures and compiles shaders in idle moments, before the section is on screen. */
@@ -1020,6 +1023,15 @@ export function createProofScene(
     const finished = fitAround(stackedPose(1), end, !beside);
     const start = beside ? end : { l: m, r: width - m, t: navBottom + m, b: Math.max(finished.bottom, end.t + 80) };
     fits = { start: fitAround(stackedPose(0), start, false), end: finished };
+    // Lift the drops a little, within the free space under the top bar, so they never reach lower than the finished table:
+    // the story keeps to one compact band and the stage below it can end early (see bottoms).
+    for (let i = 0; i < 3; i++) {
+      const lift = Math.min(restBottom() - finished.bottom, fits.start.top - (navBottom + 8));
+      if (lift < 1) break;
+      fits.start.oy += lift;
+      fits.start.top -= lift;
+      fits.start.bottom -= lift;
+    }
   }
 
   /** Poses the camera for scroll progress p and returns its elevation. */
@@ -1056,22 +1068,29 @@ export function createProofScene(
   }
 
   /**
-   * How far down the canvas (CSS px) the slab ever reaches over the whole scroll. On the stacked layout the stage is cut
-   * just below it, so the next section follows the table instead of an empty strip.
+   * How far down the canvas (CSS px) the slab reaches at each step of the story (index / BOTTOM_STEPS = progress). The
+   * pinned stage ends just below what is still to come, so the next section follows the table instead of an empty strip.
    */
-  function restBottom() {
+  function bottoms() {
     const corner = new THREE.Vector3();
-    let bottom = 0;
-    for (let p = 0; p <= 1.0001; p += 0.05) {
-      placeCamera(Math.min(1, p));
+    const out: number[] = [];
+    for (let i = 0; i <= BOTTOM_STEPS; i++) {
+      placeCamera(i / BOTTOM_STEPS);
       camera.updateMatrixWorld();
+      let bottom = 0;
       for (const x of [-W / 2, W / 2]) for (const y of [0, T]) for (const z of [-D / 2, D / 2]) {
         corner.set(x, y, z).project(camera);
         bottom = Math.max(bottom, ((1 - corner.y) / 2) * height);
       }
+      out.push(bottom);
     }
     placeCamera(Math.max(0, lastP));
-    return bottom;
+    return out;
+  }
+
+  /** The lowest the slab ever reaches over the whole story. */
+  function restBottom() {
+    return Math.max(...bottoms());
   }
 
   function update(p: number, dt: number) {
@@ -1288,5 +1307,5 @@ export function createProofScene(
   }
 
   setItems(opts.items, opts.cardSize);
-  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, setSlab, setMobile, setFrame, restBottom, ready: () => itemsReady, warmUp, dispose };
+  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, setSlab, setMobile, setFrame, bottoms, ready: () => itemsReady, warmUp, dispose };
 }
