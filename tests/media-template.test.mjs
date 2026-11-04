@@ -4690,3 +4690,17 @@ test("resizing a 3D canvas always draws in the same frame, so it never shows emp
   assert.match(scene, /if \(lastP >= 0 && !disposed\) update\(lastP, 0\);/);
   assert.match(readFileSync("components/StarField.tsx", "utf8"), /camera\.updateProjectionMatrix\(\);\s+update\(performance\.now\(\)\);/);
 });
+
+test("stacked, the slate's headline shows from the start and the table keeps below it, so the top is never left empty", () => {
+  const slate = readFileSync("components/proof-table/SlateProofTable.tsx", "utf8");
+  assert.match(slate, /const from = stacked \? 0 : STAGES\.inspect\[0\]/, "Phones and upright tablets reveal the headline as the story starts");
+  const scene = readFileSync("components/proof-table/scene.ts", "utf8");
+  assert.match(scene, /\{ l: m, r: width - m, t: end\.t, b: Math\.max\(finished\.bottom, end\.t \+ 80\) \}/, "The drops are framed under the headline");
+  assert.match(scene, /fits\.start\.top - end\.t\)/, "Lifting the drops never reaches the headline");
+});
+
+test("touch screens don't start text selections or long-press menus on the site, but typing and the portal still can", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /@media \(hover: none\) and \(pointer: coarse\) \{\s+html:not\(\.portal-preview\) body:has\(\.site-main\) \{\s+-webkit-user-select: none;\s+user-select: none;\s+-webkit-touch-callout: none;/);
+  assert.match(css, /:is\(input, textarea, select, \[contenteditable\]:not\(\[contenteditable="false"\]\)\) \{\s+-webkit-user-select: text;/);
+});

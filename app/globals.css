@@ -70,6 +70,23 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Phones and tablets: a press while swiping, dragging a gallery or tapping a card shouldn't start a text selection or the
+   long-press menu, nor flash a grey box. Typing stays as it is, and the portal (and its preview) keeps text selectable for editing. */
+@media (hover: none) and (pointer: coarse) {
+  html:not(.portal-preview) body:has(.site-main) {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html:not(.portal-preview) body:has(.site-main) :is(input, textarea, select, [contenteditable]:not([contenteditable="false"])) {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+}
+
 ::selection {
   background: var(--gold);
   color: var(--stage);

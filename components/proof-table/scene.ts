@@ -1021,12 +1021,13 @@ export function createProofScene(
       : { l: m, r: width - m, t: copy.bottom + 24, b: height - m };
     if (end.r - end.l < 80 || end.b - end.t < 80) return; // no sensible room: the default framing stays
     const finished = fitAround(stackedPose(1), end, !beside);
-    const start = beside ? end : { l: m, r: width - m, t: navBottom + m, b: Math.max(finished.bottom, end.t + 80) };
+    // The headline shows from the start of the story (see SlateProofTable), so the drops keep below it too.
+    const start = beside ? end : { l: m, r: width - m, t: end.t, b: Math.max(finished.bottom, end.t + 80) };
     fits = { start: fitAround(stackedPose(0), start, false), end: finished };
-    // Lift the drops a little, within the free space under the top bar, so they never reach lower than the finished table:
+    // Lift the drops a little, within the free space above the table, so they never reach lower than the finished table:
     // the story keeps to one compact band and the stage below it can end early (see bottoms).
     for (let i = 0; i < 3; i++) {
-      const lift = Math.min(restBottom() - finished.bottom, fits.start.top - (navBottom + 8));
+      const lift = Math.min(restBottom() - finished.bottom, fits.start.top - end.t);
       if (lift < 1) break;
       fits.start.oy += lift;
       fits.start.top -= lift;
