@@ -4714,3 +4714,15 @@ test("stacked, the cards fall across the whole pinned scroll, so the page moves 
   assert.match(scene, /const stages = \(\) => \(mobile \? STACKED_STAGES : STAGES\);/);
   assert.doesNotMatch(scene, /STAGES\.(drops|inspect)/, "Every timing in the scene follows the current layout");
 });
+
+test("an open page brings itself up to date after a deploy, safely, without replaying the opening", () => {
+  const watcher = readFileSync("components/UpdateWatcher.tsx", "utf8");
+  assert.match(watcher, /if \(old && performance\.now\(\) - opened < 6000\) reloadNow\(\);/, "A copy from before the update is swapped as it opens");
+  assert.match(watcher, /if \(e\.persisted\) void check\(\)\.then\(\(old\) => \{ if \(old\) reloadNow\(\); \}\);/, "A tab put back from memory is updated");
+  assert.match(watcher, /if \(old && away\) reloadNow\(\);/, "Coming back to the tab updates it");
+  assert.match(watcher, /if \(sessionStorage\.getItem\(TRIED\) === latest\) return;/, "Once per version, so it can't loop");
+  assert.match(watcher, /if \(portal \|\| document\.querySelector\("form :focus"\)\) return;/, "Never while typing, never in the portal");
+  assert.doesNotMatch(watcher, /location\.assign\(window\.location\.href\)/, "A true reload, even with a #section in the address");
+  assert.match(readFileSync("app/layout.tsx", "utf8"), /r=!!sessionStorage\.getItem\("dds-resume"\)\}catch\(e\)\{\}if\(r\)document\.documentElement\.setAttribute\("data-resume",""\);if\(r\|\|/);
+  assert.match(readFileSync("components/Intro.tsx", "utf8"), /const resuming = !preview && document\.documentElement\.hasAttribute\("data-resume"\);/);
+});

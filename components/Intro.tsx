@@ -22,6 +22,7 @@ if (
   typeof window !== "undefined" &&
   window.location.pathname === "/" &&
   window.location.hash.length <= 1 &&
+  !document.documentElement.hasAttribute("data-resume") &&
   !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
   canRun3D() // cheap eligibility check; do not create a GPU context during hydration
 ) {
@@ -118,7 +119,9 @@ export function Intro({ onReveal }: { onReveal: () => void }) {
   useEffect(() => {
     // A link to a section (/#contact) goes straight there: no intro in the way.
     const deepLink = !preview && window.location.hash.length > 1;
-    if (window.location.pathname !== "/" || deepLink || (!preview && !settings.enabled)) {
+    // Reloaded to bring in a new version (see UpdateWatcher): the visitor goes back to their place, not to the opening.
+    const resuming = !preview && document.documentElement.hasAttribute("data-resume");
+    if (window.location.pathname !== "/" || deepLink || resuming || (!preview && !settings.enabled)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client check gating which intro mounts
       skip();
       return;

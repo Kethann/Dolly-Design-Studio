@@ -112,9 +112,10 @@ const jsonLd = (site: SiteContent["site"]) => ({
 
 // Runs before first paint: whenever the intro won't play, drop its curtain at once so the page shows instantly: on any page but
 // home, when a link goes straight to a section (/#contact), and when the intro is switched off. Every fresh load of the home page
-// plays it, and so does a refresh: a refresh of /#about drops the #about first, so the opening plays from the top. Must agree with the checks in components/Intro.tsx. The portal preview decides itself.
+// plays it, and so does a refresh: a refresh of /#about drops the #about first, so the opening plays from the top. Not the
+// reload that brings in a new version (UpdateWatcher): that one marks <html data-resume> and goes back to where you were. Must agree with the checks in components/Intro.tsx. The portal preview decides itself.
 const introSkipScript = (enabled: boolean) =>
-  `(function(){if(location.search.indexOf("portal-preview")>=0){document.documentElement.classList.add("portal-preview");return}try{var n=performance.getEntriesByType("navigation")[0];if(n&&n.type==="reload"&&location.pathname==="/"&&location.hash.length>1)history.replaceState(null,"",location.pathname+location.search)}catch(e){}if(location.pathname!=="/"||location.hash.length>1||${!enabled})document.documentElement.classList.add("intro-skip")})()`;
+  `(function(){if(location.search.indexOf("portal-preview")>=0){document.documentElement.classList.add("portal-preview");return}try{var n=performance.getEntriesByType("navigation")[0];if(n&&n.type==="reload"&&location.pathname==="/"&&location.hash.length>1)history.replaceState(null,"",location.pathname+location.search)}catch(e){}var r=false;try{r=!!sessionStorage.getItem("dds-resume")}catch(e){}if(r)document.documentElement.setAttribute("data-resume","");if(r||location.pathname!=="/"||location.hash.length>1||${!enabled})document.documentElement.classList.add("intro-skip")})()`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const introSettings = await readIntroSettings();
