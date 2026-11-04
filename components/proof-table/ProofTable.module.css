@@ -137,8 +137,16 @@
   border-color: var(--gold-bright);
 }
 
-/* Phones, and tablets held upright: the headline sits above the table. */
+/* Phones, and tablets held upright: the headline sits above the table, shown from the first paint (see setVars). */
 @media (max-width: 1000px), (orientation: portrait) and (max-width: 1100px) {
+  .stage {
+    --r0: 1;
+    --r1: 1;
+    --r2: 1;
+    --r3: 1;
+    --r4: 1;
+  }
+
   .copy {
     top: calc(var(--nav-h) + 40px);
     left: 20px;

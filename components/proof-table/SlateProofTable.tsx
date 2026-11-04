@@ -189,10 +189,10 @@ export function SlateProofTable() {
       lastVars = p;
       lastStacked = stacked;
       // Headline lines appear one after another as the camera settles. Stacked, the headline has the top of the screen to
-      // itself, so it arrives as the story starts: waiting for the end left that half of the screen empty the whole way down.
-      const from = stacked ? 0 : STAGES.inspect[0] + (STAGES.inspect[1] - STAGES.inspect[0]) * 0.55;
+      // itself, so it is simply there and scrolls in with the section: no reveal trailing the finger, no empty half screen.
+      const from = STAGES.inspect[0] + (STAGES.inspect[1] - STAGES.inspect[0]) * 0.55;
       for (let i = 0; i < 5; i++) {
-        const r = Math.min(1, Math.max(0, (p - (from + i * 0.03)) / 0.08));
+        const r = stacked ? 1 : Math.min(1, Math.max(0, (p - (from + i * 0.03)) / 0.08));
         stage.style.setProperty(`--r${i}`, (r * r * (3 - 2 * r)).toFixed(3));
       }
     }

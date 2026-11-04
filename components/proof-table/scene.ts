@@ -4,7 +4,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { ProofItem } from "@/content/proof-table";
 import { DEFAULT_GLASS } from "@/lib/content/types";
-import { STAGES } from "./stages";
+import { STAGES, STACKED_STAGES } from "./stages";
 import { slateCardLayout, slabFinish } from "./layout";
 import { titleArtBlob } from "./art-preload";
 
@@ -403,6 +403,8 @@ export function createProofScene(
   },
 ): ProofScene {
   let mobile = opts.mobile;
+  /** The story's timing for the current layout (see stages.ts). */
+  const stages = () => (mobile ? STACKED_STAGES : STAGES);
   const touchDevice = matchMedia("(pointer: coarse)").matches;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, deviceBudget().dprScene));
@@ -1037,8 +1039,8 @@ export function createProofScene(
 
   /** Poses the camera for scroll progress p and returns its elevation. */
   function placeCamera(p: number) {
-    const insp = smooth(range(p, STAGES.inspect));
-    const push = smooth(range(p, [0, STAGES.drops[1]]));
+    const insp = smooth(range(p, stages().inspect));
+    const push = smooth(range(p, [0, stages().drops[1]]));
     if (mobile && fits) {
       const pose = stackedPose(insp);
       target.set(0, pose.y, 0);
@@ -1109,9 +1111,9 @@ export function createProofScene(
 
     // Proofs: staggered drops with weight — a fall, a small bounce and a settling wobble.
     const n = plates.length;
-    const [d0, d1] = STAGES.drops;
+    const [d0, d1] = stages().drops;
     const span = (d1 - d0) * 0.7;
-    interactive = p > STAGES.inspect[1] - 0.04;
+    interactive = p > stages().inspect[1] - 0.04;
     const k = Math.min(dt, 1 / 30);
     plates.forEach((pl, i) => {
       const start = d0 + (n > 1 ? (i / (n - 1)) * span : 0);

@@ -8,3 +8,15 @@ export const STAGES = {
   drops: [0.02, 0.55],
   inspect: [0.48, 0.94],
 } as const;
+
+/**
+ * Phones and upright tablets: the headline is already up (it has the top of the screen to itself), so the story is the
+ * cards. They fall across the whole pinned stretch while the camera eases in alongside, and the page moves on as the
+ * last one lands, never pinned on a finished table.
+ */
+export const STACKED_STAGES = {
+  drops: [0.02, 0.93],
+  inspect: [0.05, 0.95],
+} as const;
+
+export type Stages = typeof STAGES | typeof STACKED_STAGES;
