@@ -27,7 +27,7 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
 }) {
   const [active, setActive] = useState(initialIndex ?? Math.floor(images.length / 2));
   const stage = useRef<HTMLDivElement>(null);
-  const gesture = useRef<{ id: number; x: number; y: number; from: number; dragging: boolean; lastX: number; lastAt: number } | null>(null);
+  const gesture = useRef<{ id: number; x: number; y: number; from: number; dragging: boolean; lastX: number; lastAt: number; travel: number } | null>(null);
   const suppressClickUntil = useRef(0);
   const count = images.length;
   // Where the fan is right now, in cards. It is continuous (and unwrapped), so cards follow the finger and glide.
@@ -54,8 +54,11 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
       card.style.opacity = opacity.toFixed(3);
       // These change only now and then: rewriting them every frame would restack and re-hit-test for nothing.
       const layer = String(1000 - Math.round(depth * 100)), hits = opacity > .4 ? "" : "none";
+      // A card that can't be seen isn't drawn or composited at all: the moving fan only costs the cards in view.
+      const shown = opacity > .002 ? "" : "hidden";
       if (card.style.zIndex !== layer) card.style.zIndex = layer;
       if (card.style.pointerEvents !== hits) card.style.pointerEvents = hits;
+      if (card.style.visibility !== shown) card.style.visibility = shown;
     });
   };
 
@@ -121,6 +124,44 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
     // eslint-disable-next-line react-hooks/exhaustive-deps -- paint only reads refs and the card count
   }, [count]);
 
+  // A sideways swipe on a trackpad (or a tilting wheel, or Shift + wheel) turns the fan as smoothly as a drag: it follows
+  // the fingers, keeps the trackpad's own momentum, then glides onto the nearest card. Up and down stay the page's scroll.
+  useEffect(() => {
+    const host = stage.current, state = motion.current;
+    if (!host || count < 2) return;
+    let idle = 0, lastAt = 0, travel = 0;
+    const onWheel = (event: WheelEvent) => {
+      const sideways = event.shiftKey && !event.deltaX ? event.deltaY : event.deltaX;
+      if (!sideways || (!event.shiftKey && Math.abs(event.deltaX) <= Math.abs(event.deltaY)) || gesture.current?.dragging) return;
+      event.preventDefault(); // also keeps a sideways swipe from going back a page
+      if (state.frame) { cancelAnimationFrame(state.frame); state.frame = 0; }
+      host.setAttribute("data-moving", "true");
+      const px = event.deltaMode === 1 ? sideways * 16 : event.deltaMode === 2 ? sideways * host.clientWidth : sideways;
+      if (!travel) travel = Math.max(130, host.clientWidth * .12); // read once per swipe, not on every event
+      let next = state.position + px / travel;
+      // Two cards have ends rather than a loop: the swipe meets a soft stop past either one.
+      if (count === 2) next = Math.max(-.25, Math.min(1.25, next));
+      const elapsed = Math.max(.008, Math.min(.1, (event.timeStamp - lastAt) / 1000));
+      lastAt = event.timeStamp;
+      state.velocity = state.velocity * .6 + ((next - state.position) / elapsed) * .4;
+      state.position = state.target = next;
+      setActive(wrap(Math.round(next), count));
+      paintSoon();
+      window.clearTimeout(idle);
+      idle = window.setTimeout(() => {
+        travel = 0;
+        const lead = Math.max(-.45, Math.min(.45, state.velocity * .06));
+        const target = Math.round(state.position + lead);
+        state.target = count === 2 ? Math.max(0, Math.min(1, target)) : target;
+        setActive(wrap(state.target, count));
+        settle();
+      }, 110);
+    };
+    host.addEventListener("wheel", onWheel, { passive: false });
+    return () => { host.removeEventListener("wheel", onWheel); window.clearTimeout(idle); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads refs only; settle and paintSoon do too
+  }, [count]);
+
   if (!count) return null;
   const current = Math.min(active, count - 1);
   const aim = (target: number) => {
@@ -165,7 +206,8 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
     }} onPointerDown={(event) => {
       if (!event.isPrimary || event.button !== 0 || count < 2) return;
       suppressClickUntil.current = 0;
-      gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, from: motion.current.position, dragging: false, lastX: event.clientX, lastAt: event.timeStamp };
+      // The card width is read once, here: reading it on every move would force a fresh layout each time.
+      gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, from: motion.current.position, dragging: false, lastX: event.clientX, lastAt: event.timeStamp, travel: cardTravel() };
     }} onPointerMove={(event) => {
       const start = gesture.current;
       if (!start || start.id !== event.pointerId) return;
@@ -182,7 +224,7 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
       }
       if (start.dragging) {
         event.preventDefault();
-        const state = motion.current, travel = cardTravel();
+        const state = motion.current, travel = start.travel;
         let next = start.from - dx / travel;
         // Two cards have ends rather than a loop: pulling past one meets soft resistance.
         if (count === 2) next = next < 0 ? next * .3 : next > 1 ? 1 + (next - 1) * .3 : next;
@@ -239,6 +281,8 @@ export function ProjectImageStack({ images, projectIndex, imageOffset = 1, initi
               // Uploaded images have no dimensions in content. Size the frame from
               // the decoded artwork, including landscape and unusually tall art.
               // An explicit Fill choice keeps the intentional portrait crop.
+              // Decoded now, while it waits behind the fan, so turning to it never waits on the decode.
+              void event.currentTarget.decode?.().catch(() => {});
               if (img.fit === "fill") return;
               const { naturalWidth, naturalHeight } = event.currentTarget;
               if (naturalWidth > 0 && naturalHeight > 0) {

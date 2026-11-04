@@ -4667,6 +4667,23 @@ test("the stacked slate is fitted under its headline, clear of the rail, and fad
   assert.match(css, /right: max\(20px, var\(--nav-content-end, 0px\)\)/, "The stacked headline never runs under the rail");
 });
 
+test("the slate's stage ends just under what the table has still to reach, so no empty strip follows it", () => {
+  const slate = readFileSync("components/proof-table/SlateProofTable.tsx", "utf8");
+  assert.match(slate, /const span = r\.height - canvas\.clientHeight;/, "Progress never depends on the stage's changing height");
+  assert.match(slate, /floors\[i\] = Math\.max\(floors\[i\], floors\[i \+ 1\]\)/, "The stage only shortens as the story plays forward");
+  assert.match(slate, /cutStage\(shown\);\n\s+const moving = scene\.update/, "The cut follows the drawn story, not the raw scroll");
+  assert.match(readFileSync("components/proof-table/ProofTable.module.css", "utf8"), /top: 50svh;/, "The desktop headline stays centred on the screen however short the stage is");
+});
+
+test("the project image stack turns with a sideways swipe and only draws the cards in view", () => {
+  const stack = readFileSync("components/ProjectImageStack.tsx", "utf8");
+  assert.match(stack, /addEventListener\("wheel", onWheel, \{ passive: false \}\)/);
+  assert.match(stack, /Math\.abs\(event\.deltaX\) <= Math\.abs\(event\.deltaY\)\)/, "Up and down stay the page's scroll");
+  assert.match(stack, /card\.style\.visibility = shown/, "Invisible cards are not composited");
+  assert.match(stack, /travel: cardTravel\(\)/, "The card width is read once per drag, not on every move");
+  assert.doesNotMatch(stack, /travel = cardTravel\(\);/);
+});
+
 test("resizing a 3D canvas always draws in the same frame, so it never shows empty", () => {
   const scene = readFileSync("components/proof-table/scene.ts", "utf8").replace(/\r\n/g, "\n");
   assert.ok(scene.indexOf("renderer.setSize(width, height, false);\n        }\n      }\n      renderer.render(scene, camera);") > 0, "The resolution step-down comes before the draw");
