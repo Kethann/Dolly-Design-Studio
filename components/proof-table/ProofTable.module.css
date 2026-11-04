@@ -49,6 +49,19 @@
   width: 100%;
   height: 100%;
   display: block;
+  /* Fades in once the cards are on the table (see SlateProofTable), so the scene never pops in half-built. */
+  opacity: 0;
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.canvas[data-ready="true"] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas {
+    transition: none;
+  }
 }
 
 /* The headline block, revealed line by line at the end. */
@@ -126,7 +139,7 @@
   .copy {
     top: calc(var(--nav-h) + 40px);
     left: 20px;
-    right: 20px;
+    right: max(20px, var(--nav-content-end, 0px)); /* clear of the icon rail */
     width: auto;
     transform: none;
   }
@@ -140,6 +153,60 @@
   .canvas {
     height: 100vh;
     height: 100svh;
+  }
+}
+
+/* Short phones held upright: a tighter headline leaves the table a fair share of the screen. */
+@media (max-width: 1000px) and (orientation: portrait) and (max-height: 720px) {
+  .copy {
+    top: calc(var(--nav-h) + 16px);
+  }
+
+  .overline {
+    margin-bottom: 10px;
+  }
+
+  .headline {
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+
+  .body {
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+
+  .cta {
+    padding: 9px 16px;
+  }
+}
+
+/* A phone on its side: too short for headline over table, so the headline takes the left and the table the right. */
+@media (max-width: 1000px) and (orientation: landscape) {
+  .copy {
+    top: calc(var(--nav-h) + 8px);
+    right: auto;
+    width: min(42vw, 400px);
+  }
+
+  .overline {
+    margin-bottom: 10px;
+  }
+
+  .headline {
+    font-size: clamp(18px, 2.9vw, 28px);
+    margin-bottom: 12px;
+  }
+
+  .body {
+    font-size: 12.5px;
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+
+  .cta {
+    padding: 9px 16px;
   }
 }
 

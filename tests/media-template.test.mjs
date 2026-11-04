@@ -4653,6 +4653,20 @@ test("the 3D slate survives phones, rotation and lost graphics contexts", () => 
   assert.doesNotMatch(readFileSync("components/proof-table/scene.ts", "utf8"), /fetch\(src/, "Titles come from the ready-made copies, never the full originals");
 });
 
+test("the stacked slate is fitted under its headline, clear of the rail, and fades in once its cards are ready", () => {
+  const scene = readFileSync("components/proof-table/scene.ts", "utf8");
+  const slate = readFileSync("components/proof-table/SlateProofTable.tsx", "utf8");
+  const css = readFileSync("components/proof-table/ProofTable.module.css", "utf8");
+  assert.match(scene, /function fitStacked\(\)/, "Phones and upright tablets fit the table to the free space");
+  assert.match(scene, /t: copy\.bottom \+ 24/, "The finished table sits right under the headline");
+  assert.match(scene, /rail\.left - 8/, "The table keeps clear of the icon rail");
+  assert.match(slate, /scene\.setFrame\(/);
+  assert.match(slate, /ro\.observe\(copyEl\)/, "A reflowed headline reframes the table");
+  assert.match(slate, /scene\.ready\(\)\.then/, "The canvas is revealed once the cards are on the table");
+  assert.match(css, /\.canvas\[data-ready="true"\]/);
+  assert.match(css, /right: max\(20px, var\(--nav-content-end, 0px\)\)/, "The stacked headline never runs under the rail");
+});
+
 test("resizing a 3D canvas always draws in the same frame, so it never shows empty", () => {
   const scene = readFileSync("components/proof-table/scene.ts", "utf8").replace(/\r\n/g, "\n");
   assert.ok(scene.indexOf("renderer.setSize(width, height, false);\n        }\n      }\n      renderer.render(scene, camera);") > 0, "The resolution step-down comes before the draw");

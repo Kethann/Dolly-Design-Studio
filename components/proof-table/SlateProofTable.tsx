@@ -143,6 +143,27 @@ export function SlateProofTable() {
       }
     };
 
+    // Stacked layout: tells the scene where the headline and the icon rail are, so it frames the table in the space left.
+    const copyEl = stage.querySelector<HTMLElement>(`.${styles.copy}`);
+    const measureFrame = () => {
+      if (!scene) return;
+      const s = stage.getBoundingClientRect();
+      const c = copyEl?.getBoundingClientRect();
+      // The rail is fixed to the screen and the stage is pinned at the top, so screen and canvas coordinates agree.
+      const rail = document.getElementById("mobile-navigation")?.getBoundingClientRect();
+      const compact = !!rail && rail.width > 0 && rail.width < 120 && getComputedStyle(document.documentElement).getPropertyValue("--nav-content-end").trim() !== "";
+      scene.setFrame(
+        c && c.height > 0
+          ? {
+              copy: { left: c.left - s.left, top: c.top - s.top, right: c.right - s.left, bottom: c.bottom - s.top },
+              rail: compact ? { left: rail.left, bottom: rail.bottom } : null,
+              navBottom: parseFloat(getComputedStyle(stage).getPropertyValue("--nav-h")) || 76,
+            }
+          : null,
+      );
+      fitStage();
+    };
+
     let lastVars = -1;
     function setVars(p: number) {
       if (p === lastVars) return;
@@ -204,7 +225,11 @@ export function SlateProofTable() {
       sceneRef.current = scene;
       const r = canvas.getBoundingClientRect();
       scene.resize(r.width, r.height);
-      fitStage();
+      measureFrame();
+      // The canvas fades in once the cards are on the table (never a bare slab, never a pop), or after a moment regardless.
+      const reveal = () => { if (!disposed) canvas.dataset.ready = "true"; };
+      const revealTimer = window.setTimeout(reveal, 4000);
+      void scene.ready().then(() => requestAnimationFrame(() => { window.clearTimeout(revealTimer); reveal(); }));
       // Resume at the current scroll position without replaying a rapid catch-up after a resize.
       held = progress();
       shown = held;
@@ -244,9 +269,10 @@ export function SlateProofTable() {
     const ro = new ResizeObserver(() => {
       const r = canvas.getBoundingClientRect();
       scene?.resize(r.width, r.height);
-      fitStage();
+      measureFrame();
     });
     ro.observe(canvas);
+    if (copyEl) ro.observe(copyEl); // the headline reflows when its fonts arrive or the portal edits it
     const onVisibility = () => { if (document.hidden) loop.stop(); else run(); };
     // A finger's first tap stands a card up, as a cursor's hover does, and a second tap on it opens it.
     let tapped = -1;

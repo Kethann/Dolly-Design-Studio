@@ -251,6 +251,18 @@ export interface SlabLook {
   opacity: number;
 }
 
+/**
+ * Where the stacked layout (phones, upright tablets) has room for the table, in CSS px of the canvas: the headline block
+ * and the icon rail are kept clear, so the finished table sits fully on screen right under (or beside) the headline.
+ */
+export interface SlateFrame {
+  copy: { left: number; top: number; right: number; bottom: number };
+  /** The compact icon rail's left edge and bottom, or null when there is none. */
+  rail: { left: number; bottom: number } | null;
+  /** The top bar's height: nothing is framed under it. */
+  navBottom: number;
+}
+
 export interface ProofScene {
   /** Draws the scene at scroll progress p. Returns true while something is still animating (hover springs, ripples). */
   update: (p: number, dt: number) => boolean;
@@ -265,8 +277,12 @@ export interface ProofScene {
   setSlab: (slab: SlabLook) => void;
   /** The device was turned over: moves the camera to that layout's framing, keeping everything loaded. */
   setMobile: (mobile: boolean) => void;
+  /** The stacked layout's free space changed (headline reflowed, rail shown): reframes the table to fit it. */
+  setFrame: (frame: SlateFrame | null) => void;
   /** How far down the canvas (CSS px) the slab reaches at its lowest, over the whole scroll. */
   restBottom: () => number;
+  /** Settles once the current cards (artwork included) are on the table. */
+  ready: () => Promise<void>;
   /** Uploads textures and compiles shaders in idle moments, before the section is on screen. */
   warmUp: () => Promise<void>;
   dispose: () => void;
@@ -919,10 +935,105 @@ export function createProofScene(
     }
   }
 
+  // --- Stacked framing (phones, upright tablets) ---------------------------------------------------
+  // The camera is fitted to the free space once per size or headline change, not guessed from the screen's shape: the
+  // finished table sits fully on screen right under the headline (never under the icon rail, never off the edge), and the
+  // drops play in the same band, so nothing leaves a gap or jumps across the screen.
+  type Fit = { r: number; ox: number; oy: number; top: number; right: number; bottom: number };
+  type Box = { l: number; r: number; t: number; b: number };
+  let layoutFrame: SlateFrame | null = null;
+  let fits: { start: Fit; end: Fit } | null = null;
+  const corner = new THREE.Vector3();
+
+  /** The stacked layout's pose before fitting: high and turned at the start, leaning in at the end. */
+  const stackedPose = (insp: number) => ({
+    elev: THREE.MathUtils.degToRad(lerp(55, 44, insp)),
+    yaw: THREE.MathUtils.degToRad(lerp(35, 20, insp)),
+    y: lerp(0.2, 0.35, insp),
+  });
+
+  function aim(elev: number, yaw: number, radius: number) {
+    camYaw = yaw;
+    camera.position.set(
+      target.x + radius * Math.cos(elev) * Math.sin(yaw),
+      target.y + radius * Math.sin(elev),
+      target.z + radius * Math.cos(elev) * Math.cos(yaw),
+    );
+    camera.lookAt(target);
+  }
+
+  /** The slab's on-screen box (CSS px) for a pose, with no view offset. */
+  function slabBox(pose: ReturnType<typeof stackedPose>, radius: number) {
+    target.set(0, pose.y, 0);
+    aim(pose.elev, pose.yaw, radius);
+    camera.updateMatrixWorld();
+    const b = { l: Infinity, r: -Infinity, t: Infinity, b: -Infinity };
+    for (const x of [-W / 2, W / 2]) for (const y of [0, T + PLATE_T]) for (const z of [-D / 2, D / 2]) {
+      corner.set(x, y, z).project(camera);
+      const px = ((corner.x + 1) / 2) * width;
+      const py = ((1 - corner.y) / 2) * height;
+      b.l = Math.min(b.l, px);
+      b.r = Math.max(b.r, px);
+      b.t = Math.min(b.t, py);
+      b.b = Math.max(b.b, py);
+    }
+    return b;
+  }
+
+  /** The camera distance and view offset that fit a pose's slab into a box: held to its top, or centred in it. */
+  function fitPose(pose: ReturnType<typeof stackedPose>, box: Box, holdTop: boolean): Fit {
+    camera.clearViewOffset();
+    let radius = 30;
+    // Projected size goes with 1 / distance, so a few rounds settle it to well under a pixel.
+    for (let i = 0; i < 6; i++) {
+      const b = slabBox(pose, radius);
+      radius /= Math.min((box.r - box.l) / (b.r - b.l), (box.b - box.t) / (b.b - b.t));
+    }
+    radius = Math.max(radius, 11); // never so close that the near plane cuts a corner
+    const b = slabBox(pose, radius);
+    const ox = (b.l + b.r) / 2 - (box.l + box.r) / 2;
+    const oy = holdTop ? b.t - box.t : (b.t + b.b) / 2 - (box.t + box.b) / 2;
+    return { r: radius, ox, oy, top: b.t - oy, right: b.r - ox, bottom: b.b - oy };
+  }
+
+  /** As fitPose, kept clear of the icon rail: either narrower or a little lower, whichever leaves the bigger table. */
+  function fitAround(pose: ReturnType<typeof stackedPose>, box: Box, holdTop: boolean): Fit {
+    const fit = fitPose(pose, box, holdTop);
+    const rail = layoutFrame?.rail;
+    if (!rail || fit.top >= rail.bottom || fit.right <= rail.left - 8) return fit;
+    const options = [fitPose(pose, { ...box, r: Math.min(box.r, rail.left - 8) }, holdTop)];
+    if (box.b - (rail.bottom + 8) > 80) options.push(fitPose(pose, { ...box, t: Math.max(box.t, rail.bottom + 8) }, holdTop));
+    return options.reduce((a, o) => (o.r < a.r ? o : a));
+  }
+
+  function fitStacked() {
+    fits = null;
+    if (!mobile || !layoutFrame || width < 2 || height < 2) return;
+    const m = 16;
+    const { copy, navBottom } = layoutFrame;
+    // A phone on its side: the headline takes the left, the table the right. Otherwise the table goes under the headline.
+    const beside = copy.right - copy.left < width * 0.6;
+    const end: Box = beside
+      ? { l: copy.right + m, r: width - m, t: navBottom + m, b: height - m }
+      : { l: m, r: width - m, t: copy.bottom + 24, b: height - m };
+    if (end.r - end.l < 80 || end.b - end.t < 80) return; // no sensible room: the default framing stays
+    const finished = fitAround(stackedPose(1), end, !beside);
+    const start = beside ? end : { l: m, r: width - m, t: navBottom + m, b: Math.max(finished.bottom, end.t + 80) };
+    fits = { start: fitAround(stackedPose(0), start, false), end: finished };
+  }
+
   /** Poses the camera for scroll progress p and returns its elevation. */
   function placeCamera(p: number) {
     const insp = smooth(range(p, STAGES.inspect));
     const push = smooth(range(p, [0, STAGES.drops[1]]));
+    if (mobile && fits) {
+      const pose = stackedPose(insp);
+      target.set(0, pose.y, 0);
+      aim(pose.elev, pose.yaw, lerp(fits.start.r * lerp(1.12, 1, push), fits.end.r, insp));
+      slabSheenTex.offset.x = 0.2 + (camYaw - 0.3) * 0.5 + push * 0.12 + insp * 0.1;
+      camera.setViewOffset(width, height, lerp(fits.start.ox, fits.end.ox, insp), lerp(fits.start.oy, fits.end.oy, insp), width, height);
+      return pose.elev;
+    }
     const aspect = width / height;
     // Stacked layout (phones, upright tablets): the headline above is tallest, relative to the screen, on short phones (about
     // 0.56 wide for every 1 tall), so the table sits lower and smaller there; on a tall phone or a tablet it can be higher and larger.
@@ -1140,6 +1251,7 @@ export function createProofScene(
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    fitStacked();
     dirty = true;
     // Resizing clears the canvas, so draw now: waiting for the next frame would show it empty for one frame.
     if (lastP >= 0 && !disposed) update(lastP, 0);
@@ -1155,6 +1267,14 @@ export function createProofScene(
 
   function setMobile(next: boolean) {
     mobile = next;
+    fitStacked();
+    dirty = true;
+    opts.invalidate?.();
+  }
+
+  function setFrame(next: SlateFrame | null) {
+    layoutFrame = next;
+    fitStacked();
     dirty = true;
     opts.invalidate?.();
   }
@@ -1168,5 +1288,5 @@ export function createProofScene(
   }
 
   setItems(opts.items, opts.cardSize);
-  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, setSlab, setMobile, restBottom, warmUp, dispose };
+  return { update, resize, pointer, hovered: () => hovered, setItems, setGlass, setSlab, setMobile, setFrame, restBottom, ready: () => itemsReady, warmUp, dispose };
 }
