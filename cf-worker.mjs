@@ -143,6 +143,28 @@ function cacheable(request, url) {
   return true;
 }
 
+/**
+ * Once per deploy on every device: the first page a browser loads after a new version goes live also tells it to drop
+ * whatever it has stored for this site ("Clear-Site-Data: cache"), so nothing from an older build can linger anywhere. A
+ * small cookie remembers which version the browser has had that for, so it happens once, not on every visit. Stored
+ * pictures are fetched again once after a deploy; logins, saved settings and the portal are never touched.
+ */
+const VERSION_COOKIE = "dds_v";
+
+function markVersion(request, env, response) {
+  const version = env.CF_VERSION?.id;
+  const path = new URL(request.url).pathname;
+  if (!version || request.method !== "GET" || /^\/(portal|api)(\/|$)/.test(path)) return response;
+  if (!(response.headers.get("content-type") || "").includes("text/html")) return response;
+  const seen = (request.headers.get("cookie") || "").split(/;\s*/).find((c) => c.startsWith(`${VERSION_COOKIE}=`))?.slice(VERSION_COOKIE.length + 1);
+  if (seen === version) return response;
+  const out = new Response(response.body, response);
+  out.headers.set("Clear-Site-Data", '"cache"');
+  out.headers.append("Set-Cookie", `${VERSION_COOKIE}=${version}; Path=/; Max-Age=31536000; SameSite=Lax; Secure`);
+  out.headers.set("Cache-Control", "no-store"); // this answer is for this browser alone (it carries its cookie)
+  return out;
+}
+
 const cachedWorker = {
   async scheduled(_event, env, ctx) {
     if (!env.VISITORS_DB) return;
@@ -151,6 +173,12 @@ const cachedWorker = {
     ctx.waitUntil(env.VISITORS_DB.prepare("DELETE FROM visitor_geo_usage WHERE month < ?").bind(new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 7)).run());
   },
   async fetch(request, env, ctx) {
+    return markVersion(request, env, await serve(request, env, ctx));
+  },
+};
+
+async function serve(request, env, ctx) {
+  {
     // Next prefetches every link in view, and each one would start its whole server. Declining is safe: a click still loads the page.
     if (request.headers.get("next-router-prefetch")) return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
     const incomingUrl = new URL(request.url);
@@ -199,7 +227,7 @@ const cachedWorker = {
       }
     } catch {}
     return response;
-  },
-};
+  }
+}
 
 export default cachedWorker;

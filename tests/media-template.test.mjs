@@ -4726,3 +4726,25 @@ test("an open page brings itself up to date after a deploy, safely, without repl
   assert.match(readFileSync("app/layout.tsx", "utf8"), /r=!!sessionStorage\.getItem\("dds-resume"\)\}catch\(e\)\{\}if\(r\)document\.documentElement\.setAttribute\("data-resume",""\);if\(r\|\|/);
   assert.match(readFileSync("components/Intro.tsx", "utf8"), /const resuming = !preview && document\.documentElement\.hasAttribute\("data-resume"\);/);
 });
+
+test("the 3D layers are drawn as sharp as each device can carry, and never slide down for good", () => {
+  const budget = readFileSync("lib/device-budget.ts", "utf8");
+  assert.match(budget, /const apple = \/iPhone\|iPad\|iPod\/\.test/, "iPhones and iPads are recognised, since Safari reports neither memory nor real cores");
+  assert.match(budget, /const low = !!nav\.connection\?\.saveData \|\| \(!apple && \(memory <= 2 \|\| cores <= 2\)\);/);
+  assert.doesNotMatch(budget, /\|\| coarse\)/, "A touch screen alone no longer lowers the sharpness");
+  const scene = readFileSync("components/proof-table/scene.ts", "utf8");
+  assert.match(scene, /heavyFrames = frameAvg > 1 \/ 22 \? heavyFrames \+ 1 : 0;/, "Only a device far under 24 frames a second, for a couple of seconds, draws softer");
+  assert.match(scene, /if \(touchDevice && dt > 0 && stepsDown < 2\)/, "At most twice");
+  assert.match(scene, /Math\.max\(floorRatio, renderer\.getPixelRatio\(\) - 0\.25\)/, "Never below the device's floor");
+  assert.doesNotMatch(scene, /slowFrames/);
+  assert.match(readFileSync("components/StarField.tsx", "utf8"), /frameNow - lastFrame > 40 \?/, "A phone saving power at 30 frames a second keeps every star frame");
+});
+
+test("every browser drops its stored copy of the site once after each deploy, and only once", () => {
+  const worker = readFileSync("cf-worker.mjs", "utf8");
+  assert.match(worker, /return markVersion\(request, env, await serve\(request, env, ctx\)\);/, "Every answer passes the version mark");
+  assert.match(worker, /out\.headers\.set\("Clear-Site-Data", '"cache"'\);/);
+  assert.match(worker, /if \(seen === version\) return response;/, "Once per version");
+  assert.ok(worker.includes(String.raw`/^\/(portal|api)(\/|$)/.test(path)`), "Never the portal or the APIs");
+  assert.match(worker, /out\.headers\.set\("Cache-Control", "no-store"\);/, "An answer carrying a cookie is never kept for anyone else");
+});

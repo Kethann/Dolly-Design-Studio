@@ -14,11 +14,14 @@ let cached: DeviceBudget | null = null;
 export function deviceBudget(): DeviceBudget {
   if (cached) return cached;
   const nav = (typeof navigator !== "undefined" ? navigator : {}) as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
-  const memory = nav.deviceMemory ?? 8; // (only Chromium says; others count as having enough)
+  const memory = nav.deviceMemory ?? 8; // (only Chromium says, in steps of 0.25, 0.5, 1, 2, 4 and 8; others count as having enough)
   const cores = nav.hardwareConcurrency ?? 8;
-  const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-  const low = !!nav.connection?.saveData || memory <= 4 || cores <= 4;
-  const mid = !low && (memory <= 6 || coarse);
+  // iPhones and iPads (an iPad asking for the desktop site says "Macintosh" but has a touch screen) have strong graphics,
+  // and Safari reports neither memory nor the real core count, so they are never marked down on those.
+  const apple = /iPhone|iPad|iPod/.test(nav.userAgent ?? "") || (/Macintosh/.test(nav.userAgent ?? "") && (nav.maxTouchPoints ?? 0) > 1);
+  // A touch screen alone says nothing about the device: only what it reports about itself counts.
+  const low = !!nav.connection?.saveData || (!apple && (memory <= 2 || cores <= 2));
+  const mid = !low && !apple && (memory <= 4 || cores <= 4);
   cached = low
     ? { level: "low", dprFront: 1, dprScene: 1, dprIntro: 1.25 }
     : mid

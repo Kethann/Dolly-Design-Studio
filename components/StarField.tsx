@@ -600,6 +600,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
     let raf = 0;
     let running = true;
     // A touch device that can't hold its frame rate draws the slow-moving stars every other frame, leaving the rest for scrolling.
+    // "Can't hold" is well under 25 frames a second: a phone saving power runs at 30, and that is smooth enough to keep every frame.
     const touchDevice = window.matchMedia("(pointer: coarse)").matches;
     let everyOther = false;
     let skip = false;
@@ -607,7 +608,7 @@ export function StarField({ layer }: { layer: StarLayer }) {
     let slowFrames = 0;
     function frame(frameNow: number) {
       if (touchDevice && !everyOther && lastFrame) {
-        slowFrames = frameNow - lastFrame > 24 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
+        slowFrames = frameNow - lastFrame > 40 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
         if (slowFrames >= 40) everyOther = true;
       }
       lastFrame = frameNow;

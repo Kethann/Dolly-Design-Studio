@@ -909,7 +909,12 @@ export function createProofScene(
   let hoverLostAt = 0;
   let camYaw = 0;
   let interactive = false;
-  let slowFrames = 0;
+  // Sharpness on a device that really can't keep up (see update): the average frame time, how long it has stayed too slow,
+  // and how many times the sharpness has been lowered (at most twice, never below the floor).
+  let frameAvg = 1 / 60;
+  let heavyFrames = 0;
+  let stepsDown = 0;
+  const floorRatio = Math.min(renderer.getPixelRatio(), deviceBudget().level === "high" ? 1.5 : 1);
 
   function pick(now: number) {
     if (!interactive || !pointerIn || plates.length === 0) {
@@ -1250,13 +1255,18 @@ export function createProofScene(
 
     // Only draw when something changed: scrolling, a spring still settling, or new cards / glass.
     if (busy || dirty || p !== lastP) {
-      // A touch device that can't keep up draws slightly fewer pixels, instead of stuttering through the whole scroll.
+      // A touch device that really can't keep up (well under 24 frames a second for a couple of seconds: not one hitch, not a
+      // phone's 30-a-second power saving) draws slightly fewer pixels instead of stuttering through the whole scroll. Gently:
+      // at most twice, never below its floor, so the slate stays sharp on every device that can carry it.
       // (Before drawing: resizing clears the canvas, and a cleared canvas left on screen is a flicker.)
-      if (touchDevice && dt > 0) {
-        slowFrames = dt > 1 / 28 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
-        if (slowFrames >= 20 && renderer.getPixelRatio() > 1) {
-          slowFrames = 0;
-          renderer.setPixelRatio(Math.max(1, renderer.getPixelRatio() - 0.25));
+      if (touchDevice && dt > 0 && stepsDown < 2) {
+        frameAvg += (dt - frameAvg) * 0.05;
+        heavyFrames = frameAvg > 1 / 22 ? heavyFrames + 1 : 0;
+        if (heavyFrames >= 60 && renderer.getPixelRatio() > floorRatio) {
+          heavyFrames = 0;
+          frameAvg = 1 / 60;
+          stepsDown++;
+          renderer.setPixelRatio(Math.max(floorRatio, renderer.getPixelRatio() - 0.25));
           renderer.setSize(width, height, false);
         }
       }
