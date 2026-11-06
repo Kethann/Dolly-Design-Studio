@@ -4770,6 +4770,7 @@ test("pages are built from the saved content, and the slate never loads a set of
   assert.match(storage, /const live = process\.env\.DDS_LIVE_CONTENT_DIR;\s+if \(live && key\.startsWith\("content\/"\)/, "Builds read the saved documents first");
   const settings = readFileSync("lib/intro/settings-context.tsx", "utf8");
   assert.match(settings, /const giveUp = window\.setTimeout\(settle, 3000\);/, "A slow connection never holds the page back for long");
+  assert.match(settings, /if \(typeof window !== "undefined" && !readPreviewFlag\(\)\) void savedSettings\(\);/, "Asked for as the code arrives, not after every component has started");
   assert.match(settings, /value=\{\{ settings, preview, run, live \}\}/);
   const slate = readFileSync("components/proof-table/SlateProofTable.tsx", "utf8");
   assert.match(slate, /if \(!live \|\| mode === "fallback"/, "The slate waits for the saved settings");
@@ -4783,9 +4784,24 @@ test("nothing is drawn before its shaders are compiled in the background, so loa
   assert.match(slate, /held = shown = progress\(\);\s+pace = 0;/, "It starts where the scroll is, no replay");
   assert.doesNotMatch(slate, /if \(visible\) scene\.update\(shown, 0\);/, "No first draw that compiles on the spot");
   const scene = readFileSync("components/proof-table/scene.ts", "utf8");
-  assert.match(scene, /urgent\?\.\(\)\s+\? Promise\.resolve\(\)/);
+  assert.match(scene, /urgent\?\.\(\)\s+\? new Promise<void>\(\(done\) => setTimeout\(done, 0\)\)/, "In view: fast, but a frame can still be drawn between uploads");
   const stars = readFileSync("components/StarField.tsx", "utf8");
   assert.match(stars, /await compilePasses\(engine\.renderer, engine\.composer\);/, "The stars' effects compile in the background too");
   assert.match(stars, /for \(const target of \[offscreen, null\]\)/, "Both the off-screen and the on-screen variant");
   assert.match(readFileSync("lib/device-budget.ts", "utf8"), /\{ level: "high", dprFront: 1\.75, dprScene: 2\.5, dprIntro: 2 \}/, "The best devices get the sharpest slate");
+});
+
+test("what every visit and every bot asks for is answered without Next, inside the Free plan's 10 ms of CPU", () => {
+  const shell = readFileSync("scripts/install-static-shell.mjs", "utf8");
+  assert.match(shell, /for \(const name of \["icon\.svg", "apple-icon\.png"\]\) await copyFile\(join\(root, "app", name\), join\(assets, name\)\);/, "The icons are plain files");
+  assert.ok(shell.includes(`await writeFile(join(assets, "api", "version"), JSON.stringify({ id: buildId }));`), "The version is a plain file");
+  assert.match(shell, /if \(buildId\) \{/, "...only with the id the pages were built with, never a made-up one");
+  assert.match(readFileSync("package.json", "utf8"), /"cf:build": "node scripts\/with-build-id\.mjs \\"cross-env [^"]*opennextjs-cloudflare build && node scripts\/install-static-shell\.mjs\\""/, "cf:build gives both steps the same id");
+  assert.ok(shell.includes(String.raw`"/api/version\n  Content-Type: application/json; charset=utf-8\n  Cache-Control: no-store, max-age=0\n"`), "...never kept by a browser or the edge");
+  const worker = readFileSync("cf-worker.mjs", "utf8");
+  assert.match(worker, /incomingUrl\.pathname === "\/api\/visits" && request\.method === "GET" && !env\.VISITORS_DB/, "Counting off: answered at the door");
+  assert.doesNotMatch(worker, /icon\|apple-icon\|opengraph-image\|twitter-image\|manifest/, "Bots' guesses get the saved 404 at once");
+  assert.ok(worker.includes(String.raw`const page = /^\/(?:work|process)\/([a-z0-9-]+)$/.exec(path);`), "Unknown process pages get the 404, not a crash");
+  assert.ok(worker.includes(String.raw`new RegExp('"slug"\\s*:\\s*"' + page[1] + '"')`), "The saved content's spaced slugs are found (new projects are not 404s)");
+  assert.ok(worker.includes(String.raw`const KEPT_FILES = /^\/(sitemap\.xml|robots\.txt)$/;`), "Sitemap and robots are kept until the content changes");
 });

@@ -70,17 +70,22 @@ function shellResponse(request, asset, cacheControl, status, isPortal = false) {
 }
 
 /** Addresses Next still answers without a saved page: the redirects in next.config.ts and generated files. */
-const NEXT_ANSWERS = /^\/(home|index|projects|gallery|works|portfolio|breakdown|about|agency|founder|clients|process|services|contact|contact-us|icon|apple-icon|opengraph-image|twitter-image|manifest)$|^\/process\//;
+// (Not /icon, /apple-icon, /opengraph-image, /twitter-image or /manifest: this site has none of those, and Next spent 50-580 ms of
+// CPU, far over the Free plan's 10 ms, to say so to the bots that ask. Nor /process/<page>: see below.)
+const NEXT_ANSWERS = /^\/(home|index|projects|gallery|works|portfolio|breakdown|about|agency|founder|clients|process|services|contact|contact-us)$/;
 
 /** The saved "not found" page for an address no page can answer, so a mistyped link never has to start Next. */
 async function missingPage(request, env, url) {
   if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD") || !wantsPage(request)) return null;
   const path = url.pathname;
   if (SKIP.test(path) || path.endsWith("/") || NEXT_ANSWERS.test(path)) return null;
-  if (/^\/work\/[a-z0-9-]+$/.test(path)) {
-    // A project added since this build has no saved page yet, so it is still real: Next draws it.
+  const page = /^\/(?:work|process)\/([a-z0-9-]+)$/.exec(path);
+  if (page) {
+    // A project (or process page) added since this build has no saved page yet, so it is still real: Next draws it. Anything
+    // else gets the saved "not found" at once (asked of Next, an unknown process page crashed it, after 100-200 ms of CPU).
+    // The saved content is written spaced ("slug": "name"), so the match allows for either spacing.
     const content = await env.PORTAL_BUCKET?.get("content/site-content.json");
-    if (!content || (await content.text()).includes(`"slug":"${path.slice("/work/".length)}"`)) return null;
+    if (!content || new RegExp('"slug"\\s*:\\s*"' + page[1] + '"').test(await content.text())) return null;
   }
   const assetUrl = new URL(url);
   assetUrl.pathname = "/__static-pages/404.html";
@@ -133,8 +138,12 @@ async function contentTag(env) {
   return tag;
 }
 
+/** Search engines' files: built by Next (40-120 ms of CPU each time), so kept like the pages until the content changes. */
+const KEPT_FILES = /^\/(sitemap\.xml|robots\.txt)$/;
+
 function cacheable(request, url) {
   if (request.method !== "GET") return false;
+  if (!url.search && KEPT_FILES.test(url.pathname)) return !/dds_portal/.test(request.headers.get("cookie") || "");
   if (url.search || SKIP.test(url.pathname)) return false;
   if (request.headers.get("rsc") || request.headers.get("next-router-prefetch") || request.headers.get("next-action")) return false;
   if (!(request.headers.get("accept") || "").includes("text/html")) return false;
@@ -184,6 +193,11 @@ async function serve(request, env, ctx) {
     const incomingUrl = new URL(request.url);
     const publicKey = PUBLIC_DOCUMENTS[incomingUrl.pathname];
     if (publicKey) return publicDocument(request, env.PORTAL_BUCKET, publicKey);
+    // Visitor counting is off until its database is set up (see VISITORS.md). Every page asks whether it is on; Next took ~9 ms
+    // of CPU to say no, so the answer is given here. Once the database is set up, Next answers (and counts) as before.
+    if (incomingUrl.pathname === "/api/visits" && request.method === "GET" && !env.VISITORS_DB) {
+      return new Response(JSON.stringify({ enabled: false }), { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+    }
     const upload = await uploadedAsset(request, env, incomingUrl);
     if (upload) return upload;
     const shell = await staticPage(request, env, incomingUrl);
@@ -217,7 +231,7 @@ async function serve(request, env, ctx) {
     const response = await worker.fetch(request, env, ctx);
 
     try {
-      if (key && cache && response.status === 200 && !response.headers.get("set-cookie") && (response.headers.get("content-type") || "").includes("text/html")) {
+      if (key && cache && response.status === 200 && !response.headers.get("set-cookie") && ((response.headers.get("content-type") || "").includes("text/html") || KEPT_FILES.test(incomingUrl.pathname))) {
         const copy = new Response(response.clone().body, response);
         copy.headers.set("Cache-Control", `public, max-age=${KEEP_SECONDS}`);
         ctx.waitUntil(cache.put(key, copy).catch(() => {}));

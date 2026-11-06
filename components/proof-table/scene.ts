@@ -837,10 +837,11 @@ export function createProofScene(
    */
   async function warmUp(urgent?: () => boolean) {
     await itemsReady;
-    // Off screen, each upload waits for an idle moment; while the visitor is already looking at the slate, they go straight on.
+    // Off screen, each upload waits for an idle moment; while the visitor is already looking at the slate, they go straight on,
+    // with only a breath between them (a frame can still be drawn, so the page never freezes while they go up).
     const idle = () =>
       urgent?.()
-        ? Promise.resolve()
+        ? new Promise<void>((done) => setTimeout(done, 0))
         : new Promise<void>((done) =>
             "requestIdleCallback" in window ? requestIdleCallback(() => done(), { timeout: 250 }) : setTimeout(done, 20),
           );

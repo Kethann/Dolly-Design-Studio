@@ -36,6 +36,20 @@ function readPreviewFlag() {
 }
 
 /**
+ * The saved settings, asked for the moment this code arrives in the browser. Asked for from the provider's effect instead, the
+ * request waited for every component's start-up to run first (React starts the children before the parent; the stars take
+ * seconds), and the slate, which waits for these, sat empty all that while.
+ */
+let saved: Promise<unknown> | null = null;
+function savedSettings() {
+  saved ??= fetch("/api/public/settings", { cache: "no-store" })
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null);
+  return saved;
+}
+if (typeof window !== "undefined" && !readPreviewFlag()) void savedSettings();
+
+/**
  * Provides the saved intro settings to the site. Inside the portal's preview
  * frame it also accepts unsaved settings and replay commands from the portal.
  * A standalone `/?portal-preview&at=4.5&paused` link holds a single frame.
@@ -48,15 +62,13 @@ export function IntroSettingsProvider({ initial, children }: { initial: IntroSet
 
   useEffect(() => {
     if (preview) return;
-    const controller = new AbortController();
-    const settle = () => { if (!controller.signal.aborted) setLive(true); };
+    let cancelled = false;
+    const settle = () => { if (!cancelled) setLive(true); };
     const giveUp = window.setTimeout(settle, 3000); // a slow connection never holds the page back for long
-    fetch("/api/public/settings", { signal: controller.signal, cache: "no-store" })
-      .then((response) => response.ok ? response.json() : null)
-      .then((value) => { if (value && !controller.signal.aborted) setSettings(sanitizeIntroSettings(value)); })
-      .catch(() => {})
+    void savedSettings()
+      .then((value) => { if (value && !cancelled) setSettings(sanitizeIntroSettings(value)); })
       .finally(() => { window.clearTimeout(giveUp); settle(); });
-    return () => { window.clearTimeout(giveUp); controller.abort(); };
+    return () => { cancelled = true; window.clearTimeout(giveUp); };
   }, [preview]);
 
   useEffect(() => {
