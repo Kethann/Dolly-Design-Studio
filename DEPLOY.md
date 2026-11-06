@@ -16,7 +16,7 @@ Everything below runs from the `site/` folder. The portal's content, accounts an
 
 1. Type-checks, lints and tests the project.
 2. Builds and deploys the application Worker with the current Git commit as its version.
-3. Refreshes `dollydesignstudio.pages.dev` (the Pages project `dollydstudio`; renaming a project keeps its address) with the same commit metadata.
+3. Refreshes `dollydesignstudio.pages.dev` with the same commit metadata.
 
 The command stops before deployment when the Git workspace has uncommitted changes. This keeps GitHub, the Worker and Pages on the same version. It also selects the existing Dolly Design Studio Cloudflare account, avoiding Wrangler's multiple-account prompt.
 
