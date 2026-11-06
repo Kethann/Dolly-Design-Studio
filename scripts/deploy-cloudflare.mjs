@@ -73,7 +73,7 @@ run("Deploying the application Worker", process.execPath, [executable("@opennext
   env: deployEnv,
 });
 run(
-  "Refreshing dollydesignstudio.pages.dev",
+  "Refreshing dollydesignstudio.pages.dev (the Pages project \"dollydstudio\")",
   process.execPath,
   [
     executable("wrangler", "bin", "wrangler.js"),
@@ -81,7 +81,8 @@ run(
     "deploy",
     "public",
     "--project-name",
-    "dollydesignstudio",
+    // Renamed in Cloudflare from "dollydesignstudio": a rename keeps the address it was created with, dollydesignstudio.pages.dev.
+    "dollydstudio",
     "--branch",
     branch,
     "--commit-hash",
