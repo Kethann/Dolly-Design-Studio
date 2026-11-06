@@ -4805,3 +4805,43 @@ test("what every visit and every bot asks for is answered without Next, inside t
   assert.ok(worker.includes(String.raw`new RegExp('"slug"\\s*:\\s*"' + page[1] + '"')`), "The saved content's spaced slugs are found (new projects are not 404s)");
   assert.ok(worker.includes(String.raw`const KEPT_FILES = /^\/(sitemap\.xml|robots\.txt)$/;`), "Sitemap and robots are kept until the content changes");
 });
+
+test("floods are turned away at the front door, per visitor, before Next is started", async () => {
+  const { limitFor, overLimit, LIMITS } = await import(new URL("../lib/front-door-limits.mjs", import.meta.url));
+  assert.equal(limitFor("POST", "/api/portal/session"), "SIGN_IN_LIMIT");
+  assert.equal(limitFor("POST", "/api/portal/session/email/verify"), "SIGN_IN_LIMIT");
+  assert.equal(limitFor("POST", "/api/portal/reset/confirm"), "SIGN_IN_LIMIT");
+  assert.equal(limitFor("POST", "/api/contact"), "SIGN_IN_LIMIT");
+  assert.equal(limitFor("GET", "/api/portal/session"), "PORTAL_LIMIT", "Checking whether someone is signed in is not a sign-in try");
+  assert.equal(limitFor("POST", "/api/portal/image-size"), "PORTAL_LIMIT");
+  assert.equal(limitFor("GET", "/work/new-project"), "PAGE_LIMIT");
+
+  const seen = [];
+  const counter = (allowed) => ({ limit: async ({ key }) => (seen.push(key), { success: allowed }) });
+  const ask = (path, init = {}, env = { SIGN_IN_LIMIT: counter(false), PORTAL_LIMIT: counter(true), PAGE_LIMIT: counter(false) }) =>
+    overLimit(new Request(`https://x.test${path}`, init), env, path);
+  const visitor = { "cf-connecting-ip": "203.0.113.9" };
+
+  assert.equal(await ask("/api/portal/media", { headers: visitor }), null, "Under the limit: carries on");
+  const tooMany = await ask("/api/portal/session", { method: "POST", headers: visitor });
+  assert.equal(tooMany.status, 429);
+  assert.equal(tooMany.headers.get("Retry-After"), "60");
+  assert.deepEqual(await tooMany.json(), { error: LIMITS.SIGN_IN_LIMIT }, "The portal shows the message it is given");
+  const page = await ask("/work/x", { headers: visitor });
+  assert.equal(page.status, 429);
+  assert.match(page.headers.get("Content-Type"), /text\/html/);
+  assert.ok(seen.every((key) => key === "203.0.113.9"), "Counted per visitor address");
+
+  assert.equal(await ask("/api/contact", { method: "POST" }), null, "No address: never one count shared by everyone");
+  assert.equal(await ask("/api/contact", { method: "POST", headers: visitor }, {}), null, "No binding (local runs): unlimited");
+  const broken = { SIGN_IN_LIMIT: { limit: async () => { throw new Error("down"); } } };
+  assert.equal(await ask("/api/contact", { method: "POST", headers: visitor }, broken), null, "A counter that fails never blocks anyone");
+
+  const worker = readFileSync("cf-worker.mjs", "utf8");
+  assert.ok(worker.indexOf("await overLimit(request, env, incomingUrl.pathname)") > worker.indexOf("const hit = await cache.match(key);"), "Saved pages are never counted");
+  assert.ok(worker.indexOf("if (limited) return limited;") < worker.indexOf("await worker.fetch(request, env, ctx)"), "Checked before Next starts");
+  const config = readFileSync("wrangler.jsonc", "utf8");
+  for (const [name, limit] of [["SIGN_IN_LIMIT", 10], ["PORTAL_LIMIT", 300], ["PAGE_LIMIT", 120]]) {
+    assert.ok(new RegExp(String.raw`"name": "${name}", "namespace_id": "\d+", "simple": \{ "limit": ${limit}, "period": 60 \}`).test(config), name);
+  }
+});

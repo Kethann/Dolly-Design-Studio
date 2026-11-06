@@ -9,6 +9,7 @@
 // The portal, APIs and uploads are never kept in this HTML cache.
 import worker from "./.open-next/worker.js";
 import { imageSizeKey, imageSizeWidth } from "./lib/image-sizes.ts";
+import { overLimit } from "./lib/front-door-limits.mjs";
 
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
 
@@ -227,6 +228,10 @@ async function serve(request, env, ctx) {
     } catch {
       key = null;
     }
+
+    // Everything that gets this far starts Next, so it is counted per visitor first (lib/front-door-limits.mjs).
+    const limited = await overLimit(request, env, incomingUrl.pathname);
+    if (limited) return limited;
 
     const response = await worker.fetch(request, env, ctx);
 

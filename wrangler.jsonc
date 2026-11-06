@@ -44,6 +44,13 @@
 			"remote": true
 		}
 	],
+	// Requests per visitor address per minute, counted before Next is started (see lib/front-door-limits.mjs). The namespace ids are
+	// just this account's own labels for the three counters.
+	"ratelimits": [
+		{ "name": "SIGN_IN_LIMIT", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } },
+		{ "name": "PORTAL_LIMIT", "namespace_id": "4102", "simple": { "limit": 300, "period": 60 } },
+		{ "name": "PAGE_LIMIT", "namespace_id": "4103", "simple": { "limit": 120, "period": 60 } }
+	],
 	"vars": {
 		"DEPLOY_TARGET": "cloudflare"
 	}
