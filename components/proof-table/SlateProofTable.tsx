@@ -181,6 +181,28 @@ export function SlateProofTable() {
       fitStage();
     };
 
+    // The stage is pinned with CSS sticky. Should a browser not keep it stuck (an iPhone left it scrolling away while the cards
+    // were still falling, an empty section below), the stage is held in place by hand instead: fixed to the top of the screen
+    // through the pinned stretch, sitting at the section's start before it and at its end after it, just as sticky would.
+    // It only takes over once the stage is seen drifting, so wherever sticky works nothing changes.
+    let handPin = false;
+    let pinAt = "";
+    const pin = () => {
+      if (mode !== "pinned") return;
+      const s = section.getBoundingClientRect();
+      const h = stage.offsetHeight;
+      if (!handPin) {
+        const between = s.top < -4 && s.bottom > h + 4;
+        if (!between || Math.abs(stage.getBoundingClientRect().top) <= 4) return;
+        handPin = true;
+      }
+      const at = s.top > 0 ? "before" : s.bottom <= h ? "after" : "held";
+      if (at !== pinAt) {
+        pinAt = at;
+        stage.dataset.pinAt = at;
+      }
+    };
+
     let lastVars = -1;
     let lastStacked = false;
     function setVars(p: number) {
@@ -198,6 +220,7 @@ export function SlateProofTable() {
     }
 
     const loop = createFrameLoop((dt) => {
+      pin();
       if (!scene) return false;
       // The story follows the scroll, down and up alike: scrolling back up winds it back, and the page never jumps.
       if (mode === "pinned" && section.getBoundingClientRect().top >= window.innerHeight) held = shown = pace = 0;
@@ -294,6 +317,7 @@ export function SlateProofTable() {
       const r = canvas.getBoundingClientRect();
       scene?.resize(r.width, r.height);
       measureFrame();
+      pin();
     });
     ro.observe(canvas);
     if (copyEl) ro.observe(copyEl); // the headline reflows when its fonts arrive or the portal edits it
@@ -308,6 +332,7 @@ export function SlateProofTable() {
       scene?.pointer(null, 0);
     };
     const onScroll = () => {
+      pin(); // at once, in the scroll event itself, so a held stage never trails the page
       if (tapped >= 0 && Math.abs(window.scrollY - tappedAt) > 48) lieDown();
       run();
     };
@@ -381,6 +406,7 @@ export function SlateProofTable() {
       sceneRef.current = null;
       canvas.remove();
       stage.style.removeProperty("height");
+      delete stage.dataset.pinAt;
     };
   }, [mode, attempt, router, pt.enabled, hasArtwork]);
 

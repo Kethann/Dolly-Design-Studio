@@ -4748,3 +4748,14 @@ test("every browser drops its stored copy of the site once after each deploy, an
   assert.ok(worker.includes(String.raw`/^\/(portal|api)(\/|$)/.test(path)`), "Never the portal or the APIs");
   assert.match(worker, /out\.headers\.set\("Cache-Control", "no-store"\);/, "An answer carrying a cookie is never kept for anyone else");
 });
+
+test("the slate holds itself in place wherever a browser doesn't keep the sticky stage stuck", () => {
+  const slate = readFileSync("components/proof-table/SlateProofTable.tsx", "utf8");
+  assert.match(slate, /if \(!between \|\| Math\.abs\(stage\.getBoundingClientRect\(\)\.top\) <= 4\) return;\s+handPin = true;/, "Only takes over once the stage is seen drifting");
+  assert.match(slate, /const at = s\.top > 0 \? "before" : s\.bottom <= h \? "after" : "held";/);
+  assert.match(slate, /const onScroll = \(\) => \{\s+pin\(\);/, "Held in the scroll event itself, never a frame late");
+  assert.match(slate, /delete stage\.dataset\.pinAt;/);
+  const css = readFileSync("components/proof-table/ProofTable.module.css", "utf8");
+  assert.match(css, /\.stage\[data-pin-at="held"\] \{\s+position: fixed;\s+top: 0;/);
+  assert.match(css, /\.stage\[data-pin-at="after"\] \{\s+top: auto;\s+bottom: 0;/);
+});

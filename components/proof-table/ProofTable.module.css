@@ -34,6 +34,31 @@
   overflow: hidden;
 }
 
+/* Held by hand where a browser doesn't keep the sticky stage stuck (see pin() in SlateProofTable): the same three places sticky
+   puts it, at the section's start, fixed at the top of the screen, and at the section's end. */
+.stage[data-pin-at="before"],
+.stage[data-pin-at="after"] {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.stage[data-pin-at="before"] {
+  top: 0;
+}
+
+.stage[data-pin-at="after"] {
+  top: auto;
+  bottom: 0;
+}
+
+.stage[data-pin-at="held"] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
 .revealed {
   --r0: 1;
   --r1: 1;
