@@ -287,7 +287,8 @@ export interface ProofScene {
   /** Settles once the current cards (artwork included) are on the table. */
   ready: () => Promise<void>;
   /** Uploads textures and compiles shaders in idle moments, before the section is on screen. */
-  warmUp: () => Promise<void>;
+  /** Uploads and compiles everything in the background before the first frame; `urgent` skips the idle waits (the slate is in view). */
+  warmUp: (urgent?: () => boolean) => Promise<void>;
   dispose: () => void;
 }
 
@@ -834,12 +835,15 @@ export function createProofScene(
    * Gets the GPU ready before the section is on screen: uploads every texture one per idle moment, then compiles the
    * shaders (in parallel where the browser supports it). So nothing stalls when you scroll into the table.
    */
-  async function warmUp() {
+  async function warmUp(urgent?: () => boolean) {
     await itemsReady;
+    // Off screen, each upload waits for an idle moment; while the visitor is already looking at the slate, they go straight on.
     const idle = () =>
-      new Promise<void>((done) =>
-        "requestIdleCallback" in window ? requestIdleCallback(() => done(), { timeout: 250 }) : setTimeout(done, 20),
-      );
+      urgent?.()
+        ? Promise.resolve()
+        : new Promise<void>((done) =>
+            "requestIdleCallback" in window ? requestIdleCallback(() => done(), { timeout: 250 }) : setTimeout(done, 20),
+          );
     const texs = new Set<THREE.Texture>();
     scene.traverse((o) => {
       const mats = (o as THREE.Mesh).material;
@@ -860,7 +864,8 @@ export function createProofScene(
     if (disposed) return;
     // Never toggle live visibility while async compilation overlaps the first visible frame.
     try {
-      await Promise.race([renderer.compileAsync(scene, camera), new Promise((done) => setTimeout(done, 3000))]);
+      // Room for a slow graphics driver (the glass shaders are large): giving up early meant compiling the rest on the spot.
+      await Promise.race([renderer.compileAsync(scene, camera), new Promise((done) => setTimeout(done, 6000))]);
     } catch {
       // A failed warm-up only means the first frame compiles instead.
     }

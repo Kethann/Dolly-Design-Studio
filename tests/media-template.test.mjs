@@ -4662,7 +4662,8 @@ test("the stacked slate is fitted under its headline, clear of the rail, and fad
   assert.match(scene, /rail\.left - 8/, "The table keeps clear of the icon rail");
   assert.match(slate, /scene\.setFrame\(/);
   assert.match(slate, /ro\.observe\(copyEl\)/, "A reflowed headline reframes the table");
-  assert.match(slate, /scene\.ready\(\)\.then/, "The canvas is revealed once the cards are on the table");
+  assert.match(slate, /scene\.warmUp\(\(\) => visible\)[\s\S]*?canvas\.dataset\.ready = "true"/, "The canvas is revealed once the cards are on the table (warmUp waits for them)");
+  assert.match(scene, /async function warmUp\(urgent\?: \(\) => boolean\) \{\s+await itemsReady;/);
   assert.match(css, /\.canvas\[data-ready="true"\]/);
   assert.match(css, /right: max\(20px, var\(--nav-content-end, 0px\)\)/, "The stacked headline never runs under the rail");
 });
@@ -4758,4 +4759,33 @@ test("the slate holds itself in place wherever a browser doesn't keep the sticky
   const css = readFileSync("components/proof-table/ProofTable.module.css", "utf8");
   assert.match(css, /\.stage\[data-pin-at="held"\] \{\s+position: fixed;\s+top: 0;/);
   assert.match(css, /\.stage\[data-pin-at="after"\] \{\s+top: auto;\s+bottom: 0;/);
+});
+
+test("pages are built from the saved content, and the slate never loads a set of cards only to replace it", () => {
+  const deploy = readFileSync("scripts/deploy-cloudflare.mjs", "utf8");
+  assert.match(deploy, /"r2", "object", "get", `dolly-portal\/content\/\$\{name\}`/, "The deploy fetches what the portal saved");
+  assert.match(deploy, /if \(fetched\) deployEnv\.DDS_LIVE_CONTENT_DIR = liveContent;/);
+  assert.match(deploy, /JSON\.parse\(readFileSync\(file, "utf8"\)\);/, "Only a whole, readable document is used");
+  const storage = readFileSync("lib/storage.ts", "utf8");
+  assert.match(storage, /const live = process\.env\.DDS_LIVE_CONTENT_DIR;\s+if \(live && key\.startsWith\("content\/"\)/, "Builds read the saved documents first");
+  const settings = readFileSync("lib/intro/settings-context.tsx", "utf8");
+  assert.match(settings, /const giveUp = window\.setTimeout\(settle, 3000\);/, "A slow connection never holds the page back for long");
+  assert.match(settings, /value=\{\{ settings, preview, run, live \}\}/);
+  const slate = readFileSync("components/proof-table/SlateProofTable.tsx", "utf8");
+  assert.match(slate, /if \(!live \|\| mode === "fallback"/, "The slate waits for the saved settings");
+});
+
+test("nothing is drawn before its shaders are compiled in the background, so loading never freezes the page", () => {
+  const slate = readFileSync("components/proof-table/SlateProofTable.tsx", "utf8");
+  assert.match(slate, /if \(!scene \|\| !warm\) return false;/, "The slate draws nothing before it is warm");
+  assert.match(slate, /scene\.warmUp\(\(\) => visible\)/, "In view, the uploads don't wait for idle moments");
+  assert.match(slate, /new Promise\(\(done\) => window\.setTimeout\(done, 8000\)\)/, "A connection that can't deliver still gets the table");
+  assert.match(slate, /held = shown = progress\(\);\s+pace = 0;/, "It starts where the scroll is, no replay");
+  assert.doesNotMatch(slate, /if \(visible\) scene\.update\(shown, 0\);/, "No first draw that compiles on the spot");
+  const scene = readFileSync("components/proof-table/scene.ts", "utf8");
+  assert.match(scene, /urgent\?\.\(\)\s+\? Promise\.resolve\(\)/);
+  const stars = readFileSync("components/StarField.tsx", "utf8");
+  assert.match(stars, /await compilePasses\(engine\.renderer, engine\.composer\);/, "The stars' effects compile in the background too");
+  assert.match(stars, /for \(const target of \[offscreen, null\]\)/, "Both the off-screen and the on-screen variant");
+  assert.match(readFileSync("lib/device-budget.ts", "utf8"), /\{ level: "high", dprFront: 1\.75, dprScene: 2\.5, dprIntro: 2 \}/, "The best devices get the sharpest slate");
 });

@@ -11,6 +11,11 @@ interface IntroSettingsValue {
   preview: boolean;
   /** The current preview playthrough (null until the portal asks for one). */
   run: PreviewRun | null;
+  /**
+   * True once the saved settings have arrived (or could not be had, or after a few seconds at most). Until then `settings` may
+   * be the copy the page was built with: work that would be thrown away when they arrive (the slate's cards) waits for this.
+   */
+  live: boolean;
 }
 
 const IntroSettingsContext = createContext<IntroSettingsValue | null>(null);
@@ -39,15 +44,19 @@ export function IntroSettingsProvider({ initial, children }: { initial: IntroSet
   const [settings, setSettings] = useState(initial);
   const [preview] = useState(readPreviewFlag);
   const [run, setRun] = useState<PreviewRun | null>(null);
+  const [live, setLive] = useState(preview);
 
   useEffect(() => {
     if (preview) return;
     const controller = new AbortController();
+    const settle = () => { if (!controller.signal.aborted) setLive(true); };
+    const giveUp = window.setTimeout(settle, 3000); // a slow connection never holds the page back for long
     fetch("/api/public/settings", { signal: controller.signal, cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((value) => { if (value && !controller.signal.aborted) setSettings(sanitizeIntroSettings(value)); })
-      .catch(() => {});
-    return () => controller.abort();
+      .catch(() => {})
+      .finally(() => { window.clearTimeout(giveUp); settle(); });
+    return () => { window.clearTimeout(giveUp); controller.abort(); };
   }, [preview]);
 
   useEffect(() => {
@@ -96,5 +105,5 @@ export function IntroSettingsProvider({ initial, children }: { initial: IntroSet
     document.documentElement.style.setProperty("--stage", settings.background);
   }, [settings.background]);
 
-  return <IntroSettingsContext.Provider value={{ settings, preview, run }}>{children}</IntroSettingsContext.Provider>;
+  return <IntroSettingsContext.Provider value={{ settings, preview, run, live }}>{children}</IntroSettingsContext.Provider>;
 }

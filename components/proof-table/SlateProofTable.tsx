@@ -42,7 +42,7 @@ function hasWebGL() {
  */
 export function SlateProofTable() {
   const router = useRouter();
-  const { settings } = useIntroSettings();
+  const { settings, live } = useIntroSettings();
   const { slate, projects } = useContent();
   const pt = settings.proofTable;
   const [mode, setMode] = useState<Mode>("pinned");
@@ -95,7 +95,9 @@ export function SlateProofTable() {
   }, [pt.glassColor, pt.glassOpacity, pt.frost, pt.reflection]);
 
   useEffect(() => {
-    if (mode === "fallback" || !pt.enabled || !hasArtwork) return;
+    // Nothing is downloaded or built from the settings the page was built with: only from the saved ones (a moment away), so a
+    // set of cards is never loaded only to be replaced, which is what left the slate empty for seconds after arriving.
+    if (!live || mode === "fallback" || !pt.enabled || !hasArtwork) return;
     const section = sectionRef.current!;
     const stage = stageRef.current!;
     const canvas = document.createElement("canvas");
@@ -116,6 +118,9 @@ export function SlateProofTable() {
     let pace = 0; // how fast shown is moving, in progress per second
     let disposed = false;
     let loading = false;
+    // Nothing is drawn until the scene's shaders are compiled in the background and its cards are on the table (see init):
+    // drawing first made the browser compile them on the spot, freezing the page for seconds just as the slate came into view.
+    let warm = false;
 
     const progress = () => {
       if (mode === "static") return 1;
@@ -221,7 +226,7 @@ export function SlateProofTable() {
 
     const loop = createFrameLoop((dt) => {
       pin();
-      if (!scene) return false;
+      if (!scene || !warm) return false;
       // The story follows the scroll, down and up alike: scrolling back up winds it back, and the page never jumps.
       if (mode === "pinned" && section.getBoundingClientRect().top >= window.innerHeight) held = shown = pace = 0;
       held = progress();
@@ -275,15 +280,23 @@ export function SlateProofTable() {
       shown = held;
       pace = 0;
       measureFrame();
-      // The canvas fades in once the cards are on the table (never a bare slab, never a pop), or after a moment regardless.
-      const reveal = () => { if (!disposed) canvas.dataset.ready = "true"; };
-      const revealTimer = window.setTimeout(reveal, 4000);
-      void scene.ready().then(() => requestAnimationFrame(() => { window.clearTimeout(revealTimer); reveal(); }));
       setVars(shown);
-      // Off screen: don't draw yet (that would upload everything at once); warm the GPU up in idle moments instead.
-      if (visible) scene.update(shown, 0);
-      else void scene.warmUp().catch(() => {});
-      run();
+      // The cards' pictures go up to the graphics card and the shaders compile in idle moments and in the background, then the
+      // first frame is drawn and the canvas fades in: never a bare slab, never a pop, never a frozen page. A connection that
+      // can't deliver the pictures within a few seconds gets the table as it is, rather than an empty stage.
+      const ready = Promise.race([scene.warmUp(() => visible).catch(() => {}), new Promise((done) => window.setTimeout(done, 8000))]);
+      void ready.then(() => {
+        if (disposed || !scene) return;
+        warm = true;
+        // Start from where the scroll is now, rather than replay what it passed while the slate got ready.
+        held = shown = progress();
+        pace = 0;
+        setVars(shown);
+        cutStage(shown);
+        scene.update(shown, 0);
+        requestAnimationFrame(() => { if (!disposed) canvas.dataset.ready = "true"; });
+        run();
+      });
     }
 
     // The required loading happens up front, not in the middle of a scroll.
@@ -349,6 +362,7 @@ export function SlateProofTable() {
     let press: { x: number; y: number; touch: boolean } | null = null;
     const onDown = (event: PointerEvent) => { press = { x: event.clientX, y: event.clientY, touch: event.pointerType !== "mouse" }; };
     const onClick = (event: MouseEvent) => {
+      if (!warm) return;
       if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8) { press = null; return; }
       const touch = !!press?.touch;
       press = null;
@@ -408,7 +422,7 @@ export function SlateProofTable() {
       stage.style.removeProperty("height");
       delete stage.dataset.pinAt;
     };
-  }, [mode, attempt, router, pt.enabled, hasArtwork]);
+  }, [live, mode, attempt, router, pt.enabled, hasArtwork]);
 
   if (!pt.enabled) return null;
 

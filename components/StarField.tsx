@@ -197,6 +197,49 @@ function applyLiveSettings(engine: Engine, settings: IntroSettings) {
   if (engine.blur) engine.blur.maxblur.value = 0.004 + 0.012 * Math.max(settings.field.depthBlur, settings.introBlur);
 }
 
+/**
+ * Compiles every shader an effect chain uses in the background: the scenes its passes draw and the materials of its full-screen
+ * steps, each both as drawn into an off-screen picture and onto the screen (a shader differs between the two). Never waits long.
+ */
+async function compilePasses(renderer: THREE.WebGLRenderer, composer: NonNullable<Engine["composer"]>) {
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const quads = new THREE.Scene();
+  const plane = new THREE.PlaneGeometry(2, 2);
+  const scenes: [THREE.Scene, THREE.Camera][] = [];
+  const seen = new Set<THREE.Material>();
+  const take = (value: unknown) => {
+    for (const m of Array.isArray(value) ? value : [value]) {
+      if (m instanceof THREE.Material && !seen.has(m)) {
+        seen.add(m);
+        quads.add(new THREE.Mesh(plane, m));
+      }
+    }
+  };
+  for (const pass of composer.passes as unknown as Record<string, unknown>[]) {
+    if (pass.scene instanceof THREE.Scene && pass.camera instanceof THREE.Camera) scenes.push([pass.scene, pass.camera]);
+    for (const value of Object.values(pass)) {
+      take(value);
+      if (value && typeof value === "object" && "material" in value) take((value as { material: unknown }).material);
+    }
+  }
+  const offscreen = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+  const jobs: Promise<unknown>[] = [];
+  const before = renderer.getRenderTarget();
+  try {
+    for (const target of [offscreen, null]) {
+      renderer.setRenderTarget(target); // compile() reads the target as it starts, so each call gets its own variant
+      jobs.push(renderer.compileAsync(quads, camera));
+      for (const [scene, cam] of scenes) jobs.push(renderer.compileAsync(scene, cam));
+    }
+  } finally {
+    renderer.setRenderTarget(before);
+  }
+  await Promise.race([Promise.allSettled(jobs), new Promise((r) => setTimeout(r, 4000))]);
+  quads.clear();
+  plane.dispose();
+  offscreen.dispose();
+}
+
 /** Compiles the exact shader variants the layer will use (instanced, glowing or not, corner stars), off the main thread where supported. */
 async function warmUp(engine: Engine) {
   const dummy = createStarInstances(
@@ -219,7 +262,10 @@ async function warmUp(engine: Engine) {
   }
   engine.scene.remove(...dummy.meshes, cornerDummy);
   dummy.dispose();
-  // One render compiles the post-processing (bloom, depth blur) too; nothing is visible yet.
+  // The post-processing (overlay, backdrop, glow, output) is compiled the same way, so the render below finds every shader
+  // ready: compiled by that render instead, it froze the page for a second or two on every load.
+  if (engine.composer && engine.renderer.extensions.has("KHR_parallel_shader_compile")) await compilePasses(engine.renderer, engine.composer);
+  // One render settles the post-processing (anything not caught above compiles here); nothing is visible yet.
   if (engine.composer) engine.composer.render();
   else engine.renderer.render(engine.scene, engine.camera);
 }

@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import process from "node:process";
 
 // Account that owns both Dolly Design Studio Cloudflare deployments.
@@ -61,6 +63,33 @@ const deployEnv = {
   NEXT_PUBLIC_SITE_URL: "https://dollydstudio.pages.dev",
   DEPLOY_TARGET: "cloudflare",
 };
+
+// The pages are built from what the portal has saved on Cloudflare (R2), not from this folder's copies, which the portal never
+// updates: built from those, every page opened with old content and old title cards, then swapped to the real ones in the
+// browser (late, and with the page shifting). The documents go to a folder of their own; nothing in the project changes.
+const liveContent = mkdtempSync(join(tmpdir(), "dds-live-content-"));
+process.stdout.write("\n==> Fetching the saved content and design settings from Cloudflare\n");
+let fetched = 0;
+for (const name of ["site-content.json", "intro-settings.json"]) {
+  const file = join(liveContent, name);
+  const result = spawnSync(process.execPath, [executable("wrangler", "bin", "wrangler.js"), "r2", "object", "get", `dolly-portal/content/${name}`, "--file", file, "--remote"], {
+    cwd: root,
+    env: { ...process.env, CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID || CLOUDFLARE_ACCOUNT_ID },
+    encoding: "utf8",
+    shell: false,
+  });
+  try {
+    if (result.status !== 0) throw new Error((result.stderr || result.stdout || "").trim().split("\n").pop());
+    JSON.parse(readFileSync(file, "utf8")); // a whole, readable document, or none at all
+    fetched++;
+  } catch (error) {
+    rmSync(file, { force: true });
+    process.stdout.write(`  ${name}: not used (${error.message || "unreadable"}); the project's copy is built instead.\n`);
+  }
+}
+if (fetched) deployEnv.DDS_LIVE_CONTENT_DIR = liveContent;
+process.stdout.write(`  ${fetched} of 2 saved documents will be built into the pages.\n`);
+process.on("exit", () => rmSync(liveContent, { recursive: true, force: true }));
 
 run("Type checking", process.execPath, [executable("typescript", "bin", "tsc"), "--noEmit"]);
 run("Linting", process.execPath, [executable("eslint", "bin", "eslint.js"), "."]);

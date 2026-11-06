@@ -26,6 +26,8 @@ export function deviceBudget(): DeviceBudget {
     ? { level: "low", dprFront: 1, dprScene: 1, dprIntro: 1.25 }
     : mid
       ? { level: "mid", dprFront: 1.25, dprScene: 1.5, dprIntro: 1.5 }
-      : { level: "high", dprFront: 1.75, dprScene: 2, dprIntro: 2 };
+      : // The slate is the showpiece: on a 3x phone screen the best devices draw it at 2.5 (it steps down by itself, never below
+        // 1.5, should a device not keep up; see scene.ts). Computers and tablets are 2x or less, so they get their full sharpness.
+        { level: "high", dprFront: 1.75, dprScene: 2.5, dprIntro: 2 };
   return cached;
 }

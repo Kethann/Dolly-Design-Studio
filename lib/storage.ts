@@ -77,6 +77,16 @@ const files: Store = {
     return { body: Readable.toWeb(stream) as ReadableStream<Uint8Array> };
   },
   async getText(key) {
+    // A deploy builds the pages from what the portal has saved on Cloudflare, not from this folder's copies (which the portal
+    // never updates): it downloads those documents to a folder of its own and names it here (see scripts/deploy-cloudflare.mjs).
+    const live = process.env.DDS_LIVE_CONTENT_DIR;
+    if (live && key.startsWith("content/") && /^[\w.-]+$/.test(key.slice("content/".length))) {
+      try {
+        return await readFile(/*turbopackIgnore: true*/ path.join(live, key.slice("content/".length)), "utf8");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+    }
     try {
       return await readFile(/*turbopackIgnore: true*/ diskPath(key), "utf8");
     } catch (error) {
