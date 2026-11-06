@@ -1,6 +1,6 @@
 {
   // The pages.dev front (see DEPLOY.md): a Pages project that forwards to the "dolly-design-studio" Worker.
-  // Renamed in Cloudflare from "dollydesignstudio"; the address stays dollydesignstudio.pages.dev.
+  // The public address, dollydstudio.pages.dev. The deploy also refreshes "dollydesignstudio" (the first address) with this front.
   "name": "dollydstudio",
   "pages_build_output_dir": "./public",
   "compatibility_date": "2025-09-01",

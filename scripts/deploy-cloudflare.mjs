@@ -58,7 +58,7 @@ const deployEnv = {
   ...process.env,
   CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID || CLOUDFLARE_ACCOUNT_ID,
   NEXT_PUBLIC_BUILD_ID: sha,
-  NEXT_PUBLIC_SITE_URL: "https://dollydesignstudio.pages.dev",
+  NEXT_PUBLIC_SITE_URL: "https://dollydstudio.pages.dev",
   DEPLOY_TARGET: "cloudflare",
 };
 
@@ -72,31 +72,35 @@ run("Installing zero-SSR public page shells", process.execPath, [resolve(root, "
 run("Deploying the application Worker", process.execPath, [executable("@opennextjs", "cloudflare", "dist", "cli", "index.js"), "deploy"], {
   env: deployEnv,
 });
-run(
-  "Refreshing dollydesignstudio.pages.dev (the Pages project \"dollydstudio\")",
-  process.execPath,
-  [
-    executable("wrangler", "bin", "wrangler.js"),
-    "pages",
-    "deploy",
-    "public",
-    "--project-name",
-    // Renamed in Cloudflare from "dollydesignstudio": a rename keeps the address it was created with, dollydesignstudio.pages.dev.
-    "dollydstudio",
-    "--branch",
-    branch,
-    "--commit-hash",
-    sha,
-    "--commit-message",
-    commitMessage,
-    `--commit-dirty=${dirty}`,
-  ],
-  { cwd: pagesFront, env: deployEnv },
-);
+// The public address is dollydstudio.pages.dev (the Pages project "dollydstudio"). The first address, dollydesignstudio.pages.dev
+// (the project "dollydesignstudio"), gets the same front, which sends its page visits on to the new address (see pages-front).
+for (const project of ["dollydstudio", "dollydesignstudio"]) {
+  run(
+    `Refreshing ${project}.pages.dev`,
+    process.execPath,
+    [
+      executable("wrangler", "bin", "wrangler.js"),
+      "pages",
+      "deploy",
+      "public",
+      "--project-name",
+      project,
+      "--branch",
+      branch,
+      "--commit-hash",
+      sha,
+      "--commit-message",
+      commitMessage,
+      `--commit-dirty=${dirty}`,
+    ],
+    { cwd: pagesFront, env: deployEnv },
+  );
+}
 
 const liveUrls = [
   "https://dolly-design-studio.dollydesignstudios.workers.dev/api/version",
-  "https://dollydesignstudio.pages.dev/api/version",
+  "https://dollydstudio.pages.dev/api/version",
+  "https://dollydesignstudio.pages.dev/api/version", // (an API call: answered there, not sent on)
 ];
 
 async function verifyRelease(url) {
@@ -119,5 +123,5 @@ process.stdout.write("\n==> Verifying that Worker and Pages serve the same commi
 await Promise.all(liveUrls.map(verifyRelease));
 
 process.stdout.write(
-  `\nDeployment complete.\nCommit: ${sha}\nLive site: https://dollydesignstudio.pages.dev/\n`,
+  `\nDeployment complete.\nCommit: ${sha}\nLive site: https://dollydstudio.pages.dev/\n`,
 );
