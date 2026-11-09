@@ -260,6 +260,15 @@ export function sanitizeContent(input: unknown, options: { preserveClientSlots?:
     return name ? [{ name, photo: photo.startsWith("/images/") ? photo : "", ...(alt ? { alt } : {}), ...cleanAdjust(raw, "photo") }] : [];
   });
 
+  // The Title Designs strip: its own titles. An entry needs a name or a picture this portal stored.
+  merged.titleDesigns = (merged.titleDesigns as unknown[]).slice(0, 100).flatMap((raw) => {
+    if (!isObj(raw)) return [];
+    const name = str(raw.name).trim().slice(0, 80);
+    const image = str(raw.image).startsWith("/images/") ? str(raw.image) : "";
+    const alt = str(raw.alt).trim().slice(0, 200);
+    return name || image ? [{ name, image, ...(alt ? { alt } : {}) }] : [];
+  });
+
   // Uploaded fonts: only files this portal stored, with safe ids.
   merged.customFonts = (Array.isArray(src.customFonts) ? src.customFonts : [])
     .slice(0, 30)

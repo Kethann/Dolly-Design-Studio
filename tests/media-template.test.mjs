@@ -3816,29 +3816,34 @@ test("Add controls remain present for populated and empty filtered galleries and
   }
 });
 
-test("the title track uses uploaded slate artwork, keeps one accessible link per title and survives without a legacy project", () => {
-  const Link = () => null;
+test("the title designs strip is its own list: never the projects or the slate, one set of portal controls per title", () => {
   const Image = () => null;
-  const settings = { proofTable: { items: [
-    { src: "/images/proof-table/first.png", film: "First Film", alt: "First title", slug: "first-film" },
-    { src: "", film: "Empty slot", alt: "Empty title", slug: "title-designs" },
-  ] } };
+  const AddContent = () => null;
+  const EditSectionContent = () => null;
+  const content = { home: { titleDesigns: { label: "The art of the name", title: "Title Designs" } }, titleDesigns: [
+    { name: "First Film", image: "/images/uploads/first.png", alt: "First title" },
+    { name: "Name only", image: "" },
+  ], projects: [{ slug: "first-film", images: [] }] };
   const { TitleDesignTrack } = loader({
-    "next/link": { default: Link },
     "next/image": { default: Image },
-    "@/lib/intro/settings-context": { useIntroSettings: () => ({ settings }) },
-    "@/lib/content/context": { useContent: () => ({ projects: [{ slug: "first-film", images: [] }] }) },
+    "@/lib/content/context": { useContent: () => content, tx: () => ({}) },
+    "@/lib/content/tx": { edSection: (page, id) => ({ "data-ed-section": `${page}:${id}` }), edItem: (list, i) => ({ "data-ed-item": `${list}.${i}` }) },
+    "@/components/fx/render-fx": { renderFx: (x) => x },
+    "./PreviewControls": { AddContent, EditSectionContent },
     "@/lib/images": { versionedSrc: (src) => src, placeholderProps: () => ({}) },
     "./TitleDesignTrack.module.css": { section: "section", track: "track", group: "group" },
   })("components/TitleDesignTrack.tsx");
   const flatten = (tree) => !tree || typeof tree !== "object" ? [] : Array.isArray(tree)
     ? tree.flatMap(flatten) : [tree, ...flatten(tree.props?.children)];
   const nodes = flatten(TitleDesignTrack());
-  assert.equal(nodes.find((node) => node.type === "section").props.id, "title-designs");
-  assert.equal(nodes.filter((node) => node.props?.href).length, 1, "repeat copies must not enter the tab order");
-  assert.equal(nodes.find((node) => node.props?.href).props.href, "/work/first-film");
-  assert.equal(nodes.filter((node) => node.props?.src === "/images/proof-table/first.png").length, 12, "one artwork fills a seamless six-card cycle twice");
-  assert.ok(!nodes.some((node) => node.props?.children === "Empty slot"), "empty slate slots do not interrupt uploaded artwork");
+  const section = nodes.find((node) => node.type === "section");
+  assert.equal(section.props.id, "title-designs");
+  assert.equal(section.props["data-ed-section"], "home:titleDesigns", "the strip opens its own editor, not the gallery's projects");
+  assert.equal(nodes.find((node) => node.type === AddContent).props.list, "titleDesigns");
+  assert.deepEqual(nodes.filter((node) => node.props?.["data-ed-item"]).map((node) => node.props["data-ed-item"]), ["titleDesigns.0", "titleDesigns.1"], "each title has one Edit control, on its own list");
+  assert.ok(!nodes.some((node) => String(node.props?.["data-ed-item"] ?? "").startsWith("projects")), "nothing in the strip can edit or delete a project");
+  assert.ok(!nodes.some((node) => node.props?.href), "titles are not links into projects");
+  assert.equal(nodes.filter((node) => node.props?.src === "/images/uploads/first.png").length, 6, "two titles fill a six-card cycle in both loop copies");
   const groups = nodes.filter((node) => node.props?.className === "group");
   assert.equal(groups.length, 2, "the loop needs two identical groups");
   assert.equal(groups[0].props.children.length, groups[1].props.children.length);
@@ -3848,10 +3853,10 @@ test("the title track uses uploaded slate artwork, keeps one accessible link per
   assert.match(css, /margin-left:\s*calc\(50% - 50vw\)/);
   assert.match(css, /transform:\s*translateX\(-50%\)/);
   assert.doesNotMatch(css, /\.section:hover \.track/, "pointer hover must not stop the continuous loop");
-  settings.proofTable.items = Array.from({ length: 24 }, (_, index) => ({ src: `/images/proof-table/${index}.png`, film: `Title ${index}`, alt: `Title ${index}`, slug: "first-film", onGlass: index >= 16 ? false : undefined }));
-  const many = flatten(TitleDesignTrack());
-  assert.equal(many.filter(node => node.props?.src?.startsWith?.("/images/proof-table/")).length, 48, "all uploaded titles, including track-only titles, appear in both loop copies");
-  assert.equal(many.filter(node => node.props?.href).length, 24, "each title has one accessible link");
+  content.titleDesigns = [];
+  const empty = flatten(TitleDesignTrack());
+  assert.equal(empty.find((node) => node.type === "section").props["data-empty"], "", "an empty strip is hidden on the public site");
+  assert.ok(!empty.some((node) => node.props?.className === "track"));
 });
 
 test("unpublished project and process pages open only for an authenticated preview", async () => {

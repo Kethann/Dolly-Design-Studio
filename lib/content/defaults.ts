@@ -24,6 +24,7 @@ export function defaultContent(): SiteContent {
     collaborators,
     testimonials,
     projects,
+    titleDesigns: [],
     categories: [...CATEGORIES],
     work: workPage,
     breakdownsPage,

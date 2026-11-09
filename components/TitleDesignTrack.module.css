@@ -111,3 +111,17 @@ a.card:focus-visible .art { border-color: var(--gold-bright); }
   .track { animation: none; will-change: auto; }
   .group[aria-hidden="true"] { display: none; }
 }
+
+/* Portal buttons for this strip (hidden on the public site), lined up with the heading. */
+.controls {
+  padding-inline: max(clamp(20px, 5vw, 64px), calc((100vw - 1360px) / 2 + 64px));
+}
+
+/* A strip with no titles shows nothing on the public site; in the portal it keeps its heading and Add button. */
+:global(html:not([data-dds-edit="1"])) .section[data-empty] { display: none; }
+
+/* While editing in the portal: the strip stands still and scrolls sideways, each title once, with its own Edit button. */
+:global(html[data-dds-edit="1"]) .track { animation: none; will-change: auto; }
+:global(html[data-dds-edit="1"]) .viewport { overflow-x: auto; padding-top: 64px; }
+:global(html[data-dds-edit="1"]) .group[aria-hidden="true"],
+:global(html[data-dds-edit="1"]) .section [data-ed-dup] { display: none; }

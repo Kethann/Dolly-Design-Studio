@@ -33,6 +33,12 @@ export const home = {
     viewAllLink: "Open the full gallery →",
   },
 
+  // 3b. TITLE DESIGNS — the strip of title artwork scrolling under the gallery (its titles are a list of their own).
+  titleDesigns: {
+    label: "The art of the name",
+    title: "Title Designs",
+  },
+
   // 4. HOW WE WORK — three cards with sketch, camera and layers icons.
   process: {
     label: "How We Work",

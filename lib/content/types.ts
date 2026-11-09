@@ -1,7 +1,7 @@
 import type { home } from "@/content/home";
 import type { site } from "@/content/site";
 import type { breakdownsPage, footer, notFoundPage, projectPage, workPage } from "@/content/pages";
-import type { ClientEntry, CollaboratorEntry, Project, Service, Testimonial } from "@/content/types";
+import type { ClientEntry, CollaboratorEntry, Project, Service, Testimonial, TitleDesignEntry } from "@/content/types";
 
 /** `as const` content turned back into plain, editable types. */
 type Widen<T> = T extends string
@@ -142,6 +142,8 @@ export interface SiteContent {
   collaborators: CollaboratorEntry[];
   testimonials: Testimonial[];
   projects: Project[];
+  /** The titles scrolling in the "Title Designs" strip under the gallery. Separate from the projects and the slate. */
+  titleDesigns: TitleDesignEntry[];
   /** The project types, in the order of the filter buttons on the gallery. */
   categories: string[];
   work: Widen<typeof workPage>;

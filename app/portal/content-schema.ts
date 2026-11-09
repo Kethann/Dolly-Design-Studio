@@ -263,6 +263,30 @@ const home: SchemaPage = {
       ],
     },
     {
+      // Its own list: adding, editing or deleting a title here never touches the projects or the slate.
+      id: "titleDesigns",
+      title: "Title designs strip",
+      target: "title-designs",
+      fields: [
+        { kind: "text", path: "home.titleDesigns.label", label: "Small heading", style: true },
+        { kind: "text", path: "home.titleDesigns.title", label: "Heading", style: true },
+        {
+          kind: "list",
+          path: "titleDesigns",
+          label: "Titles in the strip (only this strip; projects are not affected)",
+          add: "Add a title",
+          max: 100,
+          bulk: "image",
+          title: (it) => str(it.name, "New title"),
+          blank: () => ({ name: "New title", image: "" }),
+          fields: [
+            { kind: "text", path: "name", label: "Film name (shown under the artwork)" },
+            { kind: "image", path: "image", label: "Title artwork", hint: "A transparent PNG of the title works best. Without one, the film name is shown.", alt: "alt", contain: true },
+          ],
+        },
+      ],
+    },
+    {
       id: "process",
       title: "How we work",
       target: "process",
@@ -540,7 +564,7 @@ const projects: SchemaPage = {
         {
           kind: "list",
           path: "projects",
-          label: "Projects",
+          label: "Projects (poster cards; deleting one removes the whole project and its page)",
           add: "Add a project",
           max: 100,
           min: 1,

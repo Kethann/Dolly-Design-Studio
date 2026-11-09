@@ -11,6 +11,7 @@ export function summarizeContent(prev: SiteContent, next: SiteContent): string {
   if (differ(prev.services, next.services)) parts.push("Services");
   if (differ([prev.clients, prev.clientsSecond, prev.collaborators, prev.testimonials], [next.clients, next.clientsSecond, next.collaborators, next.testimonials])) parts.push("Clients & collaborators");
 
+  if (differ(prev.titleDesigns, next.titleDesigns)) parts.push(`Title designs strip (${next.titleDesigns.length} titles)`);
   if (differ(prev.projects, next.projects)) {
     const before = new Map(prev.projects.map((p) => [p.slug, p]));
     const after = new Map(next.projects.map((p) => [p.slug, p]));

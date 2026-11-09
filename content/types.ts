@@ -107,6 +107,16 @@ export interface ClientEntry {
   alt?: string;
 }
 
+/** One title in the "Title Designs" strip under the project gallery. Its own list: not a project, not a slate card. */
+export interface TitleDesignEntry {
+  /** The film's name, shown under the artwork. */
+  name: string;
+  /** The title artwork (a transparent PNG works best), or "" to show the name instead. */
+  image: string;
+  /** What the picture shows (optional; the name is used when empty). */
+  alt?: string;
+}
+
 /** A person the studio has worked with: their photo (a round portrait) and their name. */
 export interface CollaboratorEntry {
   name: string;
