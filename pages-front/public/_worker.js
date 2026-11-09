@@ -1,10 +1,17 @@
-// A thin front for the site: the address dollydesignstudio.pages.dev passes every request straight to the real site
+// A thin front for the site: the address dollydstudio.pages.dev passes every request straight to the real site
 // (the "dolly-design-studio" Worker), through a service binding. See DEPLOY.md.
 const ORIGIN = "https://dolly-design-studio.dollydesignstudios.workers.dev";
+// The site's first address. Page visits there move to the new one for good (links and bookmarks keep working); anything
+// else (an API call, a portal tab saving its work) is still answered there, so nothing open at the old address breaks.
+const OLD_HOST = "dollydesignstudio.pages.dev";
+const NEW_ORIGIN = "https://dollydstudio.pages.dev";
 
 const frontWorker = {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.host === OLD_HOST && (request.method === "GET" || request.method === "HEAD") && !url.pathname.startsWith("/api/")) {
+      return new Response(null, { status: 301, headers: { location: NEW_ORIGIN + url.pathname + url.search, "cache-control": "public, max-age=3600" } });
+    }
     const target = new URL(url.pathname + url.search, ORIGIN);
 
     // The real site is told it is being visited at this address, so its own checks (the portal's sign-in and saves compare
