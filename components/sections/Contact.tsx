@@ -4,7 +4,6 @@ import { useRef, useState } from "react";
 import { useContent, tx } from "@/lib/content/context";
 import { edSection } from "@/lib/content/tx";
 import { CONTACT_LIMITS, validateContact, type ContactErrors, type ContactField } from "@/lib/contact/validate";
-import { budgetsForProject } from "@/lib/contact/options";
 import { renderFx } from "@/components/fx/render-fx";
 import { SocialLogo } from "@/components/SocialLogo";
 import styles from "./Contact.module.css";
@@ -16,10 +15,8 @@ export function Contact() {
   const copy = home.contact;
   const form = copy.form;
   const projects = form.projectOptions;
-  const [selection, setSelection] = useState({ projectType: "", budget: "" });
+  const [selection, setSelection] = useState({ projectType: "" });
   const projectType = projects.some((project) => project.name === selection.projectType) ? selection.projectType : "";
-  const budgets = budgetsForProject(projects, projectType);
-  const budget = budgets.includes(selection.budget) ? selection.budget : "";
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   /** What is wrong with each field, shown beside it. A field is only checked once it has been left, or on sending. */
@@ -84,7 +81,7 @@ export function Contact() {
         Array.from({ length: 24 }, (_, i) => ({ id: i, left: Math.random() * 100, delay: Math.random() * 0.6 })),
       );
       formEl.reset();
-      setSelection({ projectType: "", budget: "" });
+      setSelection({ projectType: "" });
       touched.current.clear();
       setFieldErrors({});
       setChars(0);
@@ -206,8 +203,8 @@ export function Contact() {
               <div className={styles.field}>
                 <label htmlFor="projectType">{form.projectTypeLabel}</label>
                 <select id="projectType" name="projectType" required value={projectType} {...bad("projectType")} onChange={(e) => {
-                  setSelection({ projectType: e.target.value, budget: "" });
-                  setFieldErrors((previous) => ({ ...previous, projectType: undefined, budget: undefined }));
+                  setSelection({ projectType: e.target.value });
+                  setFieldErrors((previous) => ({ ...previous, projectType: undefined }));
                 }}>
                   <option value="" disabled>
                     {form.selectPlaceholder}
@@ -219,23 +216,6 @@ export function Contact() {
                   ))}
                 </select>
                 {err("projectType")}
-              </div>
-              <div className={styles.field}>
-                <label htmlFor="budget">{form.budgetLabel}</label>
-                <select id="budget" name="budget" required value={budget} disabled={!projectType} {...bad("budget")} onChange={(e) => {
-                  setSelection({ projectType, budget: e.target.value });
-                  setFieldErrors((previous) => ({ ...previous, budget: undefined }));
-                }}>
-                  <option value="" disabled>
-                    {projectType ? form.selectPlaceholder : "Choose a project type first"}
-                  </option>
-                  {budgets.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-                {err("budget")}
               </div>
             </div>
 

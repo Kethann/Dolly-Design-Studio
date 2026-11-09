@@ -1,7 +1,7 @@
 // Checking an enquiry. Shared by the form (so mistakes are shown next to the field as people type) and by the server
 // (which never trusts the browser), so both always agree.
 
-import { budgetsForProject, type ContactProjectOption } from "./options";
+import type { ContactProjectOption } from "./options";
 
 export interface ContactInput {
   name: string;
@@ -9,7 +9,8 @@ export interface ContactInput {
   phone: string;
   company: string;
   projectType: string;
-  budget: string;
+  /** Only on enquiries sent before the budget question was removed from the form. */
+  budget?: string;
   timeline: string;
   /** The description of the project. */
   message: string;
@@ -51,7 +52,6 @@ export function validateContact(raw: Record<string, unknown>, projects?: readonl
     phone: text(raw.phone),
     company: text(raw.company).replace(/\s+/g, " "),
     projectType: text(raw.projectType),
-    budget: text(raw.budget),
     timeline: text(raw.timeline),
     message: text(raw.message).replace(/\r\n?/g, "\n"),
   };
@@ -76,13 +76,10 @@ export function validateContact(raw: Record<string, unknown>, projects?: readonl
   else if (value.company.length > L.companyMax) errors.company = `Please keep this under ${L.companyMax} characters.`;
   if (!value.projectType) errors.projectType = "Please choose the kind of project.";
   else if (value.projectType.length > L.choiceMax) errors.projectType = "That choice isn’t valid.";
-  if (!value.budget) errors.budget = "Please choose a budget range.";
-  else if (value.budget.length > L.choiceMax) errors.budget = "That choice isn’t valid.";
   if (!value.timeline) errors.timeline = "Please choose a timeline.";
   else if (value.timeline.length > L.choiceMax) errors.timeline = "That choice isn’t valid.";
   if (projects) {
     if (value.projectType && !projects.some((project) => project.name === value.projectType)) errors.projectType = "Please choose an available project type.";
-    if (value.budget && !budgetsForProject(projects, value.projectType).includes(value.budget)) errors.budget = "Please choose a budget for this project type.";
   }
 
   if (!value.message) errors.message = "Please describe your project.";

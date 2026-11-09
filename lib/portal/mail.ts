@@ -189,14 +189,15 @@ export function enquiryRecipient(fallback: string): string {
 }
 
 /** The email telling the studio about a new enquiry. */
-export function enquiryEmail(e: { name: string; email: string; phone: string; company: string; projectType: string; budget: string; timeline: string; message: string }) {
+export function enquiryEmail(e: { name: string; email: string; phone: string; company: string; projectType: string; budget?: string; timeline: string; message: string }) {
   const rows: [string, string][] = [
     ["Name", e.name],
     ["Email", e.email],
     ["Phone", e.phone],
     ["Company / production", e.company || "\u2014"],
     ["Project type", e.projectType],
-    ["Budget", e.budget || "Not specified"],
+    // Budget is no longer asked for; an older enquiry that has one still shows it.
+    ...(e.budget ? [["Budget", e.budget] as [string, string]] : []),
     ["Timeline", e.timeline || "Not specified"],
   ];
   const text = `New enquiry from the website\n\n${rows.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\nDescription:\n${e.message}\n\nReply to this email to answer ${e.name} directly.`;

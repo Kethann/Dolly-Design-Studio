@@ -212,8 +212,12 @@ export function InboxPanel({ onCount }: { onCount?: (unread: number) => void }) 
                         <dd>{e.company}</dd>
                       </>
                     )}
-                    <dt>Budget</dt>
-                    <dd>{e.budget || "Not specified"}</dd>
+                    {e.budget && (
+                      <>
+                        <dt>Budget</dt>
+                        <dd>{e.budget}</dd>
+                      </>
+                    )}
                     <dt>Timeline</dt>
                     <dd>{e.timeline || "Not specified"}</dd>
                   </dl>

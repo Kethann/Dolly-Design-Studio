@@ -753,31 +753,32 @@ test("contact options are bounded, sanitized and checked in the portal", () => {
   const { contactProjects } = app("lib/contact/options.ts");
   assert.deepEqual(contactProjects({ projectOptions: [null, {}, { name: " Film ", budgets: [" A ", "a", null, ""] }, { name: "film", budgets: ["B"] }] }), [{ name: "Film", budgets: ["A"] }]);
   assert.equal(contactProjects({ projectOptions: Array.from({ length: 80 }, (_, i) => ({ name: `Type ${i}`, budgets: Array.from({ length: 50 }, (_, n) => `Budget ${n}`) })) }).length, 50);
-  assert.equal(contactProjects({ projectOptions: [{ name: "Long", budgets: ["a".repeat(150)] }] })[0].budgets[0].length, 100);
   const content = app("lib/content/defaults.ts").defaultContent();
   assert.equal(app("app/portal/validate.ts").contentProblems(content).filter(p => p.path.includes("projectOptions")).length, 0);
-  content.home.contact.form.projectOptions = [{ name: "Film", budgets: ["", "A", "a"] }, { name: "film", budgets: [] }];
+  content.home.contact.form.projectOptions = [{ name: "Film", budgets: [] }, { name: "film", budgets: [] }];
   const errors = app("app/portal/validate.ts").contentProblems(content);
-  for (const path of ["0.budgets", "1.name", "1.budgets"]) assert.ok(errors.some(p => p.path === `home.contact.form.projectOptions.${path}`));
+  assert.ok(errors.some(p => p.path === "home.contact.form.projectOptions.1.name"), "project types still need different names");
+  assert.ok(!errors.some(p => p.path.endsWith(".budgets")), "budgets are no longer asked for, so they are never checked");
 });
 
-const contactEnquiry = { name: "Test Person", email: "test@example.com", phone: "+919876543210", company: "Test Production", projectType: "Film", budget: "Film budget", timeline: "Within a month", message: "Please discuss the artwork for our film." };
+const contactEnquiry = { name: "Test Person", email: "test@example.com", phone: "+919876543210", company: "Test Production", projectType: "Film", timeline: "Within a month", message: "Please discuss the artwork for our film." };
 const contactChoices = [{ name: "Film", budgets: ["Film budget"] }, { name: "Logo", budgets: ["Logo budget"] }];
 
-test("contact validation requires every visible field and rejects another project's budget", () => {
+test("contact validation requires every visible field and no budget", () => {
   const { validateContact } = loader()("lib/contact/validate.ts");
   assert.deepEqual(validateContact(contactEnquiry, contactChoices).errors, {});
-  assert.ok(validateContact({ ...contactEnquiry, projectType: "Logo" }, contactChoices).errors.budget);
+  assert.deepEqual(validateContact({ ...contactEnquiry, projectType: "Logo" }, contactChoices).errors, {});
   assert.ok(validateContact({ ...contactEnquiry, projectType: "Unknown" }, contactChoices).errors.projectType);
+  assert.ok(!("budget" in validateContact({ ...contactEnquiry, budget: "Anything" }, contactChoices).value), "a budget sent anyway is not kept");
   for (const field of Object.keys(contactEnquiry)) {
     for (const missing of [undefined, null, "", " \t\n "]) {
       const errors = validateContact({ ...contactEnquiry, [field]: missing }, contactChoices).errors;
-      assert.deepEqual(Object.keys(errors), field === "projectType" ? [field, "budget"] : [field], `${field} cannot be missing or blank; budgets also need a valid project`);
+      assert.deepEqual(Object.keys(errors), [field], `${field} cannot be missing or blank`);
     }
   }
 });
 
-test("contact server checks published project budgets before saving or emailing", async () => {
+test("contact server checks published project types before saving or emailing", async () => {
   let saved = 0;
   let unavailable = false;
   const app = loader({
@@ -798,9 +799,9 @@ test("contact server checks published project budgets before saving or emailing"
     }
   }
   assert.equal(saved, 0, "Incomplete enquiries never reach storage or email");
-  const bad = await POST(request({ ...contactEnquiry, budget: "Logo budget" }));
+  const bad = await POST(request({ ...contactEnquiry, projectType: "Unknown" }));
   assert.equal(bad.status, 422);
-  assert.ok((await bad.json()).fields.budget);
+  assert.ok((await bad.json()).fields.projectType);
   assert.equal(saved, 0);
   assert.equal((await POST(request(contactEnquiry))).status, 200);
   assert.equal(saved, 1);
@@ -809,7 +810,7 @@ test("contact server checks published project budgets before saving or emailing"
   assert.equal(saved, 1, "Never save an enquiry with unverified choices during a storage failure");
 });
 
-test("contact form changes budgets, requires all visible fields, and shows accessible inline errors", async (t) => {
+test("contact form has no budget, requires all visible fields, and shows accessible inline errors", async (t) => {
   const slots = []; let cursor = 0;
   const state = (initial) => { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => { slots[i] = typeof v === "function" ? v(slots[i]) : v; }]; };
   const content = loader()("lib/content/defaults.ts").defaultContent();
@@ -824,12 +825,14 @@ test("contact form changes budgets, requires all visible fields, and shows acces
   })("components/sections/Contact.tsx");
   const nodes = (node) => !node || typeof node !== "object" ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)];
   let tree;
-  const render = () => { cursor = 0; tree = nodes(Contact()); return id => tree.find(n => n.props?.id === id).props; };
-  let ui = render(); assert.equal(ui("budget").disabled, true);
+  const render = () => { cursor = 0; tree = nodes(Contact()); return id => tree.find(n => n.props?.id === id)?.props; };
+  let ui = render();
+  assert.equal(ui("budget"), undefined, "the form has no budget field");
+  assert.ok(!tree.some(n => n.props?.name === "budget"), "nothing in the form sends a budget");
   for (const field of Object.keys(contactEnquiry)) assert.equal(ui(field).required, true, `${field} has required semantics`);
   assert.ok(!ui("website").required, "The hidden anti-spam trap must remain empty");
   const checkPlaceholders = () => {
-    for (const id of ["projectType", "budget", "timeline"]) {
+    for (const id of ["projectType", "timeline"]) {
       const options = nodes(ui(id).children).filter(n => n.type === "option");
       assert.equal(options[0].props.value, "");
       assert.equal(options[0].props.disabled, true, `${id}: placeholder cannot be selected`);
@@ -838,20 +841,13 @@ test("contact form changes budgets, requires all visible fields, and shows acces
     }
   };
   checkPlaceholders();
-  ui("projectType").onChange({ target: { value: "Film" } });
-  ui = render(); assert.equal(ui("budget").disabled, false);
-  checkPlaceholders();
-  ui("budget").onChange({ target: { value: "Film budget" } });
-  ui = render(); assert.equal(ui("budget").value, "Film budget");
+  assert.deepEqual(nodes(ui("projectType").children).filter(n => n.type === "option").map(n => n.props.value), ["", "Film", "Logo"]);
   ui("projectType").onChange({ target: { value: "Logo" } });
-  ui = render(); assert.equal(ui("budget").value, "");
-  checkPlaceholders();
-  assert.deepEqual(nodes(ui("budget").children).filter(n => n.type === "option").map(n => n.props.value), ["", "Logo budget"]);
-  ui("budget").onChange({ target: { value: "Logo budget" } });
-  content.home.contact.form.projectOptions[1].budgets = ["Updated quote"];
-  assert.equal(render()("budget").value, "", "Removed choices cannot be submitted from a live preview");
+  ui = render(); assert.equal(ui("projectType").value, "Logo");
+  content.home.contact.form.projectOptions = [{ name: "Film", budgets: [] }];
+  assert.equal(render()("projectType").value, "", "Removed choices cannot be submitted from a live preview");
   t.mock.method(globalThis, "FormData", function () {
-    return new Map(Object.entries({ ...contactEnquiry, company: "  ", budget: "", timeline: "" }));
+    return new Map(Object.entries({ ...contactEnquiry, company: "  ", timeline: "" }));
   });
   const fetchMock = t.mock.method(globalThis, "fetch", async () => { throw new Error("Incomplete forms must not submit"); });
   let focused;
@@ -862,7 +858,7 @@ test("contact form changes budgets, requires all visible fields, and shows acces
   ui = render();
   assert.equal(fetchMock.mock.callCount(), 0);
   assert.equal(focused, '[name="company"]', "Focus moves to the first missing field");
-  for (const field of ["company", "budget", "timeline"]) {
+  for (const field of ["company", "timeline"]) {
     assert.equal(ui(field)["aria-invalid"], true);
     assert.equal(ui(field)["aria-describedby"], `err-${field}`);
     assert.equal(ui(`err-${field}`).role, "alert");
@@ -3816,10 +3812,11 @@ test("Add controls remain present for populated and empty filtered galleries and
   }
 });
 
-test("the title designs strip is its own list: never the projects or the slate, one set of portal controls per title", () => {
+test("the title designs strip is its own list: never the projects or the slate, held and dragged like the client rows", () => {
   const Image = () => null;
   const AddContent = () => null;
   const EditSectionContent = () => null;
+  const drag = [];
   const content = { home: { titleDesigns: { label: "The art of the name", title: "Title Designs" } }, titleDesigns: [
     { name: "First Film", image: "/images/uploads/first.png", alt: "First title" },
     { name: "Name only", image: "" },
@@ -3829,9 +3826,10 @@ test("the title designs strip is its own list: never the projects or the slate, 
     "@/lib/content/context": { useContent: () => content, tx: () => ({}) },
     "@/lib/content/tx": { edSection: (page, id) => ({ "data-ed-section": `${page}:${id}` }), edItem: (list, i) => ({ "data-ed-item": `${list}.${i}` }) },
     "@/components/fx/render-fx": { renderFx: (x) => x },
+    "./sections/useDragMarquee": { useDragMarquee: (options) => { drag.push(options); return { viewport: { current: null }, track: { current: null }, repeats: 3 }; } },
     "./PreviewControls": { AddContent, EditSectionContent },
     "@/lib/images": { versionedSrc: (src) => src, placeholderProps: () => ({}) },
-    "./TitleDesignTrack.module.css": { section: "section", track: "track", group: "group" },
+    "./TitleDesignTrack.module.css": { section: "section", viewport: "viewport", track: "track", group: "group" },
   })("components/TitleDesignTrack.tsx");
   const flatten = (tree) => !tree || typeof tree !== "object" ? [] : Array.isArray(tree)
     ? tree.flatMap(flatten) : [tree, ...flatten(tree.props?.children)];
@@ -3843,20 +3841,25 @@ test("the title designs strip is its own list: never the projects or the slate, 
   assert.deepEqual(nodes.filter((node) => node.props?.["data-ed-item"]).map((node) => node.props["data-ed-item"]), ["titleDesigns.0", "titleDesigns.1"], "each title has one Edit control, on its own list");
   assert.ok(!nodes.some((node) => String(node.props?.["data-ed-item"] ?? "").startsWith("projects")), "nothing in the strip can edit or delete a project");
   assert.ok(!nodes.some((node) => node.props?.href), "titles are not links into projects");
-  assert.equal(nodes.filter((node) => node.props?.src === "/images/uploads/first.png").length, 6, "two titles fill a six-card cycle in both loop copies");
+  assert.equal(drag.at(-1).itemCount, 2, "the drag track knows how many real titles there are");
+  const viewport = nodes.find((node) => node.props?.className === "viewport");
+  assert.equal(viewport.props["data-marquee"], "titleDesigns", "the portal's Edit buttons follow the dragged strip");
+  assert.equal(viewport.props.tabIndex, 0, "the strip can be moved with the arrow keys");
   const groups = nodes.filter((node) => node.props?.className === "group");
-  assert.equal(groups.length, 2, "the loop needs two identical groups");
+  assert.equal(groups.length, 2, "the loop needs two identical halves");
+  assert.equal(groups[0].props.children.length, 6, "each half holds the titles as many times as the track asks for");
   assert.equal(groups[0].props.children.length, groups[1].props.children.length);
-  assert.equal(nodes.find((node) => node.props?.className === "track").props.style.animationDuration, "36s");
+  assert.equal(groups[1].props["aria-hidden"], "true");
+  assert.equal(nodes.filter((node) => node.props?.src === "/images/uploads/first.png").length, 6);
   const css = readFileSync(path.join(root, "components/TitleDesignTrack.module.css"), "utf8");
   assert.match(css, /width:\s*100vw/);
   assert.match(css, /margin-left:\s*calc\(50% - 50vw\)/);
-  assert.match(css, /transform:\s*translateX\(-50%\)/);
-  assert.doesNotMatch(css, /\.section:hover \.track/, "pointer hover must not stop the continuous loop");
+  assert.match(css, /touch-action:\s*pan-y/, "up-and-down touches still scroll the page");
+  assert.match(css, /cursor:\s*grab/);
+  assert.doesNotMatch(css, /animation:/, "the track is moved by the drag code, not a CSS animation that would fight it");
   content.titleDesigns = [];
   const empty = flatten(TitleDesignTrack());
   assert.equal(empty.find((node) => node.type === "section").props["data-empty"], "", "an empty strip is hidden on the public site");
-  assert.ok(!empty.some((node) => node.props?.className === "track"));
 });
 
 test("unpublished project and process pages open only for an authenticated preview", async () => {
