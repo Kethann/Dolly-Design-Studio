@@ -17,7 +17,7 @@ import { hiddenLibraryImages, setLibraryImageHidden } from "@/lib/portal/media-h
 
 /** The image library: every picture the site has, plus uploads (creator portal only). */
 const ROOT = path.join(process.cwd(), "public", "images");
-const MAX_BYTES = 12 * 1024 * 1024; // one file, at most (the portal also checks this before sending)
+const MAX_BYTES = 16 * 1024 * 1024; // one file, at most (the portal also checks this before sending)
 const IMAGE = /\.(webp|png|jpe?g|avif|gif|svg)$/i;
 /** Folders that are the studio's own artwork, not for picking. */
 const HIDDEN = new Set(["brand", "textures", "star-textures"]);
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
   }
   // The kind of picture is decided from its bytes (below), not from what the browser says it is.
   if (!file) return NextResponse.json({ error: "Choose a picture to upload." }, { status: 400 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: "That image is over 12 MB, so it wasn’t uploaded." }, { status: 400 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: "That image is over 16 MB, so it wasn’t uploaded." }, { status: 400 });
 
   try {
     // Shrunk to at most 3200px as high-quality WebP where the server can; otherwise kept exactly as sent.

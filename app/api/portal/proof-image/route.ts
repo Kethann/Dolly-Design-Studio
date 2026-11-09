@@ -11,7 +11,7 @@ import manifest from "@/content/generated/image-manifest.json";
 
 /** Title images for the Proof Table: list the ones on the site, and upload new ones (creator portal only). */
 const URL_BASE = "/images/proof-table/";
-const MAX_BYTES = 12 * 1024 * 1024;
+const MAX_BYTES = 16 * 1024 * 1024;
 
 export async function GET() {
   if (!(await getPortalUser())) return NextResponse.json({ error: "Sign in again." }, { status: 401 });
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   if (!file || !/^image\/(png|webp|jpeg|avif)$/.test(file.type)) {
     return NextResponse.json({ error: "Choose a PNG, WebP, JPG or AVIF image." }, { status: 400 });
   }
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: "That image is over 12 MB, so it wasn’t uploaded." }, { status: 400 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: "That image is over 16 MB, so it wasn’t uploaded." }, { status: 400 });
 
   try {
     // Trim the empty margin around the title and keep it crisp but light: at most 2048px (where the server can; the

@@ -79,7 +79,7 @@ export async function saveImageSizes(src: string, file: Blob): Promise<void> {
 }
 
 /** The most one uploaded file may weigh. Anything bigger is refused (pictures made from a Photoshop file's layers are fitted under it). */
-export const MAX_UPLOAD_MB = 12;
+export const MAX_UPLOAD_MB = 16;
 
 /** Fonts are small files, so their limit stays lower than a picture's. */
 const MAX_FONT_MB = 6;

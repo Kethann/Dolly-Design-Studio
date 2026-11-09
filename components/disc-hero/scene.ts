@@ -476,7 +476,7 @@ export function createDiscScene(canvas: HTMLCanvasElement, initial: DiscImage[],
         try {
           const response = await fetch(images[i].src, { signal, mode: "cors", credentials: "same-origin" });
           if (!response.ok) continue;
-          const blob = await response.blob(); if (blob.size > 12 * 1024 * 1024) continue;
+          const blob = await response.blob(); if (blob.size > 16 * 1024 * 1024) continue;
           let bitmap: ImageBitmap | HTMLImageElement;
           try { bitmap = await createImageBitmap(blob); }
           catch {
