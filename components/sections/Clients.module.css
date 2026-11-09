@@ -220,13 +220,23 @@
   display: block;
   width: var(--media-h);
   height: var(--media-h);
-  object-fit: cover;
+  overflow: hidden;
+  /* Keeps the clip round in Safari while the photo inside is scaled. */
+  isolation: isolate;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
     0 10px 28px rgba(0, 0, 0, 0.45),
     0 0 0 4px rgba(255, 255, 255, 0.05);
   transition: transform 0.35s ease, box-shadow 0.35s ease;
+}
+
+/* The photo fills the frame; its zoom / position (from the portal) are inline styles and are clipped by the frame. */
+.portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* A production house without a logo: its name stands in the picture zone. */

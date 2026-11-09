@@ -39,16 +39,30 @@ function MarqueeTrack({ items, label, reverse, speed, shape, size, logoSize, lis
                   // A picture row: a logo (it speaks for itself) or a round photo with the name underneath, a star between.
                   <span key={i} className={styles.item} {...mark(copy, i)}>
                     <span className={styles.media}>
-                      {it.logo || it.photo ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- logos and portraits, sized by CSS
+                      {it.photo ? (
+                        // The round frame stays the same size and clips; zoom and position move only the photo inside it.
+                        <span className={styles.portrait}>
+                          {/* eslint-disable-next-line @next/next/no-img-element -- portraits, sized by CSS */}
+                          <img
+                            src={resizedSrc(it.photo, 384)}
+                            srcSet={srcSetFor(it.photo, [160, 320, 640, 1080])}
+                            sizes={size === "xxlarge" ? "360px" : size === "xlarge" ? "270px" : "180px"}
+                            alt={it.alt || ""}
+                            draggable={false}
+                            style={adjustStyle(it, "photo")}
+                            loading="eager"
+                            decoding="async"
+                          />
+                        </span>
+                      ) : it.logo ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- logos, sized by CSS
                         <img
-                          src={resizedSrc((it.logo || it.photo) as string, it.photo ? 384 : 640)}
-                          srcSet={srcSetFor((it.logo || it.photo) as string, [160, 320, 640, 1080])}
-                          sizes={it.photo ? size === "xxlarge" ? "360px" : size === "xlarge" ? "270px" : "180px" : logoSize === "xxlarge" ? "320px" : logoSize === "xlarge" ? "240px" : "160px"}
+                          src={resizedSrc(it.logo, 640)}
+                          srcSet={srcSetFor(it.logo, [160, 320, 640, 1080])}
+                          sizes={logoSize === "xxlarge" ? "320px" : logoSize === "xlarge" ? "240px" : "160px"}
                           alt={it.alt || ""}
                           draggable={false}
-                          style={it.photo ? adjustStyle(it, "photo") : undefined}
-                          className={it.photo ? styles.portrait : styles.logo}
+                          className={styles.logo}
                           loading="eager"
                           decoding="async"
                         />
