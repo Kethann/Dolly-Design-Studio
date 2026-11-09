@@ -1678,7 +1678,7 @@ export function MediaLibrary() {
             multiple
             state={uploads.state}
             title="Drop pictures here, or click to choose"
-            hint="PNG, JPG and JPEG are supported, up to 16 MB each. You can also use WebP, AVIF, GIF, SVG, TIFF, BMP or ICO. Large photos are optimized for the site (GIFs stay animated, SVGs stay sharp), ready to pick in any picture field."
+            hint="PNG, JPG and JPEG are supported, up to 30 MB each. You can also use WebP, AVIF, GIF, SVG, TIFF, BMP or ICO. Large photos are optimized for the site (GIFs stay animated, SVGs stay sharp), ready to pick in any picture field."
             onFiles={(files) => { duplicatePolicy.current = null; setSkippedDuplicates(0); setAddedDuplicates(0); setReplacedDuplicates(0); void uploads.start(files, () => {}); }}
           />
           {duplicatePrompt && <div className={styles.duplicateChoice} role="group" aria-label="Duplicate upload choice">

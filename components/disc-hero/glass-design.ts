@@ -244,7 +244,7 @@ export function createGlassDesign({ disc, controls, renderer, lowPower, noise, r
       try {
         const response = await fetch(resolveImage(src), { signal: abort.signal, mode: "cors", credentials: "same-origin" });
         if (!response.ok) return;
-        const blob = await response.blob(); if (blob.size > 16 * 1024 * 1024) return;
+        const blob = await response.blob(); if (blob.size > 30 * 1024 * 1024) return;
         let image: ImageBitmap | HTMLImageElement;
         try { image = await createImageBitmap(blob); }
         catch {

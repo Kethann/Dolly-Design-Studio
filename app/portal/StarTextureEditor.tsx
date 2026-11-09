@@ -136,7 +136,7 @@ export function StarTextureEditor({
         />
         {status.kind === "error" && <p className={styles.loginError}>{status.message}</p>}
         <p className={styles.controlHint}>
-          Seamless patterns tile best (marble, foil, engraving, film grain…). PNG, JPG or WebP, up to 16 MB.
+          Seamless patterns tile best (marble, foil, engraving, film grain…). PNG, JPG or WebP, up to 30 MB.
         </p>
       </div>
 

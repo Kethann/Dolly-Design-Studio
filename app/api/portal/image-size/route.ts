@@ -6,7 +6,7 @@ import { imageSizeKey, IMAGE_SIZE_WIDTHS } from "@/lib/image-sizes";
 import { sniffImage } from "@/lib/portal/image";
 import { store } from "@/lib/storage";
 
-const MAX_BYTES = 16 * 1024 * 1024;
+const MAX_BYTES = 30 * 1024 * 1024;
 const ORIGINALS: [string, string][] = [["/images/uploads/", "uploads/images/"], ["/images/proof-table/", "uploads/proof/"]];
 
 /** Keeps one smaller copy of a picture that was just uploaded. The portal's browser makes the copy; nothing is resized here. */
