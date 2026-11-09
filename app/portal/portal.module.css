@@ -840,6 +840,8 @@
 }
 
 .loginCard .controlLabel {
+  /* The shared label grows to 140px along its row in the editor; in the sign-in column that would be 140px of height. */
+  flex: none;
   margin-top: 4px;
   font-family: inherit;
   font-size: 13px;
