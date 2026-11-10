@@ -172,12 +172,14 @@
 @media (min-width: 1000px) {
   .row {
     display: grid;
-    grid-template-columns: minmax(230px, 0.24fr) minmax(0, 1fr);
+    /* The text column grows just enough to keep the title's longest word whole. */
+    grid-template-columns: minmax(min-content, 0.24fr) minmax(0, 1fr);
     gap: clamp(24px, 3.5vw, 56px);
     align-items: start;
   }
 
   .meta {
+    min-width: 230px;
     position: sticky;
     top: calc(var(--nav-h) + 28px);
     margin-bottom: 0;
@@ -200,6 +202,9 @@
   font-weight: 700;
   font-size: clamp(26px, 3.6vw, 46px);
   line-height: 1.08;
+  /* The title wraps only between words; a word is split only if it is wider than the whole screen. */
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 /* Match the narrow description column, not the full viewport width. */
@@ -441,7 +446,7 @@
 /* Right: the picture first, the words after it. */
 @media (min-width: 1000px) {
   .row[data-text="right"] {
-    grid-template-columns: minmax(0, 1fr) minmax(230px, 0.24fr);
+    grid-template-columns: minmax(0, 1fr) minmax(min-content, 0.24fr);
   }
 
   .row[data-text="right"] .visual {
