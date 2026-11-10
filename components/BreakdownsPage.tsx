@@ -12,6 +12,55 @@ import { renderFx } from "@/components/fx/render-fx";
 import { MediaPlaceholder } from "./MediaPlaceholder";
 import { NavigationTrail } from "./NavigationTrail";
 
+/** A single word of a title up to this many letters always stays on one line (the text gets smaller on narrow screens). */
+const TITLE_WORD_LETTERS = 15;
+
+/**
+ * A breakdown's title. It keeps its normal size; only when its longest word (counting up to 15 letters) is wider than the
+ * column does the text get smaller, just enough to keep that word on one line. Lines still break between words, never inside
+ * one. Checked again when the screen or the column changes size, and once the fonts have loaded.
+ */
+function BreakdownTitle({ text, className }: { text: string; className?: string }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const h = ref.current;
+    if (!h) return;
+    let frame = 0;
+    const fit = () => {
+      frame = 0;
+      h.style.removeProperty("font-size");
+      const room = h.clientWidth;
+      const words = text.split(/\s+/).filter(Boolean);
+      if (!room || !words.length) return;
+      // Each word measured on its own, in the title's own font, size, spacing and capitals.
+      const probe = document.createElement("span");
+      probe.setAttribute("aria-hidden", "true");
+      probe.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap;left:0;top:0";
+      h.appendChild(probe);
+      let widest = 0;
+      for (const word of words) {
+        probe.textContent = word.slice(0, TITLE_WORD_LETTERS);
+        widest = Math.max(widest, probe.getBoundingClientRect().width);
+      }
+      probe.remove();
+      if (widest <= room) return;
+      const size = parseFloat(getComputedStyle(h).fontSize);
+      h.style.fontSize = `${Math.max(14, Math.floor(size * (room / widest) * 0.98 * 10) / 10)}px`;
+    };
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(fit); };
+    fit();
+    const resize = new ResizeObserver(schedule);
+    if (h.parentElement) resize.observe(h.parentElement);
+    document.fonts?.ready.then(schedule).catch(() => {});
+    return () => {
+      resize.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+      h.style.removeProperty("font-size");
+    };
+  }, [text]);
+  return <h2 ref={ref} className={className}>{text}</h2>;
+}
+
 /**
  * Moving between breakdowns: on a wide screen a slim column at the right edge (previous, next, and a scrolling list of
  * numbers, however many there are); on a phone a bar along the bottom with previous, next and where you are.
@@ -203,7 +252,7 @@ export function BreakdownsPage() {
                 <span className={styles.step}>
                   {String(i + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}
                 </span>
-                <h2 className={styles.name}>{item.title}</h2>
+                <BreakdownTitle className={styles.name} text={item.title} />
                 <span className={styles.rule} aria-hidden="true" />
                 {item.note && <p className={styles.note}>{item.note}</p>}
                 {item.description && (

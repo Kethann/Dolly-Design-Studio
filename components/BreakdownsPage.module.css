@@ -172,14 +172,13 @@
 @media (min-width: 1000px) {
   .row {
     display: grid;
-    /* The text column grows just enough to keep the title's longest word whole. */
-    grid-template-columns: minmax(min-content, 0.24fr) minmax(0, 1fr);
+    /* A steady text column; the title's text gets smaller instead when a long word would not fit (see BreakdownTitle). */
+    grid-template-columns: minmax(270px, 0.26fr) minmax(0, 1fr);
     gap: clamp(24px, 3.5vw, 56px);
     align-items: start;
   }
 
   .meta {
-    min-width: 230px;
     position: sticky;
     top: calc(var(--nav-h) + 28px);
     margin-bottom: 0;
@@ -202,7 +201,7 @@
   font-weight: 700;
   font-size: clamp(26px, 3.6vw, 46px);
   line-height: 1.08;
-  /* The title wraps only between words; a word is split only if it is wider than the whole screen. */
+  /* The title wraps only between words; a word is split only as a last resort (BreakdownTitle sizes it to fit first). */
   overflow-wrap: break-word;
   word-break: normal;
 }
@@ -446,7 +445,7 @@
 /* Right: the picture first, the words after it. */
 @media (min-width: 1000px) {
   .row[data-text="right"] {
-    grid-template-columns: minmax(0, 1fr) minmax(min-content, 0.24fr);
+    grid-template-columns: minmax(0, 1fr) minmax(270px, 0.26fr);
   }
 
   .row[data-text="right"] .visual {
